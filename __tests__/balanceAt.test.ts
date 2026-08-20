@@ -1,4 +1,4 @@
-import { balanceAtDate, laterVerification } from '../lib/finance/balanceAt';
+import { balanceAtDate, laterVerification, countConsecutiveOverdraftMonths } from '../lib/finance/balanceAt';
 
 /**
  * REMONTER LE TEMPS SUR UN SOLDE — le calcul dont dépendent tous les écarts écrits en base.
@@ -122,5 +122,49 @@ describe('laterVerification — une vérification plus récente prime', () => {
 
   it('ne regarde que le compte concerné', () => {
     expect(laterVerification(all, 'acc-2', '2026-07-31')).toBeNull();
+  });
+});
+
+/**
+ * DÉCOUVERT CHRONIQUE — la mesure qui distingue une situation d'un mauvais jour.
+ *
+ * Le profil « chroniquement déficitaire » se décidait sur le solde du jour : quelqu'un à −40 € la
+ * veille de sa paie était classé comme quelqu'un qui ne s'en sort pas. Ces cas verrouillent la
+ * seule lecture qui ait un sens — la répétition, mesurée sur des mois RÉVOLUS.
+ */
+describe('countConsecutiveOverdraftMonths', () => {
+  const now = new Date(2026, 7, 20); // 20 août 2026
+  const acc = [{ id: 'a1', balance: -100 }];
+
+  it('aucun compte courant → rien à mesurer', () => {
+    expect(countConsecutiveOverdraftMonths([], [], now)).toBe(0);
+  });
+
+  it('compte dans le rouge aujourd’hui mais mois passés à l’équilibre → 0', () => {
+    // Solde d'aujourd'hui −100, mais une dépense de 500 le 10 août : fin juillet valait +400.
+    const tx = [{ id: 't', account_id: 'a1', date: '2026-08-10', amount: -500 }];
+    expect(countConsecutiveOverdraftMonths(tx, acc, now)).toBe(0);
+  });
+
+  it('compte deux mois consécutifs terminés dans le rouge', () => {
+    // Rien après juin : fin juillet ET fin juin valaient −100 comme aujourd'hui.
+    expect(countConsecutiveOverdraftMonths([], acc, now)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('s’arrête au premier mois revenu à l’équilibre', () => {
+    // Une rentrée de 1 000 € le 5 juillet : fin juin valait −1 100 (rouge), fin juillet −100 (rouge)
+    // … et fin mai −1 100 aussi. On borne avec une ancre positive au 31 mai.
+    const tx = [
+      { id: 'a', account_id: 'a1', date: '2026-05-31', amount: 0, regul_target: 900, note: 'Régularisation solde', created_at: '2026-05-31T09:00:00Z' },
+      { id: 'b', account_id: 'a1', date: '2026-06-15', amount: -1000 },
+    ];
+    // fin mai = +900 (ancre) → la série s'arrête là.
+    const n = countConsecutiveOverdraftMonths(tx, acc, now);
+    expect(n).toBe(2); // juillet et juin dans le rouge, mai à l'équilibre
+  });
+
+  it('le rouge d’un compte compensé par un autre n’est PAS un découvert', () => {
+    const two = [{ id: 'a1', balance: -200 }, { id: 'a2', balance: 900 }];
+    expect(countConsecutiveOverdraftMonths([], two, now)).toBe(0);
   });
 });

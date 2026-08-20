@@ -59,7 +59,7 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
      AUCUNE note — elle n'est alors identifiée que par `regul_target`. Le plan de trésorerie la
      comptait donc comme une vraie recette ou une vraie dépense, et annonçait un mois différent de
      celui du Pilotage et du Reporting, qui utilisent tous deux `isRegul`. */
-  const isRegul = isRegulTx;
+  const isRegul = isRegulTx; // alias local : la définition reste celle de lib/finance/regul
   const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft;
   // RENTRÉE réelle sur le courant depuis un compte NON courant (épargne, invest, externe) → à compter
   // comme une entrée (ex. virement d'épargne pour couvrir une grosse dépense). Entre courants = exclu.

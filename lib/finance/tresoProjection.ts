@@ -6,6 +6,7 @@
  * Les virements récurrents courant ↔ épargne/invest sont inclus (« Autre », signé).
  */
 import { recurringAmountForMonth } from './recurrenceMonth';
+import { isRegul } from './regul';
 
 export interface TresoMonthRow {
   year: number;
@@ -72,7 +73,12 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
   // hors régularisations et hors montants RÉSERVÉS (qui restent sur le compte → font partie du solde).
   const onChecking = (t: any) => checkingIds.has(t.account_id);
   const isTransfer = (t: any) => !!t.linked_account_id;
-  const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
+  /* Définition CANONIQUE (lib/finance/regul) — pas une regex locale sur la note.
+     Celle qui vivait ici ne reconnaissait une régularisation qu'à son libellé : une régul saisie à
+     la main peut n'avoir AUCUNE note et n'être identifiée que par `regul_target`. Elle entrait donc
+     dans la projection comme une vraie recette ou une vraie dépense — et cette trajectoire est LA
+     référence de l'app (courbe de Projection, soldes 12 mois du Pilotage, garde-fou de marge des
+     recommandations). Une correction de solde y déformait tout ce qui en dépend. */
   // Virement synthétique vers/depuis un compte partagé « contribution » (périmètre) :
   //   • cible ÉPARGNE/INVEST partagée → « Autre (épargne, invest…) » comme un virement épargne classique ;
   //   • cible COURANTE (charges communes) → dépense/recette NORMALE (récurrent → dépenses prévues,

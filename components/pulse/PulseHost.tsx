@@ -21,6 +21,7 @@ import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGuide } from '../../contexts/GuideContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { usePulse, type PulseData } from '../../hooks/pulse/usePulse';
@@ -133,8 +134,12 @@ export default function PulseHost() {
   /* On n'exige QUE des signaux à montrer : un bilan « estimé » (compte récent, solde jamais
      vérifié) a du sens — il récapitule le mois écoulé. L'ancienneté du compte n'entre pas non
      plus en jeu : avoir clôturé un mois, c'est par définition l'avoir vécu. */
+  /* Le PARCOURS DE DÉMARRAGE passe avant tout le reste — il n'est pas dans la file, il la précède.
+     Un compte encore en installation n'a pas de mois écoulé à raconter, et le bilan viendrait se
+     poser par-dessus l'étape en cours. */
+  const guide = useGuide();
   const wants = !!canShow && !!pulse && !!config?.monthly && livedLastMonth
-    && pulse.monthly.signals.length > 0 && !monthSeen && closureSettled;
+    && pulse.monthly.signals.length > 0 && !monthSeen && closureSettled && !guide.active;
 
   const turn = useInterruptSlot('pulse_month', wants);
 

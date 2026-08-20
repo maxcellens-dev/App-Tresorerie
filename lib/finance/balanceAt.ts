@@ -151,3 +151,41 @@ export function laterVerification(
   const after = anchorsOf(allTx, accountId).filter((a) => a.date > d);
   return after.length ? { date: after[after.length - 1].date } : null;
 }
+
+/**
+ * Combien de mois CONSÉCUTIFS se sont terminés dans le rouge ?
+ *
+ * C'est la mesure qui manquait pour dire « découvert chronique ». Sans elle, l'app ne savait
+ * distinguer que deux choses : le compte est négatif AUJOURD'HUI, ou il ne l'est pas. Or un solde
+ * négatif un mardi ne dit presque rien — on attend une paie, on a payé ses impôts, on a laissé
+ * filer le courant en gardant son livret. Ce qui décrit une situation, c'est la RÉPÉTITION :
+ * finir plusieurs mois d'affilée dans le rouge.
+ *
+ * On remonte donc mois par mois depuis le dernier mois RÉVOLU (le mois en cours n'est pas fini :
+ * son solde de fin n'existe pas encore) et on s'arrête au premier mois qui se termine à l'équilibre
+ * ou au-dessus. Le solde de fin de mois vient de `balanceAtDate` — donc du modèle d'ancres, pas
+ * d'une soustraction naïve qui ignorerait les régularisations.
+ *
+ * Le total est pris sur TOUS les comptes courants : être à −200 € sur l'un et +900 € sur l'autre
+ * n'est pas un découvert, c'est une répartition.
+ */
+export function countConsecutiveOverdraftMonths(
+  allTx: BalanceTx[],
+  checkingAccounts: { id: string; balance: number }[],
+  now: Date = new Date(),
+  maxMonths = 6,
+): number {
+  if (checkingAccounts.length === 0) return 0;
+  let count = 0;
+  for (let back = 1; back <= maxMonths; back++) {
+    // Dernier jour du mois révolu n° `back` (1 = le mois dernier).
+    const end = new Date(now.getFullYear(), now.getMonth() - back + 1, 0);
+    const iso = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    const total = checkingAccounts.reduce(
+      (s, a) => s + balanceAtDate(allTx, a.id, a.balance, iso, now), 0,
+    );
+    if (total >= 0) break;
+    count++;
+  }
+  return count;
+}

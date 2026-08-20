@@ -33,6 +33,7 @@ import {
 } from '../../../lib/finance/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '../../../lib/finance/securityCushion';
 import type { QuestionnaireAnswers } from '../../../lib/finance/financialProfileEngine';
+import { resolveMonthlyAllocation } from '../../../lib/finance/financialPriorities';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -107,7 +108,6 @@ function ProfilFinancierScreen() {
   // renvoyait l'utilisateur sur l'écran « ton profil se calcule tout seul », profil à l'appui.
   const profileId = fp?.profile_id ? resolveProfileId(fp.profile_id) : undefined;
   const info = profileId ? PROFILE_INFO[profileId] : null;
-  const alloc = profileId ? PROFILE_ALLOCATIONS[profileId] : null;
   const a = (saved ?? {}) as Partial<QuestionnaireAnswers>;
 
   /** Matelas MESURÉ sur les données réelles — c'est lui qui remplace l'ancienne question q5. */
@@ -117,6 +117,27 @@ function ProfilFinancierScreen() {
     avgMonthlyIncome: pilotage?.avg_monthly_income ?? 0,
     questionnaireQ3: a.q3 ?? null,
   });
+
+  /* ── LES POURCENTAGES AFFICHÉS SONT CEUX QUI SONT APPLIQUÉS ────────────────────────────────
+     Cet écran lisait `PROFILE_ALLOCATIONS[profileId]` — la table BRUTE du palier. Or la
+     répartition réellement utilisée par les recommandations passe par les BORNES DE LA PRIORITÉ
+     du mois (cf. resolveMonthlyAllocation) : un P6 en déficit structurel se voit recommander 0 %
+     d'investissement, pendant que cette page continuait d'annoncer 30 %. Deux chiffres pour la
+     même chose, sur deux écrans — exactement ce que le profil est censé expliquer.
+     `resolveMonthlyAllocation` est le point d'entrée unique prévu pour ça ; il n'était appelé
+     nulle part. Sans données de Pilotage, on retombe sur la table du palier. */
+  const situation = pilotage ? {
+    monthsOfReserve: cushion.months,
+    monthlySurplus: pilotage.projected_surplus ?? 0,
+    avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
+    monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+    checkingBalance: pilotage.current_checking_balance ?? 0,
+    savingsBalance: pilotage.current_savings ?? 0,
+    investedBalance: pilotage.total_invested ?? 0,
+    irregularIncome: Boolean((fp as any)?.is_irregular_income),
+  } : null;
+  const resolved = profileId && situation ? resolveMonthlyAllocation(profileId, situation) : null;
+  const alloc = resolved?.alloc ?? (profileId ? PROFILE_ALLOCATIONS[profileId] : null);
 
   const margin = Number((userProfile as any)?.safety_margin_amount ?? 0);
   const weekly = Number((userProfile as any)?.weekly_variable_budget ?? 0);
@@ -271,10 +292,19 @@ function ProfilFinancierScreen() {
           {/* ── Ce qu'il change concrètement ── */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Ce qu’il change</Text>
+            {/* Le profil PROPOSE, la situation du mois DISPOSE : dire « il fixe la répartition »
+                serait faux depuis que la priorité du mois borne les pourcentages — et l'écran
+                annoncerait autre chose que ce que le Pilotage applique. */}
             <Text style={styles.cardLead}>
-              Il fixe la <Text style={styles.b}>répartition</Text> de ton Relyka entre les quatre
+              Il oriente la <Text style={styles.b}>répartition</Text> de ton Relyka entre les quatre
               décisions — jamais les montants, qui viennent de ta trésorerie réelle.
             </Text>
+            {resolved && (
+              <Text style={styles.cardLead}>
+                Ce mois-ci, la priorité <Text style={styles.b}>{resolved.priority.label.toLowerCase()}</Text> ajuste
+                ces pourcentages : {resolved.priority.reason}
+              </Text>
+            )}
             {ALLOC_ROWS.map(({ label, key, color }) => (
               <View key={key} style={styles.allocRow}>
                 <Text style={styles.allocLabel}>{label}</Text>

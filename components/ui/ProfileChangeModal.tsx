@@ -10,32 +10,43 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useGuide } from '../../contexts/GuideContext';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { sheetWidth } from '../../lib/ui/appLayout';
+import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
+import { resolveMonthlyAllocation } from '../../lib/finance/financialPriorities';
+import { computeSecurityCushion } from '../../lib/finance/securityCushion';
 
 
 interface Props {
   userId: string | undefined;
 }
 
-function getTransitionKey(prev: string | null, next: string, reason: string): { transition: string; direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same' } | null {
+interface TransitionKey {
+  transition: string;
+  direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same';
+  /** Nombre de paliers franchis. 1 = passage voisin, ≥ 2 = saut. */
+  steps: number;
+}
+
+function getTransitionKey(prev: string | null, next: string, reason: string): TransitionKey | null {
   // Bilan mensuel : le profil n'a pas changé → message « maintien », clé = profil courant.
   if (reason === 'monthly_recap') {
-    return { transition: next, direction: 'same' };
+    return { transition: next, direction: 'same', steps: 0 };
   }
   if (reason === 'exceptional_revenue_drop') {
     if (!prev) return null;
     const prevNum = parseInt(prev.replace('P', ''));
     const nextNum = parseInt(next.replace('P', ''));
     const diff = prevNum - nextNum;
-    return { transition: diff >= 2 ? 'exceptional_two' : 'exceptional_one', direction: 'exceptional' };
+    return { transition: diff >= 2 ? 'exceptional_two' : 'exceptional_one', direction: 'exceptional', steps: Math.abs(diff) };
   }
 
   if (!prev) return null;
   const prevNum = parseInt(prev.replace('P', ''));
   const nextNum = parseInt(next.replace('P', ''));
+  const steps = Math.abs(nextNum - prevNum);
   if (nextNum > prevNum) {
-    return { transition: `P${prevNum}_P${nextNum}`, direction: 'upgrade' };
+    return { transition: `P${prevNum}_P${nextNum}`, direction: 'upgrade', steps };
   }
-  return { transition: `P${nextNum}_P${prevNum}`, direction: 'downgrade' };
+  return { transition: `P${nextNum}_P${prevNum}`, direction: 'downgrade', steps };
 }
 
 // Replis si la ligne n'existe pas en base — TUTOIEMENT, comme partout dans l'app (migration 145).
@@ -57,21 +68,37 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
   'P5|same': { title: '🎯 Tu conserves le profil', body: 'Ta maturité financière se maintient ce mois-ci. \nContinue à optimiser ton patrimoine.' },
 };
 
-/* Repli de DERNIER recours, par sens de variation. Les libellés ci-dessus ne couvrent que les sauts
-   d'UN palier (P2_P3, P3_P4…) : un saut de plusieurs paliers — typiquement une baisse P4 → P2 —
-   ne trouvait donc rien, ni en base ni ici, et le modal se réduisait au nom du nouveau profil.
-   Le détail de ce qui change, lui, est toujours donné par la répartition affichée en dessous. */
+/* Repli de DERNIER recours, par sens de variation ET par AMPLITUDE.
+   Les libellés ci-dessus ne couvrent que les passages d'UN palier. Or depuis que le profil est
+   évalué en temps réel, les sauts de plusieurs paliers sont devenus COURANTS — ajouter son compte
+   d'épargne fait passer de P2 à P6 d'un coup. Un « ta situation s'est renforcée » générique gâche
+   alors le seul moment où l'utilisateur mesure ce qu'il a accompli.
+   On ne multiplie pas les libellés par paire (il en faudrait 45) : on parle de ce qui est
+   réellement remarquable — le nombre de paliers franchis. */
 const GENERIC_BY_DIRECTION: Record<string, string> = {
   upgrade: 'Ta situation s’est renforcée : Relyka en tient compte dans ce qu’il te recommande.',
   downgrade: 'Ta situation s’est resserrée : Relyka redevient plus prudent, le temps que ça remonte.',
   exceptional: 'Relyka s’adapte à ce que disent tes derniers mois.',
 };
 
+/** Message des SAUTS (2 paliers et plus), qu'aucun libellé par paire ne couvre. */
+function leapMessage(direction: string, steps: number): string | null {
+  if (steps < 2) return null;
+  if (direction === 'upgrade') {
+    return `Tu franchis ${steps} paliers d’un coup : ce que tu viens d’enregistrer change nettement ta situation. Relyka ajuste ses recommandations en conséquence.`;
+  }
+  if (direction === 'downgrade') {
+    return `Ton profil recule de ${steps} paliers. Ce n’est pas un jugement : Relyka redevient simplement plus prudent tant que la situation ne s’est pas rétablie.`;
+  }
+  return null;
+}
+
 export default function ProfileChangeModal({ userId }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isImpersonating } = useAuth();
   const guide = useGuide();
+  const { data: pilotage } = usePilotageData(userId);
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
@@ -128,8 +155,13 @@ export default function ProfileChangeModal({ userId }: Props) {
       title = dbMsg.title;
       body = dbMsg.body;
     } else {
+      /* Un SAUT de plusieurs paliers passe avant le libellé par paire : celui-ci n'existe de toute
+         façon que pour les passages voisins, et il raconterait une étape que l'utilisateur n'a pas
+         vécue. */
+      const leap = leapMessage(key.direction, key.steps);
       const fallback = DEFAULT_MESSAGES[`${key.transition}|${key.direction}`];
-      if (fallback) { title = fallback.title; body = fallback.body; }
+      if (leap) body = leap;
+      else if (fallback) { title = fallback.title; body = fallback.body; }
       else body = GENERIC_BY_DIRECTION[key.direction] ?? '';
     }
   }
@@ -150,9 +182,31 @@ export default function ProfileChangeModal({ userId }: Props) {
      plusieurs paliers, ex. P4 → P2) et où il ne restait donc que le nom du nouveau profil.
      On montre donc les nouveaux pourcentages, avec l'écart par poste quand il y a un avant : c'est
      exactement ce qui bouge, et ça se lit en une seconde. */
-  const nextAlloc = PROFILE_ALLOCATIONS[newProfileId];
+  /* Les pourcentages ANNONCÉS sont ceux qui seront APPLIQUÉS. La table brute du palier est ajustée
+     par la priorité du mois (cf. resolveMonthlyAllocation) : afficher 30 % d'investissement dans la
+     fenêtre qui célèbre un nouveau palier, pendant que le tableau de bord en recommande 0 parce que
+     le mois ne se boucle pas, c'est se contredire à une seconde d'intervalle.
+     La comparaison avant/après reste faite à priorité ÉGALE — c'est bien l'effet du CHANGEMENT DE
+     PALIER qu'on montre, pas celui de la situation du mois, qui n'a pas bougé entre les deux. */
+  const situation = pilotage ? {
+    monthsOfReserve: computeSecurityCushion({
+      availableSavings: pilotage.current_savings ?? 0,
+      monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+      avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
+    }).months,
+    monthlySurplus: pilotage.projected_surplus ?? 0,
+    avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
+    monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+    checkingBalance: pilotage.current_checking_balance ?? 0,
+    savingsBalance: pilotage.current_savings ?? 0,
+    investedBalance: pilotage.total_invested ?? 0,
+  } : null;
+  const applied = (id: FinancialProfileId) =>
+    (situation ? resolveMonthlyAllocation(id, situation).alloc : PROFILE_ALLOCATIONS[id]);
+
+  const nextAlloc = applied(newProfileId);
   const prevProfileId = pendingChange.previous_profile as FinancialProfileId | null;
-  const prevAlloc = prevProfileId && prevProfileId !== newProfileId ? PROFILE_ALLOCATIONS[prevProfileId] : null;
+  const prevAlloc = prevProfileId && prevProfileId !== newProfileId ? applied(prevProfileId) : null;
   const ALLOC_ROWS: { label: string; k: 'save' | 'invest' | 'enjoy' | 'keep'; color: string }[] = [
     { label: 'Épargner', k: 'save', color: COLORS.green ?? COLORS.emerald },
     { label: 'Investir', k: 'invest', color: COLORS.violet },

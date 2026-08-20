@@ -5,6 +5,7 @@ import {
   computeInitialProfile,
   computeProfileFromData,
   resolveLiveProfile,
+  thresholdsFromMatrix,
   detectIrregularIncome,
   computeMonthlyMetrics,
   PROFILE_ALLOCATIONS,
@@ -13,6 +14,7 @@ import {
 } from '../../lib/finance/financialProfileEngine';
 import { computeReferenceMonthlyIncome } from '../../lib/finance/incomeAverage';
 import { isoDay } from '../../lib/dateUtils';
+import { countConsecutiveOverdraftMonths } from '../../lib/finance/balanceAt';
 import type {
   UserFinancialProfile,
   UserQuestionnaireAnswers,
@@ -369,6 +371,8 @@ interface RealMetricsResult {
   investedBalance: number;
   /** Revenu de référence — LE MÊME que celui affiché partout (cf. lib/incomeAverage). */
   avgMonthlyIncome: number;
+  /** Mois RÉVOLUS consécutifs terminés dans le rouge (0 = aucun). ≥ seuil ⇒ découvert chronique. */
+  consecutiveOverdraftMonths: number;
   q3: string | null;
 }
 
@@ -389,7 +393,11 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     supabase.from('transactions')
       // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
       // partagé (une recette « régul » ou posée sur une catégorie de dépense n'en est pas une).
-      .select('id, amount, date, account_id, linked_account_id, is_draft, is_reserved, note, is_recurring, recurrence_rule, recurrence_end_date, materialized_from, category:categories(type)')
+      /* `regul_target`, `regul_covered` et `created_at` : indispensables au modèle d'ANCRES
+         (cf. lib/balanceAt). Sans eux, reconstituer un solde de fin de mois retombe sur une
+         soustraction naïve qui ignore les régularisations — et le décompte des mois dans le rouge
+         serait faux précisément chez ceux qui corrigent leurs soldes. */
+      .select('id, amount, date, account_id, linked_account_id, is_draft, is_reserved, note, is_recurring, recurrence_rule, recurrence_end_date, materialized_from, regul_target, regul_covered, created_at, category:categories(type)')
       .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
     supabase.from('accounts')
       .select('id, type, balance')
@@ -423,12 +431,25 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     linked_account_type: t.linked_account_id ? (accountTypeMap[t.linked_account_id] ?? null) : null,
   }));
 
+  /* DÉCOUVERT CHRONIQUE — mesuré, enfin. Le moteur l'attendait (`consecutiveOverdraftMonths`) mais
+     personne ne le calculait : « chroniquement déficitaire » se décidait donc sur le solde du jour.
+     On compte les mois RÉVOLUS terminés dans le rouge, tous comptes courants confondus, via le
+     modèle d'ancres (cf. lib/balanceAt) — pas une soustraction naïve qui ignorerait les
+     régularisations. */
+  const checkingAccounts = (accounts ?? [])
+    .filter((a: any) => a.type === 'checking')
+    .map((a: any) => ({ id: a.id, balance: Number(a.balance) }));
+  const consecutiveOverdraftMonths = countConsecutiveOverdraftMonths(
+    (txns ?? []) as any[], checkingAccounts, today,
+  );
+
   const q3 = ((answers as any)?.q3 ?? null) as string | null;
   return {
     metrics: computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, q3),
     savingsBalance,
     checkingBalance,
     investedBalance,
+    consecutiveOverdraftMonths,
     // MÊME mesure que le Pilotage et la page « Profil financier ». Il y en avait deux, elles ne
     // s'accordaient pas, et c'est le profil qui en payait le prix (cf. lib/incomeAverage).
     avgMonthlyIncome: computeReferenceMonthlyIncome(
@@ -489,6 +510,12 @@ export function useLiveProfileSync(userId: string | undefined) {
       const pilotage = client.getQueryData<any>(['pilotage_data', userId]);
       const essentials = Number(pilotage?.monthly_essential_expenses) || undefined;
 
+      /* SEUILS DE L'ÉCHELLE : lus dans `profile_matrix_config` (écran d'administration), jamais
+         codés en dur. Une lecture en échec retombe champ par champ sur les valeurs de repli — le
+         profil reste calculable hors-ligne, avec le comportement documenté. */
+      const { data: matrix } = await supabase.from('profile_matrix_config').select('*');
+      const thresholds = thresholdsFromMatrix(matrix as any[]);
+
       /* Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
          Données incomplètes → P0 « Découverte » : on dit qu'on ne sait pas encore, au lieu de
          classer d'office en « épargne critique » quelqu'un qui vient d'arriver. */
@@ -499,6 +526,8 @@ export function useLiveProfileSync(userId: string | undefined) {
            n'y a plus rien pour le combler, ou si les charges dépassent le revenu (cf.
            `hasStructuralDeficit`). Un rouge passager avant la paie n'est pas une situation. */
         checkingBalance: real.checkingBalance,
+        // Ce qui transforme un découvert en DIAGNOSTIC : sa répétition, pas sa présence.
+        consecutiveOverdraftMonths: real.consecutiveOverdraftMonths,
         /* Patrimoine BANCAIRE (le seul que l'app connaisse) : il gouverne les paliers hauts, où le
            nombre de mois de réserve ne distingue plus rien. */
         totalLiquidWealth: real.checkingBalance + real.savingsBalance + real.investedBalance,
@@ -518,7 +547,7 @@ export function useLiveProfileSync(userId: string | undefined) {
          exige que le seuil soit franchi FRANCHEMENT dans le sens du trajet. C'est ce qui permet
          d'évaluer en continu sans ralentir l'évaluation. */
       const current = (fp as any)?.profile_id as FinancialProfileId | undefined;
-      const live = resolveLiveProfile(current ?? null, inputs);
+      const live = resolveLiveProfile(current ?? null, inputs, thresholds);
       const next = live.profileId;
 
       if (!live.changed && fp) return next;
@@ -551,7 +580,12 @@ export function useLiveProfileSync(userId: string | undefined) {
           user_id: userId,
           previous_profile: (fp as any).profile_id,
           new_profile: next,
-          change_reason: 'automatic_upgrade',
+          /* Le SENS réel du changement. Il était écrit « automatic_upgrade » en dur : une BAISSE de
+             profil était donc journalisée comme une hausse. La fenêtre affichée à l'utilisateur ne
+             s'en apercevait pas (elle recalcule le sens depuis les deux paliers), mais tout ce qui
+             lit le journal — statistiques d'administration, historique — comptait des hausses qui
+             n'en étaient pas. */
+          change_reason: live.direction === 'down' ? 'automatic_downgrade' : 'automatic_upgrade',
           triggered_at: now,
           notification_shown: false,
         });
@@ -617,67 +651,20 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
          bilan mensuel (le journal `profile_change_log`), qui, lui, reste un rendez-vous. */
       const alreadyReportedThisMonth = fp.last_auto_evaluation === currentMonthStr;
 
-      // Charger la config de la matrice + la tranche de revenu déclarée (repli du matelas de sécurité
-      // tant qu'aucune recette n'a encore été constatée — cf. lib/securityCushion).
-      const [{ data: configs }, { data: answers }] = await Promise.all([
-        supabase.from('profile_matrix_config').select('*'),
-        supabase.from('user_questionnaire_answers').select('q3').eq('user_id', userId).maybeSingle(),
-      ]);
-
-      const configMap: Record<string, any> = {};
-      (configs ?? []).forEach((c: any) => { configMap[c.transition] = c; });
-
-      // Charger les transactions des 6 derniers mois (heure LOCALE : cf. `isoDay`).
-      const sixMonthsAgo = isoDay(new Date(today.getFullYear(), today.getMonth() - 6, 1));
-      const { data: txns, error: txErr } = await supabase
-        .from('transactions')
-        .select('amount, date, account_id, linked_account_id, is_draft')
-        .eq('profile_id', userId)
-        .eq('is_draft', false)
-        .gte('date', sixMonthsAgo);
-
-      // Charger les comptes pour connaître leur type
-      const { data: accounts, error: accErr } = await supabase
-        .from('accounts')
-        .select('id, type, balance')
-        .eq('profile_id', userId)
-        .eq('is_active', true)
-        .eq('is_joint', false); // comptes joints exclus des agrégats perso
-
-      /* ⚠️ Une lecture en échec ne vaut PAS « rien à lire ». Sans ce contrôle, un incident réseau
-         donnait des métriques à zéro — revenus nuls, épargne nulle — et cette évaluation ÉCRIT le
-         profil : l'utilisateur pouvait être rétrogradé par une simple coupure. On n'évalue pas. */
-      if (txErr || accErr) return;
-
-      const accountTypeMap: Record<string, string> = {};
-      let savingsBalance = 0;
-      let checkingBalance = 0;
-      (accounts ?? []).forEach((a: any) => {
-        accountTypeMap[a.id] = a.type;
-        if (a.type === 'savings') savingsBalance += Number(a.balance);
-        if (a.type === 'checking') checkingBalance += Number(a.balance);
-      });
-
-      const rawTxns = (txns ?? []).map((t: any) => ({
-        amount: Number(t.amount),
-        date: t.date,
-        account_type: accountTypeMap[t.account_id] ?? 'other',
-        linked_account_type: t.linked_account_id ? (accountTypeMap[t.linked_account_id] ?? null) : null,
-      }));
-
       /* ── CETTE ÉVALUATION NE DÉCIDE PLUS DU PROFIL ──────────────────────────────────────────
          Deux moteurs écrivaient `profile_id` avec des règles DIFFÉRENTES : le profil vivant
-         (`useLiveProfileSync`, à chaque changement de données, matelas en mois de dépenses) et
-         celui-ci (une fois par mois, matrice `profile_matrix_config` et compteurs de mois
-         consécutifs). Ils se contredisaient : le palier obtenu dépendait de qui avait écrit en
-         dernier — et le profil pouvait donc changer tout seul, le 1er du mois, sans qu'aucune
-         donnée n'ait bougé.
+         (`useLiveProfileSync`, à chaque changement de données) et celui-ci (une fois par mois,
+         matrice et compteurs de mois consécutifs). Ils se contredisaient : le palier obtenu
+         dépendait de qui avait écrit en dernier — et le profil pouvait changer tout seul le 1er du
+         mois, sans qu'aucune donnée n'ait bougé.
 
-         UN SEUL décide désormais : le profil vivant. Il reste à celle-ci ce qu'elle sait faire de
-         mieux et que l'autre ne fait pas — le RENDEZ-VOUS MENSUEL : une entrée de journal par mois,
-         qui porte la notification. Elle ne touche plus ni au palier, ni aux allocations. */
-      const metrics = computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, (answers as any)?.q3 ?? null);
-      void metrics; // conservé : le bilan mensuel s'en servira pour commenter l'évolution.
+         UN SEUL décide désormais : le profil vivant. Il ne reste ici que le RENDEZ-VOUS MENSUEL —
+         une entrée de journal par mois, qui porte la notification.
+
+         Elle lisait encore six mois de transactions, tous les comptes, la matrice et le
+         questionnaire pour en tirer des métriques que plus personne n'utilisait : un aller-retour
+         complet à chaque ouverture de l'app, pour rien. Poser un rendez-vous ne demande que la
+         date. */
 
       // Pendant le gel initial, pas de bilan : il tomberait sur des données encore partielles.
       if (frozen) return;

@@ -42,6 +42,9 @@ const TABS: { key: Tab; label: string }[] = [
    devenait le seul endroit à ignorer la moitié des profils. */
 const ALL_PROFILES: FinancialProfileId[] = FINANCIAL_PROFILE_IDS;
 
+/** Les trois passages gouvernés par le PATRIMOINE, et non par le seul matelas. */
+const WEALTH_TRANSITIONS = new Set(['P6_P7', 'P7_P8', 'P8_P9']);
+
 const TRANSITIONS = PROFILE_TRANSITION_KEYS.map((key) => {
   const [from, to] = key.split('_') as [FinancialProfileId, FinancialProfileId];
   return { key, label: `${from} → ${to}`, from, to };
@@ -319,6 +322,14 @@ function MatrixSection({ userId }: { userId: string }) {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
+  /** Champ laissé vide → `null` (le moteur applique son repli), et non 0 (seuil nul). */
+  const numOrNull = (raw: string | undefined): number | null => {
+    const t = String(raw ?? '').replace(',', '.').trim();
+    if (t === '') return null;
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? n : null;
+  };
+
   function startEdit(transition: string) {
     const cfg = configs.find((c: any) => c.transition === transition);
     if (cfg) {
@@ -328,6 +339,9 @@ function MatrixSection({ userId }: { userId: string }) {
         downgrade_months_threshold: String(cfg.downgrade_months_threshold),
         downgrade_flux_threshold: String(cfg.downgrade_flux_threshold),
         anti_yoyo_months: String(cfg.anti_yoyo_months),
+        upgrade_wealth_threshold: String((cfg as any).upgrade_wealth_threshold ?? ''),
+        downgrade_wealth_threshold: String((cfg as any).downgrade_wealth_threshold ?? ''),
+        chronic_overdraft_months: String((cfg as any).chronic_overdraft_months ?? ''),
       });
     }
     setEditingKey(transition);
@@ -342,7 +356,12 @@ function MatrixSection({ userId }: { userId: string }) {
         downgrade_months_threshold: parseFloat(editValues.downgrade_months_threshold) || 0,
         downgrade_flux_threshold: parseFloat(editValues.downgrade_flux_threshold) || 0,
         anti_yoyo_months: parseInt(editValues.anti_yoyo_months) || 1,
-      });
+        /* Vide ⇒ `null`, JAMAIS 0. Le moteur retombe alors sur sa valeur de repli ; un zéro, lui,
+           serait un seuil atteint par tout le monde. */
+        upgrade_wealth_threshold: numOrNull(editValues.upgrade_wealth_threshold),
+        downgrade_wealth_threshold: numOrNull(editValues.downgrade_wealth_threshold),
+        chronic_overdraft_months: numOrNull(editValues.chronic_overdraft_months),
+      } as any);
       setEditingKey(null);
       Alert.alert('Sauvegardé');
     } catch (e: unknown) {
@@ -354,8 +373,13 @@ function MatrixSection({ userId }: { userId: string }) {
 
   return (
     <View style={styles.sectionContent}>
+      {/* Ce texte décrivait l'ANCIEN moteur (compteurs de mois consécutifs), débranché depuis que le
+          profil est évalué en temps réel. Il décrit maintenant ce qui se passe réellement. */}
       <Text style={styles.matrixInfo}>
-        Les montées requièrent {'{anti_yoyo_months}'} mois consécutifs. Les descentes sont immédiates.
+        Le profil est recalculé DÈS QUE les données changent. L’écart entre le seuil de montée et
+        celui de descente est la bande dans laquelle rien ne bouge : c’est elle qui empêche le
+        profil de basculer d’avant en arrière autour d’un seuil. Un champ laissé vide reprend la
+        valeur par défaut du moteur.
       </Text>
 
       {TRANSITIONS.map(({ key: transition, label, from, to }) => {
@@ -386,6 +410,18 @@ function MatrixSection({ userId }: { userId: string }) {
                   { field: 'downgrade_months_threshold', label: 'Descente — mois de DÉPENSES couverts <' },
                   { field: 'downgrade_flux_threshold',   label: 'Descente — flux total < (%)' },
 
+                  /* PALIERS DE PATRIMOINE : ne concernent que P6→P7, P7→P8, P8→P9. Sur ces trois
+                     transitions, « mois de dépenses couverts » est la RÉSERVE minimale exigée en
+                     plus du montant — le patrimoine seul n'ouvre jamais un palier. */
+                  ...(WEALTH_TRANSITIONS.has(transition) ? [
+                    { field: 'upgrade_wealth_threshold',   label: 'Montée — patrimoine bancaire ≥ (€)' },
+                    { field: 'downgrade_wealth_threshold', label: 'Descente — patrimoine bancaire < (€)' },
+                  ] : []),
+                  /* Le découvert CHRONIQUE gouverne l'entrée en profil déficitaire. Porté par la
+                     ligne P1_P2, la seule où il ait un sens. */
+                  ...(transition === 'P1_P2' ? [
+                    { field: 'chronic_overdraft_months', label: 'Découvert chronique — mois consécutifs ≥' },
+                  ] : []),
                   { field: 'anti_yoyo_months',           label: 'Mois consécutifs requis (montée)' },
                 ].map(({ field, label: fl }) => (
                   <View key={field} style={styles.matrixRow}>
@@ -423,9 +459,17 @@ function MatrixSection({ userId }: { userId: string }) {
                 <Text style={styles.matrixSummaryText}>
                   ↓ Descente : &lt; {cfg.downgrade_months_threshold} mois · &lt; {cfg.downgrade_flux_threshold} % flux
                 </Text>
-                <Text style={styles.matrixSummaryText}>
-                  Anti-yoyo : {cfg.anti_yoyo_months} mois consécutifs
-                </Text>
+                {WEALTH_TRANSITIONS.has(transition) && (
+                  <Text style={styles.matrixSummaryText}>
+                    💰 Patrimoine : ≥ {(cfg as any).upgrade_wealth_threshold ?? '—'} € ·
+                    sortie &lt; {(cfg as any).downgrade_wealth_threshold ?? '—'} €
+                  </Text>
+                )}
+                {transition === 'P1_P2' && (
+                  <Text style={styles.matrixSummaryText}>
+                    Découvert chronique : {(cfg as any).chronic_overdraft_months ?? '—'} mois consécutifs
+                  </Text>
+                )}
               </View>
             ) : (
               <Text style={{ color: COLORS.textSecondary }}>Non configuré</Text>

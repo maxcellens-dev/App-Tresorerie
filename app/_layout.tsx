@@ -161,6 +161,20 @@ function ForegroundRefetch() {
     });
     return () => sub.remove();
   }, [qc]);
+
+  /* ── REVALIDATION AU DÉMARRAGE — le pendant indispensable du cache persisté ─────────────────
+     Le cache réhydraté peint la première page instantanément, mais `refetchOnMount: false` (posé
+     plus haut pour éviter le churn de navigation) signifie qu'une donnée périmée réhydratée ne se
+     rafraîchirait JAMAIS toute seule : l'app afficherait sans broncher les montants du dernier
+     démarrage. C'est pire qu'un chargement.
+     On relance donc UNE fois, une fois l'arbre monté, les requêtes actives réellement périmées :
+     affichage immédiat, mise à jour en fond. Ce qui est encore frais n'est pas retouché. */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      qc.refetchQueries({ type: 'active', stale: true }).catch(() => {});
+    }, 0);
+    return () => clearTimeout(t);
+  }, [qc]);
   return null;
 }
 

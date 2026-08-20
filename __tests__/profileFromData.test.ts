@@ -8,6 +8,8 @@ import {
   isMillionaire,
   resolveProfileId,
   resolveLiveProfile,
+  DEFAULT_PROFILE_THRESHOLDS,
+  thresholdsFromMatrix,
 } from '../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
 
@@ -230,43 +232,110 @@ describe('resolveLiveProfile — temps réel avec hystérésis', () => {
     expect(r.profileId).toBe('P3');
   });
 
-  it('un franchissement JUSTE acquis ne fait pas monter', () => {
-    // 6,1 mois : au-dessus du seuil de P5, mais pas de la marge (6,1 × 0,85 = 5,2).
-    const r = resolveLiveProfile('P4', withCushion(6.1));
-    expect(r.changed).toBe(false);
-  });
-
-  it('une évolution FRANCHE fait monter tout de suite', () => {
-    const r = resolveLiveProfile('P4', withCushion(9));
+  /* La bande est ASYMÉTRIQUE : on monte dès que le but est atteint, on ne redescend que sur une
+     vraie rechute. Reporter la bonne nouvelle au prétexte qu'elle est « tout juste acquise » serait
+     mesquin — six mois de réserve, c'est six mois de réserve. */
+  it('atteindre le seuil fait monter TOUT DE SUITE', () => {
+    const r = resolveLiveProfile('P4', withCushion(6.05));
     expect(r.changed).toBe(true);
     expect(r.direction).toBe('up');
     expect(r.profileId).toBe('P5');
   });
 
-  it('repasser tout juste sous un seuil ne fait pas redescendre', () => {
-    // 5,8 mois : sous le seuil de P5, mais 5,8 × 1,15 = 6,7 → on garde le palier.
-    const r = resolveLiveProfile('P5', withCushion(5.8));
-    expect(r.changed).toBe(false);
+  it('repasser sous le seuil de montée ne fait PAS redescendre', () => {
+    // 5,8 mois : sous les 6 mois de P5, mais bien au-dessus du seuil de sortie (2,5).
+    expect(resolveLiveProfile('P5', withCushion(5.8)).changed).toBe(false);
+    expect(resolveLiveProfile('P5', withCushion(3)).changed).toBe(false);
   });
 
-  it('une vraie chute fait redescendre', () => {
+  it('une vraie rechute fait redescendre', () => {
     const r = resolveLiveProfile('P5', withCushion(1.5));
     expect(r.changed).toBe(true);
     expect(r.direction).toBe('down');
   });
 
-  it('un aller-retour autour du seuil ne produit AUCUN changement', () => {
+  it('osciller autour du seuil ne produit QU’UN SEUL changement', () => {
     let id: FinancialProfileId = 'P4';
+    const changes: string[] = [];
     for (const m of [6.1, 5.9, 6.2, 5.8, 6.05]) {
       const r = resolveLiveProfile(id, withCushion(m));
+      if (r.changed) changes.push(`${id}→${r.profileId}`);
       id = r.profileId;
     }
-    expect(id).toBe('P4');
+    // Une montée à la première mesure, puis plus rien : aucun clignotement.
+    expect(changes).toEqual(['P4→P5']);
+    expect(id).toBe('P5');
+  });
+
+  it('compte le nombre de paliers franchis (pour choisir le bon message)', () => {
+    const r = resolveLiveProfile('P2', {
+      ...withCushion(9), totalInvested: 5000, monthlySetAside: 400,
+    });
+    expect(r.direction).toBe('up');
+    expect(r.steps).toBeGreaterThan(1);
+  });
+
+  it('les seuils viennent de la CONFIGURATION, pas du code', () => {
+    // Même situation, deux réglages : le palier obtenu doit suivre le réglage.
+    const strict = { ...DEFAULT_PROFILE_THRESHOLDS, monthsUp: { P3: 1, P4: 3, P5: 12, P6: 12 } };
+    expect(resolveLiveProfile('P4', withCushion(7)).profileId).toBe('P5');
+    expect(resolveLiveProfile('P4', withCushion(7), strict).changed).toBe(false);
   });
 
   it('quitter Découverte est immédiat : ce n’est pas un palier, c’est une absence de données', () => {
     const r = resolveLiveProfile('P0', withCushion(6.1));
     expect(r.changed).toBe(true);
     expect(r.profileId).toBe('P5');
+  });
+});
+
+/**
+ * LES SEUILS VIENNENT DE L'ADMINISTRATION.
+ *
+ * L'écran d'administration proposait de régler « Montée — mois de dépenses couverts ≥ » alors que
+ * plus rien ne lisait ces valeurs : on croyait calibrer, le comportement ne bougeait pas. Ces cas
+ * verrouillent le branchement — et surtout le repli champ par champ, qui permet de déployer la
+ * configuration progressivement sans jamais casser le calcul.
+ */
+describe('thresholdsFromMatrix — la configuration gouverne, le code se contente de replier', () => {
+  it('sans configuration, on retombe exactement sur les valeurs de repli', () => {
+    expect(thresholdsFromMatrix(null)).toEqual(DEFAULT_PROFILE_THRESHOLDS);
+    expect(thresholdsFromMatrix([])).toEqual(DEFAULT_PROFILE_THRESHOLDS);
+  });
+
+  it('lit les seuils de matelas, montée ET descente', () => {
+    const t = thresholdsFromMatrix([
+      { transition: 'P4_P5', upgrade_months_threshold: 9, downgrade_months_threshold: 4 },
+    ]);
+    expect(t.monthsUp.P5).toBe(9);
+    expect(t.monthsDown.P5).toBe(4);
+  });
+
+  it('une ligne partielle ne fait pas tomber les autres champs', () => {
+    const t = thresholdsFromMatrix([{ transition: 'P4_P5', upgrade_months_threshold: 9 }]);
+    expect(t.monthsUp.P5).toBe(9);
+    // Les champs absents gardent leur repli — pas de zéro surgi de nulle part.
+    expect(t.monthsDown.P5).toBe(DEFAULT_PROFILE_THRESHOLDS.monthsDown.P5);
+    expect(t.monthsUp.P3).toBe(DEFAULT_PROFILE_THRESHOLDS.monthsUp.P3);
+    expect(t.rateHigh).toBe(DEFAULT_PROFILE_THRESHOLDS.rateHigh);
+  });
+
+  it('lit les paliers de patrimoine et le découvert chronique', () => {
+    const t = thresholdsFromMatrix([
+      { transition: 'P6_P7', upgrade_wealth_threshold: 50000, downgrade_wealth_threshold: 40000, upgrade_months_threshold: 4 },
+      { transition: 'P1_P2', chronic_overdraft_months: 3 },
+    ]);
+    expect(t.wealthUp.P7).toBe(50000);
+    expect(t.wealthDown.P7).toBe(40000);
+    expect(t.wealthMinMonths.P7).toBe(4);
+    expect(t.chronicOverdraftMonths).toBe(3);
+  });
+
+  it('une valeur illisible ne remplace jamais le repli par NaN', () => {
+    const t = thresholdsFromMatrix([
+      { transition: 'P4_P5', upgrade_months_threshold: null, downgrade_months_threshold: undefined },
+    ]);
+    expect(t.monthsUp.P5).toBe(DEFAULT_PROFILE_THRESHOLDS.monthsUp.P5);
+    expect(Number.isFinite(t.monthsDown.P5)).toBe(true);
   });
 });

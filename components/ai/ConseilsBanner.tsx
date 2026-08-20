@@ -1,6 +1,6 @@
 /**
  * ConseilsBanner — UN seul conseil visible à la fois, en haut du Pilotage.
- * Ordre : "Pour vous" (contextuel) d'abord, puis général. Rotation auto toutes les 5 s
+ * Ordre : « Pour toi » (contextuel) d'abord, puis général. Rotation auto toutes les 5 s
  * s'il y a 2 conseils. Croix → fermé pour la journée.
  */
 import { useMemo, useEffect, useRef, useState } from 'react';
@@ -33,9 +33,10 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(userId);
   const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides);
 
-  // Liste ordonnée : "Pour vous" puis général.
+  // Liste ordonnée : « Pour toi » (contextuel) puis général.
+  // ⚠️ TUTOIEMENT : l'app tutoie partout, ce libellé était le dernier « vous » de l'interface.
   const slides: Slide[] = [];
-  if (contextuel) slides.push({ id: contextuel.id, label: 'Pour vous', icon: 'person-circle-outline', iconColor: COLORS.violet, text: interpolate(contextuel.message, contextuel.vars) });
+  if (contextuel) slides.push({ id: contextuel.id, label: 'Pour toi', icon: 'person-circle-outline', iconColor: COLORS.violet, text: interpolate(contextuel.message, contextuel.vars) });
   if (general) slides.push({ id: general.id, label: 'Le savais-tu', icon: 'bulb-outline', iconColor: COLORS.yellow, text: general.message });
   const slidesLen = slides.length;
 

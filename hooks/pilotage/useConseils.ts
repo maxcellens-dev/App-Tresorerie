@@ -173,7 +173,11 @@ export function useAllConseils() {
       if (error) throw error;
       return (data ?? []) as Conseil[];
     },
-    staleTime: 1000 * 60 * 10,
+    /* Contenu d'ADMINISTRATION : il ne change qu'à une publication, pas au fil de la navigation.
+       Le garder frais une heure (et longtemps en cache) évite de refaire l'aller-retour à chaque
+       retour sur le Pilotage — c'est ce qui fait apparaître le bandeau immédiatement. */
+    staleTime: 1000 * 60 * 60,
+    gcTime: 1000 * 60 * 60 * 24,
   });
 }
 
@@ -188,6 +192,14 @@ export function useConsilsSeenToday(userId: string | undefined) {
       return (data ?? []) as any;
     },
     enabled: !!userId,
+    /* Sans `staleTime`, react-query considère la donnée périmée dès qu'elle arrive : cette lecture
+       repartait au réseau À CHAQUE arrivée sur le Pilotage. Le bandeau ne s'affiche qu'une fois les
+       deux requêtes revenues — d'où le conseil qui « apparaît en retard », après le reste de la page.
+       Or cette liste ne change QUE lorsque l'utilisateur ferme un conseil, et ce geste invalide
+       explicitement la clé (cf. `useMarkConseilSeen`). La garder fraîche une heure est donc sans
+       risque : la seule chose qui puisse la modifier la rafraîchit elle-même.
+       La clé contient déjà la DATE : le passage à minuit repart naturellement de zéro. */
+    staleTime: 1000 * 60 * 60,
   });
 }
 
@@ -230,7 +242,7 @@ export function useConseilDuJour(userId: string | undefined, pilotage: PilotageD
   const general = generalPick && !dismissedIds.has(generalPick.id) ? generalPick : null;
 
   // Contextuel : 1 SEUL conseil par jour = celui du 1er critère actif. Même principe :
-  // on fige le choix avant de tester la fermeture, donc fermer le conseil « Pour vous »
+  // on fige le choix avant de tester la fermeture, donc fermer le conseil « Pour toi »
   // ne le remplace pas par un autre — il disparaît jusqu'au lendemain.
   let contextuel: (Conseil & { vars: Record<string, string | number> }) | null = null;
   if (pilotage) {

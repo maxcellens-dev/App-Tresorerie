@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import { useGuide } from '../../contexts/GuideContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAddTransaction, useAllTransactions } from '../../hooks/data/useTransactions';
 import { useMonthlyClosure, useAccountClosures, wasReopenedThisSession, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
@@ -242,8 +243,18 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
 
   /* La clôture est la PREMIÈRE des sollicitations : tout ce qui suit (bilan mensuel, profil,
      succès) s'appuie sur des chiffres qu'elle vient consolider. Elle prend donc la main en premier,
-     et ne la rend qu'une fois fermée (cf. lib/interruptQueue). */
-  const myTurn = useInterruptSlot('closure', enabled && pendingMonths.length > 0 && !isImpersonating);
+     et ne la rend qu'une fois fermée (cf. lib/interruptQueue).
+
+     ⚠️ SAUF PENDANT LE PARCOURS DE DÉMARRAGE. Le guide n'est pas dans cette file — il est AVANT
+     elle : tant que quelqu'un installe ses comptes, il n'a rien à clôturer, et lui demander de
+     vérifier un solde de mois passé n'a aucun sens. Le cas n'est pas théorique : saisir sa première
+     récurrente au 5 du mois dernier (« mon loyer ») fait immédiatement apparaître un mois en
+     attente — la clôture surgissait alors par-dessus l'étape du guide en cours. */
+  const guide = useGuide();
+  const myTurn = useInterruptSlot(
+    'closure',
+    enabled && pendingMonths.length > 0 && !isImpersonating && !guide.active,
+  );
 
   /* Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage, quand c'est notre
      tour — et seulement si le mois le plus ancien n'a pas été REPORTÉ dans les 24 h.

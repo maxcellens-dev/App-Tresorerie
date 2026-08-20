@@ -29,6 +29,7 @@ import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { useProfile } from '../../hooks/data/useProfile';
 import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
+import { resolveMonthlyAllocation } from '../../lib/finance/financialPriorities';
 import { computeSecurityCushion, securityMonthsLabel } from '../../lib/finance/securityCushion';
 import type { FinancialProfileId } from '../../types/database';
 import { sheetWidth } from '../../lib/ui/appLayout';
@@ -105,8 +106,7 @@ export default function ProfileTourConclusion() {
   // la mise à jour du code) faisait disparaître l'écran au lieu de montrer le profil.
   const profileId = resolveProfileId((fp as any).profile_id);
   const info = PROFILE_INFO[profileId];
-  const alloc = PROFILE_ALLOCATIONS[profileId];
-  if (!info || !alloc) return null;
+  if (!info) return null;
 
   const income = pilotage?.avg_monthly_income ?? 0;
   const savings = pilotage?.current_savings ?? 0;
@@ -128,6 +128,24 @@ export default function ProfileTourConclusion() {
     monthlyEssentialExpenses: pilotage?.monthly_essential_expenses ?? 0,
     avgMonthlyIncome: income,
   }).months;
+
+  /* Les pourcentages ANNONCÉS sont ceux qui seront APPLIQUÉS : la table brute du palier est
+     ajustée par la priorité du mois (cf. resolveMonthlyAllocation). Cet écran conclut le
+     parcours — présenter une répartition que le tableau de bord contredit dès la seconde
+     suivante serait la pire des premières impressions. */
+  const alloc = pilotage
+    ? resolveMonthlyAllocation(profileId, {
+        monthsOfReserve: cushionMonths,
+        monthlySurplus: pilotage.projected_surplus ?? 0,
+        avgMonthlyIncome: income,
+        monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+        checkingBalance: pilotage.current_checking_balance ?? 0,
+        savingsBalance: savings,
+        investedBalance: pilotage.total_invested ?? 0,
+        irregularIncome: Boolean((fp as any)?.is_irregular_income),
+      }).alloc
+    : PROFILE_ALLOCATIONS[profileId];
+  if (!alloc) return null;
 
   const ALLOC_ROWS = [
     { label: 'Épargner', pct: alloc.save, color: COLORS.green ?? COLORS.emerald },

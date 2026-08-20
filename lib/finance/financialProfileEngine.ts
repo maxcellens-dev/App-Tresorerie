@@ -308,31 +308,11 @@ export function monthlyVariableFromQ9(q9: string): number {
   return weeklyVariableFromQ9(q9) * WEEKS_PER_MONTH;
 }
 
-// ── q5 DÉRIVÉE DES DONNÉES RÉELLES ────────────────────────────
-//
-// q5 (« si tes revenus s'arrêtaient demain, combien de temps tiendrais-tu ? ») est EXACTEMENT la
-// définition du matelas de sécurité : épargne disponible ÷ dépenses essentielles (lib/securityCushion).
-// Dès que l'utilisateur a saisi ses comptes, l'app le SAIT — plus fiable qu'une auto-évaluation.
-// On ne modifie pas le moteur de profils : on lui fournit la même réponse, mesurée au lieu d'être
-// déclarée, et on la recalcule à chaque fois que les données bougent (cf. useLiveProfileSync).
-
-/** Tranche Q5 correspondant à un nombre de mois de sécurité. `null` → tranche la plus basse. */
-export function q5FromSecurityMonths(months: number | null | undefined): string {
-  if (months == null || !Number.isFinite(months)) return Q5_OPTIONS[0];
-  if (months < 1) return Q5_OPTIONS[0];
-  if (months < 3) return Q5_OPTIONS[1];
-  if (months < 6) return Q5_OPTIONS[2];
-  return Q5_OPTIONS[3];
-}
-
-/** Tranche Q5 déduite de l'épargne disponible et du revenu mensuel de référence. */
-export function deriveQ5(availableSavings: number, monthlyIncome: number): string {
-  const cushion = computeSecurityCushion({
-    availableSavings,
-    avgMonthlyIncome: monthlyIncome > 0 ? monthlyIncome : 0,
-  });
-  return q5FromSecurityMonths(cushion.months);
-}
+/* `q5FromSecurityMonths` et `deriveQ5` ont été retirées : elles traduisaient le matelas mesuré en
+   tranche déclarative Q5 (« moins d'un mois », « 3 à 6 mois »…) pour alimenter l'ancien moteur de
+   profil. Ce moteur est parti, et le questionnaire de démarrage n'existe plus : le profil se déduit
+   directement des données. Leur `deriveQ5` mesurait en outre le matelas sur le REVENU — c'était le
+   dernier endroit du dépôt à le faire. */
 
 /** Tranche Q3 (revenu) correspondant à un montant mensuel net saisi. */
 export function q3FromMonthlyIncome(amount: number): string {
@@ -450,13 +430,6 @@ export interface ProfileDataInputs {
    */
   consecutiveOverdraftMonths?: number;
   /**
-   * Marge de HYSTÉRÉSIS appliquée aux mois de réserve (1 = aucune). En dessous de 1 on durcit
-   * (il faut dépasser franchement le seuil pour monter), au-dessus on assouplit (il faut passer
-   * franchement sous le seuil pour descendre). Cf. `resolveLiveProfile` : c'est ce qui permet
-   * d'évaluer en temps réel sans que le profil clignote à chaque saisie.
-   */
-  cushionMarginFactor?: number;
-  /**
    * Patrimoine BANCAIRE total (courant + épargne + investissement). Il gouverne les paliers hauts :
    * au-delà d'un certain montant, le nombre de mois de réserve ne dit plus rien d'utile (quelqu'un
    * avec 400 000 € a « 200 mois de réserve », ce qui ne le distingue pas de quelqu'un avec 80 000 €
@@ -471,10 +444,6 @@ export interface ProfileDataInputs {
   monthlyEssentialExpenses?: number;
 }
 
-/** Seuils du taux d'épargne, alignés sur les anciennes tranches déclarées (10 % / 20 %). */
-const RATE_MID = 0.10;
-const RATE_HIGH = 0.20;
-
 /**
  * Seuils de PATRIMOINE BANCAIRE des paliers hauts (€ sur les comptes suivis par l'app).
  *
@@ -482,17 +451,145 @@ const RATE_HIGH = 0.20;
  * 30 000 € de placements bancaires on quitte déjà la moitié inférieure, 100 000 € correspond
  * grossièrement au dernier quart, et 300 000 € aux quelques pour cent du haut — le million étant
  * une fraction de pour cent. Volontairement ronds : ce sont des repères, pas des mesures.
+ *
+ * ⚠️ VALEURS DE REPLI uniquement (cf. `DEFAULT_PROFILE_THRESHOLDS`) : la configuration réelle vient
+ * de `profile_matrix_config`. Conservées exportées, l'administration s'en sert comme repères
+ * d'affichage.
  */
 export const WEALTH_THRESHOLDS = { P7: 30_000, P8: 100_000, P9: 300_000 } as const;
 
 /** Au-delà, on le NOMME : c'est le seul palier où le mot a un sens. */
 export const MILLIONAIRE_THRESHOLD = 1_000_000;
 
-/** Mois de réserve exigés pour prétendre à un palier de patrimoine (P7+). */
+/** Mois de réserve exigés pour prétendre à un palier de patrimoine (P7+) — valeur de repli. */
 const WEALTH_MIN_MONTHS = 3;
 
-/** Découvert « chronique » : au moins deux mois consécutifs terminés dans le rouge. */
+/** Découvert « chronique » : mois consécutifs dans le rouge — valeur de repli. */
 const CHRONIC_OVERDRAFT_MONTHS = 2;
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   SEUILS DE L'ÉCHELLE — CONFIGURABLES, JAMAIS EN DUR
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   Tous les nombres qui décident d'un palier vivent ici, dans une structure unique alimentée par
+   `profile_matrix_config` (écran d'administration). Ils étaient jusqu'ici des constantes de module :
+   l'administration proposait bien de régler « Montée — mois de dépenses couverts ≥ », mais plus
+   rien ne lisait ces valeurs. Un réglage sans effet est pire qu'un réglage absent — on croit avoir
+   calibré, et le comportement n'a pas bougé d'un iota.
+
+   DEUX SEUILS PAR PALIER, ET C'EST L'ESSENTIEL. `up` est le niveau à atteindre pour MONTER, `down`
+   celui sous lequel on REDESCEND. L'écart entre les deux EST l'hystérésis : elle n'est plus un
+   pourcentage appliqué uniformément, mais une bande réglable palier par palier — on peut vouloir
+   qu'on monte difficilement en P5 et qu'on en redescende très difficilement, ce qu'un ratio unique
+   ne permet pas d'exprimer. */
+export interface ProfileThresholds {
+  /** Matelas (mois de dépenses couvertes) à ATTEINDRE pour chaque palier. */
+  monthsUp: { P3: number; P4: number; P5: number; P6: number };
+  /** Matelas sous lequel on REDESCEND de chaque palier. Toujours ≤ `monthsUp`. */
+  monthsDown: { P3: number; P4: number; P5: number; P6: number };
+  /** Taux d'épargne, en % du revenu : « correct » (entrée P2) et « fort » (raccourci vers P4). */
+  rateMid: number;
+  rateHigh: number;
+  /** Patrimoine bancaire à atteindre pour les paliers hauts, et seuil de sortie. */
+  wealthUp: { P7: number; P8: number; P9: number };
+  wealthDown: { P7: number; P8: number; P9: number };
+  /** Réserve minimale exigée EN PLUS du montant, pour chaque palier de patrimoine. */
+  wealthMinMonths: { P7: number; P8: number; P9: number };
+  /** Mois consécutifs dans le rouge à partir desquels le découvert est CHRONIQUE. */
+  chronicOverdraftMonths: number;
+}
+
+/**
+ * Valeurs de repli — celles qui étaient codées en dur.
+ *
+ * Elles servent quand la configuration n'a pas pu être lue (démarrage à froid, hors-ligne) : le
+ * profil reste alors calculable, avec le comportement d'avant. Elles ne sont JAMAIS une seconde
+ * source de vérité : dès que la configuration arrive, c'est elle qui gouverne.
+ */
+export const DEFAULT_PROFILE_THRESHOLDS: ProfileThresholds = {
+  monthsUp:   { P3: 1,   P4: 3, P5: 6,   P6: 6 },
+  /* La bande est ASYMÉTRIQUE, et c'est le cœur du réglage : on monte dès que le but est atteint —
+     six mois de réserve, c'est un accomplissement, le dire le lendemain serait mesquin — mais on ne
+     redescend que sur une vraie rechute. Un mois difficile ne fait pas perdre son palier.
+     Ces valeurs sont celles semées dans `profile_matrix_config` : le code et la base disent la même
+     chose, ce qui rend le repli hors-ligne indistinguable du fonctionnement normal. */
+  monthsDown: { P3: 0.5, P4: 1, P5: 2.5, P6: 5 },
+  rateMid: 10,
+  rateHigh: 20,
+  wealthUp:   { P7: 30_000, P8: 100_000, P9: 300_000 },
+  wealthDown: { P7: 24_000, P8:  85_000, P9: 260_000 },
+  wealthMinMonths: { P7: WEALTH_MIN_MONTHS, P8: 6, P9: 6 },
+  chronicOverdraftMonths: CHRONIC_OVERDRAFT_MONTHS,
+};
+
+/** Une ligne de `profile_matrix_config`, telle qu'elle arrive de la base. */
+export interface MatrixRow {
+  transition: string;
+  upgrade_months_threshold?: number | null;
+  downgrade_months_threshold?: number | null;
+  upgrade_flux_threshold?: number | null;
+  upgrade_wealth_threshold?: number | null;
+  downgrade_wealth_threshold?: number | null;
+  chronic_overdraft_months?: number | null;
+}
+
+/* `Number(null)` vaut 0, et 0 est un nombre fini : sans ce test préalable, une colonne VIDE se
+   serait lue « seuil à zéro » — c'est-à-dire un palier atteint par tout le monde. Une valeur
+   absente doit retomber sur le repli, jamais sur zéro. */
+const num = (v: unknown, fallback: number): number => {
+  if (v === null || v === undefined || v === '') return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+/**
+ * Construit les seuils de l'échelle à partir des lignes de `profile_matrix_config`.
+ *
+ * Chaque champ retombe INDIVIDUELLEMENT sur sa valeur par défaut : une ligne manquante ou une
+ * colonne vide ne peut pas emporter tout le reste avec elle. C'est ce qui permet de déployer la
+ * configuration progressivement sans jamais casser le calcul.
+ */
+export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): ProfileThresholds {
+  const D = DEFAULT_PROFILE_THRESHOLDS;
+  const by = new Map((rows ?? []).map((r) => [r.transition, r]));
+  const up = (t: string, f: number) => num(by.get(t)?.upgrade_months_threshold, f);
+  const down = (t: string, f: number) => num(by.get(t)?.downgrade_months_threshold, f);
+
+  return {
+    monthsUp: {
+      P3: up('P2_P3', D.monthsUp.P3),
+      P4: up('P3_P4', D.monthsUp.P4),
+      P5: up('P4_P5', D.monthsUp.P5),
+      P6: up('P5_P6', D.monthsUp.P6),
+    },
+    monthsDown: {
+      P3: down('P2_P3', D.monthsDown.P3),
+      P4: down('P3_P4', D.monthsDown.P4),
+      P5: down('P4_P5', D.monthsDown.P5),
+      P6: down('P5_P6', D.monthsDown.P6),
+    },
+    rateMid: num(by.get('P2_P3')?.upgrade_flux_threshold, D.rateMid),
+    rateHigh: num(by.get('P3_P4')?.upgrade_flux_threshold, D.rateHigh),
+    wealthUp: {
+      P7: num(by.get('P6_P7')?.upgrade_wealth_threshold, D.wealthUp.P7),
+      P8: num(by.get('P7_P8')?.upgrade_wealth_threshold, D.wealthUp.P8),
+      P9: num(by.get('P8_P9')?.upgrade_wealth_threshold, D.wealthUp.P9),
+    },
+    wealthDown: {
+      P7: num(by.get('P6_P7')?.downgrade_wealth_threshold, D.wealthDown.P7),
+      P8: num(by.get('P7_P8')?.downgrade_wealth_threshold, D.wealthDown.P8),
+      P9: num(by.get('P8_P9')?.downgrade_wealth_threshold, D.wealthDown.P9),
+    },
+    wealthMinMonths: {
+      P7: up('P6_P7', D.wealthMinMonths.P7),
+      P8: up('P7_P8', D.wealthMinMonths.P8),
+      P9: up('P8_P9', D.wealthMinMonths.P9),
+    },
+    chronicOverdraftMonths: num(
+      by.get('P1_P2')?.chronic_overdraft_months, D.chronicOverdraftMonths,
+    ),
+  };
+}
 
 /**
  * DÉFICIT STRUCTUREL — la seule chose qui justifie P1.
@@ -511,7 +608,10 @@ const CHRONIC_OVERDRAFT_MONTHS = 2;
  *      l'information existe, que ça DURE (`consecutiveOverdraftMonths`) — un mois difficile n'est
  *      pas une situation.
  */
-export function hasStructuralDeficit(i: ProfileDataInputs): boolean {
+export function hasStructuralDeficit(
+  i: ProfileDataInputs,
+  cfg: ProfileThresholds = DEFAULT_PROFILE_THRESHOLDS,
+): boolean {
   const essentials = i.monthlyEssentialExpenses ?? 0;
   if (essentials > 0 && i.avgMonthlyIncome > 0 && essentials > i.avgMonthlyIncome) return true;
 
@@ -522,10 +622,21 @@ export function hasStructuralDeficit(i: ProfileDataInputs): boolean {
   // Information de durée disponible → on exige la chronicité. Sinon, être à sec ET dans le rouge
   // suffit : il n'y a par définition rien pour rattraper le mois.
   const months = i.consecutiveOverdraftMonths;
-  return months == null || months >= CHRONIC_OVERDRAFT_MONTHS;
+  return months == null || months >= cfg.chronicOverdraftMonths;
 }
 
-export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId {
+/**
+ * Le palier correspondant aux données, selon un JEU DE SEUILS donné.
+ *
+ * `bounds` choisit quels seuils appliquer : ceux de MONTÉE (exigeants) ou ceux de DESCENTE
+ * (indulgents). C'est ce qui produit l'hystérésis dans `resolveLiveProfile` — la même fonction,
+ * lue deux fois avec deux barres différentes, au lieu d'un facteur correctif appliqué au matelas.
+ */
+export function computeProfileFromData(
+  i: ProfileDataInputs,
+  cfg: ProfileThresholds = DEFAULT_PROFILE_THRESHOLDS,
+  bounds: 'up' | 'down' = 'up',
+): FinancialProfileId {
   /* Sans revenu constaté, aucun ratio n'a de sens. On ne devine pas — et surtout on ne classe plus
      au profil le plus prudent : « épargne critique » est un DIAGNOSTIC, et il était servi à tout
      nouvel arrivant avant même qu'il ait saisi quoi que ce soit. P0 dit ce qui est vrai : on ne
@@ -539,12 +650,14 @@ export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId
     avgMonthlyIncome: i.avgMonthlyIncome,
   }).months;
   if (rawMonths == null) return 'P0';
-  // Marge d'hystérésis (1 par défaut = aucune) : cf. `resolveLiveProfile`.
-  const months = rawMonths * (i.cushionMarginFactor ?? 1);
+  const months = rawMonths;
+  /** Barre de matelas / de patrimoine à appliquer, selon le sens du trajet. */
+  const M = bounds === 'up' ? cfg.monthsUp : cfg.monthsDown;
+  const W = bounds === 'up' ? cfg.wealthUp : cfg.wealthDown;
 
-  const rate = Math.max(0, i.monthlySetAside) / i.avgMonthlyIncome;
-  const rateHigh = rate >= RATE_HIGH;
-  const rateMid = rate >= RATE_MID;
+  const rate = 100 * (Math.max(0, i.monthlySetAside) / i.avgMonthlyIncome);
+  const rateHigh = rate >= cfg.rateHigh;
+  const rateMid = rate >= cfg.rateMid;
   // « Investit » = il a réellement placé de l'argent sur un compte d'investissement.
   const invests = i.totalInvested > 0;
   // « Épargne régulièrement » = il met effectivement de côté, mois après mois.
@@ -568,32 +681,30 @@ export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId
      courant du jour — il déclassait quelqu'un avec 300 000 € placés parce qu'il était à −40 € la
      veille de sa paie. Ce qui disqualifie un palier patrimonial, c'est un mois qui ne se boucle
      pas, pas un compte courant à sec deux jours par mois. */
-  const solvent = !hasStructuralDeficit(i);
+  const solvent = !hasStructuralDeficit(i, cfg);
   if (invests && solvent) {
-    if (months >= 6 && wealth >= WEALTH_THRESHOLDS.P9) return 'P9';
-    if (months >= 6 && wealth >= WEALTH_THRESHOLDS.P8) return 'P8';
-    if (months >= WEALTH_MIN_MONTHS && wealth >= WEALTH_THRESHOLDS.P7) return 'P7';
+    if (months >= cfg.wealthMinMonths.P9 && wealth >= W.P9) return 'P9';
+    if (months >= cfg.wealthMinMonths.P8 && wealth >= W.P8) return 'P8';
+    if (months >= cfg.wealthMinMonths.P7 && wealth >= W.P7) return 'P7';
   }
 
   // ── Paliers de MATELAS (P1 → P6) ───────────────────────────────────────────────────────────
   // P6 : réserve faite ET argent réellement placé — le passage à l'investissement est acquis.
-  if (months >= 6 && invests) return 'P6';
-  // P5 : réserve faite (plus de six mois), mais encore tout en liquide.
-  if (months >= 6) return 'P5';
-  // P4 : trois à six mois, avec un comportement d'épargne — ou moins, mais un taux d'épargne fort.
-  if (months >= 3 && (saves || rateHigh)) return 'P4';
-  if (months >= 1 && rateHigh) return 'P4';
-  /* P3 : au moins un mois de réserve. Ce cas ramasse AUSSI les trois-à-six mois qui n'ont pas
-     satisfait P4 — c'est-à-dire ceux qui ne mettent plus rien de côté : la réserve stagne, elle ne
-     se construit plus. (La condition s'écrivait `months >= 1 || months >= 3` : la seconde moitié
-     ne pouvait jamais rien ajouter à la première.) */
-  if (months >= 1) return 'P3';
-  // P2 : moins d'un mois de réserve, mais rien qui indique une impasse.
+  if (months >= M.P6 && invests) return 'P6';
+  // P5 : réserve faite, mais encore tout en liquide.
+  if (months >= M.P5) return 'P5';
+  // P4 : réserve intermédiaire avec un comportement d'épargne — ou moins, mais un taux fort.
+  if (months >= M.P4 && (saves || rateHigh)) return 'P4';
+  if (months >= M.P3 && rateHigh) return 'P4';
+  /* P3 : la réserve minimale est là. Ce cas ramasse AUSSI ceux qui atteignent le seuil de P4 sans
+     rien mettre de côté : la réserve stagne, elle ne se construit plus. */
+  if (months >= M.P3) return 'P3';
+  // P2 : réserve insuffisante, mais rien qui indique une impasse.
   if (rateMid || saves) return 'P2';
   /* P1 : DÉFICIT STRUCTUREL, et lui seul (cf. `hasStructuralDeficit`). En l'absence de preuve,
      on reste à P2 : accuser quelqu'un de finir ses mois dans le rouge sur un solde négatif d'un
      jour — ou sur une donnée manquante — serait pire que de ne rien dire. */
-  if (hasStructuralDeficit(i)) return 'P1';
+  if (hasStructuralDeficit(i, cfg)) return 'P1';
   return 'P2';
 }
 
@@ -620,12 +731,12 @@ export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId
  *     on classe ;
  *   • y RETOURNER — les données ont disparu (plus de revenu constaté), il n'y a plus rien à mesurer.
  */
-export const LIVE_HYSTERESIS = 0.15;
-
 export interface LiveProfileResult {
   profileId: FinancialProfileId;
   changed: boolean;
   direction: 'up' | 'down' | null;
+  /** Nombre de paliers franchis (1 = passage voisin). Sert à choisir le bon message. */
+  steps: number;
 }
 
 const rankOf = (id: FinancialProfileId): number => FINANCIAL_PROFILE_IDS.indexOf(id);
@@ -633,32 +744,39 @@ const rankOf = (id: FinancialProfileId): number => FINANCIAL_PROFILE_IDS.indexOf
 export function resolveLiveProfile(
   current: FinancialProfileId | null | undefined,
   inputs: ProfileDataInputs,
-  hysteresis: number = LIVE_HYSTERESIS,
+  cfg: ProfileThresholds = DEFAULT_PROFILE_THRESHOLDS,
 ): LiveProfileResult {
-  const target = computeProfileFromData(inputs);
   const from = current && FINANCIAL_PROFILE_IDS.includes(current) ? current : null;
 
-  if (!from) return { profileId: target, changed: true, direction: null };
-  if (target === from) return { profileId: from, changed: false, direction: null };
+  /* Deux lectures des MÊMES données, avec deux barres :
+       • `withUp`   applique les seuils de MONTÉE — le palier qu'on mérite pour progresser ;
+       • `withDown` applique les seuils de DESCENTE — celui sous lequel on est vraiment retombé.
+     Entre les deux, on ne bouge pas : c'est la bande d'hystérésis, réglée palier par palier depuis
+     l'administration plutôt que par un pourcentage unique appliqué au matelas. */
+  const withUp = computeProfileFromData(inputs, cfg, 'up');
+  const withDown = computeProfileFromData(inputs, cfg, 'down');
 
-  // Entrée et sortie de Découverte : immédiates, sans marge (cf. en-tête).
-  if (from === 'P0' || target === 'P0') {
-    return { profileId: target, changed: true, direction: target === 'P0' ? 'down' : 'up' };
+  if (!from) return { profileId: withUp, changed: true, direction: null, steps: 0 };
+
+  // Entrée et sortie de Découverte : immédiates, sans bande — ce n'est pas un franchissement de
+  // seuil mais l'arrivée ou la disparition des données (cf. en-tête).
+  if (from === 'P0' || withUp === 'P0' || withDown === 'P0') {
+    const target = withUp === 'P0' || withDown === 'P0' ? 'P0' : withUp;
+    if (target === from) return { profileId: from, changed: false, direction: null, steps: 0 };
+    return {
+      profileId: target, changed: true,
+      direction: rankOf(target) > rankOf(from) ? 'up' : 'down',
+      steps: Math.abs(rankOf(target) - rankOf(from)),
+    };
   }
 
-  const up = rankOf(target) > rankOf(from);
-  /* On recalcule avec la marge appliquée dans le sens DÉFAVORABLE au changement : si le résultat
-     confirme quand même, l'évolution est franche. Et on retient CE résultat, pas la cible brute —
-     il est le plus prudent des deux, ce qui évite de sauter deux paliers sur un franchissement
-     tout juste acquis. */
-  const guarded = computeProfileFromData({
-    ...inputs,
-    cushionMarginFactor: up ? 1 - hysteresis : 1 + hysteresis,
-  });
-
-  const confirmed = up ? rankOf(guarded) > rankOf(from) : rankOf(guarded) < rankOf(from);
-  if (!confirmed) return { profileId: from, changed: false, direction: null };
-  return { profileId: guarded, changed: true, direction: up ? 'up' : 'down' };
+  if (rankOf(withUp) > rankOf(from)) {
+    return { profileId: withUp, changed: true, direction: 'up', steps: rankOf(withUp) - rankOf(from) };
+  }
+  if (rankOf(withDown) < rankOf(from)) {
+    return { profileId: withDown, changed: true, direction: 'down', steps: rankOf(from) - rankOf(withDown) };
+  }
+  return { profileId: from, changed: false, direction: null, steps: 0 };
 }
 
 /** L'utilisateur dépasse-t-il le million sur ses comptes suivis ? (pour le NOMMER, cf. P9) */
@@ -692,21 +810,13 @@ export function computeInitialProfile(answers: QuestionnaireAnswers): FinancialP
   return 'P2';
 }
 
-// ── Moteur automatique ────────────────────────────────────────
-
-export interface MatrixConfig {
-  upgrade_months_threshold: number;
-  upgrade_flux_threshold: number;
-  downgrade_months_threshold: number;
-  downgrade_flux_threshold: number;
-  anti_yoyo_months: number;
-  exceptional_drop_threshold_pct: number;
-  exceptional_drop_months: number;
-  irregular_drop_threshold_pct: number;
-}
+/* `MatrixConfig` a été retiré avec le moteur mensuel qui l'utilisait. La forme des lignes de
+   `profile_matrix_config` telle que le moteur la LIT est décrite par `MatrixRow` (plus haut), qui
+   n'expose que les colonnes réellement consommées — deux descriptions de la même table finissaient
+   toujours par diverger. L'écran d'administration, lui, lit le type de la base (ProfileMatrixConfig,
+   types/database) : c'est le bon niveau pour un formulaire d'édition. */
 
 export interface MonthlyMetrics {
-  mois_securite: number;
   /** Part des recettes mise de côté, en POURCENTAGE (épargne + investissement). */
   flux_total: number;
   /** Montant mis de côté chaque mois, en EUROS. ⚠️ À ne pas confondre avec `flux_total`, qui est un
@@ -717,136 +827,17 @@ export interface MonthlyMetrics {
   avg_income_2m: number;
 }
 
-export interface AutoEvalResult {
-  newProfileId: FinancialProfileId;
-  changed: boolean;
-  reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop' | null;
-  consecutiveUpgrade: number;
-  consecutiveDowngrade: number;
-}
-
 /**
- * Clé de transition entre deux paliers voisins : toujours « P<bas>_P<haut> », la DIRECTION étant
- * portée par le champ `direction` des messages (cf. migration 145). Générée plutôt qu'écrite à la
- * main : à dix paliers, une table littérale de dix-huit clés se serait désynchronisée au premier
- * ajout de profil.
+ * Toutes les clés de transition, du bas vers le haut (P1_P2 … P8_P9). Elles nomment les SEUILS
+ * (`profile_matrix_config`) et les MESSAGES (`profile_notification_messages`) — l'administration et
+ * les seeds s'en servent. Générées plutôt qu'écrites à la main : à dix paliers, une table littérale
+ * de dix-huit clés se serait désynchronisée au premier ajout de profil.
  *
- * P0 (Découverte) n'a pas de transition automatique : on n'en « monte » pas, on en SORT dès qu'une
- * donnée réelle arrive (le profil est alors recalculé de zéro), et on n'y redescend jamais.
+ * P0 (Découverte) n'en a aucune : on n'en « monte » pas, on en SORT dès qu'une donnée réelle arrive.
  */
-const TRANSITION_MAP: Record<string, { up: string; down: string }> = Object.fromEntries(
-  RANKED_PROFILE_IDS.map((id, idx) => ({
-    id,
-    up: idx < RANKED_PROFILE_IDS.length - 1 ? `${id}_${RANKED_PROFILE_IDS[idx + 1]}` : '',
-    down: idx > 0 ? `${RANKED_PROFILE_IDS[idx - 1]}_${id}` : '',
-  })).map(({ id, up, down }) => [id, { up, down }]),
-);
-
-/** Toutes les clés de transition, du bas vers le haut (P1_P2 … P8_P9). Sert à l'admin et aux seeds. */
 export const PROFILE_TRANSITION_KEYS: string[] = RANKED_PROFILE_IDS
   .slice(0, -1)
   .map((id, idx) => `${id}_${RANKED_PROFILE_IDS[idx + 1]}`);
-
-/** Palier le plus bas / le plus haut de l'échelle classante (P0 n'en fait pas partie). */
-const LOWEST_RANK = 1;
-const HIGHEST_RANK = RANKED_PROFILE_IDS.length; // P9 → 9
-
-export function evaluateAutoTransition(
-  currentProfile: FinancialProfileId,
-  metrics: MonthlyMetrics,
-  consecutiveUpgrade: number,
-  consecutiveDowngrade: number,
-  configs: Record<string, MatrixConfig>,
-  isIrregularIncome: boolean,
-): AutoEvalResult {
-  /* P0 (Découverte) ne se déplace pas d'un cran : il n'a pas de voisin, il n'a pas de mesure. On
-     en sort par un recalcul complet dès qu'un revenu est constaté (cf. computeProfileFromData). */
-  if (currentProfile === 'P0') {
-    return { newProfileId: 'P0', changed: false, reason: null, consecutiveUpgrade: 0, consecutiveDowngrade: 0 };
-  }
-  const num = parseInt(currentProfile.replace('P', ''));
-  const { up, down } = TRANSITION_MAP[currentProfile] ?? { up: '', down: '' };
-
-  // ── Règles exceptionnelles (priorité absolue) ─────────────
-
-  const dropThreshold = isIrregularIncome
-    ? (configs[up]?.irregular_drop_threshold_pct ?? 20) / 100
-    : (configs[up]?.exceptional_drop_threshold_pct ?? 50) / 100;
-
-  // Revenus nuls : descente de 2 niveaux
-  if (metrics.avg_income_2m === 0 && metrics.avg_income_6m > 0) {
-    const newNum = Math.max(LOWEST_RANK, num - 2);
-    const newProfile = `P${newNum}` as FinancialProfileId;
-    return { newProfileId: newProfile, changed: newProfile !== currentProfile, reason: 'exceptional_revenue_drop', consecutiveUpgrade: 0, consecutiveDowngrade: 0 };
-  }
-
-  // Revenus < seuil de chute : descente d'1 niveau
-  if (metrics.avg_income_6m > 0 && metrics.avg_income_2m < metrics.avg_income_6m * dropThreshold) {
-    const newNum = Math.max(LOWEST_RANK, num - 1);
-    const newProfile = `P${newNum}` as FinancialProfileId;
-    return { newProfileId: newProfile, changed: newProfile !== currentProfile, reason: 'exceptional_revenue_drop', consecutiveUpgrade: 0, consecutiveDowngrade: 0 };
-  }
-
-  // ── Descente (immédiate dès conditions remplies) ──────────
-
-  if (down && configs[down]) {
-    const cfg = configs[down];
-    if (
-      metrics.mois_securite < cfg.downgrade_months_threshold &&
-      metrics.flux_total < cfg.downgrade_flux_threshold
-    ) {
-      const newConsecutive = consecutiveDowngrade + 1;
-      const newNum = Math.max(LOWEST_RANK, num - 1);
-      const newProfile = `P${newNum}` as FinancialProfileId;
-      return {
-        newProfileId: newProfile,
-        changed: true,
-        reason: 'automatic_downgrade',
-        consecutiveUpgrade: 0,
-        consecutiveDowngrade: newConsecutive,
-      };
-    }
-  }
-
-  // ── Montée (anti-yoyo : `anti_yoyo_months` mois consécutifs requis — 1 par défaut) ───────
-
-  if (up && configs[up]) {
-    const cfg = configs[up];
-    if (
-      metrics.mois_securite >= cfg.upgrade_months_threshold &&
-      metrics.flux_total >= cfg.upgrade_flux_threshold
-    ) {
-      const newConsecutive = consecutiveUpgrade + 1;
-      if (newConsecutive >= cfg.anti_yoyo_months) {
-        const newNum = Math.min(HIGHEST_RANK, num + 1);
-        const newProfile = `P${newNum}` as FinancialProfileId;
-        return {
-          newProfileId: newProfile,
-          changed: true,
-          reason: 'automatic_upgrade',
-          consecutiveUpgrade: 0,
-          consecutiveDowngrade: 0,
-        };
-      }
-      return {
-        newProfileId: currentProfile,
-        changed: false,
-        reason: null,
-        consecutiveUpgrade: newConsecutive,
-        consecutiveDowngrade: 0,
-      };
-    }
-  }
-
-  // Aucun changement
-  return {
-    newProfileId: currentProfile,
-    changed: false,
-    reason: null,
-    consecutiveUpgrade: 0,
-    consecutiveDowngrade: consecutiveDowngrade,
-  };
-}
 
 // ── Calcul des métriques depuis les transactions ──────────────
 
@@ -907,13 +898,10 @@ export function computeMonthlyMetrics(
 
   const avg_income_6m = rev6 / 6;
 
-  // Mois de sécurité — MÊME définition que partout : base = RECETTES (jamais les dépenses),
-  // repli sur la tranche du questionnaire tant qu'aucun revenu n'est constaté (lib/securityCushion).
-  const mois_securite = computeSecurityCushion({
-    availableSavings: epargne_dispo,
-    avgMonthlyIncome: avg_income_6m,
-    questionnaireQ3,
-  }).months ?? 0;
+  /* `mois_securite` a été retiré. Il mesurait le matelas sur le REVENU, alors que toute l'app le
+     mesure en mois de DÉPENSES essentielles — une seconde définition, qui ne servait qu'à l'ancien
+     moteur de profil. Le matelas se calcule là où il est utilisé, avec `computeSecurityCushion` et
+     les dépenses essentielles. */
 
   // Flux épargne & investissement sur 3 mois
   const fluxTxs = transactions.filter(t => inWindow(t, windowFlux));
@@ -952,7 +940,6 @@ export function computeMonthlyMetrics(
     .reduce((s, t) => s + Math.abs(t.amount), 0);
 
   return {
-    mois_securite,
     flux_total,
     set_aside_monthly: setAside / windowFlux,
     avg_income_6m,
