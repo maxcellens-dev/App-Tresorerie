@@ -261,28 +261,38 @@ export function useDeleteRwProject(userId: string | undefined) {
       //   • Transaction PASSÉE (date ≤ aujourd'hui = a impacté le compte) → CONSERVÉE : elle devient
       //     une simple dépense/recette normale (le lien projet disparaît avec rw_expenses en cascade).
       //   • Transaction NON passée (future) → supprimée (réversion du solde via useDeleteTransaction).
+      /* ⚠️ LES DEUX LECTURES DOIVENT RÉUSSIR AVANT DE SUPPRIMER QUOI QUE CE SOIT.
+         Leur erreur n'était pas lue : une lecture en échec rendait `undefined`, donc « aucune
+         dépense future », donc aucune transaction à retirer — et on supprimait quand même le
+         projet. Les transactions futures restaient alors sur les comptes, sans plus rien pour les
+         rattacher (rw_expenses part en cascade) : impossibles à retrouver, elles continuaient de
+         peser sur la projection de solde pour toujours. Ne pas savoir n'est pas la même chose que
+         savoir qu'il n'y a rien. */
       const today = todayISO();
-      const { data: myExpenses } = await supabase
+      const { data: myExpenses, error: expErr } = await supabase
         .from('rw_expenses')
         .select('id, transaction_id, date')
         .eq('project_id', projectId)
         .eq('created_by', userId);
+      if (expErr) throw expErr;
       const futureIds = ((myExpenses ?? []) as Array<{ id: string; transaction_id: string | null; date: string }>)
         .filter((e) => e.date > today);
       // Répartition multi-comptes (migration 178) : une dépense future peut porter PLUSIEURS
       // transactions. Ne retirer que `transaction_id` en laisserait sur les autres comptes.
-      const { data: splits } = futureIds.length
+      const { data: splits, error: splitErr } = futureIds.length
         ? await supabase.from('rw_expense_accounts').select('transaction_id, created_by, expense_id')
             .in('expense_id', futureIds.map((e) => e.id))
-        : { data: [] as any[] };
+        : { data: [] as any[], error: null };
+      if (splitErr) throw splitErr;
       const toDelete = new Set<string>();
       for (const e of futureIds) if (e.transaction_id) toDelete.add(e.transaction_id);
       for (const s of ((splits ?? []) as Array<{ transaction_id: string | null; created_by: string | null }>)) {
         if (s.transaction_id && s.created_by === userId) toDelete.add(s.transaction_id);
       }
-      for (const txId of toDelete) {
-        try { await delTx.mutateAsync(txId); } catch { /* déjà supprimée */ }
-      }
+      /* Et on VÉRIFIE chaque suppression (cf. `deleteTransactionForSure`) : un `catch` muet ne
+         distinguait pas « la ligne n'existait plus » de « la suppression a échoué ». Dans le second
+         cas on enchaînait sur la suppression du projet, qui rend l'oubli définitif. */
+      for (const txId of toDelete) await deleteTransactionForSure(delTx, txId);
       const { error } = await supabase.from('rw_projects').delete().eq('id', projectId);
       if (error) throw error;
     },

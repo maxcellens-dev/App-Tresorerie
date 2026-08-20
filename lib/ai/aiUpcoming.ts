@@ -7,6 +7,7 @@
 // juger « nouvelle » sur sa seule date. On la compare aux occurrences PASSÉES (matérialisées).
 import type { SnapshotUpcoming, SnapshotUpcomingChange } from './aiSnapshot';
 import { isRegul } from '../finance/regul';
+import { isoDay } from '../dateUtils';
 
 export interface UpcomingTx {
   id: string;
@@ -42,10 +43,14 @@ export interface UpcomingOptions {
   monthsAhead?: number;
 }
 
+/* ⚠️ La date est construite à MINUIT LOCAL puis relue en UTC : à l'est de Greenwich, minuit local
+   vaut 22 h la VEILLE en UTC — cette fonction rendait donc systématiquement le jour précédent.
+   Un décalage d'un jour sur tout l'horizon présenté à l'IA. On reste en heure locale de bout en
+   bout (`isoDay`, cf. lib/dateUtils, qui existe précisément pour ça). */
 function addMonths(iso: string, n: number): string {
   const d = new Date(iso.slice(0, 10) + 'T00:00:00');
   d.setMonth(d.getMonth() + n);
-  return d.toISOString().slice(0, 10);
+  return isoDay(d);
 }
 
 export function detectUpcomingChanges(txs: UpcomingTx[], opts: UpcomingOptions): SnapshotUpcoming {

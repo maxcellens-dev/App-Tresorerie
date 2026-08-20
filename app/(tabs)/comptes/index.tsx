@@ -216,13 +216,13 @@ function AccountsListScreen() {
                 const toRefAmount = (v: number) => convertAmount(v, 'EUR', refCode, rates) ?? v;
                 const thMin = toRefAmount((profile as any)?.safety_threshold_min ?? savingsCfg.min);
                 const thOpt = toRefAmount((profile as any)?.safety_threshold_optimal ?? savingsCfg.optimal);
-                const thComf = toRefAmount((profile as any)?.safety_threshold_comfort ?? savingsCfg.comfort);
+                /* La couleur du montant porte déjà le niveau (rouge / orange / vert) : le mot qui la
+                   redoublait sous le chiffre (« Confortable », « Saine »…) n'ajoutait rien. */
                 const sCol = s < thMin ? COLORS.danger : s < thOpt ? COLORS.orange : COLORS.savings;
-                const sKw = s < thMin ? savingsCfg.label_critical : s < thOpt ? savingsCfg.label_low : s < thComf ? savingsCfg.label_healthy : savingsCfg.label_comfort;
                 return [
-                  { label: 'Courant', value: totalChecking, color: COLORS.checking, icon: 'wallet-outline', sub: null },
-                  { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline', sub: sKw },
-                  { label: 'Investi', value: totalInvested, color: COLORS.investment, icon: 'trending-up-outline', sub: null },
+                  { label: 'Courant', value: totalChecking, color: COLORS.checking, icon: 'wallet-outline' },
+                  { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline' },
+                  { label: 'Investi', value: totalInvested, color: COLORS.investment, icon: 'trending-up-outline' },
                 ].map((item) => (
                   <View key={item.label} style={[styles.overviewCard, { borderLeftColor: item.color }]}>
                     <Ionicons name={item.icon as any} size={14} color={item.color} style={{ marginBottom: 2 }} />
@@ -230,7 +230,6 @@ function AccountsListScreen() {
                     <Text style={[styles.overviewValue, { color: semanticText(item.color, COLORS) }]}>
                       {approx}{item.value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {refSymbol}
                     </Text>
-                    {item.sub && <Text style={[styles.overviewSub, { color: semanticText(item.color, COLORS) }]}>{item.sub}</Text>}
                   </View>
                 ));
               })()}
@@ -587,7 +586,6 @@ function makeStyles(c: any) {
   overviewCard: { flex: 1, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, borderLeftWidth: 3, padding: 10 },
   overviewLabel: { fontSize: 10, fontWeight: '600', color: c.textSecondary, marginBottom: 2 },
   overviewValue: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
-  overviewSub: { fontSize: 9, fontWeight: '700', marginTop: 1 },
 
   // ── Hero ──
   hero: {

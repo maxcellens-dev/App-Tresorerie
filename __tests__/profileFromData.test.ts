@@ -7,7 +7,9 @@ import {
   PROFILE_TRANSITION_KEYS,
   isMillionaire,
   resolveProfileId,
+  resolveLiveProfile,
 } from '../lib/finance/financialProfileEngine';
+import type { FinancialProfileId } from '../types/database';
 
 /**
  * Le profil P0–P9 ne dépend d'AUCUNE réponse déclarée : il se déduit du revenu constaté, de
@@ -34,11 +36,33 @@ describe('computeProfileFromData — le profil se déduit des données réelles'
     expect(computeProfileFromData(base)).toBe('P2');
   });
 
-  /* Le DÉCOUVERT est le seul signal que les ratios ne voient pas : sans lui, quelqu'un qui finit
-     chaque mois dans le rouge recevait exactement les mêmes conseils que quelqu'un qui commence
-     tout juste à épargner. */
-  it('compte courant dans le rouge → P1 « Sortir du rouge »', () => {
+  /* ── P1 = DÉFICIT, PAS DÉCOUVERT ────────────────────────────────────────────────────────────
+     Un solde négatif un jour donné ne dit presque rien : on attend une paie, on a laissé filer le
+     courant en gardant son livret, on vient de payer ses impôts. Classer là-dessus revient à
+     confondre une photo avec une trajectoire. P1 exige donc une impasse : soit les charges
+     dépassent le revenu, soit il ne reste PLUS RIEN nulle part. */
+  it('à sec et dans le rouge, sans aucune épargne → P1', () => {
     expect(computeProfileFromData({ ...base, checkingBalance: -420 })).toBe('P1');
+  });
+
+  it('les charges dépassent le revenu → P1, même sans découvert', () => {
+    expect(computeProfileFromData({
+      ...base, avgMonthlyIncome: 1800, monthlyEssentialExpenses: 2100, checkingBalance: 300,
+    })).toBe('P1');
+  });
+
+  it('découvert PASSAGER avec de l’épargne mobilisable → jamais P1', () => {
+    // 900 € de côté et −200 € sur le courant : c'est un arbitrage de trésorerie, pas une impasse.
+    expect(computeProfileFromData({ ...base, availableSavings: 900, checkingBalance: -200 })).not.toBe('P1');
+  });
+
+  it('un seul mois dans le rouge ne suffit pas quand on sait que ça ne dure pas', () => {
+    expect(computeProfileFromData({
+      ...base, checkingBalance: -420, consecutiveOverdraftMonths: 1,
+    })).toBe('P2');
+    expect(computeProfileFromData({
+      ...base, checkingBalance: -420, consecutiveOverdraftMonths: 2,
+    })).toBe('P1');
   });
 
   it('le rouge ne l’emporte PAS sur une réserve constituée : c’est le dernier recours', () => {
@@ -184,5 +208,65 @@ describe('resolveProfileId — aucun identifiant inconnu ne peut casser un écra
       expect(PROFILE_ALLOCATIONS[id]).toBeTruthy();
       expect(PROFILE_TO_TIER[id]).toBeTruthy();
     }
+  });
+});
+
+/**
+ * PROFIL VIVANT — évalué en continu, mais qui ne clignote pas.
+ *
+ * La cadence mensuelle réglait le clignotement en sacrifiant la justesse : le profil restait faux
+ * jusqu'au 1er du mois suivant. L'hystérésis règle le même problème sans ce prix — le seuil n'est
+ * pas au même endroit selon le sens du trajet.
+ */
+describe('resolveLiveProfile — temps réel avec hystérésis', () => {
+  const withCushion = (months: number) => ({
+    ...base, avgMonthlyIncome: 2000, monthlyEssentialExpenses: 1000,
+    availableSavings: months * 1000,
+  });
+
+  it('rien ne bouge tant que la situation ne bouge pas', () => {
+    const r = resolveLiveProfile('P3', withCushion(2));
+    expect(r.changed).toBe(false);
+    expect(r.profileId).toBe('P3');
+  });
+
+  it('un franchissement JUSTE acquis ne fait pas monter', () => {
+    // 6,1 mois : au-dessus du seuil de P5, mais pas de la marge (6,1 × 0,85 = 5,2).
+    const r = resolveLiveProfile('P4', withCushion(6.1));
+    expect(r.changed).toBe(false);
+  });
+
+  it('une évolution FRANCHE fait monter tout de suite', () => {
+    const r = resolveLiveProfile('P4', withCushion(9));
+    expect(r.changed).toBe(true);
+    expect(r.direction).toBe('up');
+    expect(r.profileId).toBe('P5');
+  });
+
+  it('repasser tout juste sous un seuil ne fait pas redescendre', () => {
+    // 5,8 mois : sous le seuil de P5, mais 5,8 × 1,15 = 6,7 → on garde le palier.
+    const r = resolveLiveProfile('P5', withCushion(5.8));
+    expect(r.changed).toBe(false);
+  });
+
+  it('une vraie chute fait redescendre', () => {
+    const r = resolveLiveProfile('P5', withCushion(1.5));
+    expect(r.changed).toBe(true);
+    expect(r.direction).toBe('down');
+  });
+
+  it('un aller-retour autour du seuil ne produit AUCUN changement', () => {
+    let id: FinancialProfileId = 'P4';
+    for (const m of [6.1, 5.9, 6.2, 5.8, 6.05]) {
+      const r = resolveLiveProfile(id, withCushion(m));
+      id = r.profileId;
+    }
+    expect(id).toBe('P4');
+  });
+
+  it('quitter Découverte est immédiat : ce n’est pas un palier, c’est une absence de données', () => {
+    const r = resolveLiveProfile('P0', withCushion(6.1));
+    expect(r.changed).toBe(true);
+    expect(r.profileId).toBe('P5');
   });
 });

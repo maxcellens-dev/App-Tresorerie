@@ -118,6 +118,11 @@ BEGIN
     AND EXISTS (SELECT 1 FROM public.rw_expense_payers t WHERE t.participant_id = p_into AND t.expense_id = s.expense_id);
   UPDATE public.rw_expense_payers SET participant_id = p_into WHERE participant_id = p_from;
 END; $$;
+/* SOUS-ROUTINE INTERNE — aucun contrôle de droit ici, il est fait par les deux fonctions qui
+   l'appellent (projet, propriétaire, garde-fou de l'argent réel). PostgreSQL accorde EXECUTE à
+   PUBLIC par défaut : sans ce retrait, n'importe qui pourrait l'appeler en direct avec deux
+   identifiants et réattribuer l'argent d'autrui dans n'importe quel projet. */
+REVOKE ALL ON FUNCTION public.rw_absorb_participant_lines(uuid, uuid) FROM PUBLIC;
 
 -- ── 3) La fusion proprement dite ─────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.rw_merge_participants(p_from uuid, p_into uuid)

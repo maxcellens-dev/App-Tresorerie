@@ -17,7 +17,7 @@ import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDelete
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/transaction/CategoryPicker';
 import { isRegulRow } from '../../../../lib/finance/txOrder';
 import type { RecurrenceRule } from '../../../../types/database';
-import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../../lib/dateUtils';
 import { accountColor } from '../../../../theme/colors';
 import { supabase } from '../../../../lib/platform/supabase';
 import { useAppColors } from '../../../../hooks/theme/useAppColors';
@@ -65,7 +65,9 @@ function EditTransactionScreen() {
   }
 
   const tx = transactions.find((t) => t.id === id);
-  const isPast = tx ? new Date(tx.date) < new Date(new Date().toISOString().slice(0, 10)) : false;
+  // Comparaison de chaînes ISO en heure LOCALE : `toISOString` rendait la veille après 22 h, et une
+  // opération du jour était alors annoncée comme « passée » (avec l'avertissement sur le solde).
+  const isPast = tx ? tx.date < todayISO() : false;
   const isVirement = !!(tx as any)?.linked_account_id;
   // Jambe APPARIÉE d'un virement : toute édition de SÉRIE doit synchroniser les 2 jambes, sinon
   // l'une garde l'ancien montant / l'ancienne fin et le virement se désynchronise (voire se perd).

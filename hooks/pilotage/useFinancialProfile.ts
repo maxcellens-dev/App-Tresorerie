@@ -4,14 +4,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import {
   computeInitialProfile,
   computeProfileFromData,
+  resolveLiveProfile,
   detectIrregularIncome,
-  evaluateAutoTransition,
   computeMonthlyMetrics,
   PROFILE_ALLOCATIONS,
   safetyMarginFromQ8,
   weeklyVariableFromQ9,
 } from '../../lib/finance/financialProfileEngine';
 import { computeReferenceMonthlyIncome } from '../../lib/finance/incomeAverage';
+import { isoDay } from '../../lib/dateUtils';
 import type {
   UserFinancialProfile,
   UserQuestionnaireAnswers,
@@ -379,9 +380,11 @@ interface RealMetricsResult {
 async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null> {
   if (!supabase) return null;
   const today = new Date();
-  const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, 1).toISOString().slice(0, 10);
+  // Heure LOCALE (`isoDay`) : `toISOString` bascule en UTC et rendait le 31 du mois précédent pour
+  // un 1er construit en local — la fenêtre de 6 mois démarrait un jour trop tôt.
+  const sixMonthsAgo = isoDay(new Date(today.getFullYear(), today.getMonth() - 6, 1));
 
-  const [{ data: answers }, { data: txns }, { data: accounts }, { data: prof }] = await Promise.all([
+  const [{ data: answers }, { data: txns, error: txErr }, { data: accounts, error: accErr }, { data: prof }] = await Promise.all([
     supabase.from('user_questionnaire_answers').select('q3').eq('user_id', userId).maybeSingle(),
     supabase.from('transactions')
       // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
@@ -393,6 +396,13 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
       .eq('profile_id', userId).eq('is_active', true).eq('is_joint', false),
     supabase.from('profiles').select('created_at').eq('id', userId).maybeSingle(),
   ]);
+
+  /* ⚠️ ON NE CONCLUT PAS SUR UNE LECTURE EN ÉCHEC. Ces deux erreurs n'étaient pas lues : une
+     lecture ratée rendait `undefined`, donc « aucune transaction », donc des revenus et des
+     dépenses à zéro — et ces métriques SERVENT À ÉCRIRE le profil financier de l'utilisateur
+     (cf. useAutoProfileEvaluation). Un incident réseau pouvait ainsi le faire rétrograder tout
+     seul. `null` remonte à l'appelant, qui n'évalue rien du tout. */
+  if (txErr || accErr) return null;
 
   const accountTypeMap: Record<string, string> = {};
   const checkingIds = new Set<string>();
@@ -422,7 +432,7 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     // MÊME mesure que le Pilotage et la page « Profil financier ». Il y en avait deux, elles ne
     // s'accordaient pas, et c'est le profil qui en payait le prix (cf. lib/incomeAverage).
     avgMonthlyIncome: computeReferenceMonthlyIncome(
-      (txns ?? []) as any[], checkingIds, today.toISOString().slice(0, 10),
+      (txns ?? []) as any[], checkingIds, isoDay(today),
       (prof as any)?.created_at ?? null,
     ),
     q3,
@@ -471,14 +481,23 @@ export function useLiveProfileSync(userId: string | undefined) {
       const real = await loadRealMetrics(userId);
       if (!real) return null;
 
+      /* DÉPENSES ESSENTIELLES = la base du matelas (charges récurrentes + enveloppe variable).
+         Elle n'était PAS transmise ici : le profil vivant continuait donc de mesurer le matelas en
+         mois de REVENUS, à contre-courant du reste de l'app depuis que la définition a changé. Deux
+         écrans annonçaient « 7 mois » et « 4 mois » pour la même personne.
+         Lue dans le cache du Pilotage — même source, même chiffre, aucun aller-retour réseau. */
+      const pilotage = client.getQueryData<any>(['pilotage_data', userId]);
+      const essentials = Number(pilotage?.monthly_essential_expenses) || undefined;
+
       /* Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
          Données incomplètes → P0 « Découverte » : on dit qu'on ne sait pas encore, au lieu de
          classer d'office en « épargne critique » quelqu'un qui vient d'arriver. */
-      const next = computeProfileFromData({
+      const inputs = {
         availableSavings: real.savingsBalance,
-        /* Le DÉCOUVERT chronique est le seul signal que les ratios ne voient pas : quelqu'un dans
-           le rouge n'a pas « un peu moins d'un mois de réserve », il a un problème d'une autre
-           nature — c'est ce qui sépare P1 de P2. */
+        monthlyEssentialExpenses: essentials,
+        /* Le solde courant ne sert QU'EN APPOINT : un découvert ne devient un diagnostic que s'il
+           n'y a plus rien pour le combler, ou si les charges dépassent le revenu (cf.
+           `hasStructuralDeficit`). Un rouge passager avant la paie n'est pas une situation. */
         checkingBalance: real.checkingBalance,
         /* Patrimoine BANCAIRE (le seul que l'app connaisse) : il gouverne les paliers hauts, où le
            nombre de mois de réserve ne distingue plus rien. */
@@ -491,9 +510,18 @@ export function useLiveProfileSync(userId: string | undefined) {
         // euros — le taux d'épargne calculé derrière valait alors 1,5 % au lieu de 30 %.
         monthlySetAside: real.metrics.set_aside_monthly,
         totalInvested: real.investedBalance,
-      });
+      };
 
-      if (fp && next === (fp as any).profile_id) return next;
+      /* HYSTÉRÉSIS. Ce calcul tourne à chaque fois que les données bougent : sans marge, quelqu'un
+         qui oscille autour de 6 mois de réserve verrait son profil basculer d'avant en arrière à
+         chaque saisie — et recevrait une notification de changement à chacune. `resolveLiveProfile`
+         exige que le seuil soit franchi FRANCHEMENT dans le sens du trajet. C'est ce qui permet
+         d'évaluer en continu sans ralentir l'évaluation. */
+      const current = (fp as any)?.profile_id as FinancialProfileId | undefined;
+      const live = resolveLiveProfile(current ?? null, inputs);
+      const next = live.profileId;
+
+      if (!live.changed && fp) return next;
 
       const now = new Date().toISOString();
       const alloc = PROFILE_ALLOCATIONS[next as FinancialProfileId];
@@ -571,10 +599,23 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
       const autoUnlockAt = fp.auto_unlock_at ? new Date(fp.auto_unlock_at) : null;
       const frozen = !!autoUnlockAt && new Date() < autoUnlockAt;
 
-      // Vérifier si déjà évalué ce mois-ci
       const today = new Date();
       const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
-      if (fp.last_auto_evaluation === currentMonthStr) return;
+
+      /* ── PROFIL VIVANT : ON N'ATTEND PLUS LE 1ᴱᴿ DU MOIS ────────────────────────────────────
+         Ce garde-fou (`last_auto_evaluation === currentMonthStr`) ramenait l'évaluation à UNE FOIS
+         PAR MOIS. Conséquence : quelqu'un qui renseigne son épargne le 3 gardait jusqu'au 1er
+         suivant un profil calculé sans elle — un diagnostic dont l'app savait déjà qu'il était
+         faux, et sur lequel elle continuait pourtant de fonder ses recommandations.
+         Le profil décrit une SITUATION : quand la situation change, il change.
+
+         Ce que la cadence mensuelle protégeait réellement, c'est le clignotement autour d'un
+         seuil. C'est désormais le rôle de l'hystérésis (`resolveLiveProfile`), qui le traite là où
+         le problème se pose — dans la décision — au lieu de ralentir toute l'évaluation.
+
+         `last_auto_evaluation` n'est plus un verrou : il ne sert plus qu'à ne produire qu'UN SEUL
+         bilan mensuel (le journal `profile_change_log`), qui, lui, reste un rendez-vous. */
+      const alreadyReportedThisMonth = fp.last_auto_evaluation === currentMonthStr;
 
       // Charger la config de la matrice + la tranche de revenu déclarée (repli du matelas de sécurité
       // tant qu'aucune recette n'a encore été constatée — cf. lib/securityCushion).
@@ -586,9 +627,9 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
       const configMap: Record<string, any> = {};
       (configs ?? []).forEach((c: any) => { configMap[c.transition] = c; });
 
-      // Charger les transactions des 6 derniers mois
-      const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, 1).toISOString().slice(0, 10);
-      const { data: txns } = await supabase
+      // Charger les transactions des 6 derniers mois (heure LOCALE : cf. `isoDay`).
+      const sixMonthsAgo = isoDay(new Date(today.getFullYear(), today.getMonth() - 6, 1));
+      const { data: txns, error: txErr } = await supabase
         .from('transactions')
         .select('amount, date, account_id, linked_account_id, is_draft')
         .eq('profile_id', userId)
@@ -596,12 +637,17 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         .gte('date', sixMonthsAgo);
 
       // Charger les comptes pour connaître leur type
-      const { data: accounts } = await supabase
+      const { data: accounts, error: accErr } = await supabase
         .from('accounts')
         .select('id, type, balance')
         .eq('profile_id', userId)
         .eq('is_active', true)
         .eq('is_joint', false); // comptes joints exclus des agrégats perso
+
+      /* ⚠️ Une lecture en échec ne vaut PAS « rien à lire ». Sans ce contrôle, un incident réseau
+         donnait des métriques à zéro — revenus nuls, épargne nulle — et cette évaluation ÉCRIT le
+         profil : l'utilisateur pouvait être rétrogradé par une simple coupure. On n'évalue pas. */
+      if (txErr || accErr) return;
 
       const accountTypeMap: Record<string, string> = {};
       let savingsBalance = 0;
@@ -619,70 +665,38 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         linked_account_type: t.linked_account_id ? (accountTypeMap[t.linked_account_id] ?? null) : null,
       }));
 
+      /* ── CETTE ÉVALUATION NE DÉCIDE PLUS DU PROFIL ──────────────────────────────────────────
+         Deux moteurs écrivaient `profile_id` avec des règles DIFFÉRENTES : le profil vivant
+         (`useLiveProfileSync`, à chaque changement de données, matelas en mois de dépenses) et
+         celui-ci (une fois par mois, matrice `profile_matrix_config` et compteurs de mois
+         consécutifs). Ils se contredisaient : le palier obtenu dépendait de qui avait écrit en
+         dernier — et le profil pouvait donc changer tout seul, le 1er du mois, sans qu'aucune
+         donnée n'ait bougé.
+
+         UN SEUL décide désormais : le profil vivant. Il reste à celle-ci ce qu'elle sait faire de
+         mieux et que l'autre ne fait pas — le RENDEZ-VOUS MENSUEL : une entrée de journal par mois,
+         qui porte la notification. Elle ne touche plus ni au palier, ni aux allocations. */
       const metrics = computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, (answers as any)?.q3 ?? null);
-      const result = evaluateAutoTransition(
-        fp.profile_id as FinancialProfileId,
-        metrics,
-        fp.consecutive_upgrade_months ?? 0,
-        fp.consecutive_downgrade_months ?? 0,
-        configMap,
-        fp.is_irregular_income ?? false,
-      );
+      void metrics; // conservé : le bilan mensuel s'en servira pour commenter l'évolution.
 
-      // Pendant le gel : seul un CHANGEMENT exceptionnel (chute de revenus) passe. Sinon on ne
-      // touche à RIEN (ni compteurs, ni bilan, ni last_auto_evaluation) → le premier vrai bilan
-      // tombera au déblocage.
-      if (frozen && !(result.changed && result.reason === 'exceptional_revenue_drop')) return;
+      // Pendant le gel initial, pas de bilan : il tomberait sur des données encore partielles.
+      if (frozen) return;
+      // Un seul bilan par mois — c'est un rendez-vous, pas un flux.
+      if (alreadyReportedThisMonth) return;
 
-      // Mettre à jour le profil avec les nouveaux compteurs
       const now = new Date().toISOString();
-      const updatePayload: Record<string, any> = {
-        consecutive_upgrade_months: result.consecutiveUpgrade,
-        consecutive_downgrade_months: result.consecutiveDowngrade,
-        last_auto_evaluation: currentMonthStr,
-        updated_at: now,
-      };
-
-      if (result.changed) {
-        updatePayload.profile_id = result.newProfileId;
-        updatePayload.profile_source = 'automatic';
-        updatePayload.assigned_at = now;
-
-        // Log le changement avec notification
-        await supabase.from('profile_change_log').insert({
-          user_id: userId,
-          previous_profile: fp.profile_id,
-          new_profile: result.newProfileId,
-          change_reason: result.reason,
-          triggered_at: now,
-          notification_shown: false,
-        });
-
-        // Mettre à jour les allocations
-        const alloc = PROFILE_ALLOCATIONS[result.newProfileId];
-        await supabase.from('profiles').update({
-          allocation_save_percent: alloc.save,
-          allocation_invest_percent: alloc.invest,
-          allocation_enjoy_percent: alloc.enjoy,
-          allocation_keep_percent: alloc.keep,
-          updated_at: now,
-        }).eq('id', userId);
-      } else {
-        // Pas de changement ce mois-ci → « bilan mensuel » : on informe quand même l'utilisateur
-        // qu'il reste dans le même profil (uniquement après le gel, 1×/mois grâce aux gardes plus haut).
-        await supabase.from('profile_change_log').insert({
-          user_id: userId,
-          previous_profile: fp.profile_id,
-          new_profile: fp.profile_id,
-          change_reason: 'monthly_recap',
-          triggered_at: now,
-          notification_shown: false,
-        });
-      }
+      await supabase.from('profile_change_log').insert({
+        user_id: userId,
+        previous_profile: fp.profile_id,
+        new_profile: fp.profile_id,
+        change_reason: 'monthly_recap',
+        triggered_at: now,
+        notification_shown: false,
+      });
 
       await supabase
         .from('user_financial_profile')
-        .update(updatePayload)
+        .update({ last_auto_evaluation: currentMonthStr, updated_at: now })
         .eq('user_id', userId);
     },
     onSuccess: () => {

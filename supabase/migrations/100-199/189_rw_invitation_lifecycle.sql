@@ -36,7 +36,10 @@ RETURNS integer LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
        + (SELECT count(*) FROM public.rw_expense_shares WHERE participant_id  = p_participant)
        + (SELECT count(*) FROM public.rw_expense_payers WHERE participant_id  = p_participant);
 $$;
-GRANT EXECUTE ON FUNCTION public.rw_participant_refs(uuid) TO authenticated;
+-- SOUS-ROUTINE INTERNE, jamais appelée depuis le client. PostgreSQL accorde EXECUTE à PUBLIC par
+-- défaut : sans ce retrait, elle répondrait à n'importe qui sur n'importe quel participant, sans
+-- vérifier l'accès au projet. Les fonctions qui l'utilisent sont SECURITY DEFINER et y accèdent.
+REVOKE ALL ON FUNCTION public.rw_participant_refs(uuid) FROM PUBLIC;
 
 -- ── 1) Inviter par code : réutiliser la ligne existante ─────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.rw_invite_by_code(p_project uuid, p_code text, p_name text)

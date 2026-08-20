@@ -81,9 +81,19 @@ export function useAccountClosures(userId: string | undefined) {
       ])];
       if (ids.length === 0) return [];
       const { data, error } = await supabase.from('account_closures').select('*').in('account_id', ids);
-      // Table absente (migration 179 pas encore déployée) → on se comporte comme avant : aucune
-      // trace de clôture par compte, la clôture reste proposée. Jamais d'échec bloquant.
-      if (error) return [];
+      /* Table ABSENTE (migration 179 pas déployée sur cette instance) → on se comporte comme avant :
+         aucune trace de clôture par compte. C'est le seul cas où l'absence de réponse est une
+         réponse.
+         ⚠️ Toute AUTRE erreur remonte. Elle se lisait jusqu'ici « aucun compte n'est clôturé », et
+         un compte joint déjà régularisé par un autre participant était donc reproposé : deux
+         régularisations empilées sur le même compte, une par personne. Un échec de lecture ne doit
+         jamais se traduire par une écriture en double. */
+      if (error) {
+        const missingTable = error.code === '42P01' || error.code === 'PGRST205'
+          || /does not exist|schema cache/i.test(error.message ?? '');
+        if (missingTable) return [];
+        throw error;
+      }
       return (data ?? []) as AccountClosure[];
     },
   });

@@ -29,7 +29,10 @@ export function interpolate(msg: string, vars: Record<string, string | number>):
   return msg.replace(/\{([^}]+)\}/g, (_, key) => String(vars[key] ?? `{${key}}`));
 }
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+/* Redéfinition locale supprimée : elle calculait « aujourd'hui » en UTC et rendait donc la VEILLE
+   entre minuit et 2 h en France. Les conseils jugeaient alors le jour d'hier — et divergeaient du
+   reste de l'app, qui utilise partout la version locale. Une seule définition (lib/dateUtils). */
+import { todayISO } from '../../lib/dateUtils';
 
 // ── Évaluation des critères contextuels ──────────────────────────────────────
 

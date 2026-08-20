@@ -93,7 +93,11 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   // Catégories du profil : la régularisation de clôture est rangée selon son sens (cf. lib/regul).
   const { data: categories = [] } = useCategories(user?.id);
   const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
-  const { data: accountClosures = [] } = useAccountClosures(user?.id);
+  /* `isSuccess` et pas seulement les données : en cas d'échec de lecture, `data` vaut `undefined` et
+     retombait sur `[]` — c'est-à-dire « aucun compte n'est clôturé ». Sur un compte JOINT déjà
+     régularisé par un autre participant, clôturer dans cet état empile une seconde régularisation
+     sur le même compte. Tant qu'on ne SAIT pas, on ne clôture pas (cf. `traceUnavailable`). */
+  const { data: accountClosures = [], isSuccess: closureTraceLoaded } = useAccountClosures(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   /* Les comptes JOINTS ne sont pas dans `useTransactions` (vue perso, volontairement) : sans leurs
      lignes, le solde de fin de mois d'un compte joint serait reconstitué à partir de rien — donc
@@ -284,8 +288,17 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   const needsAmount = mode === 'balance' || mode === 'unknown';
   const unknownSharePct = (accId: string) => closingSharePct(allTx as any[], accId, targetKey, unknownDate, unknownShare);
 
+  /* Tant que la trace des clôtures par compte n'a pas pu être lue, on ne sait pas si un compte a
+     DÉJÀ été régularisé par quelqu'un d'autre. Clôturer à l'aveugle, c'est risquer d'écrire une
+     seconde régularisation sur le même compte — et un solde faux pour tout le monde. */
+  const traceUnavailable = !closureTraceLoaded;
+
   const confirm = async () => {
     if (!monthsToClose.length) return;
+    if (traceUnavailable) {
+      setError("Impossible de vérifier si ces comptes ont déjà été clôturés. Réessaie dans un instant — clôturer maintenant risquerait d'appliquer deux fois la même correction.");
+      return;
+    }
     setBusy(true);
     try {
       const closeKey = monthsToClose[monthsToClose.length - 1];

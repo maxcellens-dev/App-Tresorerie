@@ -434,11 +434,28 @@ export interface ProfileDataInputs {
   /** Total réellement placé sur des comptes d'investissement. */
   totalInvested: number;
   /**
-   * Solde des comptes COURANTS. Sert au seul cas que les ratios ne voient pas : le découvert
-   * chronique. Quelqu'un dans le rouge à la fin de chaque mois n'a pas « un peu moins d'un mois de
-   * réserve », il a un problème d'une autre nature — et il recevait pourtant les mêmes conseils.
+   * Solde des comptes COURANTS, à l'instant T.
+   *
+   * ⚠️ NE JAMAIS EN CONCLURE SEUL. Un solde négatif un jour donné ne dit presque rien : on peut
+   * attendre une paie dans trois jours, avoir laissé filer le courant en gardant 20 000 € sur un
+   * livret, ou être à −5 € la veille du virement. Classer quelqu'un « chroniquement déficitaire »
+   * là-dessus, c'est confondre une photo avec une trajectoire. Cette valeur ne sert donc qu'en
+   * complément d'un manque de liquidité TOTALE (cf. `hasStructuralDeficit`).
    */
   checkingBalance?: number;
+  /**
+   * Nombre de mois consécutifs terminés dans le rouge. C'est CELA qu'on veut dire par « découvert
+   * chronique » — pas un solde négatif un mardi. Absent = information non disponible : on ne
+   * suppose rien.
+   */
+  consecutiveOverdraftMonths?: number;
+  /**
+   * Marge de HYSTÉRÉSIS appliquée aux mois de réserve (1 = aucune). En dessous de 1 on durcit
+   * (il faut dépasser franchement le seuil pour monter), au-dessus on assouplit (il faut passer
+   * franchement sous le seuil pour descendre). Cf. `resolveLiveProfile` : c'est ce qui permet
+   * d'évaluer en temps réel sans que le profil clignote à chaque saisie.
+   */
+  cushionMarginFactor?: number;
   /**
    * Patrimoine BANCAIRE total (courant + épargne + investissement). Il gouverne les paliers hauts :
    * au-delà d'un certain montant, le nombre de mois de réserve ne dit plus rien d'utile (quelqu'un
@@ -474,6 +491,40 @@ export const MILLIONAIRE_THRESHOLD = 1_000_000;
 /** Mois de réserve exigés pour prétendre à un palier de patrimoine (P7+). */
 const WEALTH_MIN_MONTHS = 3;
 
+/** Découvert « chronique » : au moins deux mois consécutifs terminés dans le rouge. */
+const CHRONIC_OVERDRAFT_MONTHS = 2;
+
+/**
+ * DÉFICIT STRUCTUREL — la seule chose qui justifie P1.
+ *
+ * Un découvert n'est pas un diagnostic, c'est un symptôme, et il a des causes très différentes :
+ * on attend une paie, on a laissé filer le compte courant en gardant son épargne intacte, on a
+ * payé les impôts d'un coup. Aucun de ces cas n'est un déficit — et servir « tu finis tes mois
+ * dans le rouge » à quelqu'un qui a 20 000 € sur un livret est faux, en plus d'être blessant.
+ *
+ * On ne retient donc que deux situations, qui décrivent l'une et l'autre une trajectoire :
+ *
+ *   1. LES CHARGES DÉPASSENT LE REVENU. Le mois ne peut pas se boucler, quoi qu'on fasse. C'est le
+ *      déficit au sens propre, et il se voit sur les moyennes, pas sur un solde.
+ *   2. À SEC ET DANS LE ROUGE. Plus aucune liquidité (courant + épargne ≤ 0) : le découvert n'est
+ *      plus un arbitrage puisqu'il n'y a rien pour le combler. On exige en plus, quand
+ *      l'information existe, que ça DURE (`consecutiveOverdraftMonths`) — un mois difficile n'est
+ *      pas une situation.
+ */
+export function hasStructuralDeficit(i: ProfileDataInputs): boolean {
+  const essentials = i.monthlyEssentialExpenses ?? 0;
+  if (essentials > 0 && i.avgMonthlyIncome > 0 && essentials > i.avgMonthlyIncome) return true;
+
+  const checking = i.checkingBalance;
+  if (checking == null || checking >= 0) return false;
+  // De l'épargne mobilisable ⇒ ce découvert est un choix de trésorerie, pas une impasse.
+  if (Math.max(0, i.availableSavings) + checking > 0) return false;
+  // Information de durée disponible → on exige la chronicité. Sinon, être à sec ET dans le rouge
+  // suffit : il n'y a par définition rien pour rattraper le mois.
+  const months = i.consecutiveOverdraftMonths;
+  return months == null || months >= CHRONIC_OVERDRAFT_MONTHS;
+}
+
 export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId {
   /* Sans revenu constaté, aucun ratio n'a de sens. On ne devine pas — et surtout on ne classe plus
      au profil le plus prudent : « épargne critique » est un DIAGNOSTIC, et il était servi à tout
@@ -481,13 +532,15 @@ export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId
      sait pas encore. */
   if (!(i.avgMonthlyIncome > 0)) return 'P0';
 
-  const months = computeSecurityCushion({
+  const rawMonths = computeSecurityCushion({
     availableSavings: Math.max(0, i.availableSavings),
     // Base = ce qu'il faut COUVRIR chaque mois, plus le revenu (cf. lib/securityCushion).
     monthlyEssentialExpenses: i.monthlyEssentialExpenses,
     avgMonthlyIncome: i.avgMonthlyIncome,
   }).months;
-  if (months == null) return 'P0';
+  if (rawMonths == null) return 'P0';
+  // Marge d'hystérésis (1 par défaut = aucune) : cf. `resolveLiveProfile`.
+  const months = rawMonths * (i.cushionMarginFactor ?? 1);
 
   const rate = Math.max(0, i.monthlySetAside) / i.avgMonthlyIncome;
   const rateHigh = rate >= RATE_HIGH;
@@ -511,8 +564,12 @@ export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId
        • pas de découvert : on ne « construit » pas un patrimoine en étant dans le rouge.
      À défaut, on redescend sur l'échelle du matelas — exactement le conseil dont cette personne a
      besoin. Le patrimoine reste donc un indicateur, jamais un laissez-passer. */
-  const noOverdraft = (i.checkingBalance ?? 0) >= 0;
-  if (invests && noOverdraft) {
+  /* Condition « pas dans le rouge » : un DÉFICIT, pas un solde. Le test portait sur le solde
+     courant du jour — il déclassait quelqu'un avec 300 000 € placés parce qu'il était à −40 € la
+     veille de sa paie. Ce qui disqualifie un palier patrimonial, c'est un mois qui ne se boucle
+     pas, pas un compte courant à sec deux jours par mois. */
+  const solvent = !hasStructuralDeficit(i);
+  if (invests && solvent) {
     if (months >= 6 && wealth >= WEALTH_THRESHOLDS.P9) return 'P9';
     if (months >= 6 && wealth >= WEALTH_THRESHOLDS.P8) return 'P8';
     if (months >= WEALTH_MIN_MONTHS && wealth >= WEALTH_THRESHOLDS.P7) return 'P7';
@@ -526,15 +583,82 @@ export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId
   // P4 : trois à six mois, avec un comportement d'épargne — ou moins, mais un taux d'épargne fort.
   if (months >= 3 && (saves || rateHigh)) return 'P4';
   if (months >= 1 && rateHigh) return 'P4';
-  // P3 : un à trois mois de réserve — ou trois à six sans rien mettre de côté (la réserve stagne).
-  if (months >= 1 || months >= 3) return 'P3';
-  // P2 : moins d'un mois, mais le mois se termine dans le vert et/ou on épargne un peu.
+  /* P3 : au moins un mois de réserve. Ce cas ramasse AUSSI les trois-à-six mois qui n'ont pas
+     satisfait P4 — c'est-à-dire ceux qui ne mettent plus rien de côté : la réserve stagne, elle ne
+     se construit plus. (La condition s'écrivait `months >= 1 || months >= 3` : la seconde moitié
+     ne pouvait jamais rien ajouter à la première.) */
+  if (months >= 1) return 'P3';
+  // P2 : moins d'un mois de réserve, mais rien qui indique une impasse.
   if (rateMid || saves) return 'P2';
-  /* P1 : déficitaire. Le découvert est le signal décisif — pas le montant de l'épargne. Sans
-     information sur le compte courant, on reste à P2 : accuser quelqu'un d'être dans le rouge
-     sur une absence de donnée serait pire que de ne rien dire. */
-  if ((i.checkingBalance ?? 0) < 0) return 'P1';
+  /* P1 : DÉFICIT STRUCTUREL, et lui seul (cf. `hasStructuralDeficit`). En l'absence de preuve,
+     on reste à P2 : accuser quelqu'un de finir ses mois dans le rouge sur un solde négatif d'un
+     jour — ou sur une donnée manquante — serait pire que de ne rien dire. */
+  if (hasStructuralDeficit(i)) return 'P1';
   return 'P2';
+}
+
+/**
+ * ── PROFIL VIVANT : ÉVALUÉ EN TEMPS RÉEL, PAS UNE FOIS PAR MOIS ────────────────────────────────
+ *
+ * Le profil décrit une SITUATION. Quand la situation change — on ajoute son épargne, on solde un
+ * crédit, on encaisse une prime — le profil doit suivre tout de suite : attendre le 1er du mois
+ * suivant, c'est afficher un diagnostic dont on sait déjà qu'il est faux.
+ *
+ * Le risque d'une évaluation continue est le CLIGNOTEMENT : à 5,99 puis 6,01 mois de réserve, le
+ * profil basculerait d'avant en arrière à chaque saisie. On ne le règle pas en ralentissant
+ * l'évaluation (c'est ce que faisait la cadence mensuelle, au prix de la justesse) mais par une
+ * HYSTÉRÉSIS : le seuil n'est pas au même endroit selon le sens du trajet.
+ *
+ *   • pour MONTER, la réserve doit dépasser le seuil d'une marge (on évalue à 85 % de sa valeur) ;
+ *   • pour DESCENDRE, elle doit passer sous le seuil d'autant (on évalue à 115 %).
+ *
+ * Entre les deux, on ne bouge pas. Un aller-retour autour d'un seuil ne produit donc aucun
+ * changement, alors qu'une vraie évolution en produit un immédiatement.
+ *
+ * Deux cas passent sans marge, parce qu'ils ne sont pas des franchissements de seuil :
+ *   • QUITTER P0 (Découverte) — ce n'est pas un palier mais une absence de données ; dès qu'on en a,
+ *     on classe ;
+ *   • y RETOURNER — les données ont disparu (plus de revenu constaté), il n'y a plus rien à mesurer.
+ */
+export const LIVE_HYSTERESIS = 0.15;
+
+export interface LiveProfileResult {
+  profileId: FinancialProfileId;
+  changed: boolean;
+  direction: 'up' | 'down' | null;
+}
+
+const rankOf = (id: FinancialProfileId): number => FINANCIAL_PROFILE_IDS.indexOf(id);
+
+export function resolveLiveProfile(
+  current: FinancialProfileId | null | undefined,
+  inputs: ProfileDataInputs,
+  hysteresis: number = LIVE_HYSTERESIS,
+): LiveProfileResult {
+  const target = computeProfileFromData(inputs);
+  const from = current && FINANCIAL_PROFILE_IDS.includes(current) ? current : null;
+
+  if (!from) return { profileId: target, changed: true, direction: null };
+  if (target === from) return { profileId: from, changed: false, direction: null };
+
+  // Entrée et sortie de Découverte : immédiates, sans marge (cf. en-tête).
+  if (from === 'P0' || target === 'P0') {
+    return { profileId: target, changed: true, direction: target === 'P0' ? 'down' : 'up' };
+  }
+
+  const up = rankOf(target) > rankOf(from);
+  /* On recalcule avec la marge appliquée dans le sens DÉFAVORABLE au changement : si le résultat
+     confirme quand même, l'évolution est franche. Et on retient CE résultat, pas la cible brute —
+     il est le plus prudent des deux, ce qui évite de sauter deux paliers sur un franchissement
+     tout juste acquis. */
+  const guarded = computeProfileFromData({
+    ...inputs,
+    cushionMarginFactor: up ? 1 - hysteresis : 1 + hysteresis,
+  });
+
+  const confirmed = up ? rankOf(guarded) > rankOf(from) : rankOf(guarded) < rankOf(from);
+  if (!confirmed) return { profileId: from, changed: false, direction: null };
+  return { profileId: guarded, changed: true, direction: up ? 'up' : 'down' };
 }
 
 /** L'utilisateur dépasse-t-il le million sur ses comptes suivis ? (pour le NOMMER, cf. P9) */
