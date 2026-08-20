@@ -23,6 +23,7 @@ import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealt
 import { computeAmortization } from '../../lib/finance/amortization';
 import { todayISO } from '../../lib/dateUtils';
 import type { Credit } from '../../types/database';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 const TYPE_META: Record<string, { label: string; icon: string }> = {
   immobilier: { label: 'Immobilier', icon: 'home-outline' },
@@ -46,9 +47,9 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   useSharedCreditsRealtime(userId);
   const [showType, setShowType] = useState(false);
   useEffect(() => { if (openCreateSignal) setShowType(true); }, [openCreateSignal]);
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${CURRENCY_SYMBOL}`;
   /** Récap : euros pleins (pas de centimes sur un cumul de crédits). */
-  const money = (v: number) => Math.round(v).toLocaleString('fr-FR') + ' €';
+  const money = (v: number) => Math.round(v).toLocaleString('fr-FR') + ` ${CURRENCY_SYMBOL}`;
   const today = todayISO();
   // ≥ 768 px (web bureau/tablette, tablette native) : le récap tient sur une seule ligne.
   const oneLine = !useResponsive().isCompact;

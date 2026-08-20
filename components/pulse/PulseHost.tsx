@@ -33,6 +33,7 @@ import { isAppReady, onAppReady } from '../../lib/platform/splashGate';
 import { PROFILE_INFO } from '../../lib/finance/financialProfileEngine';
 import { monthKey, type PulseSignalId } from '../../lib/pulse/pulseEngine';
 import PulseSignalCard from './PulseSignalCard';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 /**
  * Ouverture manuelle (fin de clôture mensuelle, aperçu admin).
@@ -350,7 +351,7 @@ export default function PulseHost() {
   );
 }
 
-const eurFmt = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+const eurFmt = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 
 /**
  * Les deux repères du mois écoulé, réunis dans UNE carte avec l'anneau. Épargne et investissement

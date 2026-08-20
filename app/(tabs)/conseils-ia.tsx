@@ -36,6 +36,7 @@ import AiRichText from '../../components/ai/AiRichText';
 import AiReport from '../../components/ai/AiReport';
 import { parseAiReport } from '../../lib/ai/aiReport';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/admin/useAi';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 export default withDeferredMount(ConseilsIaScreen);
 function ConseilsIaScreen() {
@@ -177,7 +178,7 @@ function ConseilsIaScreen() {
   const packs: AiCreditPack[] = cfg?.extra_credit_packs ?? [];
   const [showPaywall, setShowPaywall] = useState(false);
 
-  const eur = (cents: number) => (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const eur = (cents: number) => (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${CURRENCY_SYMBOL}`;
 
   const buyPack = async (pack: AiCreditPack) => {
     try {

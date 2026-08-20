@@ -11,7 +11,7 @@ import RegisterScreen from '../app/register';
  */
 const fill = (email = 'nouveau@exemple.fr', password = 'Correct-Horse-42!') => {
   fireEvent.press(screen.getByText('Continuer avec un e-mail'));
-  fireEvent.changeText(screen.getByPlaceholderText('vous@exemple.fr'), email);
+  fireEvent.changeText(screen.getByPlaceholderText('toi@exemple.fr'), email);
   fireEvent.changeText(screen.getByPlaceholderText('••••••••••••'), password);
 };
 const submit = () => fireEvent.press(screen.getByText('S’inscrire par e-mail'));

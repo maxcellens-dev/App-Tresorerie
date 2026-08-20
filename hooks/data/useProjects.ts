@@ -239,12 +239,13 @@ export function useUpdateProject(profileId: string | undefined) {
 
       // État AVANT pour détecter si l'ÉCHÉANCIER change réellement (sinon : pas de
       // régénération, on préserve les transactions déjà validées — cf. renommage).
-      const { data: before } = await supabase
+      const { data: before, error: beforeErr } = await supabase
         .from('projects')
         .select('mode, expense_category_id, monthly_allocation, allocation_type, target_date, source_account_id, linked_account_id, transaction_day, first_payment_date')
         .eq('id', input.id)
         .eq('profile_id', profileId)
         .maybeSingle();
+      if (beforeErr) throw beforeErr;
 
       // Le mode est FIGÉ à la création : on le relit du projet, jamais de l'entrée.
       const mode = projectMode(before);
@@ -346,13 +347,14 @@ export function useUpdateProject(profileId: string | undefined) {
       // est déjà protégé par `afterDate` → pas de filtre par mois (sinon on perdrait le mois courant).
       let skipMonths: Set<string> | undefined;
       if (mode !== 'spend' && allocType !== 'ponctuel') {
-        const { data: validatedTxns } = await supabase
+        const { data: validatedTxns, error: vErr } = await supabase
           .from('transactions')
           .select('date')
           .eq('project_id', input.id)
           .eq('profile_id', profileId)
           .eq('is_draft', false)
           .lt('amount', 0);
+        if (vErr) throw vErr;
         skipMonths = new Set((validatedTxns ?? []).map((t: any) => String(t.date).slice(0, 7)));
       }
 
@@ -362,13 +364,14 @@ export function useUpdateProject(profileId: string | undefined) {
       if (input.first_payment_date) {
         startDate = input.first_payment_date;
       } else {
-        const { data: firstTxn } = await supabase
+        const { data: firstTxn, error: fErr } = await supabase
           .from('transactions')
           .select('date')
           .eq('project_id', input.id)
           .eq('profile_id', profileId)
           .order('date', { ascending: true })
           .limit(1);
+        if (fErr) throw fErr;
         startDate = firstTxn?.[0]?.date ?? (() => {
           const now = new Date();
           return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(paymentDay).padStart(2, '0')}`;
@@ -451,12 +454,17 @@ export function useDeleteProjectDissociating(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Not authenticated');
       const today = todayISO();
 
-      const { data: proj } = await supabase
+      /* Le MODE décide de ce qu'on garde ou détruit (cf. `projectMode`). Son erreur n'était pas
+         lue : sur une lecture ratée, `proj` valait `undefined` et le mode retombait sur son défaut
+         — donc une règle de conservation potentiellement autre que celle du projet, appliquée à des
+         transactions réelles. */
+      const { data: proj, error: projErr } = await supabase
         .from('projects')
         .select('mode, source_account_id, linked_account_id')
         .eq('id', projectId)
         .eq('profile_id', profileId)
         .maybeSingle();
+      if (projErr) throw projErr;
       const mode = projectMode(proj);
 
       // 1. Détacher ce qui est conservé (les 2 jambes d'un virement portent project_id).
@@ -473,11 +481,12 @@ export function useDeleteProjectDissociating(profileId: string | undefined) {
       if (unlinkErr) throw unlinkErr;
 
       // 2. Supprimer tout ce qui reste rattaché au projet (brouillons + dépenses à venir).
-      const { data: rest } = await supabase
+      const { data: rest, error: restErr } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId);
+      if (restErr) throw restErr;
       await reverseBalanceAndDeleteTransactions(profileId, (rest ?? []) as any);
       if (mode === 'spend') await recomputeBalances([(proj as any)?.source_account_id]);
 
@@ -504,12 +513,16 @@ export function useDeleteProjectFull(profileId: string | undefined) {
   return useMutation({
     mutationFn: async (projectId: string) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
-      // Supprimer les transactions liées en RÉVERSANT le solde des lignes validées (posted).
-      const { data: toDelete } = await supabase
+      /* ⚠️ LA LECTURE DOIT RÉUSSIR AVANT DE SUPPRIMER LE PROJET. Son erreur n'était pas lue : une
+         lecture ratée rendait `undefined`, donc « aucune transaction à défaire », et on supprimait
+         le projet quand même. Ses transactions restaient alors sur les comptes, sans plus rien pour
+         les rattacher — impossibles à retrouver, et le solde définitivement faux. */
+      const { data: toDelete, error: readErr } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId);
+      if (readErr) throw readErr;
       await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
       // Delete the project
       const { error } = await supabase
@@ -547,12 +560,15 @@ export function useDeleteProjectKeepingLocked(profileId: string | undefined) {
         .lte('date', lockDate);
       if (unlinkErr) throw unlinkErr;
 
-      const { data: toDelete } = await supabase
+      // Erreur LUE (cf. `useDeleteProjectFull`) : sans ce contrôle, une lecture ratée supprimerait
+      // le projet en laissant ses transactions futures sur les comptes, orphelines.
+      const { data: toDelete, error: readErr } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId)
         .gt('date', lockDate);
+      if (readErr) throw readErr;
       // Réverse le solde des lignes validées (posted) au-delà de la date de clôture.
       await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
 
@@ -637,12 +653,14 @@ export function useDeleteProjectFromDate(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Not authenticated');
 
       // 1. Supprimer les transactions >= fromDate en RÉVERSANT le solde des lignes validées.
-      const { data: toDelete } = await supabase
+      //    Erreur LUE : « je n'ai rien pu lire » ne doit pas se traduire par « il n'y a rien ».
+      const { data: toDelete, error: readErr } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId)
         .gte('date', fromDate);
+      if (readErr) throw readErr;
       await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
 
       // 2. Calculer la somme des transactions restantes (débits = montants négatifs)

@@ -9,6 +9,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Svg, { Rect, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import type { AmortRow } from '../../lib/finance/amortization';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 interface Props {
   schedule: AmortRow[];
@@ -27,11 +28,11 @@ const PAD_L = 40;    // place des libellés d'axe Y
 const PAD_R = 6;
 
 function kfmt(v: number): string {
-  if (v >= 1000) return `${Math.round(v / 1000)} k€`;
-  return `${Math.round(v)} €`;
+  if (v >= 1000) return `${Math.round(v / 1000)} k${CURRENCY_SYMBOL}`;
+  return `${Math.round(v)} ${CURRENCY_SYMBOL}`;
 }
 function efmt(v: number): string {
-  return v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+  return v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ` ${CURRENCY_SYMBOL}`;
 }
 
 export default function CreditCurve({ schedule, colors, principal }: Props) {

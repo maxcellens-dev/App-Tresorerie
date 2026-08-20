@@ -80,13 +80,13 @@ export default function CalendarWithPicker({
     return (
       <View style={[pickerStyles.container, { backgroundColor: bgColor }]}>
         <View style={pickerStyles.nav}>
-          <TouchableOpacity onPress={() => setYearRangeStart((y) => y - 12)} style={pickerStyles.navBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="12 années précédentes" onPress={() => setYearRangeStart((y) => y - 12)} style={pickerStyles.navBtn}>
             <Text style={[pickerStyles.navArrow, { color: accentColor }]}>‹</Text>
           </TouchableOpacity>
           <Text style={[pickerStyles.navTitle, { color: textColor }]}>
             {yearRangeStart} – {yearRangeStart + 11}
           </Text>
-          <TouchableOpacity onPress={() => setYearRangeStart((y) => y + 12)} style={pickerStyles.navBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="12 années suivantes" onPress={() => setYearRangeStart((y) => y + 12)} style={pickerStyles.navBtn}>
             <Text style={[pickerStyles.navArrow, { color: accentColor }]}>›</Text>
           </TouchableOpacity>
         </View>
@@ -124,13 +124,13 @@ export default function CalendarWithPicker({
     return (
       <View style={[pickerStyles.container, { backgroundColor: bgColor }]}>
         <View style={pickerStyles.nav}>
-          <TouchableOpacity onPress={() => { setPickerYear((y) => y - 1); }} style={pickerStyles.navBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Année précédente" onPress={() => { setPickerYear((y) => y - 1); }} style={pickerStyles.navBtn}>
             <Text style={[pickerStyles.navArrow, { color: accentColor }]}>‹</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setPicker('year')} style={pickerStyles.navTitleBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir l’année" onPress={() => setPicker('year')} style={pickerStyles.navTitleBtn}>
             <Text style={[pickerStyles.navTitle, { color: accentColor }]}>{pickerYear}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setPickerYear((y) => y + 1); }} style={pickerStyles.navBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Année suivante" onPress={() => { setPickerYear((y) => y + 1); }} style={pickerStyles.navBtn}>
             <Text style={[pickerStyles.navArrow, { color: accentColor }]}>›</Text>
           </TouchableOpacity>
         </View>

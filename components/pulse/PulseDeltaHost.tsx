@@ -33,6 +33,7 @@ import { usePulse, type PulseData } from '../../hooks/pulse/usePulse';
 import { usePulseConfig } from '../../hooks/pulse/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../../lib/pulse/pulseBus';
 import { computeOpFeedback, consumesVariableEnvelope, type PulseFeedback, type PulseOp, type PulseTone } from '../../lib/pulse/pulseDelta';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 /**
  * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
@@ -83,7 +84,7 @@ function firstOfNextMonthLabel(today = new Date()): string {
 /** Montant en euros, avec signe explicite pour un écart (`delta`). */
 function eurSigned(n: number, withSign: boolean): string {
   const v = Math.round(n);
-  const body = `${Math.abs(v).toLocaleString('fr-FR')} €`;
+  const body = `${Math.abs(v).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
   if (!withSign) return v < 0 ? `−${body}` : body;
   return v < 0 ? `−${body}` : `+${body}`;
 }

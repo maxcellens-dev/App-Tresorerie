@@ -16,9 +16,10 @@
  *   <Text>Ta marge de sécurité <InfoDot term="marge_securite" /></Text>
  *   <InfoDot term="relyka" size={18} color={COLORS.emerald} />
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { glossaryEntry, type GlossaryTerm } from '../../lib/ui/glossary';
 import { sheetWidth } from '../../lib/ui/appLayout';
@@ -144,31 +145,87 @@ function ProfileScale({ styles }: { styles: any }) {
   const ladder = FINANCIAL_PROFILE_IDS.filter((id) => id !== 'P0' || current === 'P0');
   const currentRank = current ? ladder.indexOf(current) : -1;
 
+  /* ── ON S'OUVRE SUR SON PROPRE PALIER ────────────────────────────────────────────────────────
+     La liste commençait en haut, au plus fragile : quelqu'un en « Patrimoine établi » ouvrait la
+     fiche et voyait six paliers qui ne le concernent pas, sans rien qui indique où il se trouve —
+     il fallait faire défiler pour se découvrir. Or c'est LA question qu'on se pose en ouvrant.
+     On mesure la position réelle de la ligne (`onLayout`) plutôt que de l'estimer : la ligne
+     courante est plus haute que les autres (elle porte sa description), donc « index × hauteur »
+     tomberait à côté. */
+  const scrollRef = useRef<ScrollView>(null);
+  const scrolledRef = useRef(false);
+  const onCurrentLayout = (y: number) => {
+    if (scrolledRef.current) return;
+    scrolledRef.current = true;
+    // Une poignée de pixels au-dessus : on voit qu'il existe quelque chose avant, donc que ça défile.
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: Math.max(0, y - 46), animated: false }));
+  };
+
+  /** Le bas de la liste est-il atteint ? Pilote le voile qui signale « ça continue ». */
+  const [atEnd, setAtEnd] = useState(false);
+  const [atStart, setAtStart] = useState(true);
+
   return (
     <View style={styles.scale}>
       <Text style={styles.scaleTitle}>Les paliers, du plus fragile au plus solide</Text>
-      <ScrollView style={styles.scaleList} showsVerticalScrollIndicator={false}>
-        {ladder.map((id, i) => {
-          const info = PROFILE_INFO[id];
-          if (!info) return null;
-          const isCurrent = id === current;
-          const passed = currentRank >= 0 && i < currentRank;
-          const tint = (COLORS as any)[info.color] ?? info.color ?? COLORS.textSecondary;
-          return (
-            <View key={id} style={[styles.scaleRow, isCurrent && { backgroundColor: tint + '1A', borderColor: tint + '59' }]}>
-              <Text style={styles.scaleEmoji}>{info.emoji}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.scaleName, isCurrent && { color: tint, fontWeight: '800' }]}>
-                  {info.name}{isCurrent ? ' — toi' : ''}
-                </Text>
-                {isCurrent && <Text style={styles.scaleDesc}>{info.description}</Text>}
+      <View>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scaleList}
+          // L'ascenseur natif est le repère le plus universel : on le LAISSE visible.
+          showsVerticalScrollIndicator
+          persistentScrollbar
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            setAtStart(contentOffset.y <= 4);
+            setAtEnd(contentOffset.y + layoutMeasurement.height >= contentSize.height - 4);
+          }}
+        >
+          {ladder.map((id, i) => {
+            const info = PROFILE_INFO[id];
+            if (!info) return null;
+            const isCurrent = id === current;
+            const passed = currentRank >= 0 && i < currentRank;
+            const tint = (COLORS as any)[info.color] ?? info.color ?? COLORS.textSecondary;
+            return (
+              <View
+                key={id}
+                onLayout={isCurrent ? (e) => onCurrentLayout(e.nativeEvent.layout.y) : undefined}
+                style={[styles.scaleRow, isCurrent && { backgroundColor: tint + '1A', borderColor: tint + '59' }]}
+              >
+                <Text style={styles.scaleEmoji}>{info.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.scaleName, isCurrent && { color: tint, fontWeight: '800' }]}>
+                    {info.name}{isCurrent ? ' — toi' : ''}
+                  </Text>
+                  {isCurrent && <Text style={styles.scaleDesc}>{info.description}</Text>}
+                </View>
+                {/* Repère discret : ce qui est derrière soi, et ce qui reste devant. */}
+                {passed && <Ionicons name="checkmark" size={14} color={COLORS.textSecondary} />}
               </View>
-              {/* Repère discret : ce qui est derrière soi, et ce qui reste devant. */}
-              {passed && <Ionicons name="checkmark" size={14} color={COLORS.textSecondary} />}
-            </View>
-          );
-        })}
-      </ScrollView>
+            );
+          })}
+        </ScrollView>
+
+        {/* VOILES DE DÉBORDEMENT — le signal que la liste continue. Sans eux, une liste tronquée net
+            se lit comme une liste complète : rien ne distingue « il n'y a que ça » de « la suite est
+            cachée ». Ils disparaissent dès qu'on atteint le bord correspondant. */}
+        {!atStart && (
+          <LinearGradient
+            pointerEvents="none"
+            colors={[COLORS.cardSolid, COLORS.cardSolid + '00']}
+            style={[styles.scaleFade, { top: 0 }]}
+          />
+        )}
+        {!atEnd && (
+          <LinearGradient
+            pointerEvents="none"
+            colors={[COLORS.cardSolid + '00', COLORS.cardSolid]}
+            style={[styles.scaleFade, { bottom: 0 }]}
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -205,6 +262,7 @@ function makeStyles(c: any) {
       paddingVertical: 7, paddingHorizontal: 9,
       borderRadius: 11, borderWidth: 1, borderColor: 'transparent', marginBottom: 3,
     },
+    scaleFade: { position: 'absolute', left: 0, right: 0, height: 22 },
     scaleEmoji: { fontSize: 15, width: 20, textAlign: 'center' },
     scaleName: { fontSize: 13.5, color: c.text },
     scaleDesc: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 2 },

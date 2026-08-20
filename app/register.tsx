@@ -177,7 +177,7 @@ export default function RegisterScreen() {
                   value={email}
                   onChangeText={setEmail}
                   onFocus={handleFocus}
-                  placeholder="vous@exemple.fr"
+                  placeholder="toi@exemple.fr"
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="email-address"
                   autoCapitalize="none"

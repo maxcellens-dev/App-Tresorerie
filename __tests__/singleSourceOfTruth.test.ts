@@ -111,3 +111,74 @@ describe('une seule source de vérité par règle', () => {
     expect(body).not.toMatch(/rate\s*>=?\s*\d/);
   });
 });
+
+/**
+ * LIRE SANS LIRE L'ERREUR — l'autre classe de défaut coûteuse de ce dépôt.
+ *
+ * `const { data } = await supabase.from(...)` ignore l'erreur. Sur un échec, `data` vaut `undefined`
+ * et se lit exactement comme « il n'y a rien ». Quand ce « rien » sert ensuite à DÉCIDER — supprimer
+ * un projet, apparier la jambe d'un virement, recalculer un profil — l'app agit sur une absence
+ * qu'elle a inventée. Les dégâts observés : des transactions orphelines qui pèsent à jamais sur un
+ * solde, une jambe de virement créée en double, un profil rétrogradé par une coupure réseau.
+ *
+ * Ce cas ne liste pas les occurrences restantes (il y en a, dans des chemins de LECTURE pure où
+ * l'enjeu se limite à un affichage vide) : il garde les fichiers qui ÉCRIVENT de l'argent.
+ */
+describe('les chemins qui écrivent de l’argent lisent leurs erreurs', () => {
+  /** Fichiers où une lecture ratée peut se transformer en écriture destructrice. */
+  const MONEY_WRITERS = [
+    'hooks/data/useTransactions.ts',
+    'hooks/data/useProjects.ts',
+    'hooks/engagement/useRelykaWorld.ts',
+    'hooks/pilotage/useMonthlyClosure.ts',
+  ];
+
+  it.each(MONEY_WRITERS)('%s ne lit jamais sans récupérer l’erreur', (path) => {
+    const file = FILES.find((f) => f.path === path);
+    expect(file).toBeDefined();
+    /* `const { data: x } = await supabase` — la destructuration qui laisse l'erreur au sol.
+       La forme correcte nomme l'erreur : `const { data: x, error: e } = ...`. */
+    const blind = (file!.body.match(/const\s*\{\s*data:\s*\w+\s*\}\s*=\s*await\s+supabase/g) ?? []);
+    expect(blind).toEqual([]);
+  });
+});
+
+/**
+ * L'INSET DU HAUT N'EST APPLIQUÉ QU'UNE FOIS.
+ *
+ * Les pages d'onglet vivent sous l'en-tête global, qui applique déjà `insets.top`. Une page qui
+ * demande `edges={['top']}` en plus ajoute la hauteur de l'encoche en blanc au-dessus de son
+ * contenu — un décalage qui ne se voit que sur les appareils encochés, donc jamais sur le simulateur
+ * qu'on a sous la main. Les écrans HORS onglets (connexion, accueil, mentions légales, racine) en
+ * ont au contraire besoin : eux n'ont pas d'en-tête au-dessus.
+ */
+describe('mise en page — l’encoche n’est comptée qu’une fois', () => {
+  it('aucune page d’onglet ne réapplique l’inset du haut', () => {
+    const rogue = FILES
+      .filter((f) => f.path.startsWith('app/(tabs)/') && /edges=\{\[\s*'top'/.test(f.body))
+      .map((f) => f.path)
+      .sort();
+    expect(rogue).toEqual([]);
+  });
+});
+
+/**
+ * LA DEVISE EST DYNAMIQUE — aucun montant ne porte un symbole écrit en dur.
+ *
+ * `CURRENCY_SYMBOL` suit la devise de référence du profil. Onze écrans concaténaient pourtant « € »
+ * à la main (crédits, conseils IA, présentation, Pouls) : pour quelqu'un dont la devise n'est pas
+ * l'euro, l'app se contredisait d'un écran à l'autre — « 1 234 € » ici, « 1 234 $ » là, pour les
+ * mêmes euros. Le genre de détail qui fait douter de tout le reste.
+ */
+describe('devise — jamais de symbole en dur', () => {
+  it('aucun écran ne concatène « € » à un montant', () => {
+    const rogue = FILES
+      .filter((f) => /app\/|components\//.test(f.path))
+      // Un « € » DANS une chaîne accolée à un montant. Les commentaires sont ignorés.
+      .filter((f) => f.body.split('\n').some((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*')
+        && /(\+\s*'\s*€'|\+\s*"\s*€"|\}\s*k?€`)/.test(l)))
+      .map((f) => f.path)
+      .sort();
+    expect(rogue).toEqual([]);
+  });
+});

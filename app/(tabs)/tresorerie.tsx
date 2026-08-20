@@ -998,7 +998,11 @@ function TreasuryPlanBody() {
   if (!user) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* Pas d'`edges: ['top']` : cette page vit DANS les onglets, dont l'en-tête global applique
+            déjà `insets.top` (cf. app/_layout). L'appliquer ici une seconde fois ajoutait la hauteur
+            de l'encoche en blanc au-dessus du texte. Toutes les autres pages d'onglet s'en tiennent
+            à `['left', 'right']`. */}
+        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
           <Text style={styles.hint}>Connecte-toi pour voir ton plan de trésorerie.</Text>
         </SafeAreaView>
       </View>

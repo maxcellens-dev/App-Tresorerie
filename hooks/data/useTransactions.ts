@@ -70,7 +70,8 @@ async function regulOnSameDay(
   // Le solde ACTUEL est nécessaire pour montrer les deux résultats possibles dans le dialogue :
   // c'est cette comparaison qui permet de trancher sans refaire le calcul de tête.
   const balanceOf = async (): Promise<number | null> => {
-    const { data: acc } = await supabase!.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+    const { data: acc, error: accErr } = await supabase!.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+    if (accErr) throw accErr;
     return acc ? { name: (acc as any).name, balance: Number((acc as any).balance) }.balance : null;
   };
   if (Array.isArray(cachedTxs)) {
@@ -85,7 +86,8 @@ async function regulOnSameDay(
     .or('note.ilike.%gul%,note.eq.Ajustement de solde')
     .limit(1).maybeSingle();
   if (!data) return null;
-  const { data: acc } = await supabase.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+  const { data: acc, error: accErr } = await supabase.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+  if (accErr) throw accErr;
   return {
     accountName: (acc as any)?.name ?? 'ce compte',
     balance: acc ? Number((acc as any).balance) : null,
@@ -187,16 +189,19 @@ export async function reverseBalanceAndDeleteTransactions(profileId: string, bas
     let paired: ReversalRow | null = null;
     if (r.transfer_group_id) {
       // Appariement fiable par GROUPE (cross-devises : montants des jambes différents).
-      const { data: byGroup } = await supabase
+      // Erreur LUE : conclure « pas de jambe opposée » sur une lecture ratée reviendrait à annuler
+      // la moitié d'un virement seulement.
+      const { data: byGroup, error: gErr } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('profile_id', profileId)
         .eq('transfer_group_id', r.transfer_group_id)
         .neq('id', r.id);
+      if (gErr) throw gErr;
       paired = ((byGroup ?? []) as ReversalRow[]).find((c) => !byId.has(c.id)) ?? null;
     } else if (r.linked_account_id) {
       // Anciens virements (sans groupe) : heuristique historique (montant opposé, même date).
-      const { data: candidates } = await supabase
+      const { data: candidates, error: cErr } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('profile_id', profileId)
@@ -204,6 +209,7 @@ export async function reverseBalanceAndDeleteTransactions(profileId: string, bas
         .eq('date', r.date)
         .eq('amount', -Number(r.amount))
         .is('category_id', null);
+      if (cErr) throw cErr;
       const list = (candidates ?? []) as ReversalRow[];
       // Préférer la jambe qui pointe en retour ; sinon la première pas déjà dans le lot.
       paired = list.find((c) => c.linked_account_id === r.account_id && !byId.has(c.id))
@@ -877,29 +883,41 @@ export function useUpdateTransaction(profileId: string | undefined) {
         // Appariement de la jambe opposée : par GROUPE si disponible (fiable, indépendant du
         // montant → indispensable en cross-devises) ; sinon heuristique historique (montant opposé).
         type PairedRow = { id: string; account_id: string; amount: number; is_draft: boolean | null; is_recurring: boolean | null; date: string; linked_account_id: string | null };
+        /* ⚠️ CES LECTURES DOIVENT RÉUSSIR — leur échec ne vaut PAS « pas de jambe opposée ».
+           Leur erreur n'était pas lue : une lecture ratée rendait `undefined`, donc une liste vide,
+           donc `paired = null`. Or plus bas, `!paired` déclenche la CRÉATION d'une jambe de crédit
+           (cas du virement de projet validé) : sur une simple erreur réseau, on fabriquait une
+           SECONDE jambe et le compte de destination était crédité deux fois. Et dans les autres cas,
+           la jambe opposée n'était tout simplement pas mise à jour — un virement dont les deux
+           moitiés ne disent plus la même chose. */
         let pairedList: PairedRow[];
         if (oldGroupId) {
-          const { data: byGroup } = await supabase
+          const { data: byGroup, error: gErr } = await supabase
             .from('transactions')
             .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
             .eq('transfer_group_id', oldGroupId)
             .neq('id', input.id);
+          if (gErr) throw gErr;
           pairedList = (byGroup ?? []) as PairedRow[];
         } else {
-          const { data: byHeur } = await supabase
+          const { data: byHeur, error: hErr } = await supabase
             .from('transactions')
             .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
             .eq('account_id', oldLinkedAccId)
             .eq('date', oldDate ?? '')
             .eq('amount', -oldAmount)
             .is('category_id', null);
+          if (hErr) throw hErr;
           pairedList = (byHeur ?? []) as PairedRow[];
         }
         // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
         const paired = pairedList.find((c) => c.linked_account_id === oldAccId) ?? pairedList[0] ?? null;
         // Cross-devises : si les deux comptes ont des devises différentes, les montants des jambes
         // sont INDÉPENDANTS (réels débité/crédité) → on ne mirrore PAS automatiquement la jambe opposée.
-        const { data: curRows } = await supabase.from('accounts').select('id, currency, name').in('id', [oldAccId, oldLinkedAccId]);
+        /* Idem : sans les devises, `crossCurrency` retombe à `false` et l'app MIROITE le montant sur
+           l'autre jambe — ce qui est faux entre deux devises, où les deux montants sont indépendants. */
+        const { data: curRows, error: curErr } = await supabase.from('accounts').select('id, currency, name').in('id', [oldAccId, oldLinkedAccId]);
+        if (curErr) throw curErr;
         const curOf = new Map((curRows ?? []).map((a: any) => [a.id, (a.currency || 'EUR') as string]));
         const nameOf = new Map((curRows ?? []).map((a: any) => [a.id, a.name as string]));
         const crossCurrency = (curOf.get(oldAccId) || 'EUR') !== (curOf.get(oldLinkedAccId) || 'EUR');
@@ -913,7 +931,9 @@ export function useUpdateTransaction(profileId: string | undefined) {
           // échue. Si le virement est validé à une date future, posted=false → le solde de
           // destination n'est PAS impacté maintenant ; reconcile_posted() l'y portera le jour venu.
           const creditRaw = balanceContribution({ amount: creditAmt, date: newDate, is_draft: false, is_recurring: false });
-          const { data: creditRow } = await supabase.from('transactions').insert({
+          // Une ÉCRITURE dont on ne lit pas l'erreur : la jambe de crédit pouvait ne jamais exister
+          // (droit, limite de saisie, réseau) pendant que l'app annonçait un virement validé.
+          const { data: creditRow, error: creditErr } = await supabase.from('transactions').insert({
             profile_id: profileId,
             account_id: oldLinkedAccId,
             category_id: null,
@@ -928,6 +948,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
             linked_account_id: oldAccId,
             posted: creditRaw !== 0,
           }).select().single();
+          if (creditErr) throw creditErr;
           // La jambe de crédit vient d'exister : elle s'affiche tout de suite (RETURNING, pas de
           // requête supplémentaire). Le solde, lui, est recalculé par recomputeBalances() en fin de mutation.
           if (creditRow) seedTransactionCache(client, profileId, creditRow);
@@ -946,7 +967,8 @@ export function useUpdateTransaction(profileId: string | undefined) {
           if (crossCurrency && input.amount !== undefined && newMainAmount !== oldAmount) {
             const thisCur = curOf.get(oldAccId) || 'EUR';
             const pairedCur = curOf.get(pairedAccId) || 'EUR';
-            const { data: rateRows } = await supabase.from('currency_rates').select('code, rate');
+            const { data: rateRows, error: rateErr } = await supabase.from('currency_rates').select('code, rate');
+            if (rateErr) throw rateErr;
             const ratesMap: Record<string, number> = { EUR: 1 };
             for (const rr of (rateRows ?? []) as any[]) ratesMap[rr.code] = Number(rr.rate);
             const conv = convertAmount(Math.abs(newMainAmount), thisCur, pairedCur, ratesMap);
@@ -1038,15 +1060,20 @@ export function useDeleteTransaction(profileId: string | undefined) {
       // On ne s'appuie PAS sur un linked_account_id parfaitement réciproque (les deux jambes
       // peuvent s'être désynchronisées, ou l'une être ancienne/sans linked_account_id), et on
       // n'utilise PAS maybeSingle() (qui renvoie null en silence dès qu'il y a 2 candidats).
+      /* ⚠️ UNE LECTURE EN ÉCHEC N'EST PAS « PAS DE JAMBE OPPOSÉE ». L'erreur n'était pas lue : on
+         concluait à l'absence de contrepartie, on supprimait la jambe principale juste en dessous,
+         et l'autre restait ORPHELINE — à peser sur le solde du compte de destination, sans plus
+         rien pour la rattacher au virement. Irrattrapable une fois la première partie. */
       let pairedId: string | null = null;
       if (txGroupId) {
         // Appariement fiable par GROUPE (indépendant du montant → marche en cross-devises où les
         // jambes ont des montants différents). On exclut soi-même.
-        const { data: byGroup } = await supabase
+        const { data: byGroup, error: gErr } = await supabase
           .from('transactions')
           .select('id')
           .eq('transfer_group_id', txGroupId)
           .neq('id', id);
+        if (gErr) throw gErr;
         pairedId = ((byGroup ?? [])[0] as any)?.id ?? null;
       } else {
         // Anciens virements (sans groupe) : heuristique historique (montant opposé, même date).
@@ -1060,7 +1087,8 @@ export function useDeleteTransaction(profileId: string | undefined) {
             .is('category_id', null)
             .neq('id', id);
           q = linkedAccountId ? q.eq('account_id', linkedAccountId) : q.neq('account_id', txAccountId);
-          const { data: candidates } = await q;
+          const { data: candidates, error: cErr } = await q;
+          if (cErr) throw cErr;
           const list = (candidates ?? []) as Array<{ id: string; linked_account_id: string | null; account_id: string }>;
           // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
           const best = list.find((c) => c.linked_account_id === txAccountId) ?? list[0] ?? null;
@@ -1103,11 +1131,13 @@ export function useDeleteTransaction(profileId: string | undefined) {
 
       // Supprimer le côté symétrique si trouvé
       if (pairedId) {
-        const { data: pairedRow } = await supabase
+        // Sans ce compte, le solde de l'autre côté du virement ne serait pas recalculé.
+        const { data: pairedRow, error: pairedErr } = await supabase
           .from('transactions')
           .select('account_id')
           .eq('id', pairedId)
           .maybeSingle();
+        if (pairedErr) throw pairedErr;
         if (pairedRow) {
           await supabase.from('transactions').delete().eq('id', pairedId);
           await recomputeBalances([(pairedRow as any).account_id as string], client, profileId);
@@ -1121,18 +1151,19 @@ export function useDeleteTransaction(profileId: string | undefined) {
       // effet » et la ligne qui réapparaît toute seule. Supprimer un brouillon le supprime, point.
       if (projectId && txAmount < 0 && !isDraft) {
         const today = localTodayISO();
-        const { data: project } = await supabase
+        const { data: project, error: projErr } = await supabase
           .from('projects')
           .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day, name, mode, expense_category_id')
           .eq('id', projectId)
           .eq('profile_id', profileId)
           .single();
+        if (projErr) throw projErr;
 
         const isDateMode = project && project.target_date &&
           (project.allocation_type === 'date' || !project.allocation_type);
         if (isDateMode) {
           // Somme des débits passés et validés restants
-          const { data: remainingTxns } = await supabase
+          const { data: remainingTxns, error: remErr } = await supabase
             .from('transactions')
             .select('amount')
             .eq('project_id', projectId)
@@ -1140,6 +1171,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
             .eq('is_draft', false)
             .lt('amount', 0)
             .lte('date', today);
+          if (remErr) throw remErr;
 
           const accumulated = (remainingTxns ?? []).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
           const remaining = Math.max(0, Number(project!.target_amount) - accumulated);

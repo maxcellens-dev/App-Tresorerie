@@ -21,6 +21,7 @@ import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useB
 import { useGuide } from '../../contexts/GuideContext';
 import ScreenGradient from '../layout/ScreenGradient';
 import GrowthChart from '../charts/GrowthChart';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 interface Slide {
   key: string;
@@ -326,7 +327,7 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
    Des maquettes, pas des captures : mêmes formes et mêmes couleurs que l'app réelle, avec des
    montants d'exemple. Elles restent volontairement légères (aucune donnée, aucun calcul). */
 
-const eur = (n: number) => n.toLocaleString('fr-FR') + ' €';
+const eur = (n: number) => n.toLocaleString('fr-FR') + ` ${CURRENCY_SYMBOL}`;
 
 function MockRelyka({ c, s }: any) {
   const tiles = [

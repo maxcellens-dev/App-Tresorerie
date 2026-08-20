@@ -115,7 +115,7 @@ export default function ResetPasswordScreen() {
               <Text style={styles.title}>Mot de passe oublié</Text>
               <Text style={styles.subtitle}>Saisis ton e-mail pour recevoir un lien de réinitialisation.</Text>
               <Text style={styles.label}>Email</Text>
-              <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="vous@exemple.fr" placeholderTextColor={COLORS.textSecondary} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} onSubmitEditing={sendLink} returnKeyType="go" />
+              <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="toi@exemple.fr" placeholderTextColor={COLORS.textSecondary} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} onSubmitEditing={sendLink} returnKeyType="go" />
               <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={sendLink} disabled={loading}>
                 <Text style={styles.btnLabel}>{loading ? 'Envoi…' : 'Envoyer le lien'}</Text>
               </TouchableOpacity>
