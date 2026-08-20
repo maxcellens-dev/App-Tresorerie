@@ -843,13 +843,25 @@ function ProjectionBody() {
 }
 
 // Version animable du tracé + des points (révélation de la courbe mois par mois).
-/* `Animated.createAnimatedComponent` injecte `collapsable={false}` (prop INTERNE de React Native).
-   Le shim web de react-native-svg ne la filtre pas et la transmet au <path> du DOM, qui ne la
-   connaît pas — d'où l'avertissement React. On l'absorbe ici, au plus près de la cause. */
-const PathWeb = React.forwardRef<any, any>(({ collapsable, ...rest }, ref) => <Path ref={ref} {...rest} />);
-PathWeb.displayName = 'PathWeb';
-const AnimatedPath = Animated.createAnimatedComponent(PathWeb);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+/**
+ * `Animated.createAnimatedComponent` injecte `collapsable={false}` — une prop INTERNE de React
+ * Native (optimisation de vues Android). Le shim web de react-native-svg ne la filtre pas et la
+ * transmet telle quelle à l'élément SVG du DOM, qui ne la connaît pas : React avertit à chaque
+ * rendu.
+ *
+ * Le contournement existait, mais recopié à la main sur `Path` uniquement — et `Circle`, ajouté
+ * ensuite, l'a naturellement oublié. Une enveloppe UNIQUE le rend impossible : tout élément SVG
+ * qu'on veut animer passe par elle.
+ */
+function animatedSvg<P extends object>(Cmp: React.ComponentType<P>, name: string) {
+  const Filtered = React.forwardRef<any, any>(
+    ({ collapsable, ...rest }, ref) => <Cmp ref={ref} {...(rest as P)} />,
+  );
+  Filtered.displayName = name;
+  return Animated.createAnimatedComponent(Filtered);
+}
+const AnimatedPath = animatedSvg(Path, 'SvgPathWeb');
+const AnimatedCircle = animatedSvg(Circle, 'SvgCircleWeb');
 // Ne jouer l'animation qu'UNE fois par session d'app (comme les colonnes Relyka).
 let projectionCurveAnimated = false;
 
