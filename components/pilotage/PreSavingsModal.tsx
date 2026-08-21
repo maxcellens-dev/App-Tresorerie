@@ -3,13 +3,14 @@
  * Permet d'accumuler mentalement un montant (déduit du reste disponible) puis,
  * le moment venu, de créer un virement global du total cumulé.
  */
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Alert, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import type { PreSavingType } from '../../types/database';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
 interface Props {
   visible: boolean;
@@ -32,16 +33,38 @@ export default function PreSavingsModal({
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [montant, setMontant] = useState('');
 
+  /* VERROU SYNCHRONE contre la double soumission.
+     `onSave` déclenche `useAddPreSavingEntry`, qui n'est PAS idempotent : il AJOUTE une entrée et
+     INCRÉMENTE le total cumulé. La fermeture de la modale, elle, passe par un état React — elle ne
+     prend effet qu'au rendu suivant. Deux taps rapprochés sur « Enregistrer » passaient donc tous
+     les deux, et le montant était cumulé DEUX FOIS (or ce cumul est déduit du Relyka).
+     Une référence se pose immédiatement, avant le prochain rendu. Même parade que l'écran de saisie
+     d'une dépense partagée. */
+  const fired = useRef(false);
+
   useEffect(() => {
-    if (visible) setMontant(recoAmount > 0 ? String(Math.round(recoAmount)) : '');
+    if (visible) { setMontant(recoAmount > 0 ? String(Math.round(recoAmount)) : ''); fired.current = false; }
   }, [visible, recoAmount]);
+
+  /** N'exécute l'action qu'UNE fois par ouverture (les trois boutons ferment ou naviguent). */
+  const once = (fn: () => void) => () => {
+    if (fired.current) return;
+    fired.current = true;
+    fn();
+  };
 
   const saisi = num(montant);
   const nouveauTotal = total + saisi;
-  const depasse = nouveauTotal > base;
+  /* MÊME règle que le moteur (`enDepassement`, lib/finance/pilotageView) : `base > 0` en fait
+     partie. Sans cette condition, un utilisateur dont le reste disponible n'est pas encore calculé
+     (compte neuf, base à 0) voyait « ce cumul dépasse ton reste disponible (0 €) » dès le premier
+     euro — alors que le tableau de bord, lui, ne signalait aucun dépassement. Deux réponses
+     opposées à la même question, à deux endroits de la même page. */
+  const depasse = base > 0 && nouveauTotal > base;
   const isEpargne = type === 'epargne';
   const titre = isEpargne ? 'Pré-épargne' : 'Pré-investissement';
-  const accent = isEpargne ? COLORS.green : '#a78bfa';
+  // Violet du THÈME : la valeur en dur était celle du thème sombre, figée en mode clair.
+  const accent = isEpargne ? COLORS.green : COLORS.violet;
 
   function confirmReset() {
     // Confirmation in-app (§7) — plus de window.confirm navigateur.
@@ -74,7 +97,7 @@ export default function PreSavingsModal({
             <TextInput
               style={styles.input}
               value={montant}
-              onChangeText={(t) => setMontant(t.replace(/[^0-9.,]/g, ''))}
+              onChangeText={(t) => setMontant(sanitizeAmountInput(t))}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={COLORS.textSecondary}
@@ -91,7 +114,7 @@ export default function PreSavingsModal({
 
           {depasse && (
             <View style={styles.warnBox}>
-              <Ionicons name="warning-outline" size={15} color="#f87171" />
+              <Ionicons name="warning-outline" size={15} color={COLORS.danger} />
               <Text style={styles.warnText}>
                 Ce cumul dépasse ton reste disponible ({Math.round(base).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}).
               </Text>
@@ -101,7 +124,7 @@ export default function PreSavingsModal({
           {/* Boutons */}
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: accent }, saisi <= 0 && { opacity: 0.5 }]}
-            onPress={() => { if (saisi > 0) onSave(saisi); }}
+            onPress={once(() => { if (saisi > 0) onSave(saisi); })}
             disabled={saisi <= 0}
           >
             <Text style={styles.primaryLabel}>Enregistrer</Text>
@@ -109,7 +132,7 @@ export default function PreSavingsModal({
 
           <TouchableOpacity
             style={[styles.secondaryBtn, { borderColor: accent + '60' }]}
-            onPress={() => onCreateTransfer(nouveauTotal)}
+            onPress={once(() => onCreateTransfer(nouveauTotal))}
             disabled={nouveauTotal <= 0}
           >
             <Ionicons name="swap-horizontal" size={16} color={accent} />

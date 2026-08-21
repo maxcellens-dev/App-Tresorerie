@@ -28,6 +28,7 @@ import { APP_VERSION } from '../../../lib/platform/appVersion';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/auth/appLock';
 import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -241,7 +242,7 @@ function SettingsScreen() {
                 <TextInput
                   style={[styles.input, { width: 80, marginBottom: 0, textAlign: 'right' }]}
                   value={safetyAmountInput}
-                  onChangeText={(t) => setSafetyAmountInput(t.replace(/[^0-9.,]/g, ''))}
+                  onChangeText={(t) => setSafetyAmountInput(sanitizeAmountInput(t))}
                   onBlur={handleSafetyAmountSave}
                   onSubmitEditing={handleSafetyAmountSave}
                   keyboardType="decimal-pad"

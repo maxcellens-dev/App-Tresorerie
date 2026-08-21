@@ -27,6 +27,7 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 
 const RECO_ICONS: Record<RecoType, string> = {
@@ -383,7 +384,7 @@ export default function RecommendationsAdmin() {
                   <TextInput
                     style={styles.seuilInput}
                     value={seuils[s.key]}
-                    onChangeText={(t) => setSeuils((prev) => ({ ...prev, [s.key]: t.replace(/[^0-9.,]/g, '') }))}
+                    onChangeText={(t) => setSeuils((prev) => ({ ...prev, [s.key]: sanitizeAmountInput(t) }))}
                     keyboardType="decimal-pad"
                     placeholderTextColor={COLORS.textSecondary}
                   />

@@ -57,6 +57,7 @@ import { todayISO, isoDay, dayOfMonthISO } from '../../lib/dateUtils';
 import { monthlyOccurrenceCount } from '../../lib/finance/recurrence';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
 
 type AllocationType = 'monthly' | 'date' | 'ponctuel';
@@ -420,7 +421,7 @@ export default function AddProjectModal() {
   const setPonctuelAmount = (key: string, value: string) => {
     setPonctuelEntries((prev) => ({
       ...prev,
-      [key]: { enabled: prev[key]?.enabled ?? true, amount: value.replace(/[^0-9.]/g, '') },
+      [key]: { enabled: prev[key]?.enabled ?? true, amount: sanitizeAmountInput(value) },
     }));
   };
 
@@ -851,7 +852,7 @@ export default function AddProjectModal() {
                     placeholder={isSpend ? '960' : '10000'}
                     placeholderTextColor={COLORS.textSecondary}
                     value={form.target_amount}
-                    onChangeText={(t) => { setForm({ ...form, target_amount: t.replace(/[^0-9.]/g, '') }); setErrorFields((p) => p.filter((f) => f !== 'target_amount')); setFormError(null); }}
+                    onChangeText={(t) => { setForm({ ...form, target_amount: sanitizeAmountInput(t) }); setErrorFields((p) => p.filter((f) => f !== 'target_amount')); setFormError(null); }}
                     keyboardType="decimal-pad"
                     editable={!isPending}
                   />
@@ -919,7 +920,7 @@ export default function AddProjectModal() {
                       placeholder={M.monthlyPlaceholder}
                       placeholderTextColor={COLORS.textSecondary}
                       value={form.monthly_allocation}
-                      onChangeText={(t) => { setMonthlyAllocEdited(true); setForm({ ...form, monthly_allocation: t.replace(/[^0-9.]/g, '') }); }}
+                      onChangeText={(t) => { setMonthlyAllocEdited(true); setForm({ ...form, monthly_allocation: sanitizeAmountInput(t) }); }}
                       keyboardType="decimal-pad"
                       editable={!isPending}
                     />

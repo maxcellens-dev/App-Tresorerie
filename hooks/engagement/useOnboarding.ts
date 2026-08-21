@@ -73,6 +73,9 @@ export function useUpdateOnboarding(userId: string | undefined) {
   const qc = useQueryClient();
   const { isImpersonating } = useAuth();
   return useMutation({
+    /* Effet de bord non commentable : un échec ici ne change rien pour l'utilisateur et ne
+       mérite pas de l'interrompre. Opt-out explicite du backstop global (lib/ui/writeErrors). */
+    meta: { silentError: true },
     mutationFn: async (patch: { app_tour_done?: boolean; flags?: Partial<Record<OnboardingFlag, boolean>> }) => {
       // En mode « connecté en tant que » (consultation admin) : on n'écrit JAMAIS l'état
       // d'onboarding du compte cible (tour de présentation, étapes du guide, présentations de

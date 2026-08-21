@@ -247,6 +247,15 @@ export interface Transaction {
   regul_target?: number | null;
   /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
   on_behalf_member_id?: string | null;
+  /**
+   * Compte d'investissement : NATURE de l'opération (migration 196).
+   *  • 'gain' / 'loss' → plus ou moins-value (fait bouger la valeur, jamais l'apport) ;
+   *  • 'deposit'       → versement (fait bouger les deux) ;
+   *  • absent          → tout le reste.
+   * C'est ce marqueur qui fait foi. Il remplace la détection par LIBELLÉ, que l'utilisateur cassait
+   * en renommant sa transaction — cf. lib/finance/investment.
+   */
+  investment_kind?: 'gain' | 'loss' | 'deposit' | null;
   created_at: string;
   updated_at: string;
 }

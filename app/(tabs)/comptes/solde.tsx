@@ -40,6 +40,7 @@ import { todayISO, formatDateFrench, parseDateFromFrench } from '../../../lib/da
 import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { sheetWidth } from '../../../lib/ui/appLayout';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 
 export default function BalanceUpdateScreen() {
   const COLORS = useAppColors();
@@ -234,7 +235,7 @@ export default function BalanceUpdateScreen() {
                   <TextInput
                     style={styles.input}
                     value={inputs[a.id] ?? ''}
-                    onChangeText={(v) => setInputs((p) => ({ ...p, [a.id]: v.replace(/[^0-9.,-]/g, '') }))}
+                    onChangeText={(v) => setInputs((p) => ({ ...p, [a.id]: sanitizeSignedAmountInput(v) }))}
                     keyboardType="decimal-pad"
                     placeholder="Solde réel à cette date"
                     placeholderTextColor={COLORS.textSecondary}

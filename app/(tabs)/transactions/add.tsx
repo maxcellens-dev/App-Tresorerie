@@ -32,6 +32,7 @@ import { notePlaceholder } from '../../../lib/finance/txPlaceholders';
 import { useProjects } from '../../../hooks/data/useProjects';
 import { useProjectAttach } from '../../../hooks/data/useProjectAttach';
 import { matchProjectsForTransaction } from '../../../lib/finance/projectMatch';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -664,7 +665,7 @@ function AddTransactionScreen() {
 
                 {/* Montant */}
                 <Text style={styles.label}>Montant ({currencySymbolFor(accounts.find(a => a.id === accountId)?.currency)}) *</Text>
-                <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={goNext} />
+                <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(sanitizeAmountInput(v)); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={goNext} />
               </>
             )
           ) : (
@@ -681,11 +682,11 @@ function AddTransactionScreen() {
                   <Text style={styles.label}>Libellé (optionnel)</Text>
                   <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder={notePlaceholder('transfer')} placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
                   <Text style={styles.label}>Montant {isCross ? 'envoyé ' : ''}({currencySymbolFor(srcCurrency)}) *</Text>
-                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { amountToTouched.current = false; setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType={isCross ? 'next' : 'done'} onSubmitEditing={isCross ? undefined : Keyboard.dismiss} />
+                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { amountToTouched.current = false; setAmount(sanitizeAmountInput(v)); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType={isCross ? 'next' : 'done'} onSubmitEditing={isCross ? undefined : Keyboard.dismiss} />
                   {isCross && (
                     <>
                       <Text style={styles.label}>Montant reçu ({currencySymbolFor(dstCurrency)}) *</Text>
-                      <TextInput style={[styles.input, errorFields.includes('amountTo') && styles.inputError]} value={amountTo} onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); setErrorFields((p) => p.filter((f) => f !== 'amountTo')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
+                      <TextInput style={[styles.input, errorFields.includes('amountTo') && styles.inputError]} value={amountTo} onChangeText={(v) => { amountToTouched.current = true; setAmountTo(sanitizeAmountInput(v)); setErrorFields((p) => p.filter((f) => f !== 'amountTo')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
                       <Text style={styles.hint}>Proposé au taux du jour. Ajuste-le avec le montant RÉELLEMENT crédité sur ton relevé ({currencySymbolFor(srcCurrency)} → {currencySymbolFor(dstCurrency)}).</Text>
                     </>
                   )}

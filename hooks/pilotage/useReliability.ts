@@ -89,6 +89,9 @@ export function useSaveSystemNotificationsConfig() {
 export function useRecalibrateReliability(profileId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
+    /* Effet de bord non commentable : un échec ici ne change rien pour l'utilisateur et ne
+       mérite pas de l'interrompre. Opt-out explicite du backstop global (lib/ui/writeErrors). */
+    meta: { silentError: true },
     // Logique PURE partagée (lib/reliabilityCalib) : la MÊME est appelée à la suppression d'une régul
     // (useDeleteTransaction) pour ne pas laisser une dérive figée quand une régul est retirée.
     mutationFn: async () => {

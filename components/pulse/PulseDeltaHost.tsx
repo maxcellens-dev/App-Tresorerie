@@ -342,13 +342,32 @@ export default function PulseDeltaHost() {
           const envelopeSourceLabel = envSource === 'history'
             ? 'ta moyenne de dépenses variables'
             : 'ton estimation de dépenses variables';
-          const pct = Math.max(0, Math.min(1, env.remaining / Math.max(1, env.initial)));
-          const color = env.overflow > 0 ? toneColor(COLORS, 'caution') : toneColor(COLORS, 'positive');
+          /* ── CE QUE LA LIGNE PRINCIPALE DOIT DIRE ───────────────────────────────────────────
+             Une fois l'enveloppe épuisée, la phrase de tête annonçait « Budget du quotidien : 0 €
+             restants ce mois sur 600 € ». Techniquement exact, mais c'est l'information la MOINS
+             utile de la carte : « 0 € restants » se lit comme « tu es à l'équilibre », alors que
+             la vraie nouvelle — un dépassement de 1 438 € — était reléguée en petit, en dessous.
+             En dépassement, c'est donc le DÉPASSEMENT qui prend la tête ; le détail « combien
+             dépensé sur combien de prévu » descend en second, où il documente le chiffre. */
+          const over = !env.absorbed && env.monthOverflow > 0;
+          const color = over || env.overflow > 0 ? toneColor(COLORS, 'caution') : toneColor(COLORS, 'positive');
+          // Jauge PLEINE en dépassement : une barre vide à côté de « dépassé de 1 438 € » se lit
+          // comme « il ne s'est rien passé », alors que l'enveloppe est au contraire saturée.
+          const pct = over ? 1 : Math.max(0, Math.min(1, env.remaining / Math.max(1, env.initial)));
           return (
             <View style={[styles.env, { borderColor: color + '55', backgroundColor: color + '14' }]}>
               <Text style={styles.envText}>
-                🛒 Budget du quotidien : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
-                {' '}restants ce mois sur {eurSigned(env.initial, false)}
+                {over ? (
+                  <>
+                    🛒 Budget du quotidien <Text style={[styles.envValue, { color }]}>dépassé de {eurSigned(env.monthOverflow, false)}</Text>
+                    {' '}ce mois-ci
+                  </>
+                ) : (
+                  <>
+                    🛒 Budget du quotidien : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
+                    {' '}restants ce mois sur {eurSigned(env.initial, false)}
+                  </>
+                )}
               </Text>
               <View style={styles.envTrack}>
                 <View style={[styles.envFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
@@ -357,12 +376,12 @@ export default function PulseDeltaHost() {
                   Une fois l'enveloppe épuisée, `remaining` vaut 0 : la part « hors enveloppe » de
                   chaque nouvelle dépense valait donc son montant entier, et la carte annonçait
                   « ces 40 € dépassent de 40 € », puis « ces 12 € dépassent de 12 € »… On croyait le
-                  compteur remis à zéro à chaque saisie alors qu'il s'accumule. On dit maintenant où
-                  l'on en est SUR LE MOIS — la seule information qui aide à décider. */}
+                  compteur remis à zéro à chaque saisie alors qu'il s'accumule. Le chiffre du mois
+                  est désormais EN TÊTE ; il ne reste ici que ce qui le documente. */}
               <Text style={styles.envHint}>
                 {env.absorbed
                   ? `Ces ${eurSigned(env.used, false)} y étaient déjà prévus : ton Relyka ne bouge pas.`
-                  : `Avec cette dépense, tu dépasses ${envelopeSourceLabel} de ${eurSigned(env.monthOverflow, false)} ce mois-ci (${eurSigned(env.spentTotal, false)} dépensés sur ${eurSigned(env.initial, false)}).`}
+                  : `${eurSigned(env.spentTotal, false)} dépensés sur ${envelopeSourceLabel} de ${eurSigned(env.initial, false)}.`}
               </Text>
             </View>
           );

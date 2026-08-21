@@ -21,6 +21,7 @@ import { useProfile } from '../../hooks/data/useProfile';
 import { currencySymbolFor } from '../../lib/finance/currency';
 import { appAlert } from '../../lib/ui/appDialog';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
 
 /** Propositions ajoutables en un tap (mêmes intitulés que le démarrage). */
 const PRESETS: { key: string; label: string; type: string; hint: string; icon: string }[] = [
@@ -165,7 +166,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
                   <TextInput
                     style={styles.amount}
                     value={r.amount}
-                    onChangeText={(v) => setRows((prev) => prev.map((x, j) => (j === i ? { ...x, amount: v.replace(/[^0-9.,-]/g, '') } : x)))}
+                    onChangeText={(v) => setRows((prev) => prev.map((x, j) => (j === i ? { ...x, amount: sanitizeSignedAmountInput(v) } : x)))}
                     keyboardType="decimal-pad"
                     placeholder="0"
                     placeholderTextColor={COLORS.textSecondary}

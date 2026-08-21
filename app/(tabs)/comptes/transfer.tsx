@@ -35,6 +35,7 @@ import { pageColumn } from '../../../lib/ui/webLayout';
 import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
 import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 
 function TransferScreen() {
@@ -350,7 +351,7 @@ function TransferScreen() {
             value={amount}
             // Changer le montant ENVOYÉ ré-active la proposition automatique du montant reçu
             // (au taux) → évite de garder un « reçu » figé, devenu incohérent, par oubli.
-            onChangeText={(v) => { amountToTouched.current = false; setAmount(v); }}
+            onChangeText={(v) => { amountToTouched.current = false; setAmount(sanitizeAmountInput(v)); }}
             onFocus={handleFocus}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
@@ -363,7 +364,7 @@ function TransferScreen() {
               <TextInput
                 style={styles.input}
                 value={amountTo}
-                onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); }}
+                onChangeText={(v) => { amountToTouched.current = true; setAmountTo(sanitizeAmountInput(v)); }}
                 onFocus={handleFocus}
                 placeholder="0,00"
                 placeholderTextColor={COLORS.textSecondary}

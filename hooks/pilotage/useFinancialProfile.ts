@@ -611,6 +611,9 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
   const { isImpersonating } = useAuth();
 
   return useMutation({
+    /* Évaluation déclenchée toute seule au montage du tableau de bord : l'utilisateur n'a rien
+       demandé, un échec ne lui apprend rien. Opt-out du backstop global (lib/ui/writeErrors). */
+    meta: { silentError: true },
     mutationFn: async () => {
       // En consultation admin : ne JAMAIS lancer l'évaluation mensuelle du compte cible.
       // Elle écrit un profile_change_log (bilan mensuel / transition) et avance

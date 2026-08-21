@@ -469,3 +469,86 @@ describe('pickMainCheckingId', () => {
     expect(pickMainCheckingId([account({ type: 'savings' })])).toBeUndefined();
   });
 });
+
+/**
+ * DONNÉES ABERRANTES — le chiffre principal de l'app ne doit jamais devenir illisible.
+ *
+ * `?? 0` ne couvre que `null` / `undefined` : un seul terme à `NaN` contaminait toute la
+ * soustraction à huit termes, et la carte affichait « NaN € » — qu'aucun écran ne rattrapait
+ * en aval. Ces cas figent la normalisation.
+ */
+describe('computeRelykaBreakdown — robustesse', () => {
+  const noCumuls = { reservationsTotal: 0, preEpargneTotal: 0, preInvestTotal: 0 };
+
+  it('un terme NaN ne contamine pas le Relyka', () => {
+    const b = computeRelykaBreakdown({ cashflow_trough: NaN, safety_margin_amount: 100 } as any, noCumuls);
+    expect(Number.isFinite(b.relykaAffiche)).toBe(true);
+    expect(Number.isFinite(b.resteDisponibleBrut)).toBe(true);
+  });
+
+  it('un cumul NaN ne contamine pas non plus', () => {
+    const b = computeRelykaBreakdown({ cashflow_trough: 1000 } as any, {
+      reservationsTotal: NaN, preEpargneTotal: 0, preInvestTotal: NaN,
+    });
+    expect(b.relykaAffiche).toBe(1000);
+  });
+
+  it('une chaîne à la place d\'un nombre vaut 0, jamais NaN', () => {
+    const b = computeRelykaBreakdown({ cashflow_trough: 500, safety_margin_amount: 'oops' } as any, noCumuls);
+    expect(b.safetyMarginDisplay).toBe(0);
+    expect(b.relykaAffiche).toBe(500);
+  });
+
+  it('Infinity est traité comme une valeur absente', () => {
+    const b = computeRelykaBreakdown({ cashflow_trough: Infinity } as any, noCumuls);
+    expect(Number.isFinite(b.relykaAffiche)).toBe(true);
+  });
+
+  it('aucune donnée du tout ne lève pas et rend un tableau de bord neutre', () => {
+    const b = computeRelykaBreakdown(null, noCumuls);
+    expect(b.relykaAffiche).toBe(0);
+    expect(relykaTone(b)).toBe('empty');
+  });
+
+  it('un patrimoine très élevé reste fini', () => {
+    const b = computeRelykaBreakdown({ cashflow_trough: 1e12 } as any, noCumuls);
+    expect(Number.isFinite(b.relykaAffiche)).toBe(true);
+    expect(b.relykaAffiche).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * RÉSERVATIONS : la frontière du mois se lit en heure LOCALE.
+ *
+ * `created_at` est un `timestamptz` rendu en UTC. Le découper à la main comparait un mois UTC à un
+ * mois local : une réservation posée le 1ᵉʳ à 00 h 30 à Paris est stockée au 31 du mois précédent,
+ * et disparaissait de tous les totaux. L'utilisateur mettait de l'argent de côté, le Relyka ne
+ * bougeait pas, et rien ne l'expliquait.
+ */
+describe('monthReservationsTotal — frontière de mois', () => {
+  it('compte une réservation posée juste après minuit le 1er du mois', () => {
+    const nowSept = new Date(2026, 8, 15, 12, 0, 0);
+    const createdAt = new Date(2026, 8, 1, 0, 30).toISOString(); // 31/08 en UTC si UTC+
+    expect(monthReservationsTotal([{ created_at: createdAt, montant: 200 }], nowSept)).toBe(200);
+  });
+
+  it('exclut toujours une réservation du mois précédent', () => {
+    const nowSept = new Date(2026, 8, 15, 12, 0, 0);
+    const createdAt = new Date(2026, 7, 20, 12, 0).toISOString();
+    expect(monthReservationsTotal([{ created_at: createdAt, montant: 999 }], nowSept)).toBe(0);
+  });
+
+  it('ignore une date illisible ou absente au lieu de la compter', () => {
+    const now = new Date(2026, 8, 15);
+    expect(monthReservationsTotal([
+      { created_at: null, montant: 100 },
+      { created_at: 'pas une date', montant: 100 },
+    ], now)).toBe(0);
+  });
+
+  it('un montant illisible vaut 0, jamais NaN', () => {
+    const now = new Date(2026, 8, 15);
+    const createdAt = new Date(2026, 8, 10, 12, 0).toISOString();
+    expect(monthReservationsTotal([{ created_at: createdAt, montant: 'oops' as any }], now)).toBe(0);
+  });
+});

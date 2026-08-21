@@ -17,6 +17,7 @@ import CurrencyPicker from '../../../components/account/CurrencyPicker';
 import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 
 const TYPES = [
@@ -270,7 +271,7 @@ export default function AddAccountScreen() {
               <TextInput
                 style={styles.input}
                 value={initialContributed}
-                onChangeText={(v) => setInitialContributed(v.replace(/[^0-9.,]/g, ''))}
+                onChangeText={(v) => setInitialContributed(sanitizeAmountInput(v))}
                 onFocus={handleFocus}
                 placeholder="Ex. 5000"
                 placeholderTextColor={COLORS.textSecondary}

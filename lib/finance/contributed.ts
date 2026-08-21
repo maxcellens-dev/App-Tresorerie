@@ -7,6 +7,8 @@
  *
  * Retourne null si non suivi (compte non-investissement ou aucun apport de base défini).
  */
+import { isInvestmentDeposit } from './investment';
+
 interface TxLike {
   account_id: string;
   amount: number;
@@ -14,6 +16,8 @@ interface TxLike {
   is_draft?: boolean | null;
   linked_account_id?: string | null;
   note?: string | null;
+  /** Marqueur de nature (migration 196) — prime toujours sur le libellé. */
+  investment_kind?: string | null;
 }
 
 interface AccountLike {
@@ -62,7 +66,12 @@ export function computeContributed(
 
   for (const t of accTxs) {
     const amt = Number(t.amount);
-    const isDepositIn = amt > 0 && (!!t.linked_account_id || /apport/i.test(t.note || ''));
+    /* Un virement ENTRANT est un apport par nature (il vient d'un autre compte). Pour une saisie
+       directe, c'est le MARQUEUR qui tranche (`investment_kind`, migration 196) — plus le libellé :
+       renommer sa plus-value la faisait basculer en apport, ce qui gonflait le capital investi et
+       écrasait la performance affichée du compte. Le repli par libellé ne sert plus qu'aux lignes
+       d'avant la migration (cf. lib/finance/investment). */
+    const isDepositIn = amt > 0 && (!!t.linked_account_id || isInvestmentDeposit(t));
     const isWithdrawal = amt < 0 && !!t.linked_account_id;
     if (isDepositIn) {
       apport += amt;

@@ -106,6 +106,10 @@ export function useResetPreSaving(profileId: string | undefined) {
 export function useSetPreSavingStatus(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
+    /* Synchro COSMÉTIQUE, déclenchée par un effet : elle ne fait que refléter un état déjà calculé
+       à l'écran. Un échec n'a aucune conséquence pour l'utilisateur, l'interrompre en aurait une.
+       Opt-out du backstop global (lib/ui/writeErrors). */
+    meta: { silentError: true },
     mutationFn: async ({ type, statut }: { type: PreSavingType; statut: 'actif' | 'en_depassement' }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { error } = await supabase

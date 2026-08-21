@@ -29,6 +29,7 @@ import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'immobilier', label: 'Immobilier', icon: 'home-outline' },
@@ -382,11 +383,11 @@ function CreditAddScreen() {
           <View style={styles.row2}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Taux annuel (%)</Text>
-              <TextInput style={styles.input} value={rate} onChangeText={setRate} keyboardType="decimal-pad" placeholder="3.5" placeholderTextColor={COLORS.textSecondary} />
+              <TextInput style={styles.input} value={rate} onChangeText={(v) => setRate(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="3.5" placeholderTextColor={COLORS.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Assurance (€/mois)</Text>
-              <TextInput style={styles.input} value={insurance} onChangeText={setInsurance} keyboardType="decimal-pad" placeholder="30" placeholderTextColor={COLORS.textSecondary} />
+              <TextInput style={styles.input} value={insurance} onChangeText={(v) => setInsurance(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="30" placeholderTextColor={COLORS.textSecondary} />
             </View>
           </View>
 

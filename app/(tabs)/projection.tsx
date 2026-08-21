@@ -46,9 +46,25 @@ import { semanticText } from '../../theme/palette';
 import { computeConfidence, resolveReliabilityConfig } from '../../lib/finance/confidenceEngine';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
 import KeyboardAwareScrollView from '../../components/layout/KeyboardAwareScrollView';
+import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
-const INVEST_COLOR = '#a78bfa';
-const SAVINGS_COLOR = '#34d399';
+/* Les constantes de marque `INVEST_COLOR` / `SAVINGS_COLOR` qui vivaient ici étaient MORTES : le
+   corps de l'écran les redéfinit à partir du thème (`COLORS.investment` / `COLORS.savings`), donc
+   les shadowe partout. Elles portaient les valeurs du thème SOMBRE — les garder à côté de leurs
+   homonymes ne pouvait que tromper la prochaine lecture. */
+
+/**
+ * Rendement annuel appliqué à la projection d'ÉPARGNE (%).
+ *
+ * Ordre de grandeur d'un livret réglementé. Il était écrit en dur, sans nom, au milieu de l'appel à
+ * `projectSavings` — et surtout il n'était annoncé NULLE PART : l'écran affichait « Épargné : X »
+ * puis un total supérieur à « capital de départ + X », sans que rien n'explique l'écart. On le nomme
+ * ici, et l'écran le dit maintenant (cf. la note sous les horizons).
+ *
+ * À exposer en admin le jour où le taux des livrets bouge — c'est la seule hypothèse de cet écran
+ * que l'utilisateur ne peut pas régler lui-même.
+ */
+const SAVINGS_ANNUAL_RATE_PCT = 2;
 
 const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 
@@ -66,7 +82,7 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
         <TextInput
           style={styles.fieldInput}
           value={value}
-          onChangeText={(t) => onChange(t.replace(/[^0-9.,]/g, ''))}
+          onChangeText={(t) => onChange(sanitizeAmountInput(t))}
           keyboardType="decimal-pad"
           placeholderTextColor={colors.textSecondary}
         />
@@ -247,7 +263,11 @@ function ProjectionBody() {
     // charge rien et — surtout — on n'écrit rien (la sauvegarde est gardée par `loaded`).
     if (loaded || investAccounts.length === 0 || fiscalRates.length === 0 || !assumptionsQuery.isSuccess) return;
     const saved = assumptionsQuery.data;
-    const initialHypos: Record<string, AccountHypo> = saved?.hypos ?? {};
+    /* COPIE, et non l'objet du cache react-query : la boucle ci-dessous écrit dans cette table, et
+       elle modifiait donc EN PLACE la donnée mise en cache par la requête. Une donnée de cache est
+       censée être immuable — la muter fait diverger ce que react-query croit avoir stocké de ce
+       qu'il détient réellement, et l'on perd les re-rendus qui devraient suivre. */
+    const initialHypos: Record<string, AccountHypo> = { ...(saved?.hypos ?? {}) };
     for (const acc of investAccounts) {
       if (!initialHypos[acc.id]) {
         const auto = autoContributedFor(acc);
@@ -462,7 +482,10 @@ function ProjectionBody() {
     savingsSource === 'reel' ? realMonthlySavings :
     savingsSource === 'questionnaire' ? questionnaireMonthlySavings :
     num(savingsMonthlyPerso);
-  const savingsHorizons = useMemo(() => projectSavings(num(savingsInitial), savingsMonthly, [1, 3, 5, 10], 2), [savingsInitial, savingsMonthly]);
+  const savingsHorizons = useMemo(
+    () => projectSavings(num(savingsInitial), savingsMonthly, [1, 3, 5, 10], SAVINGS_ANNUAL_RATE_PCT),
+    [savingsInitial, savingsMonthly],
+  );
 
   const [showTable, setShowTable] = useState(true);
 
@@ -828,6 +851,13 @@ function ProjectionBody() {
               </View>
             ))}
           </View>
+          {/* L'hypothèse de rendement était INVISIBLE : le total dépassait « capital de départ +
+              épargné » sans que rien ne l'explique. Une projection qui ne dit pas sur quoi elle
+              repose n'est pas vérifiable. */}
+          <Text style={styles.realHint}>
+            Les totaux supposent un rendement de {SAVINGS_ANNUAL_RATE_PCT} %/an (ordre de grandeur
+            d'un livret réglementé). « Épargné » est la somme de tes versements, sans les intérêts.
+          </Text>
           </>)}
 
           {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
@@ -901,10 +931,17 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
   confidenceFactor?: number;
 }) {
   const [sel, setSel] = React.useState<number | null>(null);
-  // Révélation progressive de la courbe (0 → 1), une fois par session.
+  /* Révélation progressive de la courbe (0 → 1), une fois par session.
+     ⚠️ On n'attaque QUE lorsqu'il y a réellement quelque chose à tracer. L'effet se déclenchait au
+     premier montage — c'est-à-dire pendant que les transactions se chargeaient encore, donc sur un
+     graphe vide (`rows.length < 2` : la fonction sort plus bas sans rien rendre). Il consommait
+     alors le drapeau « déjà joué » et faisait courir les 1150 ms dans le vide : quand les données
+     arrivaient enfin, `draw` valait déjà 1 et la courbe surgissait d'un coup. L'animation ne se
+     voyait donc à peu près jamais. */
+  const ready = rows.length >= 2 && width > 0;
   const draw = React.useRef(new Animated.Value(projectionCurveAnimated ? 1 : 0)).current;
   React.useEffect(() => {
-    if (projectionCurveAnimated) return;
+    if (!ready || projectionCurveAnimated) return;
     projectionCurveAnimated = true;
     const anim = Animated.timing(draw, {
       toValue: 1,
@@ -914,8 +951,8 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
     });
     anim.start();
     return () => anim.stop();
-  }, [draw]);
-  if (rows.length < 2 || width <= 0) return null;
+  }, [draw, ready]);
+  if (!ready) return null;
   const h = 220;
   const padL = 34, padR = 12, padT = 8, padB = 22;
   const usableW = width - padL - padR;

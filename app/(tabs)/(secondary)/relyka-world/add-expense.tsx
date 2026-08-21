@@ -37,6 +37,7 @@ import {
   splitEvenly, type RwAccountSplit,
 } from '../../../../hooks/engagement/useRelykaWorld';
 import { Alert } from 'react-native';
+import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
 
 const EMOJIS = ['🧾', '🍽️', '🛒', '🚕', '🏨', '🎟️', '⛽', '🍺', '🎁', '✈️'];
 
@@ -390,7 +391,7 @@ export default function AddRwExpense() {
                     <TextInput
                       style={styles.splitInput}
                       value={payerDraft[p.id] ?? ''}
-                      onChangeText={(v) => setPayerDraft((d) => ({ ...d, [p.id]: v.replace(/[^0-9.,]/g, '') }))}
+                      onChangeText={(v) => setPayerDraft((d) => ({ ...d, [p.id]: sanitizeAmountInput(v) }))}
                       keyboardType="decimal-pad"
                       placeholder="0,00"
                       placeholderTextColor={COLORS.textSecondary}
@@ -466,7 +467,7 @@ export default function AddRwExpense() {
                         <TextInput
                           style={styles.splitInput}
                           value={payDraft[a.id] ?? ''}
-                          onChangeText={(v) => setPayDraft((d) => ({ ...d, [a.id]: v.replace(/[^0-9.,]/g, '') }))}
+                          onChangeText={(v) => setPayDraft((d) => ({ ...d, [a.id]: sanitizeAmountInput(v) }))}
                           keyboardType="decimal-pad"
                           placeholder="0,00"
                           placeholderTextColor={COLORS.textSecondary}
@@ -516,7 +517,7 @@ export default function AddRwExpense() {
                       <TextInput
                         style={styles.splitInput}
                         value={shareDraft[p.id] ?? ''}
-                        onChangeText={(v) => setShareDraft((d) => ({ ...d, [p.id]: v.replace(/[^0-9.,]/g, '') }))}
+                        onChangeText={(v) => setShareDraft((d) => ({ ...d, [p.id]: sanitizeAmountInput(v) }))}
                         keyboardType="decimal-pad"
                         placeholder="0,00"
                         placeholderTextColor={COLORS.textSecondary}

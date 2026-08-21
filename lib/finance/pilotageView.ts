@@ -39,8 +39,24 @@ export function monthReservationsTotal(
 ): number {
   const monthKey = monthKeyOf(now);
   return reservations
-    .filter((r) => (r.created_at ?? '').slice(0, 7) === monthKey)
-    .reduce((s, r) => s + Number(r.montant), 0);
+    .filter((r) => monthKeyOfCreatedAt(r.created_at) === monthKey)
+    .reduce((s, r) => s + (Number.isFinite(Number(r.montant)) ? Number(r.montant) : 0), 0);
+}
+
+/**
+ * Mois LOCAL d'un `created_at`.
+ *
+ * ⚠️ `created_at` est un `timestamptz` : Supabase le rend en UTC (« 2026-08-31T22:30:00Z »). Le
+ * découper à la main (`slice(0, 7)`) revenait donc à lire un mois UTC et à le comparer au mois
+ * LOCAL de l'utilisateur. Concrètement : une réservation posée le 1ᵉʳ septembre à 00 h 30 à Paris
+ * est stockée au 31 août en UTC — elle était enregistrée, déduite de rien, et n'apparaissait dans
+ * aucun total. L'utilisateur mettait de l'argent de côté et le Relyka ne bougeait pas.
+ * Les premières heures de chaque mois étaient donc un trou noir. On repasse par un vrai instant.
+ */
+function monthKeyOfCreatedAt(createdAt: string | null | undefined): string | null {
+  if (!createdAt) return null;
+  const d = new Date(createdAt);
+  return Number.isNaN(d.getTime()) ? null : monthKeyOf(d);
 }
 
 export interface RelykaBreakdown {
@@ -85,14 +101,23 @@ export function computeRelykaBreakdown(
   pilotageData: PilotageData | null | undefined,
   ctx: { reservationsTotal: number; preEpargneTotal: number; preInvestTotal: number },
 ): RelykaBreakdown {
-  const cumulsTotal = ctx.preEpargneTotal + ctx.preInvestTotal;
-  const safetyMarginDisplay = pilotageData?.safety_margin_amount ?? 0;
-  const variableEnvelopeRemaining = pilotageData?.variable_envelope_remaining ?? 0;
-  const savingsRemaining = pilotageData?.month_savings_future ?? 0;
-  const investRemaining = pilotageData?.month_invest_future ?? 0;
+  /* ⚠️ `?? 0` ne rattrape PAS `NaN` : il ne couvre que `null` / `undefined`. Or il suffit qu'un
+     seul des huit termes soit `NaN` (montant illisible, colonne numérique rendue en texte, division
+     par zéro en amont) pour que toute la soustraction le devienne — et le chiffre le plus important
+     de l'app s'affiche alors « NaN € », ce qu'aucun écran ne rattrape en aval. On normalise donc
+     chaque entrée : ce qui n'est pas un nombre fini vaut 0. Un terme manquant vaut mieux qu'un
+     tableau de bord illisible, et le reste du calcul garde un sens. */
+  const n = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
+
+  const cumulsTotal = n(ctx.preEpargneTotal) + n(ctx.preInvestTotal);
+  const safetyMarginDisplay = n(pilotageData?.safety_margin_amount);
+  const variableEnvelopeRemaining = n(pilotageData?.variable_envelope_remaining);
+  const savingsRemaining = n(pilotageData?.month_savings_future);
+  const investRemaining = n(pilotageData?.month_invest_future);
   // Les dépenses déjà passées sont déjà dans le solde courant → affichées en info uniquement.
-  const monthExpensesPast = pilotageData?.month_expenses_past ?? 0;
-  const cashflowTrough = pilotageData?.cashflow_trough ?? (pilotageData?.current_checking_balance ?? 0);
+  const monthExpensesPast = n(pilotageData?.month_expenses_past);
+  // `??` reste nécessaire ici : c'est le REPLI métier (pas de point bas → solde du jour).
+  const cashflowTrough = n(pilotageData?.cashflow_trough ?? pilotageData?.current_checking_balance);
 
   /* Les cumuls manuels (pré-épargne / pré-invest) sont de l'argent « réservé mentalement » en
      attente de virement → on les retire aussi du budget libre tant qu'ils ne sont pas libérés ou
@@ -103,8 +128,8 @@ export function computeRelykaBreakdown(
     cashflowTrough
     - savingsRemaining
     - investRemaining
-    - (pilotageData?.monthly_reserve_planned ?? 0)
-    - ctx.reservationsTotal
+    - n(pilotageData?.monthly_reserve_planned)
+    - n(ctx.reservationsTotal)
     - cumulsTotal
     - variableEnvelopeRemaining
     - safetyMarginDisplay;
@@ -142,17 +167,17 @@ export function computeRelykaBreakdown(
      investissement (déjà virés — donc déjà dans le point bas — ou seulement prévus), réservé de
      projet, réservations et cumuls. À distinguer de l'argent DÉPENSÉ, lui vraiment parti. */
   const misDeCoteTotal =
-    (pilotageData?.month_savings_total ?? 0)
-    + (pilotageData?.month_invest_total ?? 0)
-    + (pilotageData?.monthly_reserve_planned ?? 0)
-    + ctx.reservationsTotal
+    n(pilotageData?.month_savings_total)
+    + n(pilotageData?.month_invest_total)
+    + n(pilotageData?.monthly_reserve_planned)
+    + n(ctx.reservationsTotal)
     + cumulsTotal;
   /* Le Relyka est à 0 parce que cet argent est RANGÉ AILLEURS, et non parce que l'utilisateur est à
      sec : on remet tout ce qu'il a mis de côté et on regarde s'il lui resterait quelque chose.
      Sans ce test, quelqu'un à −1 000 € qui a 100 € réservés lirait « rien d'inquiétant ». */
   const relykaAlloueVolontairement = misDeCoteTotal > 0 && resteDisponibleBrut + misDeCoteTotal > 0;
 
-  const baseADepenser = pilotageData?.safe_to_spend ?? 0;
+  const baseADepenser = n(pilotageData?.safe_to_spend);
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
   return {

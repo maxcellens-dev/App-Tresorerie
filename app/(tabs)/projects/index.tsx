@@ -44,6 +44,7 @@ import { useProfile } from '../../../hooks/data/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/engagement/useRelykaWorld';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -63,6 +64,8 @@ function ProjectsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
+  // Consultation admin : cet écran ne doit rien écrire sur le compte visité (useReadOnlyGuard).
+  const readOnly = useReadOnlyGuard();
   // Relyka World (projets partagés) — affichés dans cette même page.
   const { data: rwProjects = [] } = useRwProjects(user?.id);
   const { data: rwInvitations = [], error: rwInvitesError } = useRwInvitations(user?.id);
@@ -96,7 +99,7 @@ function ProjectsScreen() {
   const [rwErr, setRwErr] = useState<string | null>(null);
   const myName = profile?.full_name || user?.email?.split('@')[0] || 'Moi';
   const onCreateRw = async () => {
-    if (!rwName.trim()) return;
+    if (!rwName.trim() || readOnly.blocked()) return;
     setRwBusy(true); setRwErr(null);
     try {
       const proj = await createRwProject.mutateAsync({ name: rwName.trim(), emoji: rwEmoji, description: rwDesc.trim(), myName, currency: rwCurrency });
@@ -188,7 +191,7 @@ function ProjectsScreen() {
   };
 
   const confirmDeleteFull = () => {
-    if (!deleteConfirmId) return;
+    if (!deleteConfirmId || readOnly.blocked()) return;
     deleteFullMutation.mutate(deleteConfirmId, {
       onSuccess: () => { resetDeleteState(); refetch(); },
       onError: () => resetDeleteState(),
@@ -196,7 +199,7 @@ function ProjectsScreen() {
   };
 
   const confirmDeleteFromDate = () => {
-    if (!deleteConfirmId || !selectedFromDate) return;
+    if (!deleteConfirmId || !selectedFromDate || readOnly.blocked()) return;
     deleteFromDateMutation.mutate(
       { projectId: deleteConfirmId, fromDate: selectedFromDate },
       {
@@ -209,6 +212,7 @@ function ProjectsScreen() {
   // Archivage : on conserve les transactions passées ; s'il reste des versements futurs,
   // on demande confirmation (ils seront supprimés), à l'image de la suppression de projet.
   const handleArchiveClick = async (projectId: string) => {
+    if (readOnly.blocked()) return;
     try {
       const { future } = await checkTransactions(projectId);
       if (future.length > 0) {
@@ -533,8 +537,8 @@ function ProjectsScreen() {
                         <Text style={styles.rwProjName} numberOfLines={1}>{inv.project_name}</Text>
                         <Text style={styles.rwProjSub} numberOfLines={1}>Invitation de {inv.from_name}</Text>
                       </View>
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.rwInvDecline} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: false })}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Accepter l'invitation" style={styles.rwInvAccept} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: true })}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.rwInvDecline} onPress={() => { if (readOnly.blocked()) return; respondInvite.mutate({ inviteId: inv.id, accept: false }); }}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Accepter l'invitation" style={styles.rwInvAccept} onPress={() => { if (readOnly.blocked()) return; respondInvite.mutate({ inviteId: inv.id, accept: true }); }}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
                     </View>
                   ))}
                   {/* Projets partagés (Relyka World) — actifs uniquement */}

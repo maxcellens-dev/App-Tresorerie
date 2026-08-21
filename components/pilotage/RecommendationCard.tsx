@@ -14,6 +14,7 @@ import { getRecoContextText, type RecoFinancials } from '../../lib/finance/recoC
 import RichAmounts from '../transaction/RichAmounts';
 import { composeGuardMessage } from '../../lib/finance/recoMessages';
 import RelykaColumns from './RelykaColumns';
+import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
 
 interface SmartRecommendationCardProps {
@@ -384,7 +385,7 @@ export default function RecommendationCard({
             <TextInput
               style={styles.reserveInput}
               value={reserveAmount}
-              onChangeText={(t) => setReserveAmount(t.replace(/[^0-9.,]/g, ''))}
+              onChangeText={(t) => setReserveAmount(sanitizeAmountInput(t))}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={COLORS.textSecondary}

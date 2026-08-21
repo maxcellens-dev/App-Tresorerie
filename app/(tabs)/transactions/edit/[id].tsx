@@ -28,6 +28,7 @@ import { useKeyboardAwareScroll } from '../../../../hooks/platform/useKeyboardAw
 import { notePlaceholder } from '../../../../lib/finance/txPlaceholders';
 import { appAlert } from '../../../../lib/ui/appDialog';
 import PageLoader from '../../../../components/layout/PageLoader';
+import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
 
 
 function EditTransactionScreen() {
@@ -768,7 +769,7 @@ function EditTransactionScreen() {
           <TextInput
             style={[styles.input, errorFields.includes('amount') && styles.inputError]}
             value={amount}
-            onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }}
+            onChangeText={(v) => { setAmount(sanitizeAmountInput(v)); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }}
             onFocus={handleFocus}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
@@ -905,7 +906,7 @@ function EditTransactionScreen() {
                       <TextInput
                         style={styles.input}
                         value={futureAmount}
-                        onChangeText={setFutureAmount}
+                        onChangeText={(v) => setFutureAmount(sanitizeAmountInput(v))}
                         onFocus={handleFocus}
                         placeholder="0,00"
                         placeholderTextColor={COLORS.textSecondary}

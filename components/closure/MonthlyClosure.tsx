@@ -28,6 +28,7 @@ import ClosureBilanModal from './ClosureBilanModal';
 import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct } from '../../lib/finance/closureForm';
 import { laterVerification } from '../../lib/finance/balanceAt';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
 
 interface Props {
   /**
@@ -582,7 +583,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                     <TextInput
                       style={[styles.input, checkingAccounts.length > 1 && { flex: 1, marginBottom: 0 }]}
                       value={balances[acc.id] ?? ''}
-                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: v.replace(/[^0-9.,-]/g, '') }))}
+                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: sanitizeSignedAmountInput(v) }))}
                       keyboardType="decimal-pad"
                       placeholder={`Ex. ${Math.round(acc.balance)}`}
                       placeholderTextColor={COLORS.textSecondary}
@@ -686,7 +687,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                     <TextInput
                       style={[styles.input, checkingAccounts.length > 1 && { flex: 1, marginBottom: 0 }]}
                       value={balances[acc.id] ?? ''}
-                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: v.replace(/[^0-9.,-]/g, '') }))}
+                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: sanitizeSignedAmountInput(v) }))}
                       keyboardType="decimal-pad"
                       placeholder={`Ex. ${Math.round(balanceAtEndFor(acc.id, acc.balance))}`}
                       placeholderTextColor={COLORS.textSecondary}

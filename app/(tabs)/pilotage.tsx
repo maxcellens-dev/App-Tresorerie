@@ -99,7 +99,7 @@ const scrollFriendlyPress = { delayPressIn: 120 } as const;
 function PilotageScreen() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ closure?: string }>();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
   // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
@@ -421,6 +421,7 @@ function PilotageScreen() {
 
   async function saveVariableMode() {
     if (!varModeDraft || savingVarMode) return;
+    if (blockedByImpersonation()) { setVarModeDraft(null); return; }
     setSavingVarMode(true);
     const before = relykaAffiche;
     try {
@@ -492,6 +493,32 @@ function PilotageScreen() {
   };
 
   const monthYearLabel = () => new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  /* ── ÉCHECS D'ÉCRITURE : les DIRE ───────────────────────────────────────────────────────────
+     Le backstop global (app/_layout) n'intercepte QUE les limites d'usage : tout le reste — réseau
+     coupé, refus RLS, session expirée — passait sans un mot. Or ces boutons-là décident d'argent :
+     mettre de côté, réserver le mois, libérer une réservation. La modale se refermait, le montant
+     n'était pas enregistré, et l'utilisateur repartait convaincu du contraire — jusqu'à ce qu'il
+     revoie son Relyka inchangé sans comprendre.
+     Même règle que `saveVariableMode` juste au-dessus, qui la portait déjà seul. */
+  const reportWriteError = (action: string) => (e: unknown) =>
+    Alert.alert('Un souci', `${action} n'a pas pu être enregistré. ${e instanceof Error ? e.message : 'Vérifie ta connexion et réessaie.'}`);
+
+  /* ── MODE « CONNECTÉ EN TANT QUE » : LECTURE SEULE ──────────────────────────────────────────
+     Rien n'empêchait un administrateur en consultation de modifier les réglages financiers du
+     compte visité depuis ce tableau de bord — marge de sécurité, montant conservé, cumuls mis de
+     côté, budget variable. Selon l'état de la RLS, l'écriture était soit refusée en 403 (bruit
+     inexplicable), soit RÉELLEMENT appliquée aux données d'un utilisateur qui n'a rien demandé.
+     L'app pose déjà cette règle ailleurs (synchro de gamification, statistiques d'usage, page
+     Comptes) : on l'applique ici aussi, au point d'écriture, pour que consulter reste consulter. */
+  const blockedByImpersonation = () => {
+    if (!isImpersonating) return false;
+    Alert.alert(
+      'Consultation seule',
+      "Tu es connecté en tant qu'un autre utilisateur : cet écran est en lecture seule. Rien n'est modifié sur son compte.",
+    );
+    return true;
+  };
 
   // Étape « Suivre une recommandation » validée dès qu'on utilise un bouton de reco.
   const markRecoUsed = () => updateOnboarding.mutate({ flags: { reco_validated: true } });
@@ -761,11 +788,12 @@ function PilotageScreen() {
         base={baseADepenser}
         onClose={() => setPreModal(null)}
         onSave={(montant) => {
-          if (preModal) addPreSaving.mutate({ type: preModal, montant });
+          if (blockedByImpersonation()) { setPreModal(null); return; }
+          if (preModal) addPreSaving.mutate({ type: preModal, montant }, { onError: reportWriteError('Ce montant mis de côté') });
           setPreModal(null);
         }}
         onCreateTransfer={(montant) => { if (preModal) openCumulTransfer(preModal, montant); }}
-        onReset={() => { if (preModal) resetPreSaving.mutate(preModal); setPreModal(null); }}
+        onReset={() => { if (blockedByImpersonation()) { setPreModal(null); return; } if (preModal) resetPreSaving.mutate(preModal, { onError: reportWriteError('La remise à zéro du cumul') }); setPreModal(null); }}
       />
 
       {/* Panneau d'accès aux cumuls */}
@@ -793,8 +821,8 @@ function PilotageScreen() {
         fmtMain={fmtMain}
         onEditConserve={(prefill) => { setConserveInput(prefill); setShowReservedModal(false); setShowConserveModal(true); }}
         onOpenPreSaving={(type) => { setShowReservedModal(false); setPreModalAmount(0); setPreModal(type); }}
-        onReleaseConserve={() => { setMonthlyReservation.mutate({ montant: 0 }); }}
-        onReleaseProject={(id) => { releaseReserved.mutate(id); }}
+        onReleaseConserve={() => { if (blockedByImpersonation()) return; setMonthlyReservation.mutate({ montant: 0 }, { onError: reportWriteError('La libération du montant réservé') }); }}
+        onReleaseProject={(id) => { if (blockedByImpersonation()) return; releaseReserved.mutate(id, { onError: reportWriteError('La libération de ce projet') }); }}
         onTransferProject={(r) => {
           setShowReservedModal(false);
           const q = new URLSearchParams({
@@ -896,6 +924,7 @@ function PilotageScreen() {
         saveDisabled={requireVariable && (parseFloat(weeklyVariableInput.replace(',', '.')) || 0) <= 0}
         onCancel={() => setShowVariableModal(false)}
         onSave={async () => {
+          if (blockedByImpersonation()) { setShowVariableModal(false); return; }
           const weekly = parseFloat(weeklyVariableInput.replace(',', '.')) || 0;
           try {
             /* La copie dénormalisée q9 est synchronisée PAR LE HOOK (useUpdateProfile), avec q8.
@@ -936,12 +965,13 @@ function PilotageScreen() {
         canCancel={!requireMargin}
         onCancel={() => setShowMarginModal(false)}
         onSave={() => {
+          if (blockedByImpersonation()) { setShowMarginModal(false); return; }
           const val = Math.max(0, parseFloat(marginInput.replace(',', '.')) || 0);
           /* La modale se ferme TOUT DE SUITE : la mise à jour du profil est optimiste
              (useUpdateProfile.onMutate écrit la nouvelle marge dans le cache avant le réseau) et
              son succès invalide déjà `pilotage_data`. On attendait ici, en plus, un rechargement
              COMPLET du tableau de bord dont on ne lisait même pas le résultat. */
-          updateProfileVar.mutate({ safety_margin_amount: val });
+          updateProfileVar.mutate({ safety_margin_amount: val }, { onError: reportWriteError('Ta marge de sécurité') });
           setShowMarginModal(false);
           if (requireMargin) userGuide.done('g2_margin');
         }}
@@ -963,8 +993,9 @@ function PilotageScreen() {
         unit={CURRENCY_SYMBOL}
         onCancel={() => setShowConserveModal(false)}
         onSave={() => {
+          if (blockedByImpersonation()) { setShowConserveModal(false); return; }
           const val = Math.max(0, Math.round(parseFloat(conserveInput.replace(',', '.')) || 0));
-          setMonthlyReservation.mutate({ montant: val, libelle: `Réservé ${monthYearLabel()}` });
+          setMonthlyReservation.mutate({ montant: val, libelle: `Réservé ${monthYearLabel()}` }, { onError: reportWriteError('Le montant à conserver') });
           setShowConserveModal(false);
         }}
         colors={COLORS}

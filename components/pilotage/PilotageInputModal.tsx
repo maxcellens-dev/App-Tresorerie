@@ -13,6 +13,8 @@ import React, { useMemo } from 'react';
 import { View, Text, Modal, Pressable, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import type { AppColors } from '../../theme/palette';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+// Règle de saisie PARTAGÉE par tous les champs de montant de l'app (cf. lib/ui/amountInput).
+import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
 interface Props {
   visible: boolean;
@@ -52,9 +54,14 @@ export default function PilotageInputModal({
             <TextInput
               style={s.varModalInput}
               value={value}
-              // Chiffres, point et virgule uniquement : le clavier décimal laisse passer autre chose
-              // selon les claviers tiers, et un `parseFloat` sur du texte rend NaN.
-              onChangeText={(v) => onChangeValue(v.replace(/[^0-9.,]/g, ''))}
+              /* Chiffres et UN SEUL séparateur décimal, au plus deux décimales.
+                 Le filtre se contentait de retirer les caractères non numériques, ce qui laissait
+                 passer plusieurs séparateurs — et les appelants lisent la valeur avec
+                 `parseFloat(v.replace(',', '.'))`, qui ne remplace que la PREMIÈRE virgule. Saisir
+                 « 1.234,56 » (séparateur de milliers, courant) affichait donc 1.234,56 à l'écran et
+                 enregistrait 1,23 €, sans le moindre signal. Ce que le champ MONTRE est désormais
+                 exactement ce qui sera lu — une valeur mal tapée reste visible, donc corrigeable. */
+              onChangeText={(v) => onChangeValue(sanitizeAmountInput(v))}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={colors.textSecondary}

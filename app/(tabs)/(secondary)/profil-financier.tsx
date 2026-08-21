@@ -40,6 +40,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useCurrencySymbol } from '../../../hooks/data/useCurrency';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 export default withDeferredMount(ProfilFinancierScreen);
 
@@ -254,7 +255,7 @@ function ProfilFinancierScreen() {
           ref={amountInputRef}
           style={styles.amountInput}
           value={amountDraft}
-          onChangeText={(v) => setAmountDraft(v.replace(/[^0-9.,]/g, ''))}
+          onChangeText={(v) => setAmountDraft(sanitizeAmountInput(v))}
           keyboardType="decimal-pad"
           placeholder="0"
           placeholderTextColor={COLORS.textSecondary}

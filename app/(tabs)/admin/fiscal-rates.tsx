@@ -11,6 +11,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../../hooks/data/useFiscalEnvelopes';
+import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 
 export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();
@@ -71,7 +72,7 @@ export default function FiscalRatesAdmin() {
                   <TextInput
                     style={styles.input}
                     value={draft[r.envelope] ?? ''}
-                    onChangeText={(t) => setDraft((d) => ({ ...d, [r.envelope]: t.replace(/[^0-9.,]/g, '') }))}
+                    onChangeText={(t) => setDraft((d) => ({ ...d, [r.envelope]: sanitizeAmountInput(t) }))}
                     keyboardType="decimal-pad"
                     placeholderTextColor={COLORS.textSecondary}
                   />

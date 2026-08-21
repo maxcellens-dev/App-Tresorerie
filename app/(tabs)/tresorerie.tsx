@@ -37,6 +37,7 @@ import { compositeOver } from '../../lib/ui/colorMix';
 import TreasuryHelpModal from '../../components/tresorerie/TreasuryHelpModal';
 import TreasuryMenuModal, { TreasuryMenuOption } from '../../components/tresorerie/TreasuryMenuModal';
 import TreasuryDraftModal from '../../components/tresorerie/TreasuryDraftModal';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -180,7 +181,8 @@ function TreasuryPlanBody() {
   const updateProfileTreso = useUpdateProfile(user?.id);
   const [simplified, setSimplified] = useState(false);
   React.useEffect(() => { if (tresoProfile) setSimplified(Boolean((tresoProfile as any).treso_simplified)); }, [tresoProfile]);
-  const toggleSimplified = () => { const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }); };
+  const toggleSimplified = () => {
+    if (readOnly.blocked()) return; const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }); };
 
   // ── Guide "bulles" ──
   const navRowRef = React.useRef<any>(null);
@@ -188,6 +190,8 @@ function TreasuryPlanBody() {
   const scrollOuterRef = React.useRef<ScrollView>(null);
 
 
+  // Consultation admin : cet écran ne doit rien écrire sur le compte visité (useReadOnlyGuard).
+  const readOnly = useReadOnlyGuard();
   const transactionsQuery = useTransactions(user?.id);
   const categoriesQuery = useCategories(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
@@ -985,6 +989,7 @@ function TreasuryPlanBody() {
   };
 
   const handleCreateDraft = async () => {
+    if (readOnly.blocked()) return;
     if (!draftModal || !user) return;
     const num = parseFloat(draftAmount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {

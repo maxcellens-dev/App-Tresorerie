@@ -42,6 +42,7 @@ import { hoverRow } from '../../../lib/ui/webLayout';
 import { iconForTransaction, iconForCategory } from '../../../lib/ui/categoryIcons';
 import { isProjectSpendTx } from '../../../lib/finance/projectTx';
 import { useRwLinkedTransactionIds } from '../../../hooks/engagement/useRelykaWorld';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
 // Les 3 boutons « Virement / Dépense / Recette » en haut de l'écran font doublon avec le bouton de
 // saisie rapide (« + »), désormais présent ici aussi. On les masque, mais on garde le code : passer
@@ -164,6 +165,8 @@ function TransactionsListBody() {
   }, [txFocused, recurAttempt]);
 
 
+  // Consultation admin : cet écran ne doit rien écrire sur le compte visité (useReadOnlyGuard).
+  const readOnly = useReadOnlyGuard();
   const transactionsQuery = useAllTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
@@ -570,6 +573,7 @@ function TransactionsListBody() {
   }
 
   function confirmValidateDraft(item: TransactionWithDetails) {
+    if (readOnly.blocked()) return;
     const label = item.note || item.category?.name || 'ce brouillon';
     // Seul un brouillon de VIREMENT de projet (compte de destination) se valide en virement à 2 jambes.
     // Une dépense de projet se valide comme une dépense ordinaire.
@@ -602,6 +606,7 @@ function TransactionsListBody() {
   }
 
   function confirmDeleteDraft(item: TransactionWithDetails) {
+    if (readOnly.blocked()) return;
     const label = item.note || item.category?.name || 'ce brouillon';
     showConfirm({
       title: 'Supprimer le brouillon',
@@ -621,6 +626,7 @@ function TransactionsListBody() {
   // Conserver un brouillon de projet : le marque « Réservé » (pas de dépense validée),
   // son montant alimente la ligne Réservé du Pilotage jusqu'à utilisation/libération.
   function confirmConserveDraft(item: TransactionWithDetails) {
+    if (readOnly.blocked()) return;
     const label = item.note || item.category?.name || 'ce montant';
     const montant = Math.abs(Number(item.amount));
     showConfirm({
@@ -643,6 +649,7 @@ function TransactionsListBody() {
 
   // Libérer une réservation depuis la liste : supprime le brouillon réservé.
   function confirmLiberateReserved(item: TransactionWithDetails) {
+    if (readOnly.blocked()) return;
     const label = item.note || item.category?.name || 'ce montant';
     showConfirm({
       title: 'Libérer la réservation',

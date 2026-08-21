@@ -506,6 +506,14 @@ export function useAddTransaction(profileId: string | undefined) {
       /** Pour une ligne de régularisation : solde cible saisi (affichage). */
       regul_target?: number | null;
       /**
+       * Compte d'investissement : NATURE de l'opération (migration 196).
+       *  • 'gain' / 'loss' → plus ou moins-value : fait bouger la valeur, jamais l'apport ;
+       *  • 'deposit'       → versement : fait bouger les deux.
+       * Posé par les boutons dédiés du détail de compte. C'est ce marqueur qui fait foi, et non le
+       * libellé — que l'utilisateur peut réécrire, ce qui reclassait l'opération en silence.
+       */
+      investment_kind?: 'gain' | 'loss' | 'deposit' | null;
+      /**
        * Régularisation ÉCRITE PAR LA CLÔTURE : le mois clôturé qui l'a produite (YYYY-MM).
        * C'est la marque que la réouverture de ce mois cherche pour défaire exactement ce que la
        * clôture avait fait — et rien d'autre. Réservé à la clôture (cf. migration 179) : une
@@ -599,6 +607,9 @@ export function useAddTransaction(profileId: string | undefined) {
           posted: contribution !== 0,
           regul_covered: regulCovered,
           regul_target: input.regul_target ?? null,
+          // Envoyé SEULEMENT s'il est renseigné : la colonne date de la migration 196, et une
+          // installation qui ne l'a pas encore appliquée doit continuer d'enregistrer normalement.
+          ...(input.investment_kind ? { investment_kind: input.investment_kind } : {}),
           ...(input.closure_month ? { closure_month: input.closure_month } : {}),
           ...(input.on_behalf_member_id ? { on_behalf_member_id: input.on_behalf_member_id } : {}),
         })

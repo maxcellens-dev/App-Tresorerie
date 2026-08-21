@@ -15,15 +15,27 @@ export function useSetMonthlyReservation(profileId: string | undefined) {
   return useMutation({
     mutationFn: async ({ montant, libelle }: { montant: number; libelle?: string }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
+      /* Début du mois LOCAL, exprimé en instant UTC.
+         La borne était une simple chaîne « AAAA-MM-01 », que Postgres interprète en UTC face à un
+         `timestamptz` : elle ne tombait donc pas au même moment que le mois local de l'utilisateur.
+         Une réservation posée le 1ᵉʳ à 00 h 30 à Paris (soit le dernier jour du mois précédent en
+         UTC) échappait à cet effacement — la nouvelle s'ajoutait par-dessus, et le « Réservé »
+         doublait. Même frontière que la lecture (cf. monthReservationsTotal). */
       const now = new Date();
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-      // Supprimer les réservations du mois courant (non libérées)
-      await supabase
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      /* Supprimer les réservations du mois courant (non libérées).
+         ⚠️ L'erreur DOIT être lue. Cette mutation pose un TOTAL (« baisse-le pour en libérer une
+         partie, mets 0 pour tout libérer ») : elle efface puis réinsère. Si l'effacement échouait
+         en silence, l'insertion qui suit ajoutait une SECONDE réservation par-dessus l'ancienne —
+         le montant « Réservé » du Pilotage doublait, et il est DÉDUIT du Relyka. Et à 0, « tout
+         libérer » ne libérait rien tout en affichant un succès. */
+      const { error: clearError } = await supabase
         .from('reservations')
         .delete()
         .eq('profile_id', profileId)
         .is('libere_at', null)
         .gte('created_at', monthStart);
+      if (clearError) throw clearError;
       // Insérer la nouvelle réservation du mois (si montant > 0)
       if (montant > 0) {
         const { error } = await supabase

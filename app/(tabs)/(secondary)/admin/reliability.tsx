@@ -18,6 +18,7 @@ import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useReliabilityConfig, useSaveReliabilityConfig } from '../../../../hooks/pilotage/useReliability';
 import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/finance/confidenceEngine';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
 
 // Champs dans l'ORDRE du calcul : base → ancienneté → dérive → seuils du ratio → fourchette.
 const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; pct?: boolean }[] = [
@@ -145,7 +146,7 @@ export default function AdminReliability() {
               <TextInput
                 style={styles.input}
                 value={draft[f.key] ?? ''}
-                onChangeText={(v) => { setDirty(true); setDraft((p) => ({ ...p, [f.key]: v.replace(/[^0-9.,]/g, '') })); }}
+                onChangeText={(v) => { setDirty(true); setDraft((p) => ({ ...p, [f.key]: sanitizeAmountInput(v) })); }}
                 keyboardType="decimal-pad"
                 placeholderTextColor={COLORS.textSecondary}
               />

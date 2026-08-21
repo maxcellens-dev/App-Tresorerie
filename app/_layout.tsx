@@ -5,7 +5,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { prefetchPilotageData } from '../hooks/pilotage/usePilotageData';
 import { hydrateThemeCache } from '../lib/platform/themeBoot';
 import { hydrateQueryCache, startQueryPersist, getHydratedKeys } from '../lib/platform/queryPersist';
-import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler, AppState } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler, AppState, Alert } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AnimatedSplash from '../components/system/AnimatedSplash';
@@ -50,6 +50,7 @@ import { useRatesAutoRefresh } from '../hooks/data/useRatesAutoRefresh';
 import { useProfile } from '../hooks/data/useProfile';
 import { useSetPremium, usePlan } from '../hooks/config/usePlan';
 import { handleUsageLimitError, setCachedIsPremium, getCachedIsPremium } from '../lib/finance/usageLimits';
+import { reportUnhandledWriteError } from '../lib/ui/writeErrors';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/platform/purchases';
 import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/platform/pushNotifications';
 import PushPermissionPrompt from '../components/system/PushPermissionPrompt';
@@ -107,10 +108,20 @@ if (Platform.OS !== 'web') {
 }
 
 const queryClient = new QueryClient({
-  // Backstop GLOBAL : toute mutation bloquée par une limite serveur (USAGE_LIMIT_*) affiche le
-  // message convivial (→ page Plan / « supprime des éléments »), quel que soit le point de création.
+  /* Backstop GLOBAL des ÉCHECS D'ÉCRITURE (cf. lib/ui/writeErrors).
+     1. Une limite serveur (USAGE_LIMIT_*) garde son message dédié → page Plan / « supprime des
+        éléments », quel que soit le point de création.
+     2. TOUT LE RESTE — réseau coupé, refus RLS, session expirée — était jusqu'ici avalé sans un
+        mot dès que l'appelant faisait un simple `.mutate()`. L'écran revenait à la normale et
+        l'utilisateur croyait son montant enregistré. Un appelant qui a mieux à dire écrase ce
+        message par le sien (react-query appelle les gestionnaires du plus global au plus local) ;
+        une mutation qui doit rester muette le déclare (`meta: { silentError: true }`). */
   mutationCache: new MutationCache({
-    onError: (error) => { handleUsageLimitError(error, getCachedIsPremium()); },
+    onError: (error, _vars, _ctx, mutation) => {
+      void handleUsageLimitError(error, getCachedIsPremium()).then((handled) => {
+        reportUnhandledWriteError(error, handled, mutation, (title, message) => Alert.alert(title, message));
+      });
+    },
   }),
   defaultOptions: {
     queries: {

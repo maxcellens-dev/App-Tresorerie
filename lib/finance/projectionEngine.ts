@@ -210,17 +210,26 @@ export function estimateMonthlySavings(transactions: SavedTx[], _accountCreatedA
     .filter((x) => x.amount > 0);
   if (flows.length === 0) return 0;
 
+  /* ⚠️ Tout se compare EN CHAÎNES ISO, jamais en objets `Date`.
+     `new Date('2026-08-01')` est parsé en UTC, alors que `new Date(y, m, 1)` est un minuit LOCAL :
+     confronter les deux revenait à comparer deux repères décalés d'un fuseau. Dans les fuseaux à
+     l'ouest de Greenwich, un versement daté du 1er du mois de coupure tombait juste en dessous et
+     sortait de la fenêtre — l'épargne mensuelle estimée s'en trouvait rabotée. Les dates ISO
+     s'ordonnent lexicographiquement : la comparaison de chaînes est exacte et sans fuseau. */
+
   // Au moins 1 mois de données : le 1er flux doit dater d'au moins le mois précédent OU
   // il faut au moins un flux dans le mois courant (on démarre l'estimation).
-  const firstDate = new Date(Math.min(...flows.map((x) => new Date(x.t.date).getTime())));
+  const firstIso = flows.map((x) => String(x.t.date).slice(0, 10)).sort()[0];
+  const [firstYear, firstMonth] = firstIso.split('-').map(Number);
   const monthsSinceFirst =
-    (now.getFullYear() - firstDate.getFullYear()) * 12 + (now.getMonth() - firstDate.getMonth()) + 1;
+    (now.getFullYear() - firstYear) * 12 + (now.getMonth() - (firstMonth - 1)) + 1;
   if (monthsSinceFirst < 1) return 0;
 
-  // Somme sur les 12 derniers mois, lissée sur 12.
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  // Somme sur les 12 derniers mois, lissée sur 12. Borne = le 1er du mois, 11 mois en arrière.
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const cutoff = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-01`;
   const windowTotal = flows
-    .filter((x) => new Date(x.t.date) >= cutoff)
+    .filter((x) => String(x.t.date).slice(0, 10) >= cutoff)
     .reduce((s, x) => s + x.amount, 0);
 
   return windowTotal / 12;

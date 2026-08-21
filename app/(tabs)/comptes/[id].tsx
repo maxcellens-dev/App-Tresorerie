@@ -42,13 +42,14 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { currencySymbolFor } from '../../../lib/finance/currency';
-import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } from '../../../lib/finance/investment';
+import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLoss } from '../../../lib/finance/investment';
 import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
 import BalanceChart from '../../../components/charts/BalanceChart';
 import AccountSettingsForm from '../../../components/account/AccountSettingsForm';
 import PageLoader from '../../../components/layout/PageLoader';
 import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
+import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 
 
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
@@ -302,6 +303,9 @@ function AccountDetailScreen() {
         amount: num,
         date: apportDate,
         note: apportNote.trim() || 'Apport',
+        // Même raison qu'une plus-value : la nature est une donnée, pas une devinette sur le texte.
+        // Un versement noté « Apport moins les frais » était compté comme une MOINS-VALUE.
+        investment_kind: 'deposit',
         is_recurring: false,
         checkRegulConflict: true,
       });
@@ -376,6 +380,12 @@ function AccountDetailScreen() {
         amount: num,
         date: gainLossDate,
         note: gainLossNote.trim() || (num < 0 ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE),
+        /* MARQUEUR de nature (migration 196) : c'est lui qui fait foi, et non le libellé — que
+           l'utilisateur peut réécrire à tout moment depuis l'écran d'édition. Sans lui, renommer
+           « Plus-value » en « Revalorisation T3 » sortait la ligne des plus-values et la faisait
+           compter comme un APPORT : le capital investi gonflait, la performance du compte
+           s'effondrait, sans qu'aucun montant n'ait bougé. */
+        investment_kind: num < 0 ? 'loss' : 'gain',
         is_recurring: false,
         checkRegulConflict: true,
       });
@@ -765,7 +775,7 @@ function AccountDetailScreen() {
                 <TextInput
                   style={styles.apportInput}
                   value={apportBase}
-                  onChangeText={(v) => { setApportBase(v.replace(/[^0-9.,-]/g, '')); setApportBaseDirty(true); }}
+                  onChangeText={(v) => { setApportBase(sanitizeSignedAmountInput(v)); setApportBaseDirty(true); }}
                   keyboardType="decimal-pad"
                   placeholder="—"
                   placeholderTextColor={COLORS.textSecondary}
@@ -949,7 +959,7 @@ function AccountDetailScreen() {
             <TextInput
               style={modalStyles.input}
               value={balanceInput}
-              onChangeText={setBalanceInput}
+              onChangeText={(v) => setBalanceInput(sanitizeSignedAmountInput(v))}
               keyboardType="decimal-pad"
               placeholder="0,00"
               placeholderTextColor={COLORS.textSecondary}
@@ -1040,7 +1050,7 @@ function AccountDetailScreen() {
             <TextInput
               style={modalStyles.input}
               value={apportAmount}
-              onChangeText={setApportAmount}
+              onChangeText={(v) => setApportAmount(sanitizeAmountInput(v))}
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor={COLORS.textSecondary}
@@ -1187,7 +1197,7 @@ function AccountDetailScreen() {
                 <TextInput
                   style={modalStyles.input}
                   value={gainLossAmount}
-                  onChangeText={setGainLossAmount}
+                  onChangeText={(v) => setGainLossAmount(sanitizeAmountInput(v))}
                   keyboardType="decimal-pad"
                   placeholder="0.00"
                   placeholderTextColor={COLORS.textSecondary}
@@ -1206,7 +1216,7 @@ function AccountDetailScreen() {
                 <TextInput
                   style={modalStyles.input}
                   value={gainLossBalance}
-                  onChangeText={setGainLossBalance}
+                  onChangeText={(v) => setGainLossBalance(sanitizeSignedAmountInput(v))}
                   keyboardType="decimal-pad"
                   placeholder="0,00"
                   placeholderTextColor={COLORS.textSecondary}
@@ -1347,7 +1357,7 @@ function AccountDetailScreen() {
                 <TextInput
                   style={modalStyles.input}
                   value={interestAmount}
-                  onChangeText={setInterestAmount}
+                  onChangeText={(v) => setInterestAmount(sanitizeAmountInput(v))}
                   keyboardType="decimal-pad"
                   placeholder="0,00"
                   placeholderTextColor={COLORS.textSecondary}
@@ -1366,7 +1376,7 @@ function AccountDetailScreen() {
                 <TextInput
                   style={modalStyles.input}
                   value={interestBalance}
-                  onChangeText={setInterestBalance}
+                  onChangeText={(v) => setInterestBalance(sanitizeSignedAmountInput(v))}
                   keyboardType="decimal-pad"
                   placeholder="0,00"
                   placeholderTextColor={COLORS.textSecondary}
@@ -1468,7 +1478,8 @@ function AccountDetailScreen() {
               const linkedAccount = linkedAccountId ? accounts.find((a) => a.id === linkedAccountId) : null;
               const isVirement = isTransfer || !!linkedAccount;
 
-              const isGainLoss = isInvestmentGainLossNote(selectedTx.note);
+              // Marqueur d'abord, libellé en repli (cf. lib/finance/investment).
+              const isGainLoss = isInvestmentGainLoss(selectedTx);
               const isApport = selectedTx.note === 'Apport' || selectedTx.category?.name === 'Apport' ||
                 (selectedTx.note?.toLowerCase().includes('apport') ?? false);
               const txType = isVirement
