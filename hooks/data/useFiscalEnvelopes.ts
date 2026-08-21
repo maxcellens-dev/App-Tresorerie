@@ -50,7 +50,10 @@ export function useFiscalEnvelopeRates() {
         .from('fiscal_envelope_rates')
         .select('*')
         .order('sort_order', { ascending: true });
-      if (error || !data || data.length === 0) return DEFAULT_FISCAL_RATES;
+      // Erreur de lecture ≠ table vide : on lève (react-query réessaie) au lieu de figer les taux
+      // par défaut à la place de ceux réglés en admin.
+      if (error) throw error;
+      if (!data || data.length === 0) return DEFAULT_FISCAL_RATES;
       return data as FiscalEnvelopeRate[];
     },
     staleTime: 1000 * 60 * 10,

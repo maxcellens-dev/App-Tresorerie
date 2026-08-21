@@ -34,7 +34,14 @@ export default function AppDialogHost() {
   const btnColor = (b: DialogButton) =>
     b.style === 'destructive' ? COLORS.danger : b.style === 'cancel' ? COLORS.textSecondary : COLORS.emerald;
 
-  const cancelBtn = req?.buttons.find((b) => b.style === 'cancel');
+  /* Bouton joué quand on ferme SANS choisir (tap à côté, retour Android).
+     ⚠️ Le repli `{ text: 'OK' }` ne suffit pas : c'est un objet NEUF, sans `onPress`. Un
+     `appAlert()` — un seul bouton, style 'default', donc pas de bouton 'cancel' — ne se résolvait
+     alors JAMAIS si l'utilisateur tapait à côté : sa promesse restait pendante et le flux qui
+     l'attendait restait bloqué (cas réel : le garde-fou de limite d'usage avant création d'un
+     compte / d'un projet). On retombe donc sur l'unique bouton quand il n'y en a qu'un. */
+  const dismissBtn = req?.buttons.find((b) => b.style === 'cancel')
+    ?? (req?.buttons.length === 1 ? req.buttons[0] : undefined);
 
   // On ne monte le Modal que lorsqu'un dialogue est demandé : son portail est alors ajouté EN
   // DERNIER dans le DOM → toujours au-dessus des autres modaux déjà ouverts (sinon la confirmation
@@ -42,8 +49,8 @@ export default function AppDialogHost() {
   if (!req) return null;
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(cancelBtn ?? { text: 'OK' })}>
-      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={() => onPress(cancelBtn ?? { text: 'OK' })}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(dismissBtn ?? { text: 'OK' })}>
+      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={() => onPress(dismissBtn ?? { text: 'OK' })}>
         <Pressable style={styles.box} onPress={() => {}}>
           {!!req.title && <Text style={styles.title}>{req.title}</Text>}
           {!!req.message && <Text style={styles.message}>{req.message}</Text>}

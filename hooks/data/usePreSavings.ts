@@ -24,7 +24,12 @@ export function usePreSavings(profileId: string | undefined) {
         .from('pre_savings')
         .select('*')
         .eq('profile_id', profileId);
-      if (error || !data) return result;
+      /* ⚠️ Une lecture EN ÉCHEC ne doit JAMAIS passer pour « aucun cumul » : les cumuls sont
+         DÉDUITS du Relyka (cf. RelykaDetail). Les renvoyer à 0 sur une erreur réseau gonflait le
+         budget libre affiché, et la mutation d'ajout repartait ensuite de ce zéro. On lève : le
+         cache précédent reste affiché et react-query réessaie. */
+      if (error) throw error;
+      if (!data) return result;
       for (const row of data as PreSaving[]) {
         if (row.type === 'epargne') result.epargne = { ...row, total_cumule: Number(row.total_cumule), entrees: row.entrees ?? [] };
         if (row.type === 'invest') result.invest = { ...row, total_cumule: Number(row.total_cumule), entrees: row.entrees ?? [] };
@@ -41,12 +46,17 @@ export function useAddPreSavingEntry(profileId: string | undefined) {
   return useMutation({
     mutationFn: async ({ type, montant, note }: { type: PreSavingType; montant: number; note?: string }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing } = await supabase
+      const { data: existing, error: readError } = await supabase
         .from('pre_savings')
         .select('*')
         .eq('profile_id', profileId)
         .eq('type', type)
         .maybeSingle();
+      /* ⚠️ Sans ce test, une lecture en échec rendait `existing = null` → on partait sur la branche
+         INSERT et on écrivait une ligne repartant de zéro par-dessus un cumul existant : le total
+         déjà mis de côté disparaissait. Une erreur de lecture doit faire ÉCHOUER l'ajout, jamais
+         le transformer en création. */
+      if (readError) throw readError;
 
       const entry: PreSavingEntry = { date: new Date().toISOString(), montant, note };
 

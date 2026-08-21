@@ -39,12 +39,21 @@ export interface UserBadge { badge_key: string; unlocked_at: string; celebrated_
 export interface InventoryItem { item_key: string; qty: number }
 
 async function fetchOrCreateState(userId: string): Promise<GamificationState> {
-  const { data } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
+  const { data, error } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
+  /* ⚠️ LEVER, et surtout pas retomber sur la graine à zéro.
+     `maybeSingle()` distingue déjà « aucune ligne » (data null, error null) d'un ÉCHEC de lecture.
+     Confondre les deux était destructeur : `validateWeek` repart de l'état renvoyé ici et ÉCRIT
+     `streak: state.streak + 1` et `gems: state.gems + …`. Une lecture ratée rendait donc une série
+     de 0 et 0 gemme → la mise à jour écrasait en base la vraie série (remise à 1) et vidait les
+     gemmes. La flamme ne redescend JAMAIS : c'est ici que ça se garantit. */
+  if (error) throw error;
   if (data) return data as GamificationState;
   const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
   // Idempotent : évite un conflit de clé si deux composants initialisent en même temps.
-  await supabase!.from('user_gamification').upsert(seed, { onConflict: 'profile_id', ignoreDuplicates: true });
-  const { data: after } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
+  const { error: seedError } = await supabase!.from('user_gamification').upsert(seed, { onConflict: 'profile_id', ignoreDuplicates: true });
+  if (seedError) throw seedError;
+  const { data: after, error: reReadError } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
+  if (reReadError) throw reReadError;
   return (after ?? seed) as GamificationState;
 }
 
@@ -62,7 +71,10 @@ export function useGamification(userId: string | undefined) {
   const badgesQuery = useQuery({
     queryKey: ['user_badges', userId],
     queryFn: async (): Promise<UserBadge[]> => {
-      const { data } = await supabase!.from('user_badges').select('badge_key, unlocked_at, celebrated_at').eq('profile_id', userId!);
+      // Erreur de lecture ≠ « aucun succès » : sans ce test, une panne réseau vidait la page Succès
+      // et pouvait faire rejouer des célébrations déjà vues (celebrated_at perdu de vue).
+      const { data, error } = await supabase!.from('user_badges').select('badge_key, unlocked_at, celebrated_at').eq('profile_id', userId!);
+      if (error) throw error;
       return (data ?? []) as UserBadge[];
     },
     enabled: !!userId && !!supabase,
@@ -71,7 +83,9 @@ export function useGamification(userId: string | undefined) {
   const inventoryQuery = useQuery({
     queryKey: ['user_inventory', userId],
     queryFn: async (): Promise<InventoryItem[]> => {
-      const { data } = await supabase!.from('user_inventory').select('item_key, qty').eq('profile_id', userId!);
+      // Idem : une lecture en échec faisait disparaître les articles déjà achetés de l'inventaire.
+      const { data, error } = await supabase!.from('user_inventory').select('item_key, qty').eq('profile_id', userId!);
+      if (error) throw error;
       return (data ?? []) as InventoryItem[];
     },
     enabled: !!userId && !!supabase,
@@ -92,7 +106,11 @@ export function useGamification(userId: string | undefined) {
     const closureEnabled = opts?.closureEnabled ?? true;
     const { data: stateRow } = await supabase.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
     const state = (stateRow ?? await fetchOrCreateState(userId)) as GamificationState;
-    const { data: badgeRows } = await supabase.from('user_badges').select('badge_key').eq('profile_id', userId);
+    /* ⚠️ Cette liste sert à SAUTER les succès déjà débloqués. Une lecture en échec la rendait vide :
+       on re-upsertait alors TOUS les succès (leur `unlocked_at` repartait à maintenant) et on
+       recréditait leurs gemmes une seconde fois. Une erreur doit interrompre l'évaluation. */
+    const { data: badgeRows, error: badgesError } = await supabase.from('user_badges').select('badge_key').eq('profile_id', userId);
+    if (badgesError) throw badgesError;
     const unlocked = new Set<string>((badgeRows ?? []).map((b: any) => b.badge_key));
 
     const fullCtx: BadgeContext = {
@@ -210,7 +228,10 @@ export function useGamification(userId: string | undefined) {
 
     // Produit unique (couleurs, cosmétiques, thèmes) : déblocage permanent → un seul achat possible.
     if (isUniqueItem(item)) {
-      const { data: owned } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
+      // Lecture en échec ≠ « pas encore acquis » : sans ce test, l'article unique pouvait être
+      // racheté (et repayé) alors qu'il était déjà dans l'inventaire.
+      const { data: owned, error: ownedError } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
+      if (ownedError) return { ok: false, reason: 'vérification impossible, réessaie' };
       if ((owned?.qty ?? 0) > 0) return { ok: false, reason: 'déjà acquis' };
     }
 
@@ -222,7 +243,10 @@ export function useGamification(userId: string | undefined) {
       .update({ gems: state.gems - price, updated_at: new Date().toISOString() })
       .eq('profile_id', userId);
 
-    const { data: existing } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
+    /* ⚠️ Lecture avalée + upsert derrière = stock détruit : une erreur ici rendait `existing` null,
+       et la quantité de l'article était RÉÉCRITE à 1 par-dessus les exemplaires déjà possédés. */
+    const { data: existing, error: existingError } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
+    if (existingError) throw existingError;
     await supabase.from('user_inventory').upsert(
       { profile_id: userId, item_key: itemKey, qty: (existing?.qty ?? 0) + 1 },
       { onConflict: 'profile_id,item_key' },
@@ -246,14 +270,23 @@ export function useGamification(userId: string | undefined) {
   /** Crédite des gemmes (après un achat en argent réel validé par le store / RevenueCat). */
   async function creditGems(amount: number): Promise<{ ok: boolean }> {
     if (!userId || !supabase || amount <= 0) return { ok: false };
-    const state = await fetchOrCreateState(userId);
-    await supabase.from('user_gamification').update({
-      gems: state.gems + amount,
-      gems_earned_total: state.gems_earned_total + amount,
-      updated_at: new Date().toISOString(),
-    }).eq('profile_id', userId);
-    invalidate();
-    return { ok: true };
+    /* Appelée APRÈS un achat en argent réel : on ne laisse pas passer une erreur en silence. Elle
+       est renvoyée comme `ok: false` pour que l'écran le DISE — avant, une lecture ratée renvoyait
+       un état à zéro et l'écriture derrière remettait le solde de relyks à la valeur du seul pack
+       acheté, effaçant tout ce que l'utilisateur avait déjà. */
+    try {
+      const state = await fetchOrCreateState(userId);
+      const { error } = await supabase.from('user_gamification').update({
+        gems: state.gems + amount,
+        gems_earned_total: state.gems_earned_total + amount,
+        updated_at: new Date().toISOString(),
+      }).eq('profile_id', userId);
+      if (error) throw error;
+      invalidate();
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
   }
 
   /** true si le cadeau du jour est encore réclamable aujourd'hui. */

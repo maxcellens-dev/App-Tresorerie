@@ -95,10 +95,13 @@ export function useAddCategory(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom de la catégorie est requis.');
-      const { data: existing } = await supabase
+      // Lecture en échec ≠ « aucune catégorie » : sans ce test, le contrôle d'unicité sautait en
+      // silence et laissait créer un doublon exact.
+      const { data: existing, error: existingError } = await supabase
         .from('categories')
         .select('id, name, type')
         .eq('profile_id', profileId);
+      if (existingError) throw existingError;
       const hasDuplicate = (existing ?? []).some(
         (r) =>
           (r as { type: string }).type === input.type &&
@@ -133,17 +136,22 @@ export function useUpdateCategory(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom de la catégorie est requis.');
-      const { data: current } = await supabase
+      // Le type sert à cadrer la recherche de doublon : lu à vide, il l'élargissait à toutes les
+      // catégories, recette et dépense confondues.
+      const { data: current, error: currentError } = await supabase
         .from('categories')
         .select('type')
         .eq('id', input.id)
         .eq('profile_id', profileId)
         .single();
+      if (currentError) throw currentError;
       const typeToUse = input.type ?? (current as { type: string } | null)?.type;
-      const { data: existing } = await supabase
+      // Idem à l'édition : une erreur de lecture ne doit pas faire passer le contrôle d'unicité.
+      const { data: existing, error: existingError } = await supabase
         .from('categories')
         .select('id, name, type')
         .eq('profile_id', profileId);
+      if (existingError) throw existingError;
       const duplicate = (existing ?? []).find(
         (r) =>
           (r as { id: string }).id !== input.id &&

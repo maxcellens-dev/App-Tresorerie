@@ -15,7 +15,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useUserUnreadCount } from '../../hooks/admin/useUnreadBadges';
 import { useCosmetics } from '../../hooks/theme/useCosmetics';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useBrandFont';
-import { APP_VERSION } from '../../lib/platform/appVersion';
+import { APP_VERSION, copyrightNotice } from '../../lib/platform/appVersion';
 
 export default function ProfileMenuModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const COLORS = useAppColors();
@@ -129,7 +129,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
           <View style={styles.footer}>
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, appNameFontStyle]}>Relyka</Text>
             <Text style={styles.footerTag}>Laisse-toi guider pour faire des économies.</Text>
-            <Text style={styles.footerVersion}>Version {APP_VERSION} · © 2026 Relyka</Text>
+            <Text style={styles.footerVersion}>Version {APP_VERSION} · {copyrightNotice()}</Text>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>

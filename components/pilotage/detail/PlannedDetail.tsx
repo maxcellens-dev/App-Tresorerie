@@ -64,7 +64,7 @@ export default function PlannedDetail({
           <TouchableOpacity style={styles.varProfileBanner} activeOpacity={0.8} onPress={onOpenProfile}>
             <Ionicons name="alert-circle-outline" size={16} color={colors.orange} />
             <Text style={styles.varProfileBannerText}>
-              Tu n'as pas encore indiqué tes dépenses variables — sans elles, l'estimation reste à 0 €. Complète ton profil pour un suivi fiable.
+              Tu n'as pas encore indiqué tes dépenses variables — sans elles, l'estimation reste à {fmtAmount(0)}. Complète ton profil pour un suivi fiable.
             </Text>
             <Ionicons name="chevron-forward" size={16} color={colors.orange} />
           </TouchableOpacity>

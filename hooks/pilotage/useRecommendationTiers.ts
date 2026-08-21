@@ -15,7 +15,12 @@ export function useRecommendationTiers() {
       const { data, error } = await supabase
         .from('recommendation_tier_allocations')
         .select('tier, type, value');
-      if (error || !data || data.length === 0) return TIER_ALLOCATIONS;
+      /* Une lecture EN ÉCHEC n'est pas « la table est vide » : elle faisait silencieusement
+         retomber les recommandations sur les répartitions codées en dur, à la place de celles
+         réglées en admin — l'utilisateur voyait donc des pourcentages différents d'un lancement à
+         l'autre, sans rien signaler. On lève pour que react-query réessaie. */
+      if (error) throw error;
+      if (!data || data.length === 0) return TIER_ALLOCATIONS;
 
       // Build from DB rows, falling back to hardcoded defaults for any missing cell
       const result: TierAllocations = JSON.parse(JSON.stringify(TIER_ALLOCATIONS));

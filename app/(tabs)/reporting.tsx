@@ -63,7 +63,8 @@ function useReportingColors() {
 
 const fmtK = (n: number) => {
   if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1).replace('.0', '')}k`;
-  return n.toFixed(0);
+  // `toFixed(0)` rend « -0 » pour tout ce qui est entre −0,5 et 0 : un axe affichait « -0 ».
+  return Math.round(n).toString();
 };
 const fmtFull = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 const fmtSigned = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}`;

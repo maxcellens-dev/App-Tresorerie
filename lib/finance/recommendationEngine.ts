@@ -16,7 +16,7 @@ import type { FinancialProfile, FinancialProfileId } from '../../types/database'
 import { PROFILE_ALLOCATIONS, PROFILE_TO_TIER, resolveProfileId } from './financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from './securityCushion';
 import { computeFinancialPriority, applyPriorityBounds } from './financialPriorities';
-import { floorToTen } from './currency';
+import { floorToTen, CURRENCY_SYMBOL } from './currency';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -450,7 +450,7 @@ export function computeRecommendations(
     : null;
   if (guardTrough != null && guardTrough <= guard!.margin) {
     return keepEverything(
-      `ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : il vaut mieux conserver ton Relyka ce mois-ci.`,
+      `ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}) dans les 6 prochains mois : il vaut mieux conserver ton Relyka ce mois-ci.`,
     );
   }
 
@@ -819,7 +819,7 @@ function normalizeAllocations(alloc: Record<RecoType, number>) {
 interface ActionAmount { value: number; isRange: boolean }
 
 function amountPhrase(a: ActionAmount): string {
-  return `${a.isRange ? 'au moins ' : ''}${a.value.toLocaleString('fr-FR')} €`;
+  return `${a.isRange ? 'au moins ' : ''}${a.value.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 }
 
 function buildRecommendation(
@@ -941,7 +941,7 @@ function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: Pilot
 
   // Revenu non détecté → on n'affiche pas les « mois de sécurité » (juste le total + l'appréciation).
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
-  return `${SAVE_LEVEL_LABEL[tier]} : ${savings.toLocaleString('fr-FR')} €${coverage}. \nTu peux placer ${amountPhrase(action)} ce mois-ci pour la consolider.`;
+  return `${SAVE_LEVEL_LABEL[tier]} : ${savings.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}${coverage}. \nTu peux placer ${amountPhrase(action)} ce mois-ci pour la consolider.`;
 }
 
 /**
@@ -957,7 +957,7 @@ function getSaveStateNote(tier: SavingsTier, data: PilotageData): string {
     avgMonthlyIncome: data.avg_monthly_income,
   }).months;
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
-  return `${SAVE_LEVEL_LABEL[tier]} : ${savings.toLocaleString('fr-FR')} €${coverage}`;
+  return `${SAVE_LEVEL_LABEL[tier]} : ${savings.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}${coverage}`;
 }
 
 function getInvestDescription(tier: SavingsTier, action: ActionAmount, _data: PilotageData): string {

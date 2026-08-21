@@ -8,6 +8,7 @@
  *
  * Rien ne disparaît tout seul : l'utilisateur ferme au tap ou en balayant vers le haut.
  */
+import { CURRENCY_SYMBOL } from '../finance/currency';
 
 export type PulseAccountType = 'checking' | 'savings' | 'investment' | string;
 
@@ -214,7 +215,8 @@ export function computeEndOfMonthDelta(op: PulseOp, today: Date, variableEnvelop
   return balanceDelta + absorbed;
 }
 
-const eur = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('fr-FR')} €`;
+// Symbole issu de la devise de référence du profil (jamais un « € » en dur — cf. lib/finance/currency).
+const eur = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 
 /** Libellé du compte touché — une plus-value saisie sur un compte d'investissement ne doit pas
  *  s'annoncer « Compte courant » (cas réel : saisie gain/perte depuis le détail de compte). */

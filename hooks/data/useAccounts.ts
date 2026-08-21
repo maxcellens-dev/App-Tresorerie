@@ -136,11 +136,15 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
   return useMutation({
     mutationFn: async () => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing } = await supabase
+      /* ⚠️ L'erreur DOIT être lue : c'est ce test qui rend l'amorçage idempotent. Une lecture en
+         échec le rendait faux (existing = null) et l'app recréait un « Compte courant » à 0 chez
+         quelqu'un qui avait déjà les siens. */
+      const { data: existing, error: existingError } = await supabase
         .from('accounts')
         .select('id')
         .eq('profile_id', profileId)
         .limit(1);
+      if (existingError) throw existingError;
       if (existing && existing.length > 0) return; // déjà des comptes → ne rien faire
 
       // Devise : celle CHOISIE par l'utilisateur, jamais « EUR » en dur. Elle était ignorée ici,
@@ -179,11 +183,14 @@ export function useAddAccount(profileId: string | undefined) {
       if (!ownerId) throw new Error('Session expirée — déconnecte-toi puis reconnecte-toi.');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom du compte est requis.');
-      const { data: existing } = await supabase
+      // Lecture en échec ≠ « aucun compte » : sans ce test, le contrôle d'unicité du nom sautait en
+      // silence et laissait créer un doublon.
+      const { data: existing, error: existingError } = await supabase
         .from('accounts')
         .select('id, name')
         .eq('profile_id', ownerId)
         .eq('is_active', true);
+      if (existingError) throw existingError;
       const hasDuplicate = (existing ?? []).some(
         (r) => normalizeName((r as { name?: string }).name ?? '') === nameNorm
       );
@@ -295,11 +302,13 @@ export function useUpdateAccount(profileId: string | undefined) {
       if (input.name !== undefined) {
         const nameNorm = normalizeName(input.name);
         if (!nameNorm) throw new Error('Le nom du compte est requis.');
-        const { data: existing } = await supabase
+        // Idem : une erreur de lecture ne doit pas faire passer le contrôle d'unicité du nom.
+        const { data: existing, error: existingError } = await supabase
           .from('accounts')
           .select('id, name')
           .eq('profile_id', profileId)
           .eq('is_active', true);
+        if (existingError) throw existingError;
         const duplicate = (existing ?? []).find(
           (r) => (r as { id: string }).id !== input.id && normalizeName((r as { name?: string }).name ?? '') === nameNorm
         );

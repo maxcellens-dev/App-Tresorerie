@@ -87,9 +87,16 @@ function BoutiqueScreen() {
 
   const onBuy = async (key: string) => {
     setBusyKey(key); setMsg(null);
-    const res = await buyItem(key);
-    setBusyKey(null);
-    setMsg(res.ok ? 'Acheté ✓' : `Impossible : ${res.reason}`);
+    try {
+      const res = await buyItem(key);
+      setMsg(res.ok ? 'Acheté ✓' : `Impossible : ${res.reason}`);
+    } catch {
+      // `buyItem` interrompt l'achat plutôt que d'écrire à partir d'une lecture ratée (le stock
+      // serait écrasé). Sans ce filet, le bouton restait bloqué sur son indicateur d'attente.
+      setMsg('Impossible : connexion perdue, réessaie.');
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   // Pack de gemmes en argent réel (RevenueCat) → crédite les gemmes si l'achat aboutit.
@@ -98,7 +105,14 @@ function BoutiqueScreen() {
     const gemsAmount = Number((item.payload as any)?.gems) || 0;
     setBusyKey(item.key); setMsg(null);
     const res = await purchaseGemsPack(productId);
-    if (res.ok) { await creditGems(gemsAmount); setMsg(`+${formatCurrency(gemsAmount, currencyName)} ✓`); }
+    if (res.ok) {
+      // L'achat est passé côté store : si le crédit échoue (réseau), on le DIT au lieu de laisser
+      // croire que les relyks sont arrivés — ils seront recrédités à la prochaine tentative.
+      const credited = await creditGems(gemsAmount);
+      setMsg(credited.ok
+        ? `+${formatCurrency(gemsAmount, currencyName)} ✓`
+        : 'Achat validé, mais le crédit a échoué. Rouvre la boutique pour le récupérer.');
+    }
     else if (res.reason === 'cancelled') setMsg('Achat annulé.');
     else setMsg(res.message ?? 'Achat indisponible.');
     setBusyKey(null);

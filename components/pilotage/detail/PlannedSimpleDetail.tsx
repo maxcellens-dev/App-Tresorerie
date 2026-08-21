@@ -137,7 +137,7 @@ export default function PlannedSimpleDetail({
       </Text>
       <Text style={styles.detailNote}>
         {varEnvelope <= 0
-          ? 'Aucun budget variable habituel n\'est encore estimé : tant qu\'il vaut 0 €, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation pour que le calcul démarre.'
+          ? `Aucun budget variable habituel n'est encore estimé : tant qu'il vaut ${fmtAmount(0)}, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation pour que le calcul démarre.`
           : varExhausted
           ? `Enveloppe déjà consommée (${fmtAmount(varUsed)} sur ${fmtAmount(varEnvelope)}) : c'est pour ça qu'il ne reste rien à prévoir de ce côté.`
           : ''}

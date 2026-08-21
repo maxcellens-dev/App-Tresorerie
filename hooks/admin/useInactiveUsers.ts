@@ -102,7 +102,12 @@ export function useDeleteUsers() {
       const { data, error } = await supabase.functions.invoke('admin-delete-users', { body: { ids } });
       if (error) {
         const ctx = (error as any).context;
-        if (ctx && typeof ctx.json === 'function') { try { const b = await ctx.json(); throw new Error(b?.error || error.message); } catch (e) { throw e; } }
+        if (ctx && typeof ctx.json === 'function') {
+          // Corps illisible (HTML, vide) → on garde le message d'origine, et non l'erreur de parsing.
+          let detail: string | undefined;
+          try { detail = (await ctx.json())?.error; } catch { /* ignore */ }
+          throw new Error(detail || error.message);
+        }
         throw new Error(error.message || 'Échec de la suppression');
       }
       if ((data as any)?.error) throw new Error((data as any).error);

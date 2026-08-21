@@ -844,6 +844,10 @@ export function useRwProjectsStats(userId: string | undefined, projectIds: strin
         supabase!.from('rw_participants').select('id, project_id, display_name').in('project_id', projectIds),
         supabase!.from('rw_expenses').select('project_id, amount, paid_by').in('project_id', projectIds),
       ]);
+      /* Sans ce test, une lecture en échec passait pour « projet vide » : les cartes affichaient
+         0 € réuni et aucun participant, ce qui est un CHIFFRE FAUX, pas une absence de données. */
+      if (partsRes.error) throw partsRes.error;
+      if (expsRes.error) throw expsRes.error;
       const out: Record<string, RwProjectStats> = {};
       for (const pid of projectIds) out[pid] = { participants: [], total: 0, paidBy: {} };
       for (const p of (partsRes.data ?? []) as any[]) {

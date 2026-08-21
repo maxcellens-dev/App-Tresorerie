@@ -15,6 +15,7 @@ import { useProfile } from '../../../hooks/data/useProfile';
 import { useAllAccounts } from '../../../hooks/data/useAccounts';
 import { useQuestionnaireAnswers } from '../../../hooks/pilotage/useFinancialProfile';
 import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
+import { todayISO } from '../../../lib/dateUtils';
 import { supabase } from '../../../lib/platform/supabase';
 import { effectiveSharedMode } from '../../../lib/finance/perimeter';
 
@@ -287,7 +288,8 @@ function MesDonneesScreen() {
       const data = await fetchAllData();
       if (!data) throw new Error('Non connecté');
       const rows = buildRows(data);
-      const dateStr = new Date().toISOString().slice(0, 10);
+      // Date LOCALE : `toISOString()` datait l'export de la veille dès 22 h en France.
+      const dateStr = todayISO();
       if (Platform.OS === 'web') {
         await exportXlsx(rows, `mes-donnees-tresorerie-${dateStr}.xlsx`);
       } else {

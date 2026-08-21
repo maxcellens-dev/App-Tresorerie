@@ -369,8 +369,8 @@ export function computeSetupState(
     hasAnyTx,
     setupIncomplete: relykaAffiche <= 0 && (noAccountsYet || !hasRecurringTx),
     setupHint: noAccountsYet
-      ? "Ton Relyka est à 0 € : il n'a encore rien à calculer. Crée tes comptes avec leur solde d'aujourd'hui pour le faire apparaître."
-      : "Ton Relyka est à 0 € : Relyka ne sait pas encore ce qui rentre ni ce qui part. Enregistre ta rentrée d'argent et tes charges fixes en récurrentes — il se calculera tout seul.",
+      ? `Ton Relyka est à ${eur(0)} : il n'a encore rien à calculer. Crée tes comptes avec leur solde d'aujourd'hui pour le faire apparaître.`
+      : `Ton Relyka est à ${eur(0)} : Relyka ne sait pas encore ce qui rentre ni ce qui part. Enregistre ta rentrée d'argent et tes charges fixes en récurrentes — il se calculera tout seul.`,
   };
 }
 

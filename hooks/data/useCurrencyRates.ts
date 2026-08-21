@@ -16,7 +16,11 @@ export function useCurrencyRates() {
     queryFn: async (): Promise<RatesMap> => {
       if (!supabase) return { EUR: 1 };
       const { data, error } = await supabase.from('currency_rates').select('code, rate');
-      if (error || !data || data.length === 0) return { EUR: 1 };
+      /* Une lecture EN ÉCHEC n'est pas « la table est vide » : on lève pour que react-query
+         réessaie, au lieu de figer le repli EUR=1 pendant une heure de staleTime — tous les
+         montants en devise étrangère s'affichaient alors « ≈ ? » jusqu'au redémarrage. */
+      if (error) throw error;
+      if (!data || data.length === 0) return { EUR: 1 };
       const map: RatesMap = {};
       for (const r of data as { code: string; rate: number }[]) map[r.code] = Number(r.rate);
       if (!map.EUR) map.EUR = 1;

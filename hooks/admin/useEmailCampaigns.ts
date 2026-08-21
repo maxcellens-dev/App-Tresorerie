@@ -115,7 +115,12 @@ export function useSendEmailCampaign() {
         // l'écran n'afficherait qu'un « Edge Function returned a non-2xx status code » inutile.
         const ctx = (error as any).context;
         if (ctx && typeof ctx.json === 'function') {
-          try { const b = await ctx.json(); throw new Error(b?.error || error.message); } catch (e) { throw e; }
+          /* ⚠️ Si le corps n'est PAS du JSON (page d'erreur HTML de la passerelle, corps vide), le
+             `catch` relayait l'erreur de PARSING (« Unexpected token < ») à la place de l'erreur
+             réelle. On ne remplace le message que lorsqu'on a réussi à le lire. */
+          let detail: string | undefined;
+          try { detail = (await ctx.json())?.error; } catch { /* corps illisible → message d'origine */ }
+          throw new Error(detail || error.message);
         }
         throw new Error(error.message);
       }

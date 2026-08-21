@@ -103,7 +103,7 @@ export default function RelykaDetail({
         <TouchableOpacity style={styles.marginNudge} activeOpacity={0.8} onPress={onSetMargin}>
           <Ionicons name="lock-closed-outline" size={14} color={colors.blue} />
           <Text style={styles.marginNudgeText}>
-            Tu as une marge de sécurité à 0€. Il vaut mieux toujours garder une somme de côté sur tes comptes courants pour les imprévus.
+            Tu as une marge de sécurité à {fmtAmount(0)}. Il vaut mieux toujours garder une somme de côté sur tes comptes courants pour les imprévus.
           </Text>
           <Ionicons name="chevron-forward" size={15} color={colors.blue} />
         </TouchableOpacity>

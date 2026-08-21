@@ -33,7 +33,8 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email.trim() || !password) {
-      showAlert('Champs requis', 'Renseignez email et mot de passe.');
+      // L'app TUTOIE partout : ce « Renseignez » était le dernier vouvoiement de l'interface.
+      showAlert('Champs requis', 'Renseigne ton e-mail et ton mot de passe.');
       return;
     }
     setLoading(true);

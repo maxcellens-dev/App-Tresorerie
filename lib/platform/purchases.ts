@@ -54,6 +54,9 @@ export async function restorePurchases(): Promise<PurchaseResult> {
 
 export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> { return null; }
 
+/** Prix affichés des deux formules. Aucun store sur le web → l'écran garde ses prix de repli. */
+export async function getPlanPrices(): Promise<{ monthly?: string; annual?: string }> { return {}; }
+
 /** Achat d'un pack de gemmes en argent réel (consommable store). No-op / message sur web. */
 export async function purchaseGemsPack(_productId: string): Promise<PurchaseResult> {
   return { ok: false, reason: 'not_supported', message: "L'achat de relyks est disponible depuis l'application mobile." };

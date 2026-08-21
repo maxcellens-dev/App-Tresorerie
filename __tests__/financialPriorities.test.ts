@@ -40,7 +40,9 @@ describe('computeFinancialPriority — l’ordre des priorités', () => {
   it('dette coûteuse → DÉSENDETTER : rembourser bat tout placement', () => {
     const p = computeFinancialPriority({ ...base, monthsOfReserve: 10, costlyDebt: 4200 });
     expect(p.id).toBe('debt');
-    expect(p.reason).toContain('4200');
+    // Montant formaté comme partout ailleurs : séparateur de milliers + symbole de la devise de
+    // référence (l'espace insécable varie selon la version d'ICU, d'où le `\s?`).
+    expect(p.reason).toMatch(/4\s?200\s?€/);
   });
 
   it('moins d’1 mois de réserve → URGENCE, investissement à 0 %', () => {

@@ -53,7 +53,7 @@ import { useCategories, useAddCategory } from '../../hooks/data/useCategories';
 import { supabase } from '../../lib/platform/supabase';
 import type { Project } from '../../types/database';
 import { projectMode, type ProjectMode } from '../../lib/finance/projectTx';
-import { todayISO } from '../../lib/dateUtils';
+import { todayISO, isoDay } from '../../lib/dateUtils';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
@@ -288,7 +288,17 @@ export default function AddProjectModal() {
         expense_category_id: editingProject.expense_category_id || '',
         source_account_id: editingProject.source_account_id || null,
         linked_account_id: editingProject.linked_account_id || null,
-        first_payment_date: editingProject.first_payment_date || (editingProject.transaction_day ? (() => { const d = new Date(); d.setDate(editingProject.transaction_day!); return d.toISOString().slice(0, 10); })() : ''),
+        /* Repli quand seul le JOUR du mois est connu : on reconstruit la date dans le mois COURANT,
+           en heure locale. Deux pièges évités ici :
+            • `toISOString()` repasse en UTC → après 22 h en France, la date reculait d'un jour ;
+            • `setDate(31)` sur un mois de 30 jours déborde sur le mois suivant → on borne au
+              dernier jour du mois. */
+        first_payment_date: editingProject.first_payment_date || (editingProject.transaction_day ? (() => {
+          const now = new Date();
+          const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+          const day = Math.min(Math.max(1, editingProject.transaction_day!), lastDay);
+          return isoDay(new Date(now.getFullYear(), now.getMonth(), day));
+        })() : ''),
         current_accumulated: editingProject.current_accumulated || 0,
       });
 

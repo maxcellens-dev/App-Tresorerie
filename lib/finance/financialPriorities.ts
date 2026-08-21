@@ -44,6 +44,10 @@
 
 import type { FinancialProfileId } from '../../types/database';
 import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
+import { CURRENCY_SYMBOL } from './currency';
+
+/** Montant arrondi dans la devise de référence (jamais un « € » en dur — cf. lib/finance/currency). */
+const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 
 export type RecoKey = 'save' | 'invest' | 'enjoy' | 'keep';
 export type Allocation = Record<RecoKey, number>;
@@ -121,7 +125,7 @@ export function computeFinancialPriority(i: SituationInputs): PriorityResult {
     return {
       id: 'stabilize',
       label: 'Rééquilibrer ton mois',
-      reason: `Tes charges (${Math.round(i.monthlyEssentialExpenses)} €) dépassent tes revenus (${Math.round(i.avgMonthlyIncome)} €) : tant que c'est le cas, tout le reste attend.`,
+      reason: `Tes charges (${eur(i.monthlyEssentialExpenses)}) dépassent tes revenus (${eur(i.avgMonthlyIncome)}) : tant que c'est le cas, tout le reste attend.`,
       bounds: { invest: { max: 0 }, enjoy: { max: 5 }, keep: { min: 45 } },
     };
   }
@@ -130,7 +134,7 @@ export function computeFinancialPriority(i: SituationInputs): PriorityResult {
   //    placement. Rembourser EST le meilleur rendement disponible.
   if (overdraftMonths >= 2 || (i.checkingBalance < 0 && overdraftMonths >= 1) || costlyDebt > 0) {
     const why = costlyDebt > 0
-      ? `Il te reste ${Math.round(costlyDebt)} € de crédit coûteux : rembourser rapporte plus, et sans risque, que n'importe quel placement.`
+      ? `Il te reste ${eur(costlyDebt)} de crédit coûteux : rembourser rapporte plus, et sans risque, que n'importe quel placement.`
       : `Ton compte finit dans le rouge depuis ${overdraftMonths} mois : sortir du découvert passe avant tout le reste.`;
     return {
       id: 'debt',
@@ -169,7 +173,7 @@ export function computeFinancialPriority(i: SituationInputs): PriorityResult {
     return {
       id: 'fund_project',
       label: 'Financer ton projet',
-      reason: `Il te reste ${Math.round(projectNeed)} € à réunir sur un projet proche : cet argent-là se prépare en épargne, pas en placement.`,
+      reason: `Il te reste ${eur(projectNeed)} à réunir sur un projet proche : cet argent-là se prépare en épargne, pas en placement.`,
       bounds: { invest: { max: 15 }, save: { min: 35 } },
     };
   }

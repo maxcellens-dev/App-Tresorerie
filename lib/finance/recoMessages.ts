@@ -14,6 +14,7 @@
  */
 import type { SmartRecommendation, RecoType } from './recommendationEngine';
 import { getRecoContextText, type RecoFinancials } from './recoContext';
+import { CURRENCY_SYMBOL } from './currency';
 
 export interface RecoMessage {
   key: string;
@@ -29,7 +30,10 @@ export interface RecoMessage {
   recoType?: RecoType;
 }
 
-const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+/* Le symbole vient de `CURRENCY_SYMBOL` (devise de référence du profil), jamais d'un « € » écrit
+   en dur : l'app propose une centaine de devises, et ces messages s'affichaient encore en euros
+   à côté de montants libellés en $, £ ou CHF. */
+const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 
 /**
  * Compose LE message du garde-fou marge × projection.

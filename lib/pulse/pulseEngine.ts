@@ -27,6 +27,7 @@
 import type { FinancialProfileId } from '../../types/database';
 import { computeSecurityCushion, securityMonthsLabel, type SecurityCushionBase } from '../finance/securityCushion';
 import { FINANCIAL_PROFILE_IDS, resolveProfileId } from '../finance/financialProfileEngine';
+import { CURRENCY_SYMBOL } from '../finance/currency';
 
 /* ── Signaux ─────────────────────────────────────────────────── */
 
@@ -188,7 +189,8 @@ export interface PulseResult {
 
 /* ── Formatage ───────────────────────────────────────────────── */
 
-const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+// Symbole issu de la devise de référence du profil (jamais un « € » en dur — cf. lib/finance/currency).
+const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 const pct = (n: number) => `${Math.round(n)} %`;
 
 /** « le 1er août » — le jour où le mois bascule (parlant, pas « fin de période »). */

@@ -130,6 +130,31 @@ export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> {
   } catch { return null; }
 }
 
+/**
+ * Prix RÉELS des deux formules, tels que le store les affichera (`priceString` : déjà localisé,
+ * dans la devise du compte store de l'utilisateur, taxes comprises selon le pays).
+ *
+ * Ils étaient écrits en dur dans l'écran Premium (« 1,99 € » / « 19,99 € ») : tout changement de
+ * tarif dans la Play Console, et tout utilisateur hors zone euro, voyait un prix DIFFÉRENT de
+ * celui qui lui serait débité. L'écran garde ses valeurs de repli si le store ne répond pas.
+ */
+export async function getPlanPrices(): Promise<{ monthly?: string; annual?: string }> {
+  if (!PURCHASES_SUPPORTED || !configured) return {};
+  try {
+    const offerings = await Purchases.getOfferings();
+    const packages = offerings.current?.availablePackages ?? [];
+    const priceOf = async (plan: 'monthly' | 'annual') => {
+      const id = PRODUCT_IDS[plan];
+      const pkg = packages.find((p) => p.product.identifier === id);
+      if (pkg) return pkg.product.priceString;
+      const [product] = await Purchases.getProducts([id]);
+      return product?.priceString;
+    };
+    const [monthly, annual] = await Promise.all([priceOf('monthly'), priceOf('annual')]);
+    return { monthly: monthly ?? undefined, annual: annual ?? undefined };
+  } catch { return {}; }
+}
+
 /** Achat d'un pack de gemmes (produit consommable). ok=true → créditer les gemmes côté app.
  *  On essaie d'abord les Offerings (voie recommandée), puis l'achat direct par productId.
  *  En cas d'introuvable, on renvoie la liste des IDs réellement disponibles (aide au diagnostic). */

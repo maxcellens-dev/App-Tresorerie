@@ -287,7 +287,7 @@ describe('DetailModal — vue « Ton Relyka » (le détail du calcul)', () => {
   it('invite à définir la marge quand elle vaut 0, au lieu d\'un « − 0 € » muet', () => {
     const onSetMargin = jest.fn();
     show({ detailKey: 'relyka', pilotageData: { ...pilotageData, safety_margin_amount: 0 }, onSetMargin });
-    const nudge = screen.getByText(/marge de sécurité à 0€/);
+    const nudge = screen.getByText(/marge de sécurité à 0\s?€/);
     expect(nudge).toBeOnTheScreen();
     fireEvent.press(nudge);
     expect(onSetMargin).toHaveBeenCalled();
@@ -295,7 +295,7 @@ describe('DetailModal — vue « Ton Relyka » (le détail du calcul)', () => {
 
   it('ne montre pas cette invitation quand la marge est définie', () => {
     show({ detailKey: 'relyka' });
-    expect(screen.queryByText(/marge de sécurité à 0€/)).toBeNull();
+    expect(screen.queryByText(/marge de sécurité à 0\s?€/)).toBeNull();
   });
 });
 

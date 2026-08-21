@@ -16,6 +16,7 @@
  *    datées dans le FUTUR (sinon les points passés sont faussés).
  */
 import { isRegul } from './regul';
+import { CURRENCY_SYMBOL } from './currency';
 import { recurringAmountForMonth } from './recurrenceMonth';
 
 export type ReportingPeriod = 3 | 6 | 12;
@@ -450,12 +451,13 @@ export function buildInsights(inp: InsightInputs): Insight[] {
   }
   if (inp.monthIncome > 0 && inp.monthSaved === 0) {
     out.push({ tone: 'tip', icon: 'bulb', priority: 32,
-      text: `Aucun euro mis de côté ce mois-ci. Même 20 €/mois automatisés, c'est un cap de franchi.` });
+      text: `Rien mis de côté ce mois-ci. Même ${fmtEur(20)}/mois automatisés, c'est un cap de franchi.` });
   }
 
   return out.sort((a, b) => a.priority - b.priority);
 }
 
 function fmtEur(n: number): string {
-  return Math.round(n).toLocaleString('fr-FR') + ' €';
+  // Devise de référence du profil (jamais un « € » en dur — cf. lib/finance/currency).
+  return Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 }

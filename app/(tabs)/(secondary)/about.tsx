@@ -9,7 +9,7 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../../hooks/theme/useBrandFont';
-import { APP_VERSION } from '../../../lib/platform/appVersion';
+import { APP_VERSION, copyrightNotice } from '../../../lib/platform/appVersion';
 
 export default function AboutScreen() {
   const COLORS = useAppColors();
@@ -70,7 +70,7 @@ export default function AboutScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.footer}>© 2026 Relyka. Tous droits réservés.</Text>
+          <Text style={styles.footer}>{copyrightNotice('. Tous droits réservés.')}</Text>
         </ScrollView>
       </SafeAreaView>
     </View>

@@ -16,7 +16,7 @@ import { pageColumn } from '../../../lib/ui/webLayout';
 import { usePlan, useSetPremium } from '../../../hooks/config/usePlan';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useGamificationConfig } from '../../../hooks/engagement/useGamificationConfig';
-import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/platform/purchases';
+import { purchasePremium, restorePurchases, getSubscriptionInfo, getPlanPrices, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/platform/purchases';
 
 /** Avantages Premium. `route` = page concernée : la ligne devient cliquable et y renvoie. */
 const BENEFITS: { icon: string; title: string; desc: string; route?: string }[] = [
@@ -27,8 +27,12 @@ const BENEFITS: { icon: string; title: string; desc: string; route?: string }[] 
   { icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.', route: '/(tabs)/conseils-ia' },
 ];
 
-// Prix affichés (alignés sur ceux du store Google Play).
-const PLAN_PRICES = { monthly: '1,99 €', annual: '19,99 €' } as const;
+/**
+ * Prix de REPLI, utilisés seulement tant que le store n'a pas répondu (et sur le web, où il n'y a
+ * pas de store). Le prix réellement affiché vient de RevenueCat — cf. `getPlanPrices` : c'est lui
+ * qui est débité, et il est localisé (devise et montant varient selon le pays du compte store).
+ */
+const FALLBACK_PLAN_PRICES = { monthly: '1,99 €', annual: '19,99 €' } as const;
 
 export default function PremiumScreen() {
   const COLORS = useAppColors();
@@ -46,11 +50,19 @@ export default function PremiumScreen() {
   const [busy, setBusy] = React.useState<null | 'buy' | 'restore'>(null);
   const [sub, setSub] = React.useState<SubscriptionInfo | null>(null);
 
+  const [storePrices, setStorePrices] = React.useState<{ monthly?: string; annual?: string }>({});
+  const prices = {
+    monthly: storePrices.monthly ?? FALLBACK_PLAN_PRICES.monthly,
+    annual: storePrices.annual ?? FALLBACK_PLAN_PRICES.annual,
+  };
+
   const refreshSub = React.useCallback(async () => {
     if (!PURCHASES_SUPPORTED) return;
     setSub(await getSubscriptionInfo());
   }, []);
   React.useEffect(() => { refreshSub(); }, [refreshSub, isPremium]);
+  // Prix réels du store (localisés). Tant qu'ils n'arrivent pas, l'écran montre le repli.
+  React.useEffect(() => { let alive = true; getPlanPrices().then((p) => { if (alive) setStorePrices(p); }); return () => { alive = false; }; }, []);
 
   const onSubscribe = async () => {
     setPurchaseMsg(null);
@@ -159,7 +171,7 @@ export default function PremiumScreen() {
                 >
                   {selectedPlan === 'monthly' && <View style={[styles.bestBadge, { backgroundColor: COLORS.emerald }]}><Text style={styles.bestBadgeText}>✓ Sélectionné</Text></View>}
                   <Text style={styles.offerName}>Mensuel</Text>
-                  <Text style={styles.offerPrice}>{PLAN_PRICES.monthly}<Text style={styles.offerPeriod}> / mois</Text></Text>
+                  <Text style={styles.offerPrice}>{prices.monthly}<Text style={styles.offerPeriod}> / mois</Text></Text>
                   <Text style={styles.offerDesc}>Sans engagement, résiliable à tout moment.</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -171,7 +183,7 @@ export default function PremiumScreen() {
                     <Text style={styles.bestBadgeText}>{selectedPlan === 'annual' ? '✓ Sélectionné' : 'Avantageux'}</Text>
                   </View>
                   <Text style={styles.offerName}>Annuel</Text>
-                  <Text style={styles.offerPrice}>{PLAN_PRICES.annual}<Text style={styles.offerPeriod}> / an</Text></Text>
+                  <Text style={styles.offerPrice}>{prices.annual}<Text style={styles.offerPeriod}> / an</Text></Text>
                   <Text style={styles.offerDesc}>Le meilleur prix sur l'année.</Text>
                 </TouchableOpacity>
               </View>

@@ -17,7 +17,11 @@ export interface GrowthPoint { label: string; value: number; contributed: number
 
 /** Montants d'axe abrégés (12 400 → « 12.4k »). Partagé avec les autres graphes de la Projection. */
 export const fmtK = (n: number) => {
-  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(n >= 100000 ? 0 : 1).replace('.0', '')}k`;
+  // Le seuil se juge sur la VALEUR ABSOLUE : avec `n >= 100000`, un axe négatif gardait sa décimale
+  // (« −123.5k ») là où le même montant positif l'abandonnait (« 123k ») — deux graphes côte à côte
+  // ne se lisaient plus pareil. Même convention que BalanceChart.
+  const a = Math.abs(n);
+  if (a >= 1000) return `${(n / 1000).toFixed(a >= 100000 ? 0 : 1).replace('.0', '')}k`;
   return Math.round(n).toString();
 };
 
