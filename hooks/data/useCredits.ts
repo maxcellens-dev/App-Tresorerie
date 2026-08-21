@@ -45,12 +45,18 @@ export function useCredits(profileId: string | undefined) {
       const memP = supabase.from('credit_members').select('credit_id, role').eq('user_id', profileId);
       const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
       if (ownErr) throw ownErr;
+      /* ⚠️ Ces deux lectures ramènent les crédits PARTAGÉS (ceux d'un autre dont je réponds). Leurs
+         erreurs étaient avalées : une panne réseau les faisait disparaître de la liste ET des
+         totaux du récapitulatif, sans rien signaler — un « reste à payer » amputé qui a l'air
+         normal. Une lecture en erreur n'est pas une liste vide. */
+      if (memRes?.error) throw memRes.error;
       const roleById: Record<string, string> = {};
       const memberIds: string[] = [];
       for (const m of (memRes?.data ?? []) as any[]) { roleById[m.credit_id] = m.role; memberIds.push(m.credit_id); }
       let memberCredits: any[] = [];
       if (memberIds.length > 0) {
-        const { data } = await supabase.from('credits').select(CAT_JOIN).in('id', memberIds);
+        const { data, error: memErr } = await supabase.from('credits').select(CAT_JOIN).in('id', memberIds);
+        if (memErr) throw memErr;
         memberCredits = (data ?? []).filter((c: any) => c.profile_id !== profileId);
       }
       const map = (r: any): Credit => ({ ...mapCredit(r), _role: r.profile_id === profileId ? 'owner' : ((roleById[r.id] as any) ?? 'read') });

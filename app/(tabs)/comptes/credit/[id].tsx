@@ -19,7 +19,7 @@ import { useAllAccounts } from '../../../../hooks/data/useAccounts';
 import { useCreditEvents, useAddCreditEvent, useDeleteCreditEvent } from '../../../../hooks/data/useCreditEvents';
 import CreditShareSection from '../../../../components/credit/CreditShareSection';
 import CreditCurve from '../../../../components/charts/CreditCurve';
-import { computeAmortization } from '../../../../lib/finance/amortization';
+import { computeAmortization, nextPaymentAtDate, rateAtDate } from '../../../../lib/finance/amortization';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
@@ -111,6 +111,8 @@ export default function CreditDetailScreen() {
   const repaidPrincipal = Math.max(0, credit.principal - crd);
   const repaidPct = credit.principal > 0 ? (repaidPrincipal / credit.principal) * 100 : 0;
   const acctName = accounts.find((a) => a.id === credit.account_id)?.name;
+  // Taux réellement appliqué aujourd'hui (dernier `rate_change` échu), cf. lib/finance/amortization.
+  const currentRate = rateAtDate({ rate_annual: credit.rate_annual, events }, today);
 
   // Décomposition des coûts (utilisée par la synthèse EN HAUT et la section « Coûts » → mêmes montants).
   const cInterest = credit.interest_total_manual != null ? credit.interest_total_manual : amort.totalInterest;
@@ -153,8 +155,12 @@ export default function CreditDetailScreen() {
             <Text style={styles.crdValue}>{fmt(crd)}</Text>
             <Text style={styles.crdSub}>{paid}/{amort.schedule.length} échéances payées · emprunté {fmt(credit.principal)}</Text>
             <View style={styles.statRow}>
-              <View style={styles.stat}><Text style={styles.statK}>Mensualité</Text><Text style={styles.statV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
-              <View style={styles.stat}><Text style={styles.statK}>Taux</Text><Text style={styles.statV}>{credit.rate_annual}%</Text></View>
+              {/* Prochaine échéance RÉELLE, et taux EN VIGUEUR : la fiche affichait la mensualité
+                  nominale (donc un autre chiffre que la liste des crédits, dès qu'il y a un différé
+                  ou des paliers) et le taux d'ORIGINE (donc en contradiction avec l'échéancier
+                  juste en dessous après une renégociation). */}
+              <View style={styles.stat}><Text style={styles.statK}>Mensualité</Text><Text style={styles.statV}>{fmt(nextPaymentAtDate(amort, today))}</Text></View>
+              <View style={styles.stat}><Text style={styles.statK}>Taux</Text><Text style={styles.statV}>{currentRate}%</Text></View>
               <View style={styles.stat}><Text style={styles.statK}>Coût total</Text><Text style={[styles.statV, { color: COLORS.danger }]}>{fmt(cCoutTotal)}</Text></View>
             </View>
             <View style={styles.repaidRow}>

@@ -294,6 +294,59 @@ export function useCloseAccount(profileId: string | undefined) {
   });
 }
 
+/**
+ * RÉACTIVER un compte archivé — l'inverse de `useCloseAccount`.
+ *
+ * L'archivage n'avait aucun retour en arrière : `is_active` passait à `false` et rien, nulle part,
+ * ne le remettait à `true`. Un compte fermé par erreur disparaissait donc définitivement des
+ * totaux, des virements et de la saisie, alors que ses transactions, elles, restaient en base.
+ *
+ * On refuse la réactivation si un compte ACTIF porte déjà le même nom : les écrans de création et
+ * d'édition garantissent l'unicité des noms parmi les comptes actifs, et rouvrir par-dessus la
+ * casserait en silence — deux lignes identiques dans toutes les listes.
+ */
+export function useReactivateAccount(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string) => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+      const { data: acc, error: accErr } = await supabase
+        .from('accounts')
+        .select('id, name')
+        .eq('id', accountId)
+        .eq('profile_id', profileId)
+        .single();
+      if (accErr) throw accErr;
+      if (!acc) throw new Error('Compte introuvable.');
+
+      const nameNorm = normalizeName((acc as any).name ?? '');
+      const { data: actives, error: activesError } = await supabase
+        .from('accounts')
+        .select('id, name')
+        .eq('profile_id', profileId)
+        .eq('is_active', true);
+      if (activesError) throw activesError;
+      if ((actives ?? []).some((r: any) => normalizeName(r.name ?? '') === nameNorm)) {
+        throw new Error(
+          `Un compte actif s'appelle déjà « ${(acc as any).name} ». Renomme-le avant de rouvrir celui-ci.`,
+        );
+      }
+
+      const { error } = await supabase
+        .from('accounts')
+        .update({ is_active: true })
+        .eq('id', accountId)
+        .eq('profile_id', profileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: [KEY, profileId, 'archived'] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
+}
+
 export function useUpdateAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({

@@ -33,7 +33,9 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useAccounts } from '../../../hooks/data/useAccounts';
 import { useAddTransaction, useTransactions } from '../../../hooks/data/useTransactions';
 import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
-import { currencySymbolFor } from '../../../lib/finance/currency';
+import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
+import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
+import { useProfile } from '../../../hooks/data/useProfile';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
 import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { sheetWidth } from '../../../lib/ui/appLayout';
@@ -111,7 +113,19 @@ export default function BalanceUpdateScreen() {
       .filter(Boolean) as { account: any; target: number; gap: number; known: number }[];
   }, [checking, inputs, balanceAtDateFor]);
 
-  const totalGap = gaps.reduce((s, g) => s + g.gap, 0);
+  /* Écart TOTAL, en devise de RÉFÉRENCE. Chaque écart est libellé dans la devise de son compte :
+     les additionner tels quels revenait à écrire « 100 CHF + 100 € = 200 » — un nombre qui ne veut
+     rien dire dès qu'un compte courant est dans une autre devise. */
+  const { data: soldeProfile } = useProfile(user?.id);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const refCode = (soldeProfile as any)?.currency_code ?? 'EUR';
+  const totalGap = gaps.reduce(
+    (s, g) => s + (convertAmount(g.gap, g.account.currency || refCode, refCode, rates) ?? g.gap),
+    0,
+  );
+  /** Un écart n'est « nul » qu'au CENTIME près : `typed - known` est une soustraction de flottants,
+   *  et retaper exactement le solde connu pouvait laisser un résidu de l'ordre de 1e-13. */
+  const isZeroGap = (v: number) => Math.abs(v) < 0.005;
   const touched = gaps.length > 0;
 
   async function submit() {
@@ -229,14 +243,16 @@ export default function BalanceUpdateScreen() {
                 </View>
 
                 {g && (
-                  <View style={[styles.gapBox, { borderColor: (g.gap === 0 ? COLORS.emerald : g.gap < 0 ? COLORS.orange : COLORS.emerald) + '4D' }]}>
-                    {g.gap === 0 ? (
+                  <View style={[styles.gapBox, { borderColor: (isZeroGap(g.gap) ? COLORS.emerald : g.gap < 0 ? COLORS.orange : COLORS.emerald) + '4D' }]}>
+                    {isZeroGap(g.gap) ? (
                       <Text style={[styles.gapText, { color: COLORS.emerald }]}>
                         Aucun écart — tu confirmes ton solde. C’est une vérification à part entière.
                       </Text>
                     ) : (
                       <Text style={[styles.gapText, { color: g.gap < 0 ? COLORS.orange : COLORS.emerald }]}>
-                        Écart de {g.gap > 0 ? '+' : '−'} {Math.abs(Math.round(g.gap)).toLocaleString('fr-FR')} {sym}
+                        {/* Jusqu'à 2 décimales : `Math.round` affichait « Écart de + 0 € » pour un
+                            écart réel de 40 centimes — un message qui se contredit lui-même. */}
+                        Écart de {g.gap > 0 ? '+' : '−'} {Math.abs(g.gap).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} {sym}
                         {g.gap < 0
                           ? ' — on le place en dépenses variables du mois.'
                           : ' — on l’enregistre comme une rentrée non saisie.'}
@@ -252,7 +268,9 @@ export default function BalanceUpdateScreen() {
             <View style={styles.summary}>
               <Text style={styles.summaryTitle}>Ce qui va se passer</Text>
               <Text style={styles.summaryText}>
-                • Ton Relyka est recalculé{totalGap !== 0 ? ` (${totalGap > 0 ? '+' : '−'} ${Math.abs(Math.round(totalGap)).toLocaleString('fr-FR')} environ)` : ''}.{'\n'}
+                {/* Total en devise de RÉFÉRENCE (chaque écart y est converti) : sans symbole, un
+                    nombre nu laissait croire qu'il s'agissait de la devise du dernier compte. */}
+                • Ton Relyka est recalculé{!isZeroGap(totalGap) ? ` (${totalGap > 0 ? '+' : '−'} ${Math.abs(Math.round(totalGap)).toLocaleString('fr-FR')} ${currencySymbolFor(refCode)} environ)` : ''}.{'\n'}
                 • Tes recommandations du mois sont mises à jour.{'\n'}
                 • Tes montants repassent en <Text style={{ fontWeight: '700', color: COLORS.emerald }}>« à jour »</Text> au lieu d’être affichés en fourchette.
                 {'  '}<InfoDot term="confiance" size={13} />

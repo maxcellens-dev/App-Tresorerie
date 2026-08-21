@@ -20,7 +20,7 @@ import { useResponsive } from '../../hooks/theme/useResponsive';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCredits } from '../../hooks/data/useCredits';
 import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealtime } from '../../hooks/data/useSharedCredits';
-import { computeAmortization } from '../../lib/finance/amortization';
+import { computeAmortization, nextPaymentAtDate } from '../../lib/finance/amortization';
 import { todayISO } from '../../lib/dateUtils';
 import type { Credit } from '../../types/database';
 import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../lib/finance/currency';
@@ -203,8 +203,9 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
        nominale : c'est elle qui explique « déjà payé » et « reste à payer », et son écart avec le
        montant nominal est exactement ce qui faisait douter des totaux. */
     const total = a.schedule.length || c.duration_months;
-    const next = a.schedule.find((r) => r.date > today);
-    const monthly = next ? next.payment + next.insurance : a.monthlyWithInsurance;
+    // Helper PARTAGÉ (lib/finance/amortization) : la fiche du crédit affiche exactement le même
+    // chiffre, alors qu'elle montrait la mensualité nominale — deux montants pour la même ligne.
+    const monthly = nextPaymentAtDate(a, today);
     /* Chiffre de droite = RESTE À PAYER (échéances à venir, assurance comprise) et non le capital
        restant dû. C'est ce qui va réellement sortir du compte : le capital seul sous-estime toujours
        la charge — il ignore les intérêts et l'assurance encore à verser. Le récap garde les deux. */

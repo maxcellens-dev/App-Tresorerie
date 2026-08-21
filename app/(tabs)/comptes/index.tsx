@@ -1,6 +1,6 @@
 ﻿import { useState, useMemo, useRef, useEffect } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter, Alert } from 'react-native';
 import { COMPTES_TAB_PRESSED } from '../../../components/layout/CustomTabBar';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAllAccounts, useArchivedAccounts } from '../../../hooks/data/useAccounts';
+import { useAllAccounts, useArchivedAccounts, useReactivateAccount } from '../../../hooks/data/useAccounts';
 import { useAccountInvitations, useRespondAccountInvitation } from '../../../hooks/data/useSharedAccounts';
 import { ACCOUNT_ICONS } from '../../../theme/colors';
 import { semanticText } from '../../../theme/palette';
@@ -54,6 +54,25 @@ function AccountsListScreen() {
   const archivedQuery = useArchivedAccounts(user?.id);
   const { data: acctInvitations = [] } = useAccountInvitations(user?.id);
   const respondInvite = useRespondAccountInvitation(user?.id);
+  /* Réouverture d'un compte archivé. Confirmée : rouvrir remet le compte dans les totaux, les
+     virements et la saisie — ce n'est pas anodin, et le message le dit. */
+  const reactivate = useReactivateAccount(user?.id);
+  const confirmReopen = (acc: { id: string; name: string }) => {
+    Alert.alert(
+      'Rouvrir ce compte',
+      `« ${acc.name} » redeviendra un compte actif : son solde recomptera dans tes totaux, et il sera de nouveau proposé à la saisie et aux virements.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Rouvrir',
+          onPress: () => reactivate.mutate(acc.id, {
+            // Le cas le plus probable : un compte actif porte déjà ce nom. Il faut le DIRE.
+            onError: (e: unknown) => Alert.alert('Un souci', e instanceof Error ? e.message : 'Impossible de rouvrir ce compte.'),
+          }),
+        },
+      ],
+    );
+  };
   // Choix du type de compte à la création (comme les projets) : personnel ou partagé/joint.
   const [showCreateType, setShowCreateType] = useState(false);
   // #6 — onglets de la page : « Comptes » (actuel) / « Crédits » (module crédit).
@@ -459,6 +478,20 @@ function AccountsListScreen() {
                       <Text style={[styles.accountBalance, { color: COLORS.textSecondary }]}>
                         {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
                       </Text>
+                      {/* Archiver était SANS RETOUR : la ligne n'offrait aucune action, et rien
+                          ailleurs ne remettait `is_active` à vrai. Un compte fermé par erreur
+                          disparaissait donc pour de bon des totaux et des virements. */}
+                      <TouchableOpacity
+                        style={styles.reopenBtn}
+                        onPress={() => confirmReopen(acc)}
+                        disabled={reactivate.isPending || isImpersonating}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Rouvrir le compte ${acc.name}`}
+                      >
+                        <Ionicons name="refresh-outline" size={14} color={COLORS.emerald} />
+                        <Text style={styles.reopenText}>Rouvrir</Text>
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -705,6 +738,12 @@ function makeStyles(c: any) {
   archivedSection: { marginTop: 8, marginBottom: 16 },
   archivedHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, marginLeft: 24, marginBottom: 4 },
   archivedTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  reopenBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 10,
+    borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '12',
+    borderRadius: 999, paddingVertical: 5, paddingHorizontal: 9,
+  },
+  reopenText: { fontSize: 11.5, fontWeight: '700', color: c.emerald },
 
   // ── Hint bas de page ──
   hint: { marginTop: 8, marginBottom: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },

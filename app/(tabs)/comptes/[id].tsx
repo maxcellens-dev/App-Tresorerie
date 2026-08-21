@@ -176,7 +176,8 @@ function AccountDetailScreen() {
   // #4bis — une opération « au nom de » un membre (on_behalf_member_id) est attribuée à ce membre.
   const authorOf = (t: any): string =>
     (t?.on_behalf_member_id && nameByMember[t.on_behalf_member_id]) ? nameByMember[t.on_behalf_member_id]
-    : (t?.profile_id === user?.id ? 'Vous' : (nameByUser[t?.profile_id] ?? 'Un membre'));
+    // L'app TUTOIE partout : c'était « Vous », affiché sur chaque ligne d'un compte partagé.
+    : (t?.profile_id === user?.id ? 'Toi' : (nameByUser[t?.profile_id] ?? 'Un membre'));
 
   const [showOnBehalf, setShowOnBehalf] = useState(false);
   const [showApport, setShowApport] = useState(false);
@@ -959,10 +960,15 @@ function AccountDetailScreen() {
                 const v = parseFloat(balanceInput.replace(',', '.'));
                 if (Number.isNaN(v)) return 'Saisis le solde réel relevé sur ta banque.';
                 const diff = v - balanceAtDate;
-                if (diff === 0) return 'Aucune variation.';
+                /* Comparaison au CENTIME, pas à l'égalité stricte : c'est une soustraction de
+                   flottants, et retaper exactement le solde affiché pouvait laisser un résidu de
+                   l'ordre de 1e-13 — l'écran annonçait alors « + 0,00 € seront ajoutés » au lieu
+                   de « Aucune variation ». Même seuil (0,005) que partout ailleurs dans l'app. */
+                if (Math.abs(diff) < 0.005) return 'Aucune variation.';
+                const abs = Math.abs(diff).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 return diff > 0
-                  ? `+ ${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} seront ajoutés`
-                  : `${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} seront retirés`;
+                  ? `+ ${abs} ${CURRENCY_SYMBOL} seront ajoutés`
+                  : `− ${abs} ${CURRENCY_SYMBOL} seront retirés`;
               })()}
             </Text>
 
@@ -980,7 +986,7 @@ function AccountDetailScreen() {
                 <Text style={modalStyles.cancelLabel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[modalStyles.confirm, { backgroundColor: '#60a5fa' }, balanceLoading && { opacity: 0.5 }]}
+                style={[modalStyles.confirm, { backgroundColor: COLORS.blue }, balanceLoading && { opacity: 0.5 }]}
                 onPress={handleBalance}
                 disabled={balanceLoading}
                 activeOpacity={0.8}
@@ -1014,7 +1020,7 @@ function AccountDetailScreen() {
                 setBalanceDateDisplay(formatDateFrench(day.dateString));
                 setShowBalanceCalendar(false);
               }}
-              markedDates={balanceDate ? { [balanceDate]: { selected: true, selectedColor: '#60a5fa', selectedTextColor: '#000' } } : {}}
+              markedDates={balanceDate ? { [balanceDate]: { selected: true, selectedColor: COLORS.blue, selectedTextColor: '#000' } } : {}}
               accentColor="#60a5fa"
               bgColor={COLORS.card}
               textColor={COLORS.text}
@@ -1299,7 +1305,7 @@ function AccountDetailScreen() {
                 setGainLossDateDisplay(formatDateFrench(day.dateString));
                 setShowGainLossCalendar(false);
               }}
-              markedDates={gainLossDate ? { [gainLossDate]: { selected: true, selectedColor: '#a78bfa', selectedTextColor: '#000' } } : {}}
+              markedDates={gainLossDate ? { [gainLossDate]: { selected: true, selectedColor: COLORS.violet, selectedTextColor: '#000' } } : {}}
               accentColor="#a78bfa"
               bgColor={COLORS.card}
               textColor={COLORS.text}
@@ -1718,7 +1724,11 @@ function makeModalStyles(c: any) {
     alignItems: 'center',
   },
   toggleBtnActive: {
-    backgroundColor: '#1f2937',
+    /* Fond TEINTÉ, et non une ardoise sombre écrite en dur (`#1f2937`) : en thème clair, le bouton
+       actif devenait un rectangle gris foncé au milieu d'une carte blanche. La bordure et le
+       libellé étant déjà en accent, on garde le style « contour teinté » plutôt que le remplissage
+       plein utilisé ailleurs (qui rendrait le libellé illisible). */
+    backgroundColor: c.emerald + '1F',
     borderColor: c.emerald,
   },
   toggleLabel: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
@@ -1767,7 +1777,8 @@ function makeModalStyles(c: any) {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#f59e0b',
+    // Ambre du thème (`c.orange`), pas la valeur du thème SOMBRE recopiée en dur.
+    backgroundColor: c.orange,
     alignItems: 'center',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },

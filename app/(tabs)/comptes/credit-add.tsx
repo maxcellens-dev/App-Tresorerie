@@ -321,8 +321,12 @@ function CreditAddScreen() {
       // modifiées à la main du tableau (elles masqueraient la nouvelle mensualité). « Écraser & réappliquer ».
       ...(editId && paymentTouched ? { schedule_overrides: null } : {}),
     };
-    // Limite d'usage (crédits) — création uniquement.
-    if (!editId && !(await guard('credit'))) return;
+    /* Limite d'usage (crédits) — création uniquement.
+       ⚠️ `setSaving(true)` est déjà passé plus haut : sortir ici sans le remettre à faux laissait le
+       bouton « Enregistrer » désactivé et grisé POUR DE BON. L'utilisateur qui atteint sa limite
+       voyait le message, fermait la modale… et ne pouvait plus rien enregistrer sans quitter
+       l'écran. */
+    if (!editId && !(await guard('credit'))) { setSaving(false); return; }
     try {
       if (editId) { await updateCredit.mutateAsync({ id: editId, ...payload }); router.back(); }
       else {

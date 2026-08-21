@@ -170,6 +170,46 @@ export interface AmortResult {
   paidCountAtDate: (isoDate: string) => number;
 }
 
+/**
+ * Montant de la PROCHAINE échéance à une date donnée (capital + intérêts + assurance).
+ *
+ * C'est ce montant-là qu'il faut annoncer comme « Mensualité », et non `monthlyWithInsurance` :
+ * celui-ci est la mensualité NOMINALE, celle du plan théorique. Dès qu'il y a un différé, des
+ * paliers, une modulation ou un remboursement anticipé, les deux diffèrent — et la liste des
+ * crédits affichait déjà la prochaine échéance réelle là où la fiche du crédit montrait la
+ * nominale : ouvrir une ligne changeait donc le chiffre qu'on venait de lire.
+ *
+ * Repli sur la nominale quand toutes les échéances sont passées (crédit soldé) : il n'y a plus de
+ * « prochaine », mais on préfère un ordre de grandeur juste à un zéro trompeur.
+ */
+export function nextPaymentAtDate(
+  a: Pick<AmortResult, 'schedule' | 'monthlyWithInsurance'>,
+  isoDate: string,
+): number {
+  const next = a.schedule.find((r) => r.date > isoDate);
+  return next ? next.payment + next.insurance : a.monthlyWithInsurance;
+}
+
+/**
+ * Taux annuel EN VIGUEUR à une date (%), en tenant compte des événements `rate_change`.
+ *
+ * `credit.rate_annual` est le taux d'ORIGINE : l'afficher tel quel après une renégociation
+ * contredisait l'échéancier juste en dessous, qui, lui, applique déjà le nouveau taux.
+ * Même règle de bord que le moteur : un événement s'applique dès que sa date est atteinte.
+ */
+export function rateAtDate(
+  p: { rate_annual?: number | null; events?: CreditEvent[] | null },
+  isoDate: string,
+): number {
+  let cur = Number(p.rate_annual) || 0;
+  const events = (p.events ?? []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  for (const ev of events) {
+    if (ev.date > isoDate) break;
+    if (ev.kind === 'rate_change' && ev.new_rate != null) cur = Number(ev.new_rate) || 0;
+  }
+  return cur;
+}
+
 export function addMonthsISO(iso: string, months: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   const base = new Date(Date.UTC(y, (m - 1) + months, 1));
