@@ -125,6 +125,13 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
   // Le chiffre principal est TOUJOURS le Relyka — jamais une borne de fourchette (même règle que
   // RelykaColumns). L'incertitude est portée par le badge d'état et la fourchette, en dessous.
   const bigLabel = fmt(p.relykaAmount);
+  /* Taille du chiffre principal, calculée à partir de sa LONGUEUR (cf. le rendu plus bas : on ne
+     peut pas compter sur `adjustsFontSizeToFit`). Les seuils correspondent aux paliers réels :
+     « 1 250 € » (7) tient en 40 ; « 128 400 € » (9) et « 1 284 000 CHF » (13) ont besoin de moins. */
+  const heroFontSize = bigLabel.length > 14 ? 26
+    : bigLabel.length > 11 ? 30
+    : bigLabel.length > 8 ? 35
+    : 40;
 
   const visible = p.recommendations.filter((r) => r.amount > 0);
 
@@ -181,7 +188,17 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
           accessibilityRole="button"
           accessibilityLabel="Voir le détail du calcul"
         >
-          <Text style={[styles.heroAmount, { color: p.relykaColor }]} numberOfLines={1} adjustsFontSizeToFit>
+          {/* ⚠️ `adjustsFontSizeToFit` N'EXISTE PAS sur react-native-web (la prop est ignorée) et
+              reste peu fiable sur Android — c'est déjà constaté ailleurs dans l'app (cf. la grille
+              de CreditsTab et l'en-tête de welcome). S'y fier pour LE chiffre principal, c'est
+              laisser « 1 234 567 CHF » se faire couper par `numberOfLines={1}` sans filet. On
+              dimensionne donc nous-mêmes, à partir de la longueur réelle du texte : même rendu sur
+              toutes les plateformes. La prop est conservée — quand elle marche, elle affine. */}
+          <Text
+            style={[styles.heroAmount, { fontSize: heroFontSize, color: p.relykaColor }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
             {bigLabel}
           </Text>
           <View style={[styles.heroInfo, { borderColor: p.relykaColor }]}>

@@ -13,6 +13,7 @@
  */
 import { isoDay } from '../dateUtils';
 import type { RecurrenceRule } from '../../types/database';
+import { WEEKS_PER_MONTH } from './financialProfileEngine';
 
 /**
  * @param year/month  mois visé (month : 1-12)
@@ -130,4 +131,37 @@ export function recurrenceOccurrencesBetween(startDate: string, rule: Recurrence
     if (occStr > afterStr) out.push(occStr);
   }
   return out;
+}
+
+/**
+ * MONTANT MENSUEL ÉQUIVALENT d'une récurrente — source unique.
+ *
+ * Ce facteur existait en CINQ exemplaires, et pas avec la même valeur : `4.33` dans
+ * `hooks/useAppState` et dans la modale du Pilotage, `52 / 12` (soit 4,3333…) dans le snapshot IA
+ * et trois fois dans `useUserSnapshot`. Deux modules répondaient donc différemment à la même
+ * question — « combien cette récurrente pèse-t-elle par mois ? ».
+ *
+ * On aligne sur `WEEKS_PER_MONTH`, la constante que le moteur du Pilotage utilise déjà pour
+ * convertir le budget variable hebdomadaire déclaré : c'est elle que l'utilisateur voit à l'écran
+ * (« ≈ X € / mois »), et c'est elle qui décide de son enveloppe. Un seul chiffre pour toute l'app.
+ *
+ * `daily` est accepté par tolérance : ce n'est pas une valeur de `RecurrenceRule`, mais d'anciennes
+ * lignes en base peuvent la porter, et la traiter comme « 0 par mois » la ferait disparaître des
+ * totaux sans rien dire.
+ */
+export const MONTHLY_FACTOR_BY_RULE: Record<string, number> = {
+  daily: 30.4,
+  weekly: WEEKS_PER_MONTH,
+  monthly: 1,
+  quarterly: 1 / 3,
+  yearly: 1 / 12,
+};
+
+/**
+ * Règle inconnue → 0 : une ligne dont on ne sait pas à quel rythme elle tombe ne doit pas être
+ * comptée « comme mensuelle » par défaut. Les appelants qui veulent l'autre convention (traiter
+ * l'inconnu comme mensuel) lisent directement `MONTHLY_FACTOR_BY_RULE` avec leur propre repli.
+ */
+export function monthlyEquivalent(rule: string | null | undefined, amount: number): number {
+  return amount * (MONTHLY_FACTOR_BY_RULE[String(rule)] ?? 0);
 }

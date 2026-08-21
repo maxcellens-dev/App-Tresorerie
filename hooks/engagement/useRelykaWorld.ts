@@ -11,6 +11,10 @@ import { supabase } from '../../lib/platform/supabase';
 import { useAddTransaction, useDeleteTransaction } from '../data/useTransactions';
 import { useAuth } from '../../contexts/AuthContext';
 import { todayISO } from '../../lib/dateUtils';
+import { convertAmount } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../data/useCurrencyRates';
+// Réexporté plus bas pour les écrans ; importé ici parce que ce fichier s'en sert aussi.
+import { paidByParticipant } from '../../lib/finance/rwBalances';
 
 export interface RwProject {
   id: string; owner_id: string; name: string; emoji: string; description: string; currency: string; created_at: string;
@@ -157,79 +161,23 @@ export function useRwExpenses(projectId: string | undefined) {
   });
 }
 
-/**
- * Découpe `total` en `count` parts égales au centime près, l'arrondi tombant sur la PREMIÈRE part.
- * Extrait de l'écran de saisie : il sert maintenant à deux choses — proposer le partage égal, et
- * reconnaître à la relecture qu'une répartition enregistrée était bien égale (sans quoi rouvrir une
- * dépense finement répartie l'aurait aplatie au premier enregistrement).
- */
-export function splitEvenly(total: number, count: number): number[] {
-  if (count <= 0) return [];
-  const base = Math.floor((total / count) * 100) / 100;
-  const parts = Array.from({ length: count }, () => base);
-  parts[0] = Math.round((base + (total - base * count)) * 100) / 100;
-  return parts;
-}
-
-/**
- * Ce que chaque participant a AVANCÉ sur une dépense.
- *
- * Depuis la migration 184 une dépense peut avoir plusieurs payeurs (60 € par l'un, 40 € par
- * l'autre). Les lignes de `rw_expense_payers` font foi quand elles existent ; sinon on retombe sur
- * la colonne historique `paid_by`, qui porte alors la totalité. Les deux chemins cohabitent le
- * temps du déploiement, et l'historique n'a rien à rattraper.
- */
-export function paidByParticipant(expense: RwExpense, payers: RwPayer[]): Array<{ participant_id: string; amount: number }> {
-  const own = payers.filter((p) => p.expense_id === expense.id && p.amount > 0);
-  return own.length
-    ? own.map((p) => ({ participant_id: p.participant_id, amount: p.amount }))
-    : [{ participant_id: expense.paid_by, amount: expense.amount }];
-}
-
-/** Solde net par participant : positif = on lui doit, négatif = il doit. */
-export function computeBalances(
-  participants: RwParticipant[],
-  expenses: RwExpense[],
-  shares: RwShare[],
-  payers: RwPayer[] = [],
-): Map<string, number> {
-  const net = new Map<string, number>();
-  participants.forEach((p) => net.set(p.id, 0));
-  for (const e of expenses) {
-    for (const p of paidByParticipant(e, payers)) {
-      net.set(p.participant_id, (net.get(p.participant_id) ?? 0) + p.amount);
-    }
-  }
-  for (const s of shares) net.set(s.participant_id, (net.get(s.participant_id) ?? 0) - s.amount);
-  return net;
-}
-
-/** Suggestions de remboursement « qui paie qui » (algorithme glouton). */
-export function settleUp(balances: { id: string; amount: number }[]): { from: string; to: string; amount: number }[] {
-  const debtors = balances.filter((b) => b.amount < -0.005).map((b) => ({ ...b })).sort((a, b) => a.amount - b.amount);
-  const creditors = balances.filter((b) => b.amount > 0.005).map((b) => ({ ...b })).sort((a, b) => b.amount - a.amount);
-  const out: { from: string; to: string; amount: number }[] = [];
-  let i = 0, j = 0;
-  while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(-debtors[i].amount, creditors[j].amount);
-    if (pay > 0.005) out.push({ from: debtors[i].id, to: creditors[j].id, amount: Math.round(pay * 100) / 100 });
-    debtors[i].amount += pay; creditors[j].amount -= pay;
-    if (Math.abs(debtors[i].amount) < 0.005) i++;
-    if (Math.abs(creditors[j].amount) < 0.005) j++;
-  }
-  return out;
-}
+/* Calculs PURS de soldes (parts égales, avances, « qui doit quoi ») — extraits dans
+   lib/finance/rwBalances pour être testables sans Supabase ni React. Réexportés ici : les écrans
+   gardent leur chemin d'import habituel. */
+export { splitEvenly, computeBalances, settleUp } from '../../lib/finance/rwBalances';
+export { paidByParticipant };
 
 /** Crée un projet et ajoute le créateur comme participant. */
 export function useCreateRwProject(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; emoji: string; description: string; myName: string }): Promise<RwProject> => {
+    mutationFn: async (input: { name: string; emoji: string; description: string; myName: string; currency?: string }): Promise<RwProject> => {
       if (!supabase) throw new Error('Backend indisponible');
       // Création via RPC SECURITY DEFINER (owner_id = auth.uid() côté serveur, ajoute le créateur
       // en participant) → robuste face aux policies d'INSERT / RETURNING.
       const { data: pid, error } = await supabase.rpc('rw_create_project', {
         p_name: input.name, p_emoji: input.emoji, p_desc: input.description, p_myname: input.myName,
+        p_currency: input.currency ?? 'EUR',
       });
       if (error) throw new Error(error.message);
       return { id: pid } as RwProject;
@@ -510,6 +458,12 @@ export function useRwMergeParticipant(projectId: string | undefined) {
 /** Entrée commune aux deux écritures d'une dépense (création / modification). */
 interface RwExpenseInput {
   title: string; emoji?: string | null; amount: number; date: string;
+  /**
+   * Devise dans laquelle la dépense a été PAYÉE : celle du compte utilisé, ou celle du projet
+   * pour un règlement en cash. `shares` et `payers` sont libellés dans cette même devise ; c'est
+   * l'affichage du projet qui convertit vers la devise du projet (migration 195).
+   */
+  currency?: string;
   /** Payeur PRINCIPAL (celui qui a le plus avancé) — colonne historique, jamais nulle. */
   paidBy: string;
   /** Qui a avancé quoi. Une seule entrée = le cas courant. */
@@ -595,6 +549,7 @@ export function useAddRwExpense(projectId: string | undefined, userId: string | 
          alors qu'une transaction orpheline ne l'est pas. */
       const { data: exp, error } = await supabase.from('rw_expenses').insert({
         project_id: projectId, title: input.title, emoji: input.emoji ?? null, amount: Math.abs(input.amount),
+        currency: input.currency ?? 'EUR',
         date: input.date, paid_by: input.paidBy, created_by: userId,
         // Colonnes historiques : renseignées avec la PREMIÈRE ligne de la répartition, pour que
         // tout ce qui les lit encore (suppression de projet, garde-fou « a impacté un vrai compte »)
@@ -725,6 +680,8 @@ export function useUpdateRwExpense(projectId: string | undefined, userId: string
       const transaction_id = legacyWasMine ? (splitRows[0]?.transaction_id ?? null) : input.expense.transaction_id;
       const { error } = await supabase.from('rw_expenses').update({
         title: input.title, emoji: input.emoji ?? null, amount: Math.abs(input.amount),
+        // La devise suit le compte : changer de compte de règlement change la devise de la dépense.
+        currency: input.currency ?? input.expense.currency ?? 'EUR',
         date: input.date, paid_by: input.paidBy, account_id, transaction_id,
       }).eq('id', input.expense.id);
       if (error) throw error;
@@ -781,6 +738,25 @@ export function useRwBulkReassignAccount(projectId: string | undefined, userId: 
       categoryId?: string | null;
     }) => {
       if (!supabase || !projectId) throw new Error('Backend indisponible');
+
+      /* ⚠️ La reventilation recrée les transactions « pour le même montant » : à devise différente,
+         100 CHF deviendraient 100 € sur le compte cible — un montant que personne n'a jamais payé.
+         L'écran ne propose déjà que des comptes de la même devise ; ce test est le garde-fou qui
+         vaut aussi pour un appel venu d'ailleurs (deeplink, version plus ancienne de l'écran). */
+      if (input.toAccountId) {
+        const { data: target, error: accErr } = await supabase
+          .from('accounts').select('currency, name').eq('id', input.toAccountId).maybeSingle();
+        if (accErr) throw accErr;
+        const targetCur = (target as any)?.currency || 'EUR';
+        const mismatch = input.expenses.find(({ expense }) => (expense.currency || targetCur) !== targetCur);
+        if (mismatch) {
+          throw new Error(
+            `« ${(target as any)?.name ?? 'Ce compte'} » est en ${targetCur}, alors que « ${mismatch.expense.title || 'cette dépense'} » a été payée en ${mismatch.expense.currency}. `
+            + 'Choisis un compte dans la même devise.',
+          );
+        }
+      }
+
       for (const { expense: e, myAmount } of input.expenses) {
         await dropSplitTransactions(delTx, e, userId);
         let account_id: string | null = null;
@@ -828,6 +804,8 @@ export interface RwProjectStats {
   total: number;
   /** Total payé par participant (id → montant), pour la barre de contribution. */
   paidBy: Record<string, number>;
+  /** Devise du projet : `total` et `paidBy` y sont exprimés (dépenses converties). */
+  currency: string;
 }
 
 /**
@@ -836,27 +814,39 @@ export interface RwProjectStats {
  * devoir ouvrir chaque projet.
  */
 export function useRwProjectsStats(userId: string | undefined, projectIds: string[]) {
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
   return useQuery({
-    queryKey: ['rw_projects_stats', userId, projectIds.slice().sort().join(',')],
+    // Les taux entrent dans la CLÉ : le total d'un projet multi-devises en dépend, et sans ça la
+    // carte resterait sur le total calculé avant leur arrivée.
+    queryKey: ['rw_projects_stats', userId, projectIds.slice().sort().join(','), rates],
     enabled: !!userId && ok() && projectIds.length > 0,
     queryFn: async (): Promise<Record<string, RwProjectStats>> => {
-      const [partsRes, expsRes] = await Promise.all([
+      const [partsRes, expsRes, projRes] = await Promise.all([
         supabase!.from('rw_participants').select('id, project_id, display_name').in('project_id', projectIds),
-        supabase!.from('rw_expenses').select('project_id, amount, paid_by').in('project_id', projectIds),
+        supabase!.from('rw_expenses').select('project_id, amount, paid_by, currency').in('project_id', projectIds),
+        // Devise de chaque projet : c'est celle de son total affiché sur la carte.
+        supabase!.from('rw_projects').select('id, currency').in('id', projectIds),
       ]);
       /* Sans ce test, une lecture en échec passait pour « projet vide » : les cartes affichaient
          0 € réuni et aucun participant, ce qui est un CHIFFRE FAUX, pas une absence de données. */
       if (partsRes.error) throw partsRes.error;
       if (expsRes.error) throw expsRes.error;
+      if (projRes.error) throw projRes.error;
+      const curByProject: Record<string, string> = {};
+      for (const p of (projRes.data ?? []) as any[]) curByProject[p.id] = p.currency || 'EUR';
+
       const out: Record<string, RwProjectStats> = {};
-      for (const pid of projectIds) out[pid] = { participants: [], total: 0, paidBy: {} };
+      for (const pid of projectIds) out[pid] = { participants: [], total: 0, paidBy: {}, currency: curByProject[pid] ?? 'EUR' };
       for (const p of (partsRes.data ?? []) as any[]) {
         out[p.project_id]?.participants.push({ id: p.id, name: p.display_name });
       }
       for (const e of (expsRes.data ?? []) as any[]) {
         const s = out[e.project_id];
         if (!s) continue;
-        const amt = Number(e.amount) || 0;
+        // Chaque dépense est convertie dans la devise du PROJET avant d'entrer dans son total.
+        const target = s.currency;
+        const raw = Number(e.amount) || 0;
+        const amt = convertAmount(raw, e.currency || target, target, rates) ?? raw;
         s.total += amt;
         if (e.paid_by) s.paidBy[e.paid_by] = (s.paidBy[e.paid_by] ?? 0) + amt;
       }

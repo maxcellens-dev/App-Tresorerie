@@ -31,6 +31,7 @@ import {
   computeRecurUpcoming,
   computeSetupState,
   pickMainCheckingId,
+  relykaTone,
   type RelykaBreakdown,
   type SuiviDetail,
 } from '../../lib/finance/pilotageView';
@@ -76,6 +77,8 @@ export interface PilotageViewModel extends RelykaBreakdown {
   relConf: ReturnType<typeof deriveRelykaConfidence> | null;
   recoList: SmartRecommendation[];
   relykaBase: { text: string; isGeneric: boolean };
+  /** Couleur du chiffre principal (cf. `relykaTone`) — l'écran la consomme, il ne la recalcule pas. */
+  relykaColor: string;
   recoFinancials: { currentChecking: number; projectedEndChecking: number | undefined } | undefined;
   recoMessages: ReturnType<typeof buildRecoMessages>;
   relykaMessages: ReturnType<typeof buildRelykaMessages>;
@@ -197,6 +200,16 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
     [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.misDeCoteTotal, breakdown.variableEnvelopeRemaining, relConf],
   );
 
+  /* Couleur du chiffre principal — décidée par `relykaTone` (lib/pilotageView) et EXPOSÉE, pour que
+     l'écran s'en serve au lieu de réécrire la même règle dans son JSX. */
+  const relykaColor = React.useMemo(() => {
+    const tone = relykaTone(breakdown);
+    return tone === 'positive' ? colors.emerald
+      : tone === 'allocated' ? colors.blue
+      : tone === 'negative' ? colors.danger
+      : colors.orange;
+  }, [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.resteDisponibleBrut, colors]);
+
   /** Données de projection alimentant l'encadré contextuel des recos (les deux vues). */
   const recoFinancials = pilotageData
     ? { currentChecking: pilotageData.current_checking_balance, projectedEndChecking: pilotageData.projection_balances_6m?.[0] }
@@ -225,9 +238,9 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
     unverifiedMessage: relConf?.result.level === 'low'
       ? `Solde non vérifié ${unverifiedSincePhrase(relConf.result.daysSinceVerification)} — fais une régul ou saisis tes dépenses pour l'actualiser.`
       : null,
-    relykaColor: breakdown.relykaAffiche > 0 ? colors.emerald : breakdown.relykaAlloueVolontairement ? colors.blue : breakdown.relykaAffiche < 0 ? colors.danger : colors.orange,
+    relykaColor,
     warnColor: colors.orange,
-  }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, relConf, breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, colors]);
+  }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, relConf, relykaColor, colors]);
 
   const suiviDetail = React.useMemo(
     () => computeSuiviDetail(txForSuivi, accountsForSuivi),
@@ -252,6 +265,7 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
     relConf,
     recoList,
     relykaBase,
+    relykaColor,
     recoFinancials,
     recoMessages,
     relykaMessages,

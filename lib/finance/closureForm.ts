@@ -31,7 +31,8 @@ export interface ClosureTx {
   category?: { name?: string | null } | null;
 }
 
-export interface ClosureAccount { id: string; balance: number }
+/** `currency` : devise NATIVE du compte — l'écart calculé pour ce compte est libellé dedans. */
+export interface ClosureAccount { id: string; balance: number; currency?: string | null }
 
 /**
  * Solde d'un compte à la FIN du mois qu'on clôture = solde actuel − tout ce qui est arrivé après.
@@ -118,15 +119,26 @@ export function unknownGap(
   return stated - balanceAtDate(allTx as any[], account.id, account.balance, unknownDate, now);
 }
 
-/** Somme des écarts « je ne sais pas », tous comptes renseignés confondus. */
+/**
+ * Somme des écarts « je ne sais pas », tous comptes renseignés confondus.
+ *
+ * ⚠️ Chaque écart est libellé dans la devise de SON compte. Additionner un écart en CHF avec un
+ * écart en € donne un nombre qui ne veut rien dire — c'est pourquoi l'appelant peut fournir un
+ * convertisseur vers sa devise d'affichage. Par défaut (un seul compte, ou tous dans la même
+ * devise), c'est l'identité : le comportement mono-devise est inchangé.
+ */
 export function unknownTotalGap(
   allTx: ClosureTx[],
   accounts: ClosureAccount[],
   balances: Record<string, string>,
   unknownDate: string,
   now: Date = new Date(),
+  toDisplay: (gap: number, account: ClosureAccount) => number = (gap) => gap,
 ): number {
-  return accounts.reduce((s, a) => s + unknownGap(allTx, a, balances[a.id], unknownDate, now), 0);
+  return accounts.reduce(
+    (s, a) => s + toDisplay(unknownGap(allTx, a, balances[a.id], unknownDate, now), a),
+    0,
+  );
 }
 
 /** Au moins un solde a-t-il été saisi ? Les modes qui en réclament un ne valent rien sans. */

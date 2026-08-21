@@ -23,7 +23,7 @@ import { computeAmortization } from '../../../../lib/finance/amortization';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
-import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../../lib/finance/currency';
 
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
@@ -58,7 +58,13 @@ export default function CreditDetailScreen() {
     return () => sub.remove();
   }, [router]));
 
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${CURRENCY_SYMBOL}`;
+  /* Tout sur cette fiche (échéancier, capital restant, coût) concerne UN crédit prélevé sur UN
+     compte : les montants sont donc dans la devise de CE compte, pas dans la devise de référence.
+     Un crédit sur un compte suisse affichait « 1 250,00 € » au lieu de « 1 250,00 CHF ». */
+  const creditCurrency = accounts.find((a) => a.id === credit?.account_id)?.currency;
+  const fmt = (v: number) =>
+    v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    + ` ${creditCurrency ? currencySymbolFor(creditCurrency) : CURRENCY_SYMBOL}`;
   const today = todayISO();
   const amort = useMemo(() => (credit ? computeAmortization({ ...credit, events }) : null), [credit, events]);
 

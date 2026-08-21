@@ -28,7 +28,8 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useAccounts } from '../../../../hooks/data/useAccounts';
 import { useCategories } from '../../../../hooks/data/useCategories';
-import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
+import { currencySymbolFor, convertAmount } from '../../../../lib/finance/currency';
+import { useCurrencyRates } from '../../../../hooks/data/useCurrencyRates';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 import CalendarWithPicker from '../../../../components/transaction/CalendarWithPicker';
 import {
@@ -231,13 +232,45 @@ export default function AddRwExpense() {
       .filter((s) => s.amount > 0);
   }, [paidByMe, payMode, accountId, myPaidAmount, checkingAccounts, payDraft]);
 
+  /* ── DEVISE DE LA DÉPENSE ───────────────────────────────────────────────────────────────────
+     Une dépense est libellée dans la devise où elle a RÉELLEMENT été payée :
+       • réglée depuis un compte → la devise de ce compte (c'est ce montant-là qui sera débité, et
+         c'est celui que l'utilisateur lit sur son relevé) ;
+       • réglée en cash, ou saisie par quelqu'un qui n'engage aucun compte → la devise du PROJET.
+     Les parts (`shares`) et les avances (`payers`) sont dans cette même devise : la dépense reste
+     atomique, et l'affichage du projet convertit ensuite vers la devise du projet.
+     ⚠️ Rien n'est converti à l'ENREGISTREMENT : les taux bougent, seuls les faits saisis sont
+     stockés. */
+  const projectCurrency = project?.currency || 'EUR';
+  const engagedCurrencies = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of accountSplits) {
+      if (s.amount <= 0) continue;
+      const acc = checkingAccounts.find((a) => a.id === s.account_id);
+      if (acc?.currency) set.add(acc.currency);
+    }
+    return [...set];
+  }, [accountSplits, checkingAccounts]);
+  /* Plusieurs comptes de devises DIFFÉRENTES sur une même dépense : le total saisi n'aurait plus
+     de sens (on additionnerait des francs et des euros), et le « reste à régler en cash » non plus.
+     On refuse, en le disant — même garde-fou que le virement récurrent cross-devises. */
+  const mixedCurrencies = engagedCurrencies.length > 1;
+  const expenseCurrency = engagedCurrencies[0] ?? projectCurrency;
+  const expenseSymbol = currencySymbolFor(expenseCurrency);
+  /** Vraie conversion à afficher : seulement quand la dépense n'est pas déjà dans la devise du projet. */
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const convertedToProject = useMemo(() => {
+    if (expenseCurrency === projectCurrency || !(amountNum > 0)) return null;
+    return convertAmount(amountNum, expenseCurrency, projectCurrency, rates);
+  }, [amountNum, expenseCurrency, projectCurrency, rates]);
+
   const payTotal = accountSplits.reduce((s, a) => s + a.amount, 0);
   const payRest = Math.round((myPaidAmount - payTotal) * 100) / 100;
   /** On accepte un reste : il est simplement réglé en cash. On refuse en revanche le dépassement. */
   const payOver = payRest < -0.02;
 
   const canSave = title.trim().length > 0 && amountNum > 0 && !!mainPayer
-    && payersBalanced && involvedList.length > 0 && sharesBalanced && !payOver && !busy;
+    && payersBalanced && involvedList.length > 0 && sharesBalanced && !payOver && !mixedCurrencies && !busy;
 
   /* VERROU SYNCHRONE contre la double soumission.
      `busy` est un état React : il ne devient vrai qu'au rendu SUIVANT. Deux taps rapprochés sur
@@ -253,7 +286,7 @@ export default function AddRwExpense() {
         .map((p) => ({ participant_id: p.id, amount: Math.round((shareAmounts[p.id] ?? 0) * 100) / 100 }))
         .filter((s) => s.amount > 0);
       const common = {
-        title: title.trim(), emoji, amount: amountNum, date, paidBy: mainPayer!,
+        title: title.trim(), emoji, amount: amountNum, currency: expenseCurrency, date, paidBy: mainPayer!,
         payers: payerList.map((p) => ({ ...p, amount: Math.round(p.amount * 100) / 100 })),
         shares,
         accountSplits,
@@ -291,8 +324,26 @@ export default function AddRwExpense() {
             <Text style={styles.label}>Titre</Text>
             <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex. Restaurant" placeholderTextColor={COLORS.textSecondary} />
 
-            <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
+            <Text style={styles.label}>Montant ({expenseSymbol})</Text>
             <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
+            {/* Le montant se saisit dans la devise du COMPTE utilisé : c'est ce qui sera débité, et
+                c'est ce que l'utilisateur lira sur son relevé. On annonce alors la contre-valeur
+                dans la devise du projet, celle des soldes entre participants. */}
+            {expenseCurrency !== projectCurrency && (
+              <Text style={styles.currencyNote}>
+                Saisi dans la devise du compte ({expenseCurrency}).{' '}
+                {convertedToProject != null
+                  ? `Compté ${fmt2(convertedToProject)} ${currencySymbolFor(projectCurrency)} dans le projet, au taux du jour.`
+                  : `Taux ${expenseCurrency} → ${projectCurrency} indisponible : la conversion s'affichera plus tard.`}
+              </Text>
+            )}
+            {mixedCurrencies && (
+              <Text style={styles.currencyBlock}>
+                Les comptes choisis ne sont pas dans la même devise ({engagedCurrencies.join(', ')}).
+                Une dépense ne peut porter qu'une seule devise : règle-la depuis des comptes d'une
+                même devise, ou crée une dépense par devise.
+              </Text>
+            )}
 
             <Text style={styles.label}>Date</Text>
             <TouchableOpacity style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => setShowCal(true)} activeOpacity={0.7}>
@@ -344,13 +395,13 @@ export default function AddRwExpense() {
                       placeholder="0,00"
                       placeholderTextColor={COLORS.textSecondary}
                     />
-                    <Text style={styles.splitUnit}>{CURRENCY_SYMBOL}</Text>
+                    <Text style={styles.splitUnit}>{expenseSymbol}</Text>
                   </View>
                 ))}
                 <View style={[styles.tallyBox, payersBalanced ? { borderColor: COLORS.emerald + '55' } : { borderColor: COLORS.orange + '66' }]}>
                   <Text style={styles.tallyText}>
-                    Avancé : <Text style={styles.tallyStrong}>{fmt2(payersTotal)} {CURRENCY_SYMBOL}</Text> sur {fmt2(amountNum)} {CURRENCY_SYMBOL}
-                    {payersBalanced ? ' — c’est juste ✅' : payersGap > 0 ? ` — il manque ${fmt2(payersGap)} ${CURRENCY_SYMBOL}` : ` — ${fmt2(-payersGap)} ${CURRENCY_SYMBOL} de trop`}
+                    Avancé : <Text style={styles.tallyStrong}>{fmt2(payersTotal)} {expenseSymbol}</Text> sur {fmt2(amountNum)} {expenseSymbol}
+                    {payersBalanced ? ' — c’est juste ✅' : payersGap > 0 ? ` — il manque ${fmt2(payersGap)} ${expenseSymbol}` : ` — ${fmt2(-payersGap)} ${expenseSymbol} de trop`}
                   </Text>
                   {!payersBalanced && participants.length > 0 && (
                     <TouchableOpacity
@@ -405,7 +456,7 @@ export default function AddRwExpense() {
                         </TouchableOpacity>
                       ))}
                     </View>
-                    {accountId !== 'cash' && <Text style={styles.hint}>Une dépense de {fmt2(myPaidAmount)} {CURRENCY_SYMBOL} sera enregistrée sur ce compte — ce que TU as avancé.</Text>}
+                    {accountId !== 'cash' && <Text style={styles.hint}>Une dépense de {fmt2(myPaidAmount)} {expenseSymbol} sera enregistrée sur ce compte — ce que TU as avancé.</Text>}
                   </>
                 ) : (
                   <>
@@ -420,14 +471,14 @@ export default function AddRwExpense() {
                           placeholder="0,00"
                           placeholderTextColor={COLORS.textSecondary}
                         />
-                        <Text style={styles.splitUnit}>{CURRENCY_SYMBOL}</Text>
+                        <Text style={styles.splitUnit}>{expenseSymbol}</Text>
                       </View>
                     ))}
                     <Text style={[styles.hint, payOver && { color: COLORS.danger }]}>
                       {payOver
-                        ? `Tu répartis ${fmt2(payTotal)} ${CURRENCY_SYMBOL} alors que tu n'as avancé que ${fmt2(myPaidAmount)} ${CURRENCY_SYMBOL} : retire ${fmt2(-payRest)} ${CURRENCY_SYMBOL}.`
+                        ? `Tu répartis ${fmt2(payTotal)} ${expenseSymbol} alors que tu n'as avancé que ${fmt2(myPaidAmount)} ${expenseSymbol} : retire ${fmt2(-payRest)} ${expenseSymbol}.`
                         : payRest > 0.02
-                          ? `${fmt2(payTotal)} ${CURRENCY_SYMBOL} depuis tes comptes, ${fmt2(payRest)} ${CURRENCY_SYMBOL} en cash (aucune transaction).`
+                          ? `${fmt2(payTotal)} ${expenseSymbol} depuis tes comptes, ${fmt2(payRest)} ${expenseSymbol} en cash (aucune transaction).`
                           : `Une transaction sera créée sur chaque compte renseigné.`}
                     </Text>
                   </>
@@ -459,7 +510,7 @@ export default function AddRwExpense() {
                   {!on ? (
                     <Text style={styles.partShare}>—</Text>
                   ) : shareMode === 'even' ? (
-                    <Text style={styles.partShare}>{fmt2(shareAmounts[p.id] ?? 0)} {CURRENCY_SYMBOL}</Text>
+                    <Text style={styles.partShare}>{fmt2(shareAmounts[p.id] ?? 0)} {expenseSymbol}</Text>
                   ) : (
                     <View style={styles.shareInputWrap}>
                       <TextInput
@@ -470,7 +521,7 @@ export default function AddRwExpense() {
                         placeholder="0,00"
                         placeholderTextColor={COLORS.textSecondary}
                       />
-                      <Text style={styles.splitUnit}>{CURRENCY_SYMBOL}</Text>
+                      <Text style={styles.splitUnit}>{expenseSymbol}</Text>
                     </View>
                   )}
                 </View>
@@ -482,8 +533,8 @@ export default function AddRwExpense() {
             {shareMode === 'custom' && (
               <View style={[styles.tallyBox, sharesBalanced ? { borderColor: COLORS.emerald + '55' } : { borderColor: COLORS.orange + '66' }]}>
                 <Text style={styles.tallyText}>
-                  Réparti : <Text style={styles.tallyStrong}>{fmt2(sharesTotal)} {CURRENCY_SYMBOL}</Text> sur {fmt2(amountNum)} {CURRENCY_SYMBOL}
-                  {sharesBalanced ? ' — c’est juste ✅' : sharesGap > 0 ? ` — il manque ${fmt2(sharesGap)} ${CURRENCY_SYMBOL}` : ` — ${fmt2(-sharesGap)} ${CURRENCY_SYMBOL} de trop`}
+                  Réparti : <Text style={styles.tallyStrong}>{fmt2(sharesTotal)} {expenseSymbol}</Text> sur {fmt2(amountNum)} {expenseSymbol}
+                  {sharesBalanced ? ' — c’est juste ✅' : sharesGap > 0 ? ` — il manque ${fmt2(sharesGap)} ${expenseSymbol}` : ` — ${fmt2(-sharesGap)} ${expenseSymbol} de trop`}
                 </Text>
                 {!sharesBalanced && (
                   <TouchableOpacity style={styles.tallyBtn} onPress={fillShareGap} activeOpacity={0.8}>
@@ -530,6 +581,12 @@ function makeStyles(c: any) {
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6, marginTop: 8 },
     hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 8, marginTop: -2, lineHeight: 16 },
+    currencyNote: { fontSize: 11.5, color: c.blue, marginBottom: 10, marginTop: -4, lineHeight: 16 },
+    currencyBlock: {
+      fontSize: 11.5, color: c.danger, lineHeight: 16, marginBottom: 10, marginTop: -4,
+      borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12',
+      borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
+    },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 6, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     emojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
     emojiPickActive: { borderColor: c.emerald, borderWidth: 2 },

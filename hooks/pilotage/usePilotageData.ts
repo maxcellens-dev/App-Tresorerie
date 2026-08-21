@@ -64,8 +64,17 @@ async function fetchPilotageSnapshot(profileId: string, histStart: string): Prom
     p_hist_start: histStart,
   });
   if (error || !data) {
-    // Fonction absente / droits manquants : on ne réessaiera plus de la session.
-    snapshotUnavailable = true;
+    /* On ne condamne le raccourci POUR LA SESSION que si la fonction est réellement hors d'atteinte
+       — absente, non exposée, ou interdite. Un simple incident réseau passait par ici lui aussi, et
+       reléguait alors le tableau de bord sur le chemin historique (plusieurs requêtes) jusqu'au
+       prochain redémarrage de l'app, longtemps après le retour de la connexion. Dans ce cas on
+       repasse par le repli UNE fois, et le raccourci reste disponible au prochain chargement. */
+    const code = (error as any)?.code ?? '';
+    const permanent = !error                        // RPC muette : rien à réessayer
+      || code === '42883'                           // fonction inexistante
+      || code === '42501'                           // droits manquants
+      || String(code).startsWith('PGRST');           // non exposée par PostgREST
+    if (permanent) snapshotUnavailable = true;
     return null;
   }
   const s = data as any;

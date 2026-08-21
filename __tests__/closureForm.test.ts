@@ -157,6 +157,28 @@ describe('unknownGap — « je ne sais pas ce que valait mon compte »', () => {
     const accounts = [{ id: 'acc-1', balance: 1000 }, { id: 'acc-2', balance: 500 }];
     expect(unknownTotalGap([], accounts, { 'acc-1': '1100' }, '2026-06-01', NOW)).toBe(100);
   });
+
+  /* Multi-devises : l'écart de chaque compte est libellé dans SA devise. Les additionner tels quels
+     donne un nombre qui ne veut rien dire — d'où le convertisseur fourni par l'appelant. */
+  it('convertit chaque écart avant de sommer quand les comptes sont en devises différentes', () => {
+    const accounts = [
+      { id: 'acc-eur', balance: 1000, currency: 'EUR' },
+      { id: 'acc-chf', balance: 500, currency: 'CHF' },
+    ];
+    const balances = { 'acc-eur': '1100', 'acc-chf': '600' }; // +100 EUR et +100 CHF
+    // 1 EUR = 0,95 CHF → 100 CHF ≈ 105,26 EUR. Sans conversion, on lirait 200.
+    const toEur = (gap: number, a: { currency?: string | null }) =>
+      a.currency === 'CHF' ? gap / 0.95 : gap;
+    const total = unknownTotalGap([], accounts, balances, '2026-06-01', NOW, toEur);
+    expect(total).toBeCloseTo(100 + 100 / 0.95, 2);
+    expect(total).not.toBe(200);
+  });
+
+  it('sans convertisseur, le comportement mono-devise est inchangé', () => {
+    const accounts = [{ id: 'acc-1', balance: 1000 }, { id: 'acc-2', balance: 500 }];
+    const balances = { 'acc-1': '1100', 'acc-2': '600' };
+    expect(unknownTotalGap([], accounts, balances, '2026-06-01', NOW)).toBe(200);
+  });
 });
 
 describe('hasAnyTypedBalance', () => {

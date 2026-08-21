@@ -14,7 +14,9 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAddTransaction, useAllTransactions } from '../../hooks/data/useTransactions';
 import { useMonthlyClosure, useAccountClosures, wasReopenedThisSession, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
 import { supabase } from '../../lib/platform/supabase';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
+import { useProfile } from '../../hooks/data/useProfile';
 import { findRegulCategoryId } from '../../lib/finance/regul';
 import { useCategories } from '../../hooks/data/useCategories';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../../lib/dateUtils';
@@ -45,7 +47,7 @@ interface Props {
    * OBLIGATOIRES que pour le propriétaire, (b) ils sont retirés de la liste dès que QUELQU'UN les a
    * clôturés pour ce mois — une clôture par compte, pas une par participant.
    */
-  checkingAccounts?: { id: string; name: string; balance: number; joint?: boolean; isOwner?: boolean }[];
+  checkingAccounts?: { id: string; name: string; balance: number; currency?: string | null; joint?: boolean; isOwner?: boolean }[];
   /** Ouvre directement la modale (deeplink « Clôture ton mois » du bandeau prochain geste). */
   autoOpen?: boolean;
 }
@@ -173,7 +175,22 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   React.useEffect(() => {
     if (nothingToVerify) setMode('direct');
   }, [nothingToVerify]);
+  /* ── Devises ────────────────────────────────────────────────────────────────────────────────
+     La clôture travaille COMPTE PAR COMPTE : le solde saisi, l'écart et la régularisation écrite en
+     base sont tous dans la devise NATIVE du compte. Un solde de compte suisse s'affichait pourtant
+     « 1 000 € » (symbole de la devise de référence), et les récapitulatifs additionnaient des CHF
+     avec des € sans conversion.
+       • montant rattaché à UN compte → `fmtIn(n, acc.currency)` ;
+       • total tous comptes confondus → converti en devise de RÉFÉRENCE puis `fmt`. */
+  const { data: closureProfile } = useProfile(user?.id);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const refCode = (closureProfile as any)?.currency_code ?? 'EUR';
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+  const fmtIn = (n: number, currency?: string | null) =>
+    Math.round(n).toLocaleString('fr-FR') + ' ' + currencySymbolFor(currency ?? refCode);
+  /** Ramène un montant libellé dans la devise d'un compte vers la devise de référence. */
+  const toRef = (n: number, currency?: string | null) =>
+    convertAmount(n, currency || refCode, refCode, rates) ?? n;
 
   /**
    * Ce qu'il RESTAIT sur l'enveloppe variable du mois qu'on clôture — le seul chiffre que le bilan
@@ -293,7 +310,9 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   const targetKey = targetKeyRaw;
   const balanceAtEndFor = (accId: string, accBalance: number) => balanceAtEnd(allTx as any[], accId, accBalance, targetKey);
   const unknownGapOf = (acc: { id: string; balance: number }) => unknownGap(allTx as any[], acc, balances[acc.id], unknownDate);
-  const unknownTotalGap = () => totalGap(allTx as any[], checkingAccounts, balances, unknownDate);
+  // Total tous comptes : chaque écart est converti en devise de référence avant la somme.
+  const unknownTotalGap = () =>
+    totalGap(allTx as any[], checkingAccounts, balances, unknownDate, new Date(), (gap, a) => toRef(gap, a.currency));
   const hasAnyAmount = hasAnyTypedBalance(checkingAccounts, balances);
   /** Les modes « solde réel » et « je ne sais pas » ne veulent rien dire sans montant saisi. */
   const needsAmount = mode === 'balance' || mode === 'unknown';
@@ -650,7 +669,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                     {checkingAccounts.map((acc) => (
                       <View key={acc.id} style={styles.balanceBox}>
                         <Text style={styles.balanceLabel} numberOfLines={1}>{checkingAccounts.length > 1 ? acc.name : 'Solde du compte courant'} à fin {monthLabel(targetKey)}</Text>
-                        <Text style={styles.balanceValue}>{fmt(balanceAtEndFor(acc.id, acc.balance))}</Text>
+                        <Text style={styles.balanceValue}>{fmtIn(balanceAtEndFor(acc.id, acc.balance), acc.currency)}</Text>
                       </View>
                     ))}
                   </View>
@@ -774,7 +793,8 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                   const nb = parseFloat(raw.replace(',', '.'));
                   if (Number.isNaN(nb)) continue;
                   any = true;
-                  closingTotal += nb - balanceAtEndFor(acc.id, acc.balance);
+                  // Écart de CE compte, dans SA devise → ramené en référence avant d'être cumulé.
+                  closingTotal += toRef(nb - balanceAtEndFor(acc.id, acc.balance), acc.currency);
                 }
                 if (!any) return null;
                 rows.push({ label: monthLabel(targetKey), regul: closingTotal, closed: true });

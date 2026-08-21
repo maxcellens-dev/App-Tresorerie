@@ -206,6 +206,17 @@ function TransactionsListBody() {
     for (const a of accounts) m[a.id] = a;
     return m;
   }, [accounts]);
+  /* ── Nom et devise du compte d'une ligne ────────────────────────────────────────────────────
+     ⚠️ Ne PAS lire `item.account` seul. Cette jointure manque sur plusieurs lignes parfaitement
+     légitimes, qui s'affichaient alors sans aucun compte (juste « · 25 sept. ») :
+       • les échéances de crédit, construites côté client (`mkFlow` ne pose que la devise) ;
+       • une ligne fraîchement enregistrée sur un compte JOINT ou partagé, reconstituée depuis le
+         cache des comptes PERSO — qui, par construction, ne les contient pas.
+     `accountById` vient de `useAllAccounts` : c'est la liste complète des comptes accessibles, donc
+     la source de vérité. La jointure ne sert plus que de repli. */
+  const accountOf = (item: any) => accountById[item?.account_id] ?? item?.account ?? null;
+  const accountNameOf = (item: any) => accountOf(item)?.name ?? '';
+  const accountCurrencyOf = (item: any) => accountOf(item)?.currency ?? item?.account?.currency;
   // Puces triées par type (Courant → Épargne → Invest → Autre) ; ordre d'origine conservé au sein
   // d'un même type (tri stable).
   // Ordre (compte principal → type → nom) appliqué À LA SOURCE par useAllAccounts (lib/accountOrder).
@@ -737,11 +748,11 @@ function TransactionsListBody() {
                 )}
               </View>
               <Text style={styles.rowMeta}>
-                {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
+                {accountNameOf(item)} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
               </Text>
             </TouchableOpacity>
             <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
-              {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
+              {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(accountCurrencyOf(item))}
             </Text>
           </View>
           {/* Ligne 2 : actions */}
@@ -800,7 +811,7 @@ function TransactionsListBody() {
             )}
           </View>
           <Text style={styles.rowMeta}>
-            {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
+            {accountNameOf(item)} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
           </Text>
         </View>
         {isReservation ? (
@@ -809,7 +820,7 @@ function TransactionsListBody() {
           </View>
         ) : (
           <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg]}>
-            {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
+            {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(accountCurrencyOf(item))}
           </Text>
         )}
       </TouchableOpacity>
@@ -1204,7 +1215,7 @@ function TransactionsListBody() {
                 const rows: [string, string][] = [
                   ['Date', new Date(detailTx.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
                   ['Montant', `${inc ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${sym}`],
-                  ['Compte', detailTx.account?.name ?? ''],
+                  ['Compte', accountNameOf(detailTx)],
                   ['Par', author],
                 ];
                 if (detailTx.category?.name) rows.push(['Catégorie', detailTx.category.name]);

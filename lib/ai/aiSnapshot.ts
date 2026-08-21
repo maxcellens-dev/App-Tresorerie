@@ -14,6 +14,7 @@
 //   • DÉPENSES PONCTUELLES NOTABLES (grosses dépenses non récurrentes récentes).
 import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
 import { computeHealthScore, deriveEngaged } from './aiScore';
+import { MONTHLY_FACTOR_BY_RULE } from '../finance/recurrence';
 
 export interface SnapshotCredit { principal: number; monthly: number; ratePct: number; crd: number; endYM: string | null; impactPct: number; remainingMonths?: number | null }
 export interface SnapshotProject { target: number; monthly: number; progressPct: number; startISO: string | null; status: string; destType?: string | null; mode?: 'transfer' | 'reserve' | 'spend' }
@@ -128,7 +129,8 @@ export interface BilanMetrics {
 const r0 = (n: number) => Math.round(n || 0).toLocaleString('fr-FR');
 const RULE_FR: Record<string, string> = { daily: 'jour', weekly: 'semaine', monthly: 'mois', yearly: 'an', quarterly: 'trimestre' };
 // Équivalent MENSUEL d'une récurrence (pour totaliser des récurrents de fréquences différentes).
-const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+// Facteurs PARTAGÉS (lib/finance/recurrence) : ils valaient 52/12 ici et 4.33 ailleurs.
+const RULE_MONTHLY = MONTHLY_FACTOR_BY_RULE;
 const monthlyEq = (r: SnapshotRecurring) => r.amount * (RULE_MONTHLY[r.rule] ?? 1);
 
 export function buildSnapshot(input: SnapshotInput): string {

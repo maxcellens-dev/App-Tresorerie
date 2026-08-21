@@ -11,6 +11,7 @@ import { useReservations } from '../data/useReservations';
 import { useOnboarding } from './useOnboarding';
 import { useAppLockPrompt } from '../platform/useAppLockPrompt';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useReliability';
+import { monthlyEquivalent } from '../../lib/finance/recurrence';
 import { isRegul } from '../../lib/finance/regul';
 import { getCurrentAction, type AppAction } from '../../lib/engagement/appStateEngine';
 import { CURRENCY_SYMBOL, floorToTen } from '../../lib/finance/currency';
@@ -81,8 +82,9 @@ export function useAppState(): AppAction | null {
     // Surveillance de niveau (mode Contribution) : le solde prévisionnel du joint passe-t-il < 0 ?
     // Soldes et flux sont pondérés par le même facteur → le SIGNE du prévisionnel est préservé.
     let jointLow: { accountId: string; name: string } | null = null;
-    const perMonth = (rule: string, amt: number) =>
-      rule === 'weekly' ? amt * 4.33 : rule === 'monthly' ? amt : rule === 'quarterly' ? amt / 3 : rule === 'yearly' ? amt / 12 : 0;
+    // Facteur PARTAGÉ (lib/finance/recurrence) : il valait 4.33 ici et 52/12 dans le snapshot IA,
+    // pour la même question — « combien cette récurrente pèse-t-elle par mois ? ».
+    const perMonth = monthlyEquivalent;
     for (const a of (sharedContrib?.accounts ?? []) as any[]) {
       if (sharedContrib?.modeByAccount?.[a.id] !== 'contribution') continue;
       let net = 0;

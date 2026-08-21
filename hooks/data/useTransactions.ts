@@ -332,7 +332,14 @@ function seedTransactionCache(client: ReturnType<typeof useQueryClient>, profile
 
 /** Reconstitue les libellés joints (compte, catégorie, compte lié) depuis les caches correspondants. */
 function enrichTransactionRow(client: ReturnType<typeof useQueryClient>, profileId: string, row: any): TransactionWithDetails {
-  const accounts = client.getQueryData<any[]>(['accounts', profileId]) ?? [];
+  /* ⚠️ Le cache `['accounts', profileId]` est la vue PERSO : elle EXCLUT les comptes joints et les
+     comptes partagés reçus. Une opération enregistrée sur un compte joint n'y trouvait donc pas son
+     compte, la ligne était posée avec `account: null`, et la liste l'affichait sans nom de compte.
+     On interroge d'abord la vue COMPLÈTE (celle qu'utilise la page Transactions), la vue perso ne
+     servant que de repli si elle n'a pas encore été chargée. */
+  const accounts = client.getQueryData<any[]>(['accounts', profileId, 'all'])
+    ?? client.getQueryData<any[]>(['accounts', profileId])
+    ?? [];
   const categories = client.getQueryData<any[]>(['categories', profileId]) ?? [];
   const acc = accounts.find((a) => a.id === row.account_id);
   const cat = row.category_id ? categories.find((c) => c.id === row.category_id) : null;

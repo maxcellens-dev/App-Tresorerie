@@ -58,6 +58,7 @@ import { useIsFocused } from 'expo-router';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/finance/currency';
+import { WEEKS_PER_MONTH } from '../../lib/finance/financialProfileEngine';
 import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
 import { useResponsive } from '../../hooks/theme/useResponsive';
 import { contentWidth } from '../../lib/ui/webLayout';
@@ -173,7 +174,9 @@ function PilotageScreen() {
     return rows
       .filter((a) => a.type === 'checking' && (a._role === 'owner' || a._role === 'write'))
       .map((a) => ({
-        id: a.id, name: a.name, balance: Number(a.balance),
+        // `currency` : la clôture raisonne compte par compte (solde saisi, écart, régularisation
+        // sont dans la devise NATIVE du compte) — sans elle, tout s'affichait en devise de référence.
+        id: a.id, name: a.name, balance: Number(a.balance), currency: a.currency,
         joint: !!a.is_joint || a._role !== 'owner',
         isOwner: a._role === 'owner',
       }));
@@ -408,7 +411,7 @@ function PilotageScreen() {
     resteDisponible, relykaAffiche, troughDate, troughExplain, nextIncomeDate, nextIncomeAmount,
     misDeCoteTotal, relykaAlloueVolontairement, baseADepenser, enDepassement,
     setupIncomplete, setupHint, firstName, welcomeStep, welcomeRoute,
-    relConf, recoList, recoMessages, relykaMessages, suiviDetail, recurUpcoming,
+    relConf, recoList, recoMessages, relykaMessages, suiviDetail, recurUpcoming, relykaColor,
   } = vm;
 
   /* Mode affiché = brouillon local s'il existe, sinon celui du profil. */
@@ -626,12 +629,9 @@ function PilotageScreen() {
 
           <PilotageSimple
               relykaAmount={relykaAffiche}
-              relykaColor={
-                relykaAffiche > 0 ? COLORS.emerald
-                : relykaAlloueVolontairement ? COLORS.blue
-                : relykaAffiche < 0 ? COLORS.danger
-                : COLORS.orange
-              }
+              // Couleur calculée par le view-model (relykaTone) : elle était recopiée ici, avec une
+              // branche « rouge » qui ne pouvait jamais se déclencher.
+              relykaColor={relykaColor}
               confidenceLevel={relConf?.result.level ?? 'high'}
               daysSinceVerification={relConf?.result.daysSinceVerification ?? 0}
               recommendations={recoList}
@@ -913,7 +913,10 @@ function PilotageScreen() {
       >
         {weeklyVariableInput ? (
           <Text style={styles.varModalMonthly}>
-            ≈ {Math.round((parseFloat(weeklyVariableInput.replace(',', '.')) || 0) * 4.33).toLocaleString('fr-FR')} {CURRENCY_SYMBOL} / mois
+            {/* MÊME constante que le moteur (WEEKS_PER_MONTH) : ce « ≈ … / mois » annonce le
+                montant qui sera réellement déduit du Relyka. Le 4.33 écrit en dur ici pouvait
+                diverger du jour où la constante changerait. */}
+            ≈ {Math.round((parseFloat(weeklyVariableInput.replace(',', '.')) || 0) * WEEKS_PER_MONTH).toLocaleString('fr-FR')} {CURRENCY_SYMBOL} / mois
           </Text>
         ) : null}
       </PilotageInputModal>

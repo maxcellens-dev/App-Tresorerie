@@ -28,7 +28,7 @@ import { computeAmortization, resolvePaliers } from '../../../lib/finance/amorti
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
-import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'immobilier', label: 'Immobilier', icon: 'home-outline' },
@@ -265,7 +265,13 @@ function CreditAddScreen() {
     });
   }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments, deferN, deferOpts, deferralIntMode, fees.interim_interest]);
 
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${CURRENCY_SYMBOL}`;
+  /* Les montants simulés ici (mensualité, coût total) seront prélevés sur le compte choisi : ils
+     s'expriment dans SA devise dès qu'il est sélectionné. Tant qu'aucun compte n'est choisi, on
+     retombe sur la devise de référence. */
+  const creditCurrency = accounts.find((a) => a.id === accountId)?.currency;
+  const fmt = (v: number) =>
+    v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    + ` ${creditCurrency ? currencySymbolFor(creditCurrency) : CURRENCY_SYMBOL}`;
   const stdPayment = amort ? amort.monthlyPayment : 0;
   // Nb d'échéances modifiées à la main (schedule_overrides) sur le crédit édité — celles qui masquent
   // la mensualité globale. Changer la mensualité et enregistrer les efface pour tout réappliquer.

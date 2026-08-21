@@ -13,7 +13,7 @@
 import { useMemo } from 'react';
 import { View, Text, Modal, ScrollView, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import type { AppColors } from '../../theme/palette';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
@@ -31,7 +31,8 @@ interface Props {
   /** Intitulé de la bande de comptes (« Compte », « Compte de destination »). */
   accountLabel: string;
   /** Comptes éligibles, DÉJÀ filtrés par l'appelant : le filtre dépend de la nature du brouillon. */
-  accounts: Array<{ id: string; name: string }>;
+  /** `currency` : devise native du compte — le montant saisi est enregistré dessus, dans SA devise. */
+  accounts: Array<{ id: string; name: string; currency?: string | null }>;
   selectedAccountId: string | null;
   onSelectAccount: (id: string) => void;
   submitIcon: keyof typeof Ionicons.glyphMap;
@@ -47,6 +48,8 @@ export default function TreasuryDraftModal({
   submitting, colors,
 }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const selectedCurrency = accounts.find((a) => a.id === selectedAccountId)?.currency;
+  const draftSymbol = selectedCurrency ? currencySymbolFor(selectedCurrency) : CURRENCY_SYMBOL;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -64,7 +67,9 @@ export default function TreasuryDraftModal({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
+          {/* Le montant part sur le compte sélectionné : on annonce SA devise, pas celle de
+              référence — sinon on demande des euros pour créditer un compte en francs. */}
+          <Text style={styles.label}>Montant ({draftSymbol})</Text>
           <TextInput
             style={styles.input}
             value={amount}

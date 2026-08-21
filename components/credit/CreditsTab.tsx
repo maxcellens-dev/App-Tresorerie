@@ -23,7 +23,10 @@ import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealt
 import { computeAmortization } from '../../lib/finance/amortization';
 import { todayISO } from '../../lib/dateUtils';
 import type { Credit } from '../../types/database';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
+import { useAllAccounts } from '../../hooks/data/useAccounts';
+import { useProfile } from '../../hooks/data/useProfile';
 
 const TYPE_META: Record<string, { label: string; icon: string }> = {
   immobilier: { label: 'Immobilier', icon: 'home-outline' },
@@ -47,6 +50,27 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   useSharedCreditsRealtime(userId);
   const [showType, setShowType] = useState(false);
   useEffect(() => { if (openCreateSignal) setShowType(true); }, [openCreateSignal]);
+  /* ── Devises ────────────────────────────────────────────────────────────────────────────────
+     Un crédit est prélevé sur UN compte : ses échéances sont libellées dans la devise de ce
+     compte-là (c'est déjà ce que fait `useCreditFlows`). Une ligne de crédit sur un compte suisse
+     s'affichait pourtant avec le symbole de la devise de référence, et le récap additionnait des
+     CHF avec des € — d'où un « reste à payer » total sans signification.
+       • ligne d'un crédit → sa propre devise (`fmtIn`) ;
+       • récap tous crédits → converti en devise de référence (`money`). */
+  const { data: creditAccounts = [] } = useAllAccounts(userId);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const { data: creditProfile } = useProfile(userId);
+  const refCode = (creditProfile as any)?.currency_code ?? 'EUR';
+  const curByAccount = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const a of creditAccounts as any[]) m[a.id] = a.currency || refCode;
+    return m;
+  }, [creditAccounts, refCode]);
+  const curOf = (c: Credit) => (c.account_id ? curByAccount[c.account_id] : undefined) ?? refCode;
+  const toRef = (v: number, currency: string) => convertAmount(v, currency, refCode, rates) ?? v;
+
+  const fmtIn = (v: number, currency: string) =>
+    v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${currencySymbolFor(currency)}`;
   const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${CURRENCY_SYMBOL}`;
   /** Récap : euros pleins (pas de centimes sur un cumul de crédits). */
   const money = (v: number) => Math.round(v).toLocaleString('fr-FR') + ` ${CURRENCY_SYMBOL}`;
@@ -90,11 +114,14 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
     for (const c of list) {
       if (!c.is_active || c.is_simulation) continue;
       const a = computeAmortization(c);
-      crd += a.crdAtDate(today);
+      // Chaque crédit est libellé dans la devise de son compte → converti avant d'entrer au total.
+      const cur = curOf(c);
+      const ref = (v: number) => toRef(v, cur);
+      crd += ref(a.crdAtDate(today));
       for (const r of a.schedule) {
-        const due = r.payment + r.insurance;
+        const due = ref(r.payment + r.insurance);
         if (r.date <= today) paid += due;
-        else { leftToPay += due; interestLeft += r.interest; }
+        else { leftToPay += due; interestLeft += ref(r.interest); }
       }
     }
     return { crd, interestLeft, leftToPay, paid };
@@ -110,8 +137,11 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
     { label: 'Déjà payé', value: r.paid, color: COLORS.emerald },
   ];
 
-  const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS]);
-  const sharedCells = useMemo(() => cellsOf(recapOf(sharedCounted)), [credits, today, COLORS]);
+  /* `curByAccount`/`rates`/`refCode` DOIVENT être dans les deps : les comptes et les taux arrivent
+     APRÈS le premier rendu. Sans eux, le récap resterait figé sur son calcul initial — celui fait
+     alors que la table des devises était encore vide, donc sans aucune conversion. */
+  const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS, curByAccount, rates, refCode]);
+  const sharedCells = useMemo(() => cellsOf(recapOf(sharedCounted)), [credits, today, COLORS, curByAccount, rates, refCode]);
 
   /* Un total qui ne couvre pas toute la liste qu'il surplombe DOIT le dire, sinon il passe pour faux
      (« pourquoi la somme des lignes ne tombe pas ? »). */
@@ -206,12 +236,12 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
             )}
           </View>
           <Text style={styles.sub}>
-            {meta.label} · {a.paidCountAtDate(today)}/{total} échéances · {fmt(monthly)}/mois
+            {meta.label} · {a.paidCountAtDate(today)}/{total} échéances · {fmtIn(monthly, curOf(c))}/mois
             {outOfTotal ? ' · hors total' : ''}
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.crd}>{fmt(leftToPay)}</Text>
+          <Text style={styles.crd}>{fmtIn(leftToPay, curOf(c))}</Text>
           <Text style={styles.crdLabel}>reste à payer</Text>
         </View>
       </TouchableOpacity>

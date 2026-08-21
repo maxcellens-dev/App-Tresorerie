@@ -23,7 +23,8 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useResponsive } from '../../hooks/theme/useResponsive';
 import { pageColumn } from '../../lib/ui/webLayout';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
 /* Source UNIQUE du poids d'une récurrence sur un mois. Cette fonction était recopiée ici, en
    parallèle de celle du moteur du Pilotage : deux réponses possibles à la même question, donc le
@@ -202,8 +203,38 @@ function TreasuryPlanBody() {
   // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
   // C3 — flux dérivé des mensualités de crédit (sorties virtuelles sur le compte de prélèvement).
   const creditFlows = useCreditFlows(user?.id);
-  const transactionsRaw = useMemo(() => [...transactionsPerso, ...(sharedContrib?.transactions ?? []), ...creditFlows], [transactionsPerso, sharedContrib, creditFlows]);
-  const accountsRaw = useMemo(() => [...accountsPerso, ...(sharedContrib?.accounts ?? [])], [accountsPerso, sharedContrib]);
+  /* ── Devise de RÉFÉRENCE ────────────────────────────────────────────────────────────────────
+     Le plan de trésorerie additionne des comptes qui peuvent être dans des devises différentes
+     (compte FR en €, compte suisse en CHF…). Sans conversion, 1 000 CHF étaient additionnés comme
+     1 000 € : solde de départ, totaux mensuels et solde cumulé étaient tous faux, et affichés avec
+     le symbole de la devise de référence par-dessus le marché.
+     On NORMALISE donc à l'ingestion — comptes par leur devise, transactions par celle de leur
+     compte — AVANT le périmètre et tout calcul. Même patron que Reporting et Projection. */
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const refCode = (tresoProfile as any)?.currency_code ?? 'EUR';
+  const transactionsRaw = useMemo(() => {
+    const merged = [...transactionsPerso, ...(sharedContrib?.transactions ?? []), ...creditFlows];
+    return merged.map((t: any) => {
+      const nativeCurrency = t.account?.currency || refCode;
+      return {
+        ...t,
+        amount: convertAmount(Number(t.amount), nativeCurrency, refCode, rates) ?? Number(t.amount),
+        /* On GARDE le montant d'origine et sa devise. Tout ce qui se contente d'AFFICHER ou de
+           sommer lit `amount` (converti) ; tout ce qui RÉÉCRIT la transaction doit repartir du
+           natif — une échéance retouchée depuis ce tableau est enregistrée dans la devise de son
+           compte, pas dans la devise de référence. */
+        _nativeAmount: Number(t.amount),
+        _nativeCurrency: nativeCurrency,
+      };
+    });
+  }, [transactionsPerso, sharedContrib, creditFlows, rates, refCode]);
+  const accountsRaw = useMemo(() => {
+    const merged = [...accountsPerso, ...(sharedContrib?.accounts ?? [])];
+    return merged.map((a: any) => ({
+      ...a,
+      balance: convertAmount(Number(a.balance), a.currency || 'EUR', refCode, rates) ?? Number(a.balance),
+    }));
+  }, [accountsPerso, sharedContrib, rates, refCode]);
   // Périmètre quotidien : les joints « contribution » sortent des flux (leur activité n'impacte plus
   // la trésorerie), et les virements vers eux deviennent des mouvements « Versé/Reçu au compte partagé ».
   const perimeterCtx = useMemo(() => buildPerimeterCtx(accountsRaw.map((a: any) => ({
@@ -283,6 +314,8 @@ function TreasuryPlanBody() {
     year?: number;
     month?: number;
     originalAmount?: number;
+    /** Devise du compte de l'opération — le montant saisi y est enregistré tel quel. */
+    currency?: string;
     currentOverrideAmount?: number;
   }>({ visible: false });
   
@@ -365,8 +398,22 @@ function TreasuryPlanBody() {
   const incomeGrouped = useMemo(() => groupCategories(categories.filter((c) => c.type === 'income')), [categories]);
   const expenseGrouped = useMemo(() => groupCategories(categories.filter((c) => c.type === 'expense')), [categories]);
 
+  /* Échéances modifiées « ce mois-là seulement » : le montant saisi est dans la devise du COMPTE de
+     l'opération, et il REMPLACE le montant calculé (déjà converti) — il doit donc être converti lui
+     aussi, sinon une échéance retouchée sur un compte en devise faussait sa colonne. */
+  const overridesMap = useMemo(() => {
+    const curByTxId = new Map(transactionsRaw.map((t: any) => [t.id, t.account?.currency || refCode]));
+    const map = createOverridesMap(overrides);
+    for (const o of overrides) {
+      if (o.override_amount == null) continue;
+      const key = getOverrideKey(o.transaction_id, o.year, o.month);
+      const cur = (curByTxId.get(o.transaction_id) as string | undefined) ?? refCode;
+      map[key] = convertAmount(Number(o.override_amount), cur, refCode, rates) ?? Number(o.override_amount);
+    }
+    return map;
+  }, [overrides, transactionsRaw, rates, refCode]);
+
   const planData = useMemo(() => {
-    const overridesMap = createOverridesMap(overrides);
     const byCategoryMonth: Record<string, Record<string, number>> = {};
     const txByMonthCategory: Record<string, Record<string, TransactionWithDetails[]>> = {};
     const mouvEpargne: Record<string, number> = {};
@@ -834,7 +881,8 @@ function TreasuryPlanBody() {
     });
 
     return { rows, months, txByMonthCategory, mouvEpargneTx, mouvInvestTx };
-  }, [transactions, months, incomeGrouped, expenseGrouped, overrides, checkingBalance, pilotage, currentYear, currentMonth]);
+    // `overridesMap` (et non `overrides`) : c'est lui que le calcul lit, et il dépend aussi des taux.
+  }, [transactions, months, incomeGrouped, expenseGrouped, overridesMap, checkingBalance, pilotage, currentYear, currentMonth]);
   /** Largeur totale du tableau (libellés + colonnes de mois) — entête et mode bureau. */
   const tableWidth = labelWidth + planData.months.length * colWidth;
 
@@ -894,7 +942,11 @@ function TreasuryPlanBody() {
       categoryName: category?.name,
       year,
       month,
-      originalAmount: Math.abs(Number(tx.amount)),
+      /* Montant NATIF (devise du compte) : c'est celui qu'on réécrit. `tx.amount` est converti en
+         devise de référence pour le tableau — le proposer à l'édition ferait enregistrer un montant
+         en euros sur un compte en francs. `currentOverrideAmount` est déjà stocké en natif. */
+      originalAmount: Math.abs(Number((tx as any)._nativeAmount ?? tx.amount)),
+      currency: (tx as any)._nativeCurrency ?? refCode,
       currentOverrideAmount: overrides.find(
         (o) => o.transaction_id === tx.id && o.year === year && o.month === month
       )?.override_amount ?? undefined,
@@ -921,6 +973,15 @@ function TreasuryPlanBody() {
     setVirementAmount('');
     setVirementNote('');
     setVirementDraftModal({ visible: true, monthKey, mouvementType });
+  };
+
+  /* Libellé d'un brouillon dans le menu « Modifier · … ». Un brouillon appartient à UN compte : on
+     l'identifie par son montant NATIF et le symbole de SA devise, pas par sa contre-valeur en devise
+     de référence (qui ne correspondrait à rien de ce que l'utilisateur a saisi). */
+  const draftLabelAmount = (draft: any) => {
+    const native = Math.abs(Number(draft._nativeAmount ?? draft.amount));
+    const symbol = draft._nativeCurrency ? currencySymbolFor(draft._nativeCurrency) : CURRENCY_SYMBOL;
+    return `${native.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} ${symbol}`;
   };
 
   const handleCreateDraft = async () => {
@@ -1392,6 +1453,7 @@ function TreasuryPlanBody() {
         year={editModalState.year || 0}
         month={editModalState.month || 0}
         originalAmount={editModalState.originalAmount || 0}
+        currency={editModalState.currency}
         currentOverrideAmount={editModalState.currentOverrideAmount}
         profileId={user?.id}
       />
@@ -1415,7 +1477,7 @@ function TreasuryPlanBody() {
           <TreasuryMenuOption
             key={draft.id}
             icon="create-outline" color="#f59e0b" colors={COLORS}
-            label={`Modifier · ${draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}`}
+            label={`Modifier · ${draft.note || draftLabelAmount(draft)}`}
             onPress={() => { setDraftChoiceModal(null); router.push(`/(tabs)/transactions/edit/${draft.id}` as any); }}
           />
         ))}
@@ -1464,7 +1526,7 @@ function TreasuryPlanBody() {
           <TreasuryMenuOption
             key={draft.id}
             icon="create-outline" color="#f59e0b" colors={COLORS}
-            label={`Modifier · ${draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}`}
+            label={`Modifier · ${draft.note || draftLabelAmount(draft)}`}
             onPress={() => { setVirementChoiceModal(null); router.push(`/(tabs)/transactions/edit/${draft.id}` as any); }}
           />
         ))}

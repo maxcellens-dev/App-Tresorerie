@@ -8,6 +8,7 @@ import {
   computeRecurUpcoming,
   computeSetupState,
   pickMainCheckingId,
+  relykaTone,
 } from '../lib/finance/pilotageView';
 import type { PilotageData } from '../lib/finance/pilotageEngine';
 
@@ -148,6 +149,44 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
       const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), noCumuls);
       expect(b.misDeCoteTotal).toBe(0);
       expect(b.relykaAlloueVolontairement).toBe(false);
+    });
+  });
+
+  /* ── Couleur du chiffre principal ────────────────────────────────────────────────────────────
+     Cette règle testait `relykaAffiche < 0`, une condition IMPOSSIBLE (`relykaAffiche` dérive d'un
+     `Math.max(0, …)`) : le rouge n'a jamais pu s'afficher, et un compte réellement dans le rouge
+     prenait la couleur d'une situation normale. Elle vivait en double, recopiée dans le view-model
+     et dans l'écran. Ces cas la figent. */
+  describe('relykaTone — la couleur du Relyka', () => {
+    it('VERT dès qu\'il reste quelque chose à décider', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 500 }), noCumuls);
+      expect(relykaTone(b)).toBe('positive');
+    });
+
+    it('BLEU quand le Relyka est à 0 parce que tout est rangé ailleurs', () => {
+      const b = computeRelykaBreakdown(pdata({
+        cashflow_trough: 500, month_savings_total: 500, month_savings_future: 500,
+      }), noCumuls);
+      expect(relykaTone(b)).toBe('allocated');
+    });
+
+    it('ROUGE quand le solde projeté est réellement négatif', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: -900 }), noCumuls);
+      expect(b.relykaAffiche).toBe(0);          // le montant affiché ne descend jamais sous 0…
+      expect(b.resteDisponibleBrut).toBeLessThan(0); // …mais le brut, lui, porte le signe
+      expect(relykaTone(b)).toBe('negative');
+    });
+
+    it('ROUGE aussi quand ce qui est mis de côté ne suffit pas à revenir dans le vert', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: -1000 }), {
+        reservationsTotal: 100, preEpargneTotal: 0, preInvestTotal: 0,
+      });
+      expect(relykaTone(b)).toBe('negative');
+    });
+
+    it('NEUTRE à 0 pile, sans rien mis de côté : il n\'y a ni manque ni choix', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), noCumuls);
+      expect(relykaTone(b)).toBe('empty');
     });
   });
 

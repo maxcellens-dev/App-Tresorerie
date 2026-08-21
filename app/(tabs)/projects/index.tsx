@@ -16,6 +16,7 @@ import ScreenGradient from '../../../components/layout/ScreenGradient';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
 import AdSlot from '../../../components/marketing/AdSlot';
+import CurrencyPicker from '../../../components/account/CurrencyPicker';
 import { useOnbHighlight, onbGlow } from '../../../lib/engagement/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -33,7 +34,7 @@ import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
-import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
 import { useCredits } from '../../../hooks/data/useCredits';
 import { computeAmortization } from '../../../lib/finance/amortization';
 import { projectMode, type ProjectMode } from '../../../lib/finance/projectTx';
@@ -85,6 +86,11 @@ function ProjectsScreen() {
   const [rwName, setRwName] = useState('');
   const [rwEmoji, setRwEmoji] = useState('💸');
   const [rwDesc, setRwDesc] = useState('');
+  /* Devise du PROJET : celle dans laquelle se lisent tous ses totaux (soldes entre participants,
+     « qui doit quoi »). Elle démarre sur la devise de référence de l'utilisateur — c'est le cas de
+     loin le plus fréquent — mais un voyage se tient souvent dans une autre monnaie. */
+  const [rwCurrency, setRwCurrency] = useState(profile?.currency_code ?? 'EUR');
+  useEffect(() => { setRwCurrency(profile?.currency_code ?? 'EUR'); }, [profile?.currency_code]);
   const [rwBusy, setRwBusy] = useState(false);
   const [rwErr, setRwErr] = useState<string | null>(null);
   const myName = profile?.full_name || user?.email?.split('@')[0] || 'Moi';
@@ -92,7 +98,7 @@ function ProjectsScreen() {
     if (!rwName.trim()) return;
     setRwBusy(true); setRwErr(null);
     try {
-      const proj = await createRwProject.mutateAsync({ name: rwName.trim(), emoji: rwEmoji, description: rwDesc.trim(), myName });
+      const proj = await createRwProject.mutateAsync({ name: rwName.trim(), emoji: rwEmoji, description: rwDesc.trim(), myName, currency: rwCurrency });
       setShowRwCreate(false); setRwName(''); setRwDesc(''); setRwEmoji('💸');
       router.push(`/(tabs)/(secondary)/relyka-world/${(proj as any).id}` as any);
     } catch (e: any) {
@@ -561,8 +567,10 @@ function ProjectsScreen() {
                                 )}
                               </View>
                               <Text style={styles.rwProjSub} numberOfLines={1}>
+                                {/* Devise du PROJET (les dépenses y sont déjà converties par
+                                    useRwProjectsStats) — et non un « € » écrit en dur. */}
                                 {total > 0
-                                  ? `${Math.round(total).toLocaleString('fr-FR')} € de dépenses · ${members.length} participant${members.length > 1 ? 's' : ''}`
+                                  ? `${Math.round(total).toLocaleString('fr-FR')} ${currencySymbolFor(st?.currency ?? p.currency)} de dépenses · ${members.length} participant${members.length > 1 ? 's' : ''}`
                                   : (p.description || 'Dépenses partagées')}
                               </Text>
                               {/* Barre « qui a payé quoi » (segments par contributeur) */}
@@ -697,7 +705,16 @@ function ProjectsScreen() {
             <TextInput style={styles.rwInput} value={rwName} onChangeText={setRwName} placeholder="Ex. Week-end à Lyon" placeholderTextColor={COLORS.textSecondary} />
             <Text style={styles.rwLabel}>Description (optionnel)</Text>
             <TextInput style={styles.rwInput} value={rwDesc} onChangeText={setRwDesc} placeholder="Quelques mots…" placeholderTextColor={COLORS.textSecondary} />
-            {!!rwErr && <Text style={{ color: COLORS.danger, fontSize: 12.5, marginBottom: 10 }}>{rwErr}</Text>}
+            <Text style={styles.rwLabel}>Devise du projet</Text>
+            <CurrencyPicker value={rwCurrency} onChange={setRwCurrency} />
+            {/* Ce choix se fige : les dépenses déjà saisies sont libellées dans la devise où elles
+                ont été payées, et rejuger un projet dans une autre monnaie changerait tous les
+                soldes entre participants après coup. */}
+            <Text style={styles.rwCurrencyHint}>
+              Tous les totaux du projet s'affichent dans cette devise. Une dépense payée depuis un
+              compte dans une autre devise se saisit dans celle du compte, puis est convertie ici.
+            </Text>
+            {!!rwErr &&<Text style={{ color: COLORS.danger, fontSize: 12.5, marginBottom: 10 }}>{rwErr}</Text>}
             <TouchableOpacity style={[styles.rwCreateCta, (!rwName.trim() || rwBusy) && { opacity: 0.5 }]} onPress={onCreateRw} disabled={!rwName.trim() || rwBusy} activeOpacity={0.85}>
               {rwBusy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.rwCreateCtaText}>Créer le projet</Text>}
             </TouchableOpacity>
@@ -962,6 +979,7 @@ function makeStyles(c: any) {
   rwCreateCard: { width: '100%', maxWidth: 420, alignSelf: 'center', backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20 },
   rwCreateHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   rwLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
+  rwCurrencyHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, marginBottom: 10 },
   rwInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 14, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   rwEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
   rwCreateCta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },

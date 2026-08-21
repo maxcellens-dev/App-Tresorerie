@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../hooks/data/useTransactionMonthOverrides';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface EditTransactionMonthModalProps {
@@ -24,6 +24,12 @@ interface EditTransactionMonthModalProps {
   year: number;
   month: number;
   originalAmount: number;
+  /**
+   * Devise du COMPTE de l'opération. Le montant saisi ici est enregistré tel quel dans
+   * `transaction_month_overrides` et remplace l'échéance sur ce compte : il est donc dans SA devise,
+   * jamais dans la devise de référence. Absente → devise de référence (cas mono-devise).
+   */
+  currency?: string | null;
   currentOverrideAmount?: number;
   profileId: string | undefined;
 }
@@ -39,11 +45,13 @@ export default function EditTransactionMonthModal({
   year,
   month,
   originalAmount,
+  currency,
   currentOverrideAmount,
   profileId,
 }: EditTransactionMonthModalProps) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const symbol = currency ? currencySymbolFor(currency) : CURRENCY_SYMBOL;
   const [inputValue, setInputValue] = useState(String(currentOverrideAmount ?? originalAmount));
   const setOverride = useSetTransactionMonthOverride(profileId);
   const deleteOverride = useDeleteTransactionMonthOverride(profileId);
@@ -126,13 +134,13 @@ export default function EditTransactionMonthModal({
             )}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Montant original:</Text>
-              <Text style={styles.infoValue}>{originalAmount.toFixed(2)} {CURRENCY_SYMBOL}</Text>
+              <Text style={styles.infoValue}>{originalAmount.toFixed(2)} {symbol}</Text>
             </View>
             {currentOverrideAmount !== undefined && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Montant actuel:</Text>
                 <Text style={[styles.infoValue, { color: '#f59e0b' }]}>
-                  {currentOverrideAmount.toFixed(2)} {CURRENCY_SYMBOL}
+                  {currentOverrideAmount.toFixed(2)} {symbol}
                 </Text>
               </View>
             )}
@@ -151,7 +159,7 @@ export default function EditTransactionMonthModal({
                 keyboardType="decimal-pad"
                 editable={!isLoading}
               />
-              <Text style={styles.currency}>{CURRENCY_SYMBOL}</Text>
+              <Text style={styles.currency}>{symbol}</Text>
             </View>
           </View>
 

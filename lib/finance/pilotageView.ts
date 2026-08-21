@@ -164,6 +164,34 @@ export function computeRelykaBreakdown(
 }
 
 /**
+ * TON du chiffre principal — la couleur du Relyka, décidée UNE fois.
+ *
+ * Deux corrections tiennent dans cette fonction :
+ *
+ *  1. La règle était recopiée à l'identique dans `usePilotageViewModel` ET dans l'écran Pilotage :
+ *     deux expressions à quatre branches à garder synchronisées à la main.
+ *
+ *  2. Elle testait `relykaAffiche < 0` — une condition qui n'est JAMAIS vraie. `relykaAffiche`
+ *     dérive de `Math.max(0, …)` : il vaut 0 au plus bas. Le rouge n'a donc jamais pu s'afficher,
+ *     et quelqu'un réellement à −900 € voyait l'orange du « tout est déjà alloué », c'est-à-dire la
+ *     couleur d'une situation normale. C'est le montant BRUT qui porte le signe : c'est lui qu'on
+ *     interroge.
+ *
+ * Ordre volontaire : « mis de côté » (bleu) passe AVANT le rouge — si remettre ce qu'il a rangé
+ * suffit à repasser dans le vert, il n'est pas dans le rouge, il a juste tout affecté.
+ */
+export type RelykaTone = 'positive' | 'allocated' | 'negative' | 'empty';
+
+export function relykaTone(
+  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'resteDisponibleBrut'>,
+): RelykaTone {
+  if (b.relykaAffiche > 0) return 'positive';
+  if (b.relykaAlloueVolontairement) return 'allocated';
+  if (b.resteDisponibleBrut < 0) return 'negative';
+  return 'empty';
+}
+
+/**
  * ── Message de BASE du Relyka : ce qu'EST le chiffre ────────────────────────────────────────────
  * Quand le Relyka est POSITIF, la phrase est passe-partout (« voici ce qu'il devrait te rester…
  * utilise-le librement ») : elle ne vaut que si elle est seule à l'écran — d'où `isGeneric`, que

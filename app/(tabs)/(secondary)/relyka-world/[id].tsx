@@ -15,7 +15,8 @@ import { useAppColors } from '../../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
-import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
+import { currencySymbolFor, convertAmount } from '../../../../lib/finance/currency';
+import { useCurrencyRates } from '../../../../hooks/data/useCurrencyRates';
 import { sheetWidth, useSheetBottomPadding } from '../../../../lib/ui/appLayout';
 import { todayISO } from '../../../../lib/dateUtils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
@@ -31,7 +32,9 @@ import {
 
 const PROJ_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
-const fmt = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOL}`;
+/** Montant dans une devise donnée. Toujours explicite ici : ce projet en manipule deux. */
+const fmtIn = (n: number, currency: string) =>
+  `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currencySymbolFor(currency)}`;
 
 export default function RelykaWorldDetail() {
   const COLORS = useAppColors();
@@ -113,13 +116,41 @@ export default function RelykaWorldDetail() {
       .reduce((s, p) => s + p.amount, 0);
   }, [payers, myParticipantId]);
 
-  const total = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
-  // Ma part = somme de mes quotes-parts (ce que je dois payer au final).
-  const myShare = useMemo(() => shares.filter((s) => s.participant_id === myParticipantId).reduce((sum, s) => sum + s.amount, 0), [shares, myParticipantId]);
-  // Somme de MES avances (une dépense réglée à deux ne compte que pour ma part) — cf. migration 184.
-  const myPaid = useMemo(() => expenses.reduce((sum, e) => sum + myPaidOn(e), 0), [expenses, myPaidOn]);
+  /* ── DEVISES ────────────────────────────────────────────────────────────────────────────────
+     Le PROJET a une devise (migration 195) : c'est celle de tous ses TOTAUX — total du projet, ma
+     part, mes avances, les soldes « qui doit quoi ». Chaque DÉPENSE, elle, est libellée dans la
+     devise où elle a été payée (celle du compte utilisé, ou celle du projet en cash).
+     On affiche donc chaque dépense dans SA devise, et on convertit dès qu'on additionne. */
+  const projectCurrency = project?.currency || 'EUR';
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  /** Montant d'une dépense (ou d'une de ses lignes) ramené dans la devise du projet. */
+  const toProject = useCallback(
+    (amount: number, e: { currency?: string | null }) =>
+      convertAmount(amount, e.currency || projectCurrency, projectCurrency, rates) ?? amount,
+    [projectCurrency, rates],
+  );
+  /** Total en devise du projet — le format par défaut de cet écran. */
+  const fmt = useCallback((n: number) => fmtIn(n, projectCurrency), [projectCurrency]);
 
-  const balances = useMemo(() => computeBalances(participants, expenses, shares, payers), [participants, expenses, shares, payers]);
+  const total = useMemo(() => expenses.reduce((s, e) => s + toProject(e.amount, e), 0), [expenses, toProject]);
+  // Ma part = somme de mes quotes-parts (ce que je dois payer au final), converties.
+  const expenseById = useMemo(() => new Map(expenses.map((e) => [e.id, e])), [expenses]);
+  const myShare = useMemo(
+    () => shares
+      .filter((s) => s.participant_id === myParticipantId)
+      .reduce((sum, s) => {
+        const e = expenseById.get(s.expense_id);
+        return sum + (e ? toProject(s.amount, e) : s.amount);
+      }, 0),
+    [shares, myParticipantId, expenseById, toProject],
+  );
+  // Somme de MES avances (une dépense réglée à deux ne compte que pour ma part) — cf. migration 184.
+  const myPaid = useMemo(() => expenses.reduce((sum, e) => sum + toProject(myPaidOn(e), e), 0), [expenses, myPaidOn, toProject]);
+
+  const balances = useMemo(
+    () => computeBalances(participants, expenses, shares, payers, toProject),
+    [participants, expenses, shares, payers, toProject],
+  );
   const settlements = useMemo(() => settleUp(participants.map((p) => ({ id: p.id, amount: balances.get(p.id) ?? 0 }))), [participants, balances]);
   const myBalance = myParticipantId ? (balances.get(myParticipantId) ?? 0) : 0;
 
@@ -138,6 +169,15 @@ export default function RelykaWorldDetail() {
      On ne montre QUE ses propres dépenses : le compte d'un autre participant ne nous regarde pas
      (et on ne pourrait de toute façon pas le modifier). */
   const myAccountName = (id: string) => (myAccounts as any[]).find((a) => a.id === id)?.name ?? 'Compte';
+  /* Devise d'un regroupement de l'onglet « Par compte ». Un compte est MONO-DEVISE : son total est
+     donc dans SA devise, et non dans celle du projet — c'est ce qui doit correspondre au relevé
+     bancaire. La colonne « cash » n'a pas de compte : elle se lit en devise du projet. */
+  const bucketCurrency = useCallback(
+    (key: string) => (key === 'cash'
+      ? projectCurrency
+      : ((myAccounts as any[]).find((a) => a.id === key)?.currency || projectCurrency)),
+    [myAccounts, projectCurrency],
+  );
 
 
   const byAccount = useMemo(() => {
@@ -145,7 +185,11 @@ export default function RelykaWorldDetail() {
     const push = (key: string, e: RwExpense, amount: number, myAmount: number) => {
       const cur = m.get(key) ?? { rows: [], total: 0 };
       if (!cur.rows.some((x) => x.expense.id === e.id)) cur.rows.push({ expense: e, myAmount });
-      cur.total += amount;
+      /* Le total d'un regroupement se lit dans la devise de CE compte. La dépense y est déjà, sauf
+         pour d'anciennes lignes saisies avant que la devise soit portée par la dépense — on les
+         ramène plutôt que de les additionner à l'aveugle. */
+      const target = bucketCurrency(key);
+      cur.total += convertAmount(amount, e.currency || target, target, rates) ?? amount;
       m.set(key, cur);
     };
     for (const e of expenses) {
@@ -169,11 +213,20 @@ export default function RelykaWorldDetail() {
       if (mine - covered > 0.02) push('cash', e, mine - covered, mine);
     }
     return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
-  }, [expenses, expenseAccounts, payers, myPaidOn, user?.id, myAccounts]);
+    // `bucketCurrency`/`rates` : les comptes et les taux arrivent après le premier rendu.
+  }, [expenses, expenseAccounts, payers, myPaidOn, user?.id, myAccounts, bucketCurrency, rates]);
 
   /** Reventilation en masse : compte source sélectionné, puis compte cible. */
   const [reassignFrom, setReassignFrom] = useState<string | null>(null);
   const [reassignBusy, setReassignBusy] = useState(false);
+  /* Devise du regroupement qu'on déplace, et comptes éligibles : la reventilation recrée les
+     transactions « pour le même montant », ce qui n'a de sens qu'entre comptes de MÊME devise. */
+  const reassignCurrency = reassignFrom ? bucketCurrency(reassignFrom) : projectCurrency;
+  const reassignTargets = useMemo(
+    () => (checkingAccounts as any[]).filter((a) => a.id !== reassignFrom && (a.currency || projectCurrency) === reassignCurrency),
+    [checkingAccounts, reassignFrom, reassignCurrency, projectCurrency],
+  );
+  const reassignHiddenCount = (checkingAccounts as any[]).filter((a) => a.id !== reassignFrom).length - reassignTargets.length;
   const runReassign = async (toAccountId: string | null) => {
     if (!reassignFrom) return;
     const group = byAccount.find(([k]) => k === reassignFrom);
@@ -391,14 +444,15 @@ export default function RelykaWorldDetail() {
                   <View style={styles.accHead}>
                     <Ionicons name={key === 'cash' ? 'cash-outline' : 'card-outline'} size={17} color={key === 'cash' ? COLORS.textSecondary : COLORS.blue} />
                     <Text style={styles.accName} numberOfLines={1}>{key === 'cash' ? 'Cash (aucun compte impacté)' : myAccountName(key)}</Text>
-                    <Text style={styles.accTotal}>{fmt(g.total)}</Text>
+                    {/* Total dans la devise du COMPTE : c'est ce qui doit correspondre au relevé. */}
+                    <Text style={styles.accTotal}>{fmtIn(g.total, bucketCurrency(key))}</Text>
                   </View>
                   <Text style={styles.accCount}>{g.rows.length} dépense{g.rows.length > 1 ? 's' : ''}</Text>
                   {g.rows.slice(0, 4).map(({ expense: e }) => (
                     <TouchableOpacity key={e.id} style={styles.accLine} activeOpacity={0.75}
                       onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/add-expense?projectId=${projectId}&expenseId=${e.id}` as any)}>
                       <Text style={styles.accLineText} numberOfLines={1}>{e.emoji || '🧾'} {e.title || 'Dépense'}</Text>
-                      <Text style={styles.accLineAmount}>{fmt(e.amount)}</Text>
+                      <Text style={styles.accLineAmount}>{fmtIn(e.amount, e.currency || bucketCurrency(key))}</Text>
                     </TouchableOpacity>
                   ))}
                   {g.rows.length > 4 && <Text style={styles.accMore}>+ {g.rows.length - 4} autre{g.rows.length - 4 > 1 ? 's' : ''}</Text>}
@@ -433,14 +487,23 @@ export default function RelykaWorldDetail() {
                         <Text style={styles.expSub}>
                           {(() => {
                             const paid = paidByParticipant(e, payers);
+                            const cur = e.currency || projectCurrency;
                             return paid.length > 1
-                              ? `Payé par ${paid.map((p) => `${nameOf(p.participant_id)} (${fmt(p.amount)})`).join(' et ')}`
+                              ? `Payé par ${paid.map((p) => `${nameOf(p.participant_id)} (${fmtIn(p.amount, cur)})`).join(' et ')}`
                               : `Payé par ${nameOf(paid[0]?.participant_id ?? e.paid_by)}`;
                           })()}
                           {e.account_id ? '' : ' · cash'}
                         </Text>
                       </View>
-                      <Text style={styles.expAmount}>{fmt(e.amount)}</Text>
+                      {/* Une dépense s'affiche dans la devise où elle a été PAYÉE — c'est le montant
+                          que l'utilisateur retrouve sur son relevé. Sa contre-valeur en devise du
+                          projet, celle des soldes, est rappelée juste en dessous. */}
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.expAmount}>{fmtIn(e.amount, e.currency || projectCurrency)}</Text>
+                        {(e.currency || projectCurrency) !== projectCurrency && (
+                          <Text style={styles.expConverted}>≈ {fmt(toProject(e.amount, e))}</Text>
+                        )}
+                      </View>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -768,8 +831,18 @@ export default function RelykaWorldDetail() {
               compte choisi, à la même date et pour le même montant. Les dépenses du projet, elles,
               ne bougent pas.
             </Text>
+            {/* « Le même montant » n'a de sens qu'à devise égale : recréer une dépense de 100 CHF
+                sur un compte en euros la transformerait en 100 €. On n'offre donc que les comptes
+                de la MÊME devise que le regroupement d'origine, et on le dit s'il en manque. */}
+            {reassignHiddenCount > 0 && (
+              <Text style={styles.reassignNote}>
+                {reassignHiddenCount === 1 ? '1 compte est masqué' : `${reassignHiddenCount} comptes sont masqués`} :
+                {' '}ils ne sont pas dans la même devise ({currencySymbolFor(reassignCurrency)}) que ces dépenses.
+                Déplacer un montant d'une devise à l'autre changerait ce qui a réellement été payé.
+              </Text>
+            )}
             <ScrollView style={{ maxHeight: 320 }}>
-              {checkingAccounts.filter((a: any) => a.id !== reassignFrom).map((a: any) => (
+              {reassignTargets.map((a: any) => (
                 <TouchableOpacity key={a.id} style={styles.reassignRow} onPress={() => runReassign(a.id)} disabled={reassignBusy} activeOpacity={0.8}>
                   <Ionicons name="card-outline" size={17} color={COLORS.blue} />
                   <Text style={styles.reassignName}>{a.name}</Text>
@@ -854,6 +927,7 @@ function makeStyles(c: any) {
     expTitle: { fontSize: 14, fontWeight: '700', color: c.text },
     expSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
     expAmount: { fontSize: 15, fontWeight: '800', color: c.text },
+    expConverted: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
     balanceHeadCard: { backgroundColor: c.card, borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 16, alignItems: 'center' },
     balanceHeadText: { fontSize: 16, fontWeight: '800', color: c.text },
     sectionLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8, marginBottom: 8 },
@@ -885,6 +959,7 @@ function makeStyles(c: any) {
     removeBackText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
     reassignRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8 },
     reassignName: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text },
+    reassignNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginBottom: 10 },
 
     // Onglet « Par compte »
     accHint: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },

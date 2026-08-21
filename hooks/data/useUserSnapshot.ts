@@ -23,6 +23,7 @@ import { useTransactionMonthOverrides } from './useTransactionMonthOverrides';
 import { useCategories } from './useCategories';
 import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
+import { MONTHLY_FACTOR_BY_RULE } from '../../lib/finance/recurrence';
 import { useProjects } from './useProjects';
 import { useSharedContribution } from './useSharedContribution';
 import { computeAmortization, addMonthsISO } from '../../lib/finance/amortization';
@@ -391,7 +392,8 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   // sens) + virements ponctuels futurs déjà saisis, cumulés mois par mois (hors rendement).
   const savingsInvestForecast = useMemo(() => {
     const today = todayISO();
-    const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+    // Facteurs PARTAGÉS (lib/finance/recurrence) — une seule définition pour toute l'app.
+    const RULE_MONTHLY = MONTHLY_FACTOR_BY_RULE;
     const acctTypeById: Record<string, string> = {};
     for (const a of allAccounts ?? []) acctTypeById[a.id] = (a as any).type;
     // Flux net signé VERS chaque poche (savings/investment), par mois +1 … +12.
@@ -486,7 +488,8 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   // Contribution récurrente mensuelle vers les comptes joints « contribution » (équivalent mensuel).
   const jointContributionMonthly = useMemo(() => {
     const today = todayISO();
-    const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+    // Facteurs PARTAGÉS (lib/finance/recurrence) — une seule définition pour toute l'app.
+    const RULE_MONTHLY = MONTHLY_FACTOR_BY_RULE;
     let total = 0;
     const seen = new Set<string>();
     for (const t of transactions ?? []) {
@@ -566,7 +569,8 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   // computeHealthScore) → persistées après un bilan global, et comparées au précédent (évolution).
   const currentBilanMetrics = useMemo<BilanMetricsRow | null>(() => {
     if (!pilotage) return null;
-    const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+    // Facteurs PARTAGÉS (lib/finance/recurrence) — une seule définition pour toute l'app.
+    const RULE_MONTHLY = MONTHLY_FACTOR_BY_RULE;
     const income = incomeRef?.avg || pilotage.avg_monthly_income || 0;
     const fixedMonthly = recurrings.expenses.reduce((t, r) => t + r.amount * (RULE_MONTHLY[r.rule] ?? 1), 0);
     const engaged = deriveEngaged(creditsSummary, fixedMonthly, jointContributionMonthly);
