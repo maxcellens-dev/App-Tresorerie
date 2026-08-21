@@ -90,16 +90,29 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
   if (!supabase) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
 
   // Comptes auxquels je participe : joints que JE possède + comptes où je suis membre.
+  /* ⚠️ TOUTES les erreurs sont levées, aucune n'est avalée.
+     Ce que cette fonction produit alimente le PILOTAGE : le facteur d'impact décide de la fraction
+     d'un compte partagé qui compte dans les chiffres de l'utilisateur. Or une lecture ratée était
+     indiscernable d'une absence de données, et les replis vont tous dans le même sens — le PIRE :
+       • `account_members` en échec → aucun membre → N = 1 → `effectiveImpactPct(null, 1)` = 100 %.
+         Un compte joint partagé à deux comptait alors pour SA TOTALITÉ dans le Relyka, la
+         projection et le plan de trésorerie. Un doublement silencieux des montants d'autrui.
+       • la liste des comptes en échec → le compte partagé disparaît purement des agrégats.
+     Dans les deux cas l'écran restait crédible, et c'est précisément ce qui rend la panne
+     dangereuse. En levant, react-query garde le dernier état connu et réessaie. */
   const [ownJointsRes, myMemsRes] = await Promise.all([
     supabase.from('accounts').select('*').eq('profile_id', profileId).eq('is_joint', true).eq('is_active', true),
     supabase.from('account_members').select('account_id').eq('user_id', profileId),
   ]);
+  if (ownJointsRes.error) throw ownJointsRes.error;
+  if (myMemsRes.error) throw myMemsRes.error;
   const ownJoints = (ownJointsRes.data ?? []) as any[];
   const memberAcctIds = ((myMemsRes.data ?? []) as any[]).map((m) => m.account_id);
 
   let memberAccts: any[] = [];
   if (memberAcctIds.length > 0) {
-    const { data } = await supabase.from('accounts').select('*').in('id', memberAcctIds).eq('is_active', true);
+    const { data, error } = await supabase.from('accounts').select('*').in('id', memberAcctIds).eq('is_active', true);
+    if (error) throw error;
     memberAccts = (data ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
   }
 
@@ -110,14 +123,18 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
   // Membres des comptes partagés + TOUTES leurs transactions : les deux ne dépendent que de
   // sharedIds → EN PARALLÈLE (1 aller-retour économisé sur ce fetch, qui est dans le chemin
   // critique du pilotage — donc de l'enrichissement de la carte Pouls après chaque saisie).
-  const [{ data: allMems }, { data: tx }] = await Promise.all([
+  const [memsRes, txRes] = await Promise.all([
     supabase.from('account_members').select('account_id, user_id, impact_pct, shared_mode').in('account_id', sharedIds),
     supabase.from('transactions')
       .select('*, account:accounts!account_id(name, currency, is_joint, profile_id), category:categories!category_id(*)')
       .in('account_id', sharedIds),
   ]);
+  // `memsRes` porte le nombre de participants : sans lui, la part de chacun vaudrait 100 % (cf.
+  // l'avertissement en tête de fonction). `txRes` porte l'activité du compte.
+  if (memsRes.error) throw memsRes.error;
+  if (txRes.error) throw txRes.error;
 
-  return buildSharedContribution(profileId, sharedAccounts, allMems as any[], tx as any[]);
+  return buildSharedContribution(profileId, sharedAccounts, memsRes.data as any[], txRes.data as any[]);
 }
 
 export function useSharedContribution(profileId: string | undefined) {

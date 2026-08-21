@@ -132,7 +132,28 @@ export function useAllMemberNames(userId: string | undefined) {
     queryKey: ['all_member_names', userId],
     enabled: !!userId && ok(),
     queryFn: async (): Promise<Record<string, string>> => {
-      const { data, error } = await supabase!.from('account_members').select('id, display_name');
+      /* ⚠️ La RLS N'EST PAS UN FILTRE DE LISTE.
+         `acct_mem_select` vaut `acct_can_access(account_id) OR is_app_admin()` (migration 102) : la
+         branche admin fait qu'un `select` NU ramenait, pour un compte administrateur, les lignes
+         `account_members` de TOUS les utilisateurs de l'app — donc les prénoms de leurs proches,
+         chargés en mémoire pour rien et croissant avec la base. Le périmètre voulu ici est « les
+         membres de MES comptes » : il doit être écrit, pas déduit de la policy.
+         On borne donc explicitement aux comptes auxquels je participe (mêmes deux lectures que
+         fetchSharedContribution : mes comptes + les comptes où je suis membre). */
+      const [ownRes, mineRes] = await Promise.all([
+        supabase!.from('accounts').select('id').eq('profile_id', userId!),
+        supabase!.from('account_members').select('account_id').eq('user_id', userId!),
+      ]);
+      if (ownRes.error) throw ownRes.error;
+      if (mineRes.error) throw mineRes.error;
+
+      const ids = Array.from(new Set([
+        ...((ownRes.data ?? []) as any[]).map((a) => a.id),
+        ...((mineRes.data ?? []) as any[]).map((r) => r.account_id),
+      ]));
+      if (ids.length === 0) return {};
+
+      const { data, error } = await supabase!.from('account_members').select('id, display_name').in('account_id', ids);
       if (error) throw error;
       const m: Record<string, string> = {};
       for (const r of (data ?? []) as any[]) m[r.id] = r.display_name;

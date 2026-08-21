@@ -20,14 +20,23 @@
  * On conserve le séparateur qu'il a tapé (virgule OU point) : il continue de voir sa convention.
  * Une fois ce filtre en place, `parseFloat(x.replace(',', '.'))` redevient exact partout.
  */
-export function sanitizeAmountInput(raw: string): string {
+export function sanitizeAmountInput(raw: string, maxDecimals = 2): string {
   const cleaned = String(raw ?? '').replace(/[^0-9.,]/g, '');
   const first = cleaned.search(/[.,]/);
   if (first === -1) return cleaned;
   const separator = cleaned[first];
   const head = cleaned.slice(0, first);
-  const decimals = cleaned.slice(first + 1).replace(/[.,]/g, '').slice(0, 2);
+  const decimals = cleaned.slice(first + 1).replace(/[.,]/g, '').slice(0, Math.max(0, maxDecimals));
   return head + separator + decimals;
+}
+
+/**
+ * Saisie d'un TAUX (en %). Même normalisation, mais TROIS décimales : deux ne suffisent pas ici.
+ * Un taux de crédit à 1,125 % existe, et le tronquer à 1,12 % ne se verrait nulle part tout en
+ * décalant l'échéancier, le capital restant dû et le coût total du prêt sur toute sa durée.
+ */
+export function sanitizeRateInput(raw: string): string {
+  return sanitizeAmountInput(raw, 3);
 }
 
 /**

@@ -24,6 +24,8 @@ import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../../lib/finance/currency';
+import { sanitizeAmountInput, sanitizeRateInput, parseAmountInput } from '../../../../lib/ui/amountInput';
+import { useSubmitLock } from '../../../../hooks/platform/useSubmitLock';
 
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
@@ -50,6 +52,7 @@ export default function CreditDetailScreen() {
   const [evtKind, setEvtKind] = useState<'early_repayment' | 'rate_change'>('early_repayment');
   const [evtAmount, setEvtAmount] = useState('');
   const [evtDate, setEvtDate] = useState(todayISO());
+  const submitLock = useSubmitLock();
 
   // #3 — retour matériel (Android) : revenir à la page précédente plutôt que de quitter.
   useFocusEffect(useCallback(() => {
@@ -78,20 +81,32 @@ export default function CreditDetailScreen() {
       const raw = fields[key];
       if (raw == null) continue;
       if (raw.trim() === '') { delete cur[key]; continue; }
-      const v = parseFloat(raw.replace(',', '.'));
-      if (!Number.isNaN(v)) cur[key] = v;
+      const v = parseAmountInput(raw);
+      if (v != null) cur[key] = v;
     }
     if (Object.keys(cur).length === 0) delete next[String(period)]; else next[String(period)] = cur;
     await update.mutateAsync({ id: credit.id, schedule_overrides: Object.keys(next).length ? next : null } as any);
   };
 
   const saveEvent = async () => {
-    const v = parseFloat(evtAmount.replace(',', '.'));
-    if (Number.isNaN(v) || v <= 0 || !id) return;
-    await addEvent.mutateAsync(evtKind === 'early_repayment'
-      ? { credit_id: id, date: evtDate, kind: 'early_repayment', amount: v }
-      : { credit_id: id, date: evtDate, kind: 'rate_change', new_rate: v });
-    setShowEvt(false); setEvtAmount('');
+    const v = parseAmountInput(evtAmount);
+    if (v == null || v <= 0 || !id) return;
+    /* VERROU SYNCHRONE. Un événement de crédit n'est PAS idempotent : `credit_events` n'a aucune
+       contrainte d'unicité, donc deux taps rapprochés insèrent deux remboursements anticipés. Le
+       capital restant dû, l'échéancier et le coût total du prêt seraient alors faux — et comme les
+       échéances échues sont matérialisées en vraies transactions, l'erreur descend jusqu'aux
+       montants réels. Le drapeau `isPending` ne ferme la porte qu'au rendu suivant. */
+    if (!submitLock.acquire()) return;
+    try {
+      await addEvent.mutateAsync(evtKind === 'early_repayment'
+        ? { credit_id: id, date: evtDate, kind: 'early_repayment', amount: v }
+        : { credit_id: id, date: evtDate, kind: 'rate_change', new_rate: v });
+      setShowEvt(false); setEvtAmount('');
+    } finally {
+      // En cas d'échec, le modal reste ouvert avec la saisie intacte (l'erreur est signalée par le
+      // filet global des mutations) — et le bouton redevient utilisable pour réessayer.
+      submitLock.release();
+    }
   };
 
   if (!credit || !amort) {
@@ -332,7 +347,11 @@ export default function CreditDetailScreen() {
               ))}
             </View>
             <Text style={styles.mLabel}>{evtKind === 'early_repayment' ? 'Montant remboursé (€)' : 'Nouveau taux annuel (%)'}</Text>
-            <TextInput style={styles.mInput} value={evtAmount} onChangeText={setEvtAmount} keyboardType="decimal-pad" placeholder={evtKind === 'early_repayment' ? '10000' : '2.9'} placeholderTextColor={COLORS.textSecondary} />
+            {/* Un remboursement anticipé est un MONTANT (2 décimales), un changement de taux est un
+                TAUX (3 décimales — 1,125 % existe). Sans ce filtre, « 10.000 » était enregistré 10. */}
+            <TextInput style={styles.mInput} value={evtAmount}
+              onChangeText={(v) => setEvtAmount(evtKind === 'early_repayment' ? sanitizeAmountInput(v) : sanitizeRateInput(v))}
+              keyboardType="decimal-pad" placeholder={evtKind === 'early_repayment' ? '10000' : '2.9'} placeholderTextColor={COLORS.textSecondary} />
             <Text style={styles.mLabel}>Date (jj-mm-aaaa)</Text>
             <TextInput style={styles.mInput} value={formatDateFrench(evtDate)} onChangeText={(v) => { const m = v.match(/^(\d{2})-(\d{2})-(\d{4})$/); if (m) setEvtDate(`${m[3]}-${m[2]}-${m[1]}`); }} placeholder="jj-mm-aaaa" placeholderTextColor={COLORS.textSecondary} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
@@ -389,7 +408,7 @@ function RowEditModal({ visible, period, schedule, overrides, hasNext, onSave, o
   const field = (label: string, value: string, setter: (v: string) => void, computed: number) => (
     <View style={{ marginBottom: 10 }}>
       <Text style={styles.mLabel}>{label}</Text>
-      <TextInput style={styles.mInput} value={value} onChangeText={setter} keyboardType="decimal-pad"
+      <TextInput style={styles.mInput} value={value} onChangeText={(v) => setter(sanitizeAmountInput(v))} keyboardType="decimal-pad"
         placeholder={computed.toFixed(2)} placeholderTextColor={c.textSecondary} />
     </View>
   );

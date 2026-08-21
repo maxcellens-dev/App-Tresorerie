@@ -996,7 +996,7 @@ function EditTransactionScreen() {
                 accentColor={COLORS.emerald}
                 bgColor={COLORS.card}
                 textColor={COLORS.text}
-                textSecondaryColor="#334155"
+                textSecondaryColor={COLORS.textSecondary}
               />
             </Pressable>
           </Pressable>

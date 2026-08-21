@@ -62,6 +62,9 @@ export function useAllAccounts(profileId: string | undefined) {
       const memP = supabase.from('account_members').select('account_id, role').eq('user_id', profileId);
       const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
       if (ownErr) throw ownErr;
+      /* Mes appartenances : c'est ce qui fait exister les comptes PARTAGÉS dans cette liste. Une
+         lecture ratée les faisait tous disparaître, sans distinction d'avec « je n'en ai aucun ». */
+      if (memRes?.error) throw memRes.error;
 
       const roleById: Record<string, string> = {};
       const memberIds: string[] = [];
@@ -69,8 +72,9 @@ export function useAllAccounts(profileId: string | undefined) {
 
       let memberAccounts: any[] = [];
       if (memberIds.length > 0) {
-        const { data: ma } = await supabase
+        const { data: ma, error: maErr } = await supabase
           .from('accounts').select('*').in('id', memberIds).eq('is_active', true).order('name');
+        if (maErr) throw maErr;
         memberAccounts = (ma ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
       }
 
@@ -82,8 +86,13 @@ export function useAllAccounts(profileId: string | undefined) {
       // tous les membres) pour la part égale auto (100/N), et on lit le % explicite du participant courant.
       const sharedIds = all.filter((a) => a.is_joint || a._role !== 'owner').map((a) => a.id);
       if (sharedIds.length > 0) {
-        const { data: allMembers } = await supabase
+        /* ⚠️ Cette lecture donne le NOMBRE DE PARTICIPANTS, donc la part de chacun. Son erreur était
+           avalée : `_impact_pct` restait alors indéfini, et tout ce qui le lit retombe sur 100 %
+           (cf. useUserSnapshot, useCreditFlows). Un compte joint partagé à deux comptait donc pour
+           sa totalité — une panne réseau doublait la contribution d'autrui dans les chiffres. */
+        const { data: allMembers, error: membersErr } = await supabase
           .from('account_members').select('account_id, user_id, impact_pct').in('account_id', sharedIds);
+        if (membersErr) throw membersErr;
         const membersByAcct: Record<string, any[]> = {};
         for (const m of (allMembers ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
         for (const a of all) {
@@ -200,8 +209,17 @@ export function useAddAccount(profileId: string | undefined) {
       // deux `is_default` simultanés.
       const wantsDefault = !!input.is_default && (input.type || 'checking') === 'checking' && !input.is_joint;
       if (wantsDefault) {
-        await supabase.from('accounts').update({ is_default: false })
+        /* ⚠️ L'erreur DOIT être lue — c'est une ÉCRITURE dont dépend l'insertion qui suit.
+           L'index unique de la migration 146 refuse deux `is_default` simultanés : si ce retrait
+           échouait en silence, l'INSERT juste après explosait sur la contrainte, et l'utilisateur
+           se voyait refuser la création de son compte avec un message brut de la base
+           (« duplicate key value violates unique constraint »). On échoue ici, en expliquant.
+           `useSetDefaultAccount` contrôlait déjà ses deux écritures : on s'aligne dessus. */
+        const { error: clearDefaultErr } = await supabase.from('accounts').update({ is_default: false })
           .eq('profile_id', ownerId).eq('is_default', true);
+        if (clearDefaultErr) {
+          throw new Error("Impossible de changer de compte principal pour l'instant. Réessaie, ou crée le compte sans le marquer comme principal.");
+        }
       }
       const { data, error } = await supabase
         .from('accounts')
@@ -269,6 +287,32 @@ export function useCloseAccount(profileId: string | undefined) {
         .eq('profile_id', profileId)
         .single();
       if (accErr || !acc) throw new Error('Compte introuvable.');
+
+      /* ⚠️ Un compte qui porte un CRÉDIT ne peut pas être fermé tel quel — dans les deux branches
+         ci-dessous, le crédit se retrouvait dans un état incohérent, sans le moindre signal :
+           • suppression (0 écriture) → `credits.account_id` passe à NULL (ON DELETE SET NULL,
+             migration 104). Le crédit reste dans la liste mais `useCreditFlows` l'ignore
+             (`!c.account_id` → aucun flux) : il cesse d'exister pour la projection, le plan de
+             trésorerie et le Relyka, sans que rien ne l'explique à l'écran.
+           • archivage (avec écritures) → le compte sort de `useAllAccounts` (filtré is_active), donc
+             là encore plus aucun flux projeté… alors que `useMaterializeCredits`, lui, continuait de
+             créer de VRAIES transactions d'échéance sur ce compte devenu invisible. Les montants
+             projetés et les montants réellement écrits en base racontaient deux histoires.
+         On refuse donc, avec une consigne actionnable, plutôt que de laisser un crédit orphelin. */
+      const { data: attached, error: creditErr } = await supabase
+        .from('credits')
+        .select('label')
+        .eq('account_id', accountId)
+        .eq('is_active', true)
+        .limit(1);
+      if (creditErr) throw creditErr;
+      if ((attached ?? []).length > 0) {
+        throw new Error(
+          `Ce compte est le compte de prélèvement du crédit « ${(attached as any[])[0].label} ». `
+          + 'Rattache ce crédit à un autre compte (ou supprime-le) avant de fermer celui-ci.',
+        );
+      }
+
       const { count, error: countErr } = await supabase
         .from('transactions')
         .select('*', { count: 'exact', head: true })

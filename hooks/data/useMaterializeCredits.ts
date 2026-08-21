@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { todayISO } from '../../lib/dateUtils';
 import { useCredits } from './useCredits';
+import { useAllAccounts } from './useAccounts';
 import { useAllCreditEvents } from './useCreditEvents';
 import { computeCreditSchedule, creditScheduleHash } from '../../lib/finance/creditMaterialization';
 
@@ -27,14 +28,26 @@ export function useMaterializeCredits(profileId: string | undefined) {
   const syncedSig = useRef<string | null>(null);
   const { data: credits = [], isSuccess: creditsReady } = useCredits(profileId);
   const { data: eventsByCredit = {}, isSuccess: eventsReady } = useAllCreditEvents(profileId);
+  // isSuccess (et non isFetched) : une lecture en ERREUR ne doit pas passer pour « aucun compte actif ».
+  const { data: accounts = [], isSuccess: accountsReady } = useAllAccounts(profileId);
 
   useEffect(() => {
-    if (!supabase || !profileId || !creditsReady || !eventsReady) return;
+    if (!supabase || !profileId || !creditsReady || !eventsReady || !accountsReady) return;
 
+    /* On ne publie de tableau QUE pour un crédit dont le compte de prélèvement est encore ACTIF.
+       Un compte fermé mais porteur d'écritures est ARCHIVÉ, pas supprimé : il sort alors de
+       `useAllAccounts`, donc le crédit ne produit plus aucun flux projeté — pendant que la
+       matérialisation, elle, continuait d'écrire de vraies échéances dessus. L'app et la base ne
+       disaient plus la même chose.
+       Le verrou décisif est côté serveur (migration 197, c'est là que les lignes sont écrites) ;
+       `useCloseAccount` refuse en amont de fermer un compte porteur d'un crédit actif. Ici on évite
+       simplement de republier un échéancier pour un compte que plus personne ne regarde. */
+    const activeAccountIds = new Set(accounts.map((a) => a.id));
     // Crédits dont JE publie le tableau. `materialized_until` absent = migration 143 pas encore
     // appliquée → on ne tente rien (ni cache ni RPC), silencieusement.
     const own = credits.filter(
       (c) => c._role === 'owner' && c.is_active && !c.is_simulation && !!c.account_id
+        && activeAccountIds.has(c.account_id!)
         && c.materialized_until != null,
     );
     if (credits.length > 0 && credits.every((c) => c.materialized_until == null)) return;
@@ -104,5 +117,5 @@ export function useMaterializeCredits(profileId: string | undefined) {
         syncedSig.current = null;
       }
     })();
-  }, [profileId, creditsReady, eventsReady, credits, eventsByCredit, client]);
+  }, [profileId, creditsReady, eventsReady, accountsReady, credits, eventsByCredit, accounts, client]);
 }

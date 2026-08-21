@@ -23,6 +23,7 @@ import { useIsFocused } from 'expo-router';
 import CreditsTab from '../../../components/credit/CreditsTab';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
+import { computeAccountTotals, isSharedAccount } from '../../../lib/finance/accountTotals';
 import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
 import { useProfile } from '../../../hooks/data/useProfile';
 import { useAccountsTotalsFilter } from '../../../hooks/config/useUiPrefs';
@@ -118,9 +119,9 @@ function AccountsListScreen() {
   const { data: allAccounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
 
-  // Comptes PERSO (mon argent : owner + non joint) vs comptes PARTAGÉS (joints + reçus d'autres users).
-  // Les totaux/agrégats ne portent QUE sur les comptes perso (décision : les partagés/joints n'impactent
-  // pas mes finances). Les comptes partagés s'affichent dans une section dédiée.
+  /* Comptes PERSO (mon argent : owner + non joint) vs comptes PARTAGÉS (joints + reçus d'autres users).
+     Ces deux listes servent aux SECTIONS de la page. Les TOTAUX, eux, portent sur `allAccounts`
+     (cf. plus bas) : c'est le filtre Tout / Perso / Partagés qui décide du périmètre. */
   const accounts = allAccounts.filter((a) => a._role === 'owner' && !a.is_joint);
   const sharedAccounts = allAccounts.filter((a) => a._role !== 'owner' || a.is_joint);
 
@@ -143,25 +144,34 @@ function AccountsListScreen() {
   const { data: savingsCfg = SAVINGS_DEFAULTS } = useSavingsConfig();
   const refCode = profile?.currency_code ?? 'EUR';
   const refSymbol = currencySymbolFor(refCode);
-  const mixedCurrencies = new Set(accounts.map((a) => a.currency || 'EUR')).size > 1;
   // Taux manquant → on garde la valeur brute (rare ; agrégat alors indicatif).
   const toRef = (a: { balance: number; currency?: string }) =>
     convertAmount(Number(a.balance), a.currency || 'EUR', refCode, rates) ?? Number(a.balance);
-  // #5 — Dans les AGRÉGATS (patrimoine, total liquidités), un compte partagé compte à hauteur de mon %
-  // d'impact (la LISTE garde le solde réel par compte). _impact_pct = undefined → 100% (compte perso).
-  const impactFactor = (a: any) => (a._impact_pct != null ? a._impact_pct / 100 : 1);
-  const toRefWeighted = (a: any) => toRef(a) * impactFactor(a);
   // #2 — Filtre persistant des totaux : tout / perso / partagés.
   const { filter: totalsFilter, setFilter: setTotalsFilter } = useAccountsTotalsFilter(user?.id);
-  const isShared = (a: any) => !!a.is_joint || a._role !== 'owner';
-  const matchesFilter = (a: any) => totalsFilter === 'all' ? true : (totalsFilter === 'shared' ? isShared(a) : !isShared(a));
-  const sumRef = (filter: (a: any) => boolean) => accounts.filter((a) => matchesFilter(a) && filter(a)).reduce((s, a) => s + toRefWeighted(a), 0);
-
-  const total = accounts.filter(matchesFilter).reduce((s, a) => s + toRefWeighted(a), 0);
-  const totalChecking = sumRef((a) => a.type === 'checking');
-  const totalSavings = sumRef((a) => a.type === 'savings');
-  const totalInvested = sumRef((a) => a.type === 'investment');
-  const approx = mixedCurrencies ? '≈ ' : '';
+  /* ⚠️ Le périmètre des totaux est `allAccounts`, PAS `accounts`.
+     `accounts` vaut `allAccounts.filter(owner && !is_joint)` : aucun de ses éléments ne peut donc
+     être « partagé ». Conséquences en chaîne, toutes silencieuses :
+       • la condition d'affichage des puces (`accounts.some(isShared)`) était toujours FAUSSE — le
+         filtre Tout / Perso / Partagés, sa préférence persistée comprise, n'a jamais été visible ;
+       • s'il l'avait été, « Partagés » aurait affiché 0 € et « Tout » n'aurait montré que le perso ;
+       • la pondération par % d'impact (#5, migration 103) ne s'appliquait à rien, puisqu'elle
+         n'existe que pour les comptes partagés.
+     C'est le FILTRE qui découpe le périmètre ; les listes de la page, elles, gardent leurs deux
+     sections séparées.
+     Le calcul lui-même vit dans lib/finance/accountTotals — testé, avec pour règle que la somme des
+     cartes rendues égale le total affiché juste en dessous (le type « Autre » y compris). */
+  const totalScope = allAccounts;
+  const T = computeAccountTotals(totalScope as any, totalsFilter, (v: number, cur: string) => toRef({ balance: v, currency: cur }));
+  const activeFilter = T.appliedFilter;
+  const hasSharedAccounts = totalScope.some(isSharedAccount as any);
+  const total = T.total;
+  const totalChecking = T.checking;
+  const totalSavings = T.savings;
+  const totalInvested = T.investment;
+  const totalOther = T.other;
+  const hasOther = T.hasOther;
+  const approx = T.mixedCurrencies ? '≈ ' : '';
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -207,18 +217,19 @@ function AccountsListScreen() {
 
           {/* ── Vue d'ensemble patrimoine (avant le total) ── */}
           {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
-          {accounts.length > 0 && (
+          {/* totalScope : un utilisateur qui n'a QUE des comptes partagés a droit à sa vue d'ensemble. */}
+          {totalScope.length > 0 && (
             <View ref={overviewRef} collapsable={false}>
             <View style={styles.overviewHeaderRow}>
               {/* « Vue d'ensemble » et non « Patrimoine » : ce total ne couvre que l'argent DES COMPTES
                   (courant + épargne + investissement), pas les biens possédés (logement, véhicule…). */}
               <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
               {/* #2 — filtre persistant des totaux (visible s'il y a des comptes partagés) */}
-              {accounts.some(isShared) && (
+              {hasSharedAccounts && (
                 <View style={styles.totalsFilterRow}>
                   {(['all', 'perso', 'shared'] as const).map((f) => (
-                    <TouchableOpacity key={f} onPress={() => setTotalsFilter(f)} style={[styles.totalsFilterChip, totalsFilter === f && styles.totalsFilterChipActive]}>
-                      <Text style={[styles.totalsFilterText, totalsFilter === f && styles.totalsFilterTextActive]}>{f === 'all' ? 'Tout' : f === 'perso' ? 'Perso' : 'Partagés'}</Text>
+                    <TouchableOpacity key={f} onPress={() => setTotalsFilter(f)} style={[styles.totalsFilterChip, activeFilter === f && styles.totalsFilterChipActive]}>
+                      <Text style={[styles.totalsFilterText, activeFilter === f && styles.totalsFilterTextActive]}>{f === 'all' ? 'Tout' : f === 'perso' ? 'Perso' : 'Partagés'}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -242,11 +253,14 @@ function AccountsListScreen() {
                   { label: 'Courant', value: totalChecking, color: COLORS.checking, icon: 'wallet-outline' },
                   { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline' },
                   { label: 'Investi', value: totalInvested, color: COLORS.investment, icon: 'trending-up-outline' },
+                  // Seulement si l'utilisateur a des comptes « Autre » — sinon les cartes ne
+                  // totaliseraient pas le montant affiché juste dessous.
+                  ...(hasOther ? [{ label: 'Autre', value: totalOther, color: COLORS.textSecondary, icon: 'ellipsis-horizontal-circle-outline' }] : []),
                 ].map((item) => (
                   <View key={item.label} style={[styles.overviewCard, { borderLeftColor: item.color }]}>
                     <Ionicons name={item.icon as any} size={14} color={item.color} style={{ marginBottom: 2 }} />
                     <Text style={styles.overviewLabel}>{item.label}</Text>
-                    <Text style={[styles.overviewValue, { color: semanticText(item.color, COLORS) }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.overviewValue, { color: semanticText(item.color, COLORS) }]}>
                       {approx}{item.value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {refSymbol}
                     </Text>
                   </View>
@@ -333,7 +347,8 @@ function AccountsListScreen() {
           {isLoading ? (
             <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
           ) : accounts.length === 0 ? (
-            <Text style={styles.empty}>Aucun compte. Appuyez sur « Compte » pour commencer.</Text>
+            // L'app TUTOIE partout : c'était « Appuyez sur ».
+            <Text style={styles.empty}>Aucun compte. Appuie sur « Compte » pour commencer.</Text>
           ) : (
             /* ── Liste Revolut ── */
             <View style={[styles.accountList, onbAccount ? onbGlow(COLORS, true) : null]}>
@@ -615,8 +630,11 @@ function makeStyles(c: any) {
   totalsFilterChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
   totalsFilterText: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
   totalsFilterTextActive: { color: c.text, fontWeight: '700' },
-  overviewRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, marginBottom: 0 },
-  overviewCard: { flex: 1, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, borderLeftWidth: 3, padding: 10 },
+  // flexWrap : avec une 4e carte (« Autre »), un petit écran ne peut plus tenir la ligne — les
+  // cartes passent alors sur deux rangs au lieu d'écraser les montants. minWidth 72 est calibré pour
+  // que les TROIS cartes habituelles restent sur un seul rang même sur le plus étroit des téléphones.
+  overviewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 24, marginBottom: 0 },
+  overviewCard: { flexGrow: 1, flexBasis: 0, minWidth: 72, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, borderLeftWidth: 3, padding: 10 },
   overviewLabel: { fontSize: 10, fontWeight: '600', color: c.textSecondary, marginBottom: 2 },
   overviewValue: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
 

@@ -36,6 +36,7 @@ import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency'
 import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
 import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 
 
 function TransferScreen() {
@@ -56,6 +57,7 @@ function TransferScreen() {
   const accounts = allAccounts.filter((a) => a._role !== 'read');
   const { data: allTransactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const submitLock = useSubmitLock();
   const deleteTransaction = useDeleteTransaction(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
   const releaseReserved = useReleaseReservedByProject(user?.id);
@@ -186,6 +188,13 @@ function TransferScreen() {
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
 
+    // VERROU SYNCHRONE. `addTransaction.isPending` désactive bien le bouton, mais seulement au rendu
+    // SUIVANT : deux taps rapprochés partent tous les deux avant ce rendu. Ici l'enjeu est double,
+    // puisqu'un virement écrit DEUX jambes — un doublon, ce sont quatre transactions et un solde
+    // faussé sur deux comptes à la fois. La référence, elle, est posée dans le même tour de boucle.
+    // Elle est prise APRÈS les validations (qui, elles, sortent sans rien écrire).
+    if (!submitLock.acquire()) return;
+
     // Atomicité (2 jambes + rollback) centralisée dans createTransferLegs — logique unique
     // partagée avec l'écran « Ajouter une transaction ».
     try {
@@ -219,6 +228,10 @@ function TransferScreen() {
       goBack();
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’effectuer le virement.');
+    } finally {
+      // Toujours libérer, y compris après un échec : sinon le bouton resterait muet et l'écran
+      // inutilisable jusqu'à sa fermeture.
+      submitLock.release();
     }
   }
 
@@ -522,7 +535,7 @@ function TransferScreen() {
                 accentColor={COLORS.emerald}
                 bgColor={COLORS.card}
                 textColor={COLORS.text}
-                textSecondaryColor="#334155"
+                textSecondaryColor={COLORS.textSecondary}
               />
             </Pressable>
           </Pressable>

@@ -29,7 +29,8 @@ import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
-import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { sanitizeAmountInput, sanitizeRateInput } from '../../../lib/ui/amountInput';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'immobilier', label: 'Immobilier', icon: 'home-outline' },
@@ -143,6 +144,7 @@ function CreditAddScreen() {
   const [showCal, setShowCal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const submitLock = useSubmitLock();
 
   // Édition : pré-remplir le formulaire une fois le crédit chargé.
   const [prefilled, setPrefilled] = useState(false);
@@ -292,6 +294,11 @@ function CreditAddScreen() {
     if (!label.trim()) return setError('Donne un libellé au crédit.');
     if (!C || C <= 0) return setError('Renseigne le capital emprunté.');
     if (!n || n <= 0) return setError('Renseigne la durée (en mois).');
+    /* VERROU SYNCHRONE. `saving` est un état React : il ne désactive le bouton qu'au rendu SUIVANT,
+       donc deux taps rapprochés créaient DEUX crédits identiques — deux échéanciers, deux séries de
+       mensualités matérialisées, un « reste à payer » doublé. Placé après les validations, qui
+       sortent sans rien écrire. */
+    if (!submitLock.acquire()) return;
     setSaving(true);
     const payload: any = {
       type, label: label.trim(), lender: lender.trim() || null, account_id: accountId, project_id: projectId,
@@ -327,7 +334,7 @@ function CreditAddScreen() {
        bouton « Enregistrer » désactivé et grisé POUR DE BON. L'utilisateur qui atteint sa limite
        voyait le message, fermait la modale… et ne pouvait plus rien enregistrer sans quitter
        l'écran. */
-    if (!editId && !(await guard('credit'))) { setSaving(false); return; }
+    if (!editId && !(await guard('credit'))) { submitLock.release(); setSaving(false); return; }
     try {
       if (editId) { await updateCredit.mutateAsync({ id: editId, ...payload }); router.back(); }
       else {
@@ -341,6 +348,9 @@ function CreditAddScreen() {
     } catch (e: any) {
       setError(e?.message ?? 'Impossible d\'enregistrer.');
       setSaving(false);
+      // Réessai possible après un échec. En cas de SUCCÈS on ne relâche pas : l'écran se ferme, et
+      // relâcher rouvrirait la porte pendant l'animation de sortie.
+      submitLock.release();
     }
   };
 
@@ -372,7 +382,7 @@ function CreditAddScreen() {
           <View style={styles.row2}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Capital emprunté (€) *</Text>
-              <TextInput style={styles.input} value={principal} onChangeText={setPrincipal} keyboardType="decimal-pad" placeholder="200000" placeholderTextColor={COLORS.textSecondary} />
+              <TextInput style={styles.input} value={principal} onChangeText={(v) => setPrincipal(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="200000" placeholderTextColor={COLORS.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Durée (mois) *</Text>
@@ -383,7 +393,7 @@ function CreditAddScreen() {
           <View style={styles.row2}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Taux annuel (%)</Text>
-              <TextInput style={styles.input} value={rate} onChangeText={(v) => setRate(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="3.5" placeholderTextColor={COLORS.textSecondary} />
+              <TextInput style={styles.input} value={rate} onChangeText={(v) => setRate(sanitizeRateInput(v))} keyboardType="decimal-pad" placeholder="3.5" placeholderTextColor={COLORS.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Assurance (€/mois)</Text>
@@ -463,7 +473,7 @@ function CreditAddScreen() {
                   <Text style={styles.feeLabel}>Intérêts (total)</Text>
                   <Text style={styles.feeSubHint}>Calculé : {amort ? fmt(amort.totalInterest) : '—'}. Laisse vide pour l'auto.</Text>
                 </View>
-                <TextInput style={styles.feeInput} value={interestManual} onChangeText={setInterestManual} keyboardType="decimal-pad" placeholder={amort ? amort.totalInterest.toFixed(2) : '0'} placeholderTextColor={COLORS.textSecondary} />
+                <TextInput style={styles.feeInput} value={interestManual} onChangeText={(v) => setInterestManual(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder={amort ? amort.totalInterest.toFixed(2) : '0'} placeholderTextColor={COLORS.textSecondary} />
               </View>
 
               <Text style={styles.feeGroup}>Intérêts & frais du prêt <Text style={styles.feeGroupHint}>(comptés dans le coût du prêt)</Text></Text>
@@ -472,7 +482,7 @@ function CreditAddScreen() {
               {LOAN_FEES.filter((f) => !(deferN > 0 && f.key === 'interim_interest')).map((f) => (
                 <View key={f.key} style={styles.feeRow}>
                   <Text style={styles.feeLabel}>{f.label}</Text>
-                  <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
+                  <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: sanitizeAmountInput(v) }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
                 </View>
               ))}
 
@@ -480,14 +490,14 @@ function CreditAddScreen() {
               {EXTRA_FEES.map((f) => (
                 <View key={f.key} style={styles.feeRow}>
                   <Text style={styles.feeLabel}>{f.label}</Text>
-                  <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
+                  <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: sanitizeAmountInput(v) }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
                 </View>
               ))}
 
               <Text style={styles.feeGroup}>Apport</Text>
               <View style={styles.feeRow}>
                 <Text style={styles.feeLabel}>Apport personnel</Text>
-                <TextInput style={styles.feeInput} value={fees.personal_contribution ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, personal_contribution: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
+                <TextInput style={styles.feeInput} value={fees.personal_contribution ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, personal_contribution: sanitizeAmountInput(v) }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
               </View>
             </View>
           )}
@@ -534,7 +544,7 @@ function CreditAddScreen() {
                       />
                       <TextInput
                         style={styles.segPay} keyboardType="decimal-pad"
-                        value={s.payment} onChangeText={(v) => { setSegments((p) => p.map((seg, j) => j === i ? { ...seg, payment: v } : seg)); setPaymentTouched(true); }}
+                        value={s.payment} onChangeText={(v) => { setSegments((p) => p.map((seg, j) => j === i ? { ...seg, payment: sanitizeAmountInput(v) } : seg)); setPaymentTouched(true); }}
                         placeholder={paliers ? String(paliers.resolved[i] ?? '') + ' (auto)' : 'auto'} placeholderTextColor={COLORS.textSecondary}
                       />
                       {i > 0 && (
@@ -621,7 +631,7 @@ function CreditAddScreen() {
                     </View>
                     <TextInput
                       style={styles.feeInput} value={fees.interim_interest ?? ''}
-                      onChangeText={(v) => setFees((p) => ({ ...p, interim_interest: v }))}
+                      onChangeText={(v) => setFees((p) => ({ ...p, interim_interest: sanitizeAmountInput(v) }))}
                       keyboardType="decimal-pad" placeholder="auto" placeholderTextColor={COLORS.textSecondary}
                     />
                   </View>
@@ -673,7 +683,7 @@ function CreditAddScreen() {
                       />
                       <TextInput
                         style={styles.segPay} keyboardType="decimal-pad"
-                        value={s.amount} onChangeText={(v) => setInsSegments((p) => p.map((seg, j) => j === i ? { ...seg, amount: v } : seg))}
+                        value={s.amount} onChangeText={(v) => setInsSegments((p) => p.map((seg, j) => j === i ? { ...seg, amount: sanitizeAmountInput(v) } : seg))}
                         placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary}
                       />
                       {i > 0 && (
@@ -707,8 +717,8 @@ function CreditAddScreen() {
                       {Array.from({ length: years }, (_, y) => (
                         <View key={y} style={styles.yRow}>
                           <Text style={[styles.yYear, { width: 55 }]}>{y + 1}</Text>
-                          <TextInput style={[styles.yInput, { width: 140 }]} value={payYear[y] ?? ''} onChangeText={(v) => setPayYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={stdPayment ? stdPayment.toFixed(2) : '—'} placeholderTextColor={COLORS.textSecondary} />
-                          <TextInput style={[styles.yInput, { width: 140 }]} value={insYear[y] ?? ''} onChangeText={(v) => setInsYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary} />
+                          <TextInput style={[styles.yInput, { width: 140 }]} value={payYear[y] ?? ''} onChangeText={(v) => setPayYear((p) => ({ ...p, [y]: sanitizeAmountInput(v) }))} keyboardType="decimal-pad" placeholder={stdPayment ? stdPayment.toFixed(2) : '—'} placeholderTextColor={COLORS.textSecondary} />
+                          <TextInput style={[styles.yInput, { width: 140 }]} value={insYear[y] ?? ''} onChangeText={(v) => setInsYear((p) => ({ ...p, [y]: sanitizeAmountInput(v) }))} keyboardType="decimal-pad" placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary} />
                         </View>
                       ))}
                     </View>

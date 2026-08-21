@@ -50,6 +50,7 @@ import PageLoader from '../../../components/layout/PageLoader';
 import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 
 
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
@@ -252,6 +253,10 @@ function AccountDetailScreen() {
   const [interestDateDisplay, setInterestDateDisplay] = useState(formatDateFrench(todayISO()));
   const [showInterestCalendar, setShowInterestCalendar] = useState(false);
   const [interestLoading, setInterestLoading] = useState(false);
+  /* Verrou SYNCHRONE partagé par les quatre écritures de cet écran (régul de solde, apport,
+     plus/moins-value, intérêts). Toutes créent une TRANSACTION : les rejouer en crée une de plus.
+     Les drapeaux `…Loading` ne désactivent le bouton qu'au rendu SUIVANT — cf. useSubmitLock. */
+  const submitLock = useSubmitLock();
 
   async function handleBalance() {
     const newBalance = parseFloat(balanceInput.replace(',', '.'));
@@ -260,6 +265,7 @@ function AccountDetailScreen() {
       return;
     }
     if (!account || !id || !user?.id) return;
+    if (!submitLock.acquire()) return; // verrou SYNCHRONE : une régul de plus par tap, sinon
     const diff = newBalance - balanceAtDate;
     // Écart 0 = le user CONFIRME son solde → c'est une vraie VÉRIFICATION (ancre écart 0) :
     // elle calibre sa dérive vers 0 et fait remonter la confiance. On ne la refuse plus.
@@ -284,6 +290,7 @@ function AccountDetailScreen() {
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
     } finally {
+      submitLock.release();
       setBalanceLoading(false);
     }
   }
@@ -295,6 +302,7 @@ function AccountDetailScreen() {
       return;
     }
     if (!id || !user?.id) return;
+    if (!submitLock.acquire()) return; // un apport de plus par tap, sinon
     setApportLoading(true);
     try {
       await addTransaction.mutateAsync({
@@ -318,6 +326,7 @@ function AccountDetailScreen() {
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
+      submitLock.release();
       setApportLoading(false);
     }
   }
@@ -372,6 +381,7 @@ function AccountDetailScreen() {
     }
 
     if (!id || !user?.id) return;
+    if (!submitLock.acquire()) return; // une plus/moins-value de plus par tap, sinon
     setGainLossLoading(true);
     try {
       await addTransaction.mutateAsync({
@@ -400,6 +410,7 @@ function AccountDetailScreen() {
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
+      submitLock.release();
       setGainLossLoading(false);
     }
   }
@@ -431,6 +442,7 @@ function AccountDetailScreen() {
     }
 
     if (!id || !user?.id) return;
+    if (!submitLock.acquire()) return; // un versement d'intérêts de plus par tap, sinon
     setInterestLoading(true);
     try {
       await addTransaction.mutateAsync({
@@ -452,6 +464,7 @@ function AccountDetailScreen() {
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
+      submitLock.release();
       setInterestLoading(false);
     }
   }
@@ -761,7 +774,8 @@ function AccountDetailScreen() {
             <Ionicons name="information-circle" size={22} color={COLORS.blue} />
             <View style={{ flex: 1 }}>
               <Text style={styles.setupBannerTitle}>Renseigne ton solde pour bien démarrer</Text>
-              <Text style={styles.setupBannerText}>Appuyez ici pour saisir le solde réel de ce compte à aujourd'hui.</Text>
+              {/* L'app TUTOIE partout : c'était « Appuyez ici ». */}
+              <Text style={styles.setupBannerText}>Appuie ici pour saisir le solde réel de ce compte à aujourd'hui.</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
@@ -771,22 +785,35 @@ function AccountDetailScreen() {
           <View style={styles.apportCard}>
             <View style={styles.apportRow}>
               <Text style={styles.apportLabel}>Apport à la création</Text>
-              <View style={styles.apportEditRow}>
-                <TextInput
-                  style={styles.apportInput}
-                  value={apportBase}
-                  onChangeText={(v) => { setApportBase(sanitizeSignedAmountInput(v)); setApportBaseDirty(true); }}
-                  keyboardType="decimal-pad"
-                  placeholder="—"
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-                <Text style={styles.apportCur}>{CURRENCY_SYMBOL}</Text>
-                {apportBaseDirty && (
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider l'apport" style={styles.apportSave} onPress={saveApportBase}>
-                    <Ionicons name="checkmark" size={16} color={COLORS.bg} />
-                  </TouchableOpacity>
-                )}
-              </View>
+              {/* ⚠️ Champ réservé au PROPRIÉTAIRE. Modifier un compte passe par `useUpdateAccount`,
+                  qui filtre sur `profile_id = moi` : sur un compte partagé par quelqu'un d'autre, la
+                  requête ne touche aucune ligne et remonte une erreur brute de PostgREST. On offrait
+                  donc un champ éditable à des participants dont la saisie ne pouvait qu'échouer.
+                  Ils voient la valeur, ils ne la modifient pas. */}
+              {account._role === 'owner' ? (
+                <View style={styles.apportEditRow}>
+                  <TextInput
+                    style={styles.apportInput}
+                    value={apportBase}
+                    onChangeText={(v) => { setApportBase(sanitizeSignedAmountInput(v)); setApportBaseDirty(true); }}
+                    keyboardType="decimal-pad"
+                    placeholder="—"
+                    placeholderTextColor={COLORS.textSecondary}
+                  />
+                  <Text style={styles.apportCur}>{CURRENCY_SYMBOL}</Text>
+                  {apportBaseDirty && (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider l'apport" style={styles.apportSave} onPress={saveApportBase}>
+                      <Ionicons name="checkmark" size={16} color={COLORS.bg} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.apportValue}>
+                  {account.initial_contributed != null
+                    ? `${Math.round(account.initial_contributed).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`
+                    : '—'}
+                </Text>
+              )}
             </View>
             <View style={styles.apportRow}>
               <Text style={styles.apportLabel}>Apport actuel</Text>
@@ -1031,10 +1058,10 @@ function AccountDetailScreen() {
                 setShowBalanceCalendar(false);
               }}
               markedDates={balanceDate ? { [balanceDate]: { selected: true, selectedColor: COLORS.blue, selectedTextColor: '#000' } } : {}}
-              accentColor="#60a5fa"
+              accentColor={COLORS.blue}
               bgColor={COLORS.card}
               textColor={COLORS.text}
-              textSecondaryColor="#334155"
+              textSecondaryColor={COLORS.textSecondary}
             />
           </Pressable>
         </Pressable>
@@ -1291,7 +1318,7 @@ function AccountDetailScreen() {
               accentColor={COLORS.emerald}
               bgColor={COLORS.card}
               textColor={COLORS.text}
-              textSecondaryColor="#334155"
+              textSecondaryColor={COLORS.textSecondary}
             />
           </Pressable>
         </Pressable>
@@ -1319,7 +1346,7 @@ function AccountDetailScreen() {
               accentColor="#a78bfa"
               bgColor={COLORS.card}
               textColor={COLORS.text}
-              textSecondaryColor="#334155"
+              textSecondaryColor={COLORS.textSecondary}
             />
           </Pressable>
         </Pressable>
@@ -1447,7 +1474,7 @@ function AccountDetailScreen() {
               accentColor={COLORS.green}
               bgColor={COLORS.card}
               textColor={COLORS.text}
-              textSecondaryColor="#334155"
+              textSecondaryColor={COLORS.textSecondary}
             />
           </Pressable>
         </Pressable>
@@ -1618,6 +1645,8 @@ function makeStyles(c: any) {
   apportEditRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   apportInput: { minWidth: 90, textAlign: 'right', fontSize: 15, fontWeight: '700', color: c.text, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   apportCur: { fontSize: 14, color: c.textSecondary },
+  // Valeur en lecture seule (participant non propriétaire) : même poids visuel que le champ éditable.
+  apportValue: { fontSize: 15, fontWeight: '700', color: c.text },
   apportSave: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
   apportHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 2 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
