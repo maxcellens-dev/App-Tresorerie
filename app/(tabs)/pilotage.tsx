@@ -898,13 +898,10 @@ function PilotageScreen() {
         onSave={async () => {
           const weekly = parseFloat(weeklyVariableInput.replace(',', '.')) || 0;
           try {
+            /* La copie dénormalisée q9 est synchronisée PAR LE HOOK (useUpdateProfile), avec q8.
+               Elle était recopiée ici, si bien que le même réglage fait depuis « Profil financier »
+               ne la mettait pas à jour. Un seul endroit, les deux écrans alignés. */
             await updateProfileVar.mutateAsync({ weekly_variable_budget: weekly > 0 ? weekly : null });
-            // Sync best-effort de la réponse q9 (si la ligne existe déjà)
-            if (supabase && user?.id) {
-              await supabase.from('user_questionnaire_answers')
-                .update({ q9: weekly > 0 ? String(weekly) : '' })
-                .eq('user_id', user.id);
-            }
           } catch (e) { console.warn('[pilotage] maj budget variable échouée:', e); }
           setShowVariableModal(false);
           if (requireVariable && weekly > 0) userGuide.done('g2_variable');

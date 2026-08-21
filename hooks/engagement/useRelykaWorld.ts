@@ -189,7 +189,9 @@ export function useCreateRwProject(userId: string | undefined) {
 export function useUpdateRwProject(projectId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: { name?: string; description?: string; emoji?: string }) => {
+    /* `currency` : la devise de LECTURE du projet (totaux, soldes). La changer ne réécrit aucune
+       dépense — chacune garde la devise dans laquelle elle a été payée. */
+    mutationFn: async (patch: { name?: string; description?: string; emoji?: string; currency?: string }) => {
       if (!supabase || !projectId) throw new Error('Backend indisponible');
       const { error } = await supabase.from('rw_projects').update(patch).eq('id', projectId);
       if (error) throw error;

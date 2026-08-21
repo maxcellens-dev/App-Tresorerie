@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, Modal, Pressable, ScrollView, TouchableOpacity,
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
 import { RootPortal } from '../../lib/rootPortal';
 import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../../hooks/data/useRecurringTransactions';
@@ -40,7 +40,10 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
 
   const groups: RecurKind[] = ['transfer', 'expense', 'income'];
   const byKind = (k: RecurKind) => items.filter((i) => i.kind === k);
-  const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
+  /* Une récurrente est prélevée sur UN compte : son montant est libellé dans la devise de CE
+     compte, pas dans la devise de référence — c'est ce montant-là qui sortira. */
+  const eur = (n: number, currency?: string | null) =>
+    `${Math.round(n).toLocaleString('fr-FR')} ${currency ? currencySymbolFor(currency) : CURRENCY_SYMBOL}`;
 
   const openEdit = (id: string) => { onClose(); router.push(`/(tabs)/transactions/edit/${id}` as any); };
 
@@ -85,7 +88,7 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
                             <Text style={s.rowSub} numberOfLines={1}>{it.accountName && it.kind !== 'transfer' ? `${it.accountName} · ` : ''}prochaine {it.nextDate.slice(8, 10)}/{it.nextDate.slice(5, 7)}</Text>
                           </View>
                         </View>
-                        <Text style={[s.rowAmount, { color }]}>{eur(it.amount)}</Text>
+                        <Text style={[s.rowAmount, { color }]}>{eur(it.amount, it.accountCurrency)}</Text>
                         <Ionicons name="chevron-forward" size={16} color={c.textSecondary} />
                       </TouchableOpacity>
                     ))}

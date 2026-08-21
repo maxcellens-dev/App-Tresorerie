@@ -153,15 +153,28 @@ export function useUpdateProfile(profileId: string | undefined) {
         }
       }
 
-      // Synchro du questionnaire (q8 = la marge en chaîne) : copie DÉNORMALISÉE, elle ne conditionne
-      // rien à l'écran. On ne fait donc plus attendre l'utilisateur dessus — un aller-retour de moins
-      // sur le chemin critique. En cas d'échec, la valeur qui fait foi (profiles) reste juste.
-      if (safetyAmount !== undefined) {
+      /* Synchro du questionnaire — copies DÉNORMALISÉES (q8 = la marge, q9 = le budget variable
+         hebdomadaire), en chaîne. Elles ne conditionnent rien à l'écran : `profiles` fait foi, et
+         le moteur ne lit q9 QU'EN REPLI, quand `weekly_variable_budget` est absent. On ne fait donc
+         pas attendre l'utilisateur dessus — un aller-retour de moins sur le chemin critique.
+
+         ⚠️ q9 EST SYNCHRONISÉ ICI, ET NULLE PART AILLEURS. Il l'était dans la modale du Pilotage
+         seulement : l'écran « Profil financier », qui écrit exactement la même valeur, laissait
+         donc q9 périmé. Deux écrans, un même réglage, deux comportements — et un repli qui pouvait
+         ressusciter une vieille estimation le jour où l'utilisateur efface son budget variable.
+         Toute écriture de `weekly_variable_budget` passe par ce hook : c'est le bon endroit. */
+      const syncAnswers: Record<string, string> = {};
+      if (safetyAmount !== undefined) syncAnswers.q8 = String(safetyAmount);
+      if (payload.weekly_variable_budget !== undefined) {
+        // `null` (budget effacé) → chaîne vide, et non « null » : c'est ce que lit `weeklyVariableFromQ9`.
+        syncAnswers.q9 = payload.weekly_variable_budget ? String(payload.weekly_variable_budget) : '';
+      }
+      if (Object.keys(syncAnswers).length > 0) {
         void supabase
           .from('user_questionnaire_answers')
-          .update({ q8: String(safetyAmount), updated_at: new Date().toISOString() })
+          .update({ ...syncAnswers, updated_at: new Date().toISOString() })
           .eq('user_id', profileId)
-          .then(({ error: q8Err }) => { if (q8Err) console.warn('[useUpdateProfile] sync q8 échoué:', q8Err); });
+          .then(({ error: qErr }) => { if (qErr) console.warn('[useUpdateProfile] sync questionnaire échoué:', qErr); });
       }
     },
     // Mise à jour OPTIMISTE : on applique le changement dans le cache `profile` AVANT le réseau,

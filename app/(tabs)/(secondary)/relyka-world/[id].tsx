@@ -10,6 +10,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import CurrencyPicker from '../../../../components/account/CurrencyPicker';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../../hooks/theme/useResponsive';
@@ -98,10 +99,21 @@ export default function RelykaWorldDetail() {
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editEmoji, setEditEmoji] = useState('💸');
-  const openEdit = () => { setEditName(project?.name ?? ''); setEditDesc(project?.description ?? ''); setEditEmoji(project?.emoji || '💸'); setShowEdit(true); };
+  const [editCurrency, setEditCurrency] = useState('EUR');
+  const openEdit = () => {
+    setEditName(project?.name ?? ''); setEditDesc(project?.description ?? '');
+    setEditEmoji(project?.emoji || '💸'); setEditCurrency(project?.currency || 'EUR');
+    setShowEdit(true);
+  };
   const saveEdit = async () => {
     if (!editName.trim()) return;
-    await updateProject.mutateAsync({ name: editName.trim(), description: editDesc.trim(), emoji: editEmoji });
+    /* Changer la devise du projet est SANS DANGER : elle ne dit que dans quelle monnaie se LISENT
+       ses totaux. Aucune dépense n'est réécrite — chacune garde la devise dans laquelle elle a été
+       réellement payée, et c'est l'affichage qui convertit. D'où l'édition permise à tout moment,
+       même sur un projet déjà bien avancé. */
+    await updateProject.mutateAsync({
+      name: editName.trim(), description: editDesc.trim(), emoji: editEmoji, currency: editCurrency,
+    });
     setShowEdit(false);
   };
 
@@ -884,6 +896,13 @@ export default function RelykaWorldDetail() {
             <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="Nom" placeholderTextColor={COLORS.textSecondary} />
             <Text style={styles.label}>Description</Text>
             <TextInput style={styles.input} value={editDesc} onChangeText={setEditDesc} placeholder="Description (optionnel)" placeholderTextColor={COLORS.textSecondary} />
+            <Text style={styles.label}>Devise du projet</Text>
+            <CurrencyPicker value={editCurrency} onChange={setEditCurrency} />
+            <Text style={styles.editCurrencyHint}>
+              {editCurrency === (project?.currency || 'EUR')
+                ? 'La devise dans laquelle se lisent les totaux et les soldes entre participants.'
+                : `Les totaux passeront en ${editCurrency}. Les dépenses déjà saisies gardent la devise dans laquelle elles ont été payées : elles seront simplement converties à l'affichage.`}
+            </Text>
             <TouchableOpacity style={[styles.modalCta, !editName.trim() && { opacity: 0.5 }]} onPress={saveEdit} disabled={!editName.trim()} activeOpacity={0.85}>
               <Text style={styles.modalCtaText}>Enregistrer</Text>
             </TouchableOpacity>
@@ -911,6 +930,7 @@ function makeStyles(c: any) {
     deleteActionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '55', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
     deleteActionText: { fontSize: 14, fontWeight: '700', color: c.danger },
     archiveHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginBottom: 12 },
+    editCurrencyHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, marginBottom: 4 },
     editEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
     tabs: { flexDirection: 'row', backgroundColor: c.card, borderRadius: 12, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: c.cardBorder },
     tab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 9 },

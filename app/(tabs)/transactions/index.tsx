@@ -21,14 +21,21 @@ import { useSubCategoriesGrouped } from '../../../components/transaction/Categor
 import { useAllAccounts } from '../../../hooks/data/useAccounts';
 import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/data/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
-import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
+import type { TransactionWithDetails } from '../../../types/database';
 import GuideModal from '../../../components/guide/GuideModal';
 import { useGuide } from '../../../contexts/GuideContext';
 import { useIsFocused } from 'expo-router';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import RecurringTransactionsModal from '../../../components/transaction/RecurringTransactionsModal';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
-import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
+// Plus de `CURRENCY_SYMBOL` ici : cette page raisonne PAR COMPTE, jamais en devise de référence.
+import { currencySymbolFor } from '../../../lib/finance/currency';
+import { isRegul, REGUL_CATEGORY_NAME } from '../../../lib/finance/regul';
+// `todayISO` : la date du jour en heure LOCALE. Elle était recalculée à la main juste en dessous.
+import { todayISO } from '../../../lib/dateUtils';
+import { getMonthKey, getMonthsFromOffset } from '../../../lib/finance/treasuryTable';
+import { addRecurrenceToMonth } from '../../../lib/finance/recurrence';
+import { compareTransactionsForDisplay, getEffectiveDate } from '../../../lib/finance/txOrder';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { hoverRow } from '../../../lib/ui/webLayout';
@@ -47,8 +54,16 @@ function normTxt(s: string): string {
   return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
+/**
+ * « 21 août » — date d'une ligne.
+ *
+ * ⚠️ `new Date('2026-08-21')` est parsé en UTC, puis rendu en heure LOCALE : dans tout fuseau à
+ * l'OUEST de Greenwich, chaque date reculait donc d'un jour à l'affichage (Montréal, São Paulo,
+ * Mexico… — des devises que l'app propose). On force la lecture en heure locale avec `T00:00:00`,
+ * la convention déjà suivie ailleurs (cf. lib/finance/regul, Relyka World).
+ */
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
+  const d = new Date(`${String(dateStr).slice(0, 10)}T00:00:00`);
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 }
 
@@ -56,59 +71,22 @@ function formatMonthHeader(year: number, month: number) {
   return new Date(year, month - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 }
 
-function getMonthKey(year: number, month: number): string {
-  return `${year}-${String(month).padStart(2, '0')}`;
-}
+/* `getMonthKey` et `getMonthsFromOffset` étaient RÉÉCRITS ici, alors qu'ils sont exportés par
+   lib/finance/treasuryTable — et c'est de là que la Trésorerie les tient. Deux implémentations de
+   la même fenêtre de mois, à garder synchronisées à la main, pour deux écrans qui doivent justement
+   tomber d'accord sur le mois qu'ils affichent. La version de la lib prend en plus une horloge
+   injectable, ce dont on se sert ci-dessous. (Import en haut de fichier.) */
 
-function getMonthsFromOffset(offset: number, count: number): { year: number; month: number; key: string }[] {
-  const now = new Date();
-  const out: { year: number; month: number; key: string }[] = [];
-  for (let i = 0; i < count; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + offset + i, 1);
-    out.push({ year: d.getFullYear(), month: d.getMonth() + 1, key: getMonthKey(d.getFullYear(), d.getMonth() + 1) });
-  }
-  return out;
-}
+/* `addRecurrenceToMonth` était RÉÉCRIT ici — une TROISIÈME copie de la fonction que
+   lib/finance/recurrence dit justement avoir unifiée (son en-tête raconte les deux premières : le
+   moteur du Pilotage et l'écran Trésorerie, « deux sources de vérité pour un même montant », qui
+   pouvaient diverger sur la même ligne). Les deux versions étaient encore identiques ; la question
+   n'était que de savoir laquelle des deux serait corrigée sans l'autre. On importe donc la lib —
+   au passage, cet écran hérite de ses tests (__tests__/recurrence.test.ts). */
 
-function addRecurrenceToMonth(year: number, month: number, amount: number, startDate: string, rule: RecurrenceRule, endDate: string | null, currentDate: Date): number {
-  const start = new Date(startDate);
-  const maxEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 24, 1);
-  const end = endDate ? new Date(Math.min(new Date(endDate).getTime(), maxEndDate.getTime())) : maxEndDate;
-  const thisMonthStart = new Date(year, month - 1, 1);
-  const thisMonthEnd = new Date(year, month, 0);
-  if (start > thisMonthEnd || end < thisMonthStart) return 0;
-  if (rule === 'monthly') return amount;
-  if (rule === 'quarterly') {
-    const startMonth = start.getFullYear() * 12 + start.getMonth();
-    const thisMonth = year * 12 + (month - 1);
-    if ((thisMonth - startMonth) % 3 === 0 && thisMonth >= startMonth) return amount;
-    return 0;
-  }
-  if (rule === 'yearly') {
-    if (start.getMonth() === month - 1 && year >= start.getFullYear()) return amount;
-    return 0;
-  }
-  if (rule === 'weekly') {
-    let count = 0;
-    let d = new Date(start);
-    while (d <= thisMonthEnd) {
-      if (d >= thisMonthStart) count++;
-      d.setDate(d.getDate() + 7);
-      if (d > end) break;
-    }
-    return count * amount;
-  }
-  return 0;
-}
-
-function getEffectiveDate(item: { date: string; displayDate?: string }): string {
-  if (!item.displayDate) return item.date;
-  const [y, m] = item.displayDate.split('-').map(Number);
-  const origDay = new Date(item.date).getDate();
-  const maxDay = new Date(y, m, 0).getDate();
-  const day = Math.min(origDay, maxDay);
-  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
+/* `getEffectiveDate` vit désormais dans lib/finance/txOrder, aux côtés du comparateur qui s'en sert
+   (import en haut de fichier) : c'est un CALCUL de date, et il décide de la frontière passé /
+   à venir — il devait être testable. */
 
 // Élément de la liste APLATIE (FlatList) — un type par « brique » visuelle.
 type TxListItem =
@@ -235,7 +213,8 @@ function TransactionsListBody() {
   // #4bis — opération « au nom de » un membre (on_behalf_member_id) → attribuée à ce membre.
   const authorLabel = (t: any): string =>
     (t?.on_behalf_member_id && memberNameById[t.on_behalf_member_id]) ? memberNameById[t.on_behalf_member_id]
-    : (t?.profile_id === user?.id ? 'Vous' : (authorNameById[t?.profile_id] ?? 'Un membre'));
+    // L'app TUTOIE partout : c'était « Vous » (affiché en clair sur chaque ligne d'un compte partagé).
+    : (t?.profile_id === user?.id ? 'Toi' : (authorNameById[t?.profile_id] ?? 'Un membre'));
   // Transactions liées à une dépense de projet PARTAGÉ (Relyka World) : pas de project_id, on les
   // repère via ce set pour leur donner la même pastille « projet » que les projets personnels.
   const { data: rwTxIds } = useRwLinkedTransactionIds(user?.id);
@@ -294,8 +273,18 @@ function TransactionsListBody() {
     setDepensesFilter(params.filterType === 'depenses');
   }, [params.filterType, params.mouvType]);
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  /* ⚠️ `now` DOIT être stable d'un rendu à l'autre.
+     Il valait `new Date()` à chaque rendu, et il figure dans les dépendances du memo qui déplie les
+     récurrences : cette dépendance changeait donc TOUJOURS, et le memo ne mémoïsait rien. Toute la
+     chaîne derrière (filtrage, regroupement par mois, construction de la liste) se rejouait alors
+     à chaque frappe dans la recherche de catégories, à chaque bascule de filtre, à chaque rendu —
+     sur plusieurs centaines d'opérations dépliées sur trois mois.
+     On l'ancre sur le JOUR : la date reste fraîche au passage de minuit (c'est la seule granularité
+     dont ces calculs ont besoin — l'horizon des récurrences se compte en mois), mais elle ne bouge
+     plus pendant une session de tri. */
+  const todayStr = todayISO();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const now = useMemo(() => new Date(), [todayStr]);
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   const currentMonthKey = getMonthKey(currentYear, currentMonth);
@@ -324,7 +313,13 @@ function TransactionsListBody() {
   };
 
   // Obtenir les mois consécutifs basé sur periodOffset (1 ou 3 selon singleMonth)
-  const displayMonths = useMemo(() => getMonthsFromOffset(periodOffset, displayMonthCount), [periodOffset, displayMonthCount]);
+  /* Horloge passée EXPLICITEMENT : la fenêtre de mois se déduit d'« aujourd'hui », et la version
+     locale lisait `new Date()` en interne — l'app laissée ouverte au passage de minuit le 1ᵉʳ du
+     mois continuait d'afficher la fenêtre de la veille jusqu'à ce qu'on change de période. */
+  const displayMonths = useMemo(
+    () => getMonthsFromOffset(periodOffset, displayMonthCount, now),
+    [periodOffset, displayMonthCount, now],
+  );
 
   // Source unique de la lecture des overrides (montant, date, libellé, catégorie, compte).
   const overrideMap = useMemo(() => buildOverrideMap(overrides), [overrides]);
@@ -419,12 +414,22 @@ function TransactionsListBody() {
         if (!selectedCategory.parent_id) {
           const childIds = categories.filter(c => c.parent_id === selectedCategory.id).map(c => c.id);
           const allIdsToFilter = [selectedCategory.id, ...childIds];
-          const isFraisVariables = selectedCategory.name === 'Frais variables';
+          /* Les régularisations À LA BAISSE sont rangées sous « Frais variables › Régularisation
+             Solde » (cf. lib/finance/regul) : filtrer sur le parent doit donc aussi ramener les
+             anciennes, qui n'ont pas de catégorie du tout.
+             ⚠️ Le parent était reconnu par son NOM écrit en dur. Or ce référentiel est éditable en
+             admin ET renommable par l'utilisateur (`user_renamed`) : au premier renommage, les
+             régularisations disparaissaient silencieusement de ce filtre. On se base donc sur la
+             présence de la sous-catégorie de régul PARMI ses enfants — un fait, pas un libellé. */
+          const hasRegulChild = categories.some(
+            (c) => c.parent_id === selectedCategory.id
+              && c.name.trim().toLowerCase() === REGUL_CATEGORY_NAME.toLowerCase(),
+          );
           list = list.filter((t) =>
             !outOfCategories(t) &&
             (
               (t.category_id && allIdsToFilter.includes(t.category_id)) ||
-              (isFraisVariables && (t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde'))
+              (hasRegulChild && !t.category_id && isRegul(t as any))
             )
           );
         } else {
@@ -432,9 +437,13 @@ function TransactionsListBody() {
         }
       }
     }
-    // Filtre Régularisation solde
+    /* Filtre Régularisation solde — via `isRegul`, la définition UNIQUE (lib/finance/regul).
+       Le test posé ici (`note` commençant par « Régularisation ») était l'une de ces détections
+       ad hoc que `isRegul` a justement été créé pour remplacer : il ignorait le marqueur de
+       référence `regul_target`, et laissait donc échapper toute régularisation dont la note ne
+       commence pas par ce mot — alors qu'elle en est une pour tout le reste de l'app. */
     if (regulFilter) {
-      list = list.filter((t) => t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde');
+      list = list.filter((t) => isRegul(t as any));
     }
     // Filtre Mouvements (virements épargne/invest + transactions projet).
     // `mouvTypeFilter` affine selon la ligne cliquée dans la Tréso : épargne / invest / projets.
@@ -475,17 +484,9 @@ function TransactionsListBody() {
       if (!map[key]) map[key] = [];
       map[key].push(t);
     }
-    for (const arr of Object.values(map)) arr.sort((a, b) => {
-      const dateA = getEffectiveDate(a);
-      const dateB = getEffectiveDate(b);
-      if (dateA !== dateB) return dateB.localeCompare(dateA);
-      // Même jour : « déjà incluses » en bas, sinon plus récent en haut → une transaction saisie
-      // après la régul passe au-dessus, la régul au-dessus de ce qu'elle a absorbé.
-      const ca = (a as any).regul_covered ? 1 : 0;
-      const cb = (b as any).regul_covered ? 1 : 0;
-      if (ca !== cb) return ca - cb;
-      return ((b as any).created_at ?? '').localeCompare((a as any).created_at ?? '');
-    });
+    /* Comparateur PARTAGÉ (lib/finance/txOrder) — il était recopié ici, alors que le détail d'un
+       compte l'importait déjà. Deux listes de transactions, deux copies du même ordre à maintenir. */
+    for (const arr of Object.values(map)) arr.sort(compareTransactionsForDisplay);
     const keys = Object.keys(map).sort((a, b) => {
       // Trier les mois en ordre inverse (plus récent d'abord)
       const aDate = new Date(Number(a.split('-')[0]), parseInt(a.split('-')[1]) - 1);
@@ -594,7 +595,7 @@ function TransactionsListBody() {
             await updateTx.mutateAsync({ id: item.id, is_draft: false });
           }
         } catch (e: unknown) {
-          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de valider.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de valider.', confirmLabel: 'OK', confirmColor: COLORS.textSecondary, onConfirm: () => {} });
         }
       },
     });
@@ -606,12 +607,12 @@ function TransactionsListBody() {
       title: 'Supprimer le brouillon',
       message: `Supprimer "${label}" ?`,
       confirmLabel: 'Supprimer',
-      confirmColor: '#f87171',
+      confirmColor: COLORS.danger,
       onConfirm: async () => {
         try {
           await deleteTx.mutateAsync(item.id);
         } catch (e: unknown) {
-          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: COLORS.textSecondary, onConfirm: () => {} });
         }
       },
     });
@@ -624,14 +625,17 @@ function TransactionsListBody() {
     const montant = Math.abs(Number(item.amount));
     showConfirm({
       title: 'Conserver pour plus tard',
-      message: `Mettre ${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} de "${label}" en Réservé ? Le montant n'est pas dépensé mais mis de côté et visible dans la ligne Réservé du Pilotage.`,
+      /* Devise du COMPTE de l'opération, pas la devise de référence : ce montant est celui de la
+         ligne qu'on a sous les yeux. `maximumFractionDigits` est explicite — sans lui, la valeur
+         par défaut (3) laissait passer une 3ᵉ décimale sur un montant qui n'en a que deux. */
+      message: `Mettre ${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currencySymbolFor(accountCurrencyOf(item))} de "${label}" en Réservé ? Le montant n'est pas dépensé mais mis de côté et visible dans la ligne Réservé du Pilotage.`,
       confirmLabel: 'Conserver',
-      confirmColor: '#60a5fa',
+      confirmColor: COLORS.blue,
       onConfirm: async () => {
         try {
           await updateTx.mutateAsync({ id: item.id, is_reserved: true });
         } catch (e: unknown) {
-          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de conserver.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de conserver.', confirmLabel: 'OK', confirmColor: COLORS.textSecondary, onConfirm: () => {} });
         }
       },
     });
@@ -644,12 +648,12 @@ function TransactionsListBody() {
       title: 'Libérer la réservation',
       message: `Libérer "${label}" ? Le brouillon réservé sera supprimé et le montant retiré du Réservé.`,
       confirmLabel: 'Libérer',
-      confirmColor: '#f87171',
+      confirmColor: COLORS.danger,
       onConfirm: async () => {
         try {
           await deleteTx.mutateAsync(item.id);
         } catch (e: unknown) {
-          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de libérer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de libérer.', confirmLabel: 'OK', confirmColor: COLORS.textSecondary, onConfirm: () => {} });
         }
       },
     });
@@ -1209,12 +1213,15 @@ function TransactionsListBody() {
               {detailTx && (() => {
                 const amt = Number(detailTx.amount);
                 const inc = amt >= 0;
-                const author = detailTx.profile_id === user?.id ? 'Vous' : (detailParticipants.find((p) => p.user_id === detailTx.profile_id)?.display_name ?? 'Un membre');
-                const sym = currencySymbolFor(detailTx.account?.currency);
+                // L'app TUTOIE partout : c'était « Vous ».
+                const author = detailTx.profile_id === user?.id ? 'Toi' : (detailParticipants.find((p) => p.user_id === detailTx.profile_id)?.display_name ?? 'Un membre');
+                const sym = currencySymbolFor(accountCurrencyOf(detailTx));
                 const lbl = detailTx.note?.trim() || detailTx.category?.name || 'Transaction';
                 const rows: [string, string][] = [
-                  ['Date', new Date(detailTx.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
-                  ['Montant', `${inc ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${sym}`],
+                  // `T00:00:00` : lecture en heure LOCALE (cf. `formatDate`), sinon la date recule
+                  // d'un jour à l'ouest de Greenwich.
+                  ['Date', new Date(`${String(detailTx.date).slice(0, 10)}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
+                  ['Montant', `${inc ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${sym}`],
                   ['Compte', accountNameOf(detailTx)],
                   ['Par', author],
                 ];
@@ -1222,7 +1229,7 @@ function TransactionsListBody() {
                 return (
                   <>
                     <View style={styles.detailHandle} />
-                    <Text style={[styles.detailAmount, { color: inc ? COLORS.green : COLORS.danger }]}>{inc ? '+' : '−'} {Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {sym}</Text>
+                    <Text style={[styles.detailAmount, { color: inc ? COLORS.green : COLORS.danger }]}>{inc ? '+' : '−'} {Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {sym}</Text>
                     <Text style={styles.detailLabelText}>{lbl}</Text>
                     <View style={styles.detailDivider} />
                     {rows.map(([k, v]) => (

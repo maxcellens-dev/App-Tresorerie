@@ -35,11 +35,42 @@ export function isRegulRow(t: {
   return isRegul(t);
 }
 
-type OrderableTx = { date: string; created_at?: string; regul_covered?: boolean };
+/**
+ * `displayDate` (`AAAA-MM`) : présent sur les occurrences DÉPLIÉES d'une récurrente — la ligne
+ * porte la date du modèle, mais s'affiche dans un autre mois. Absent partout ailleurs.
+ */
+type OrderableTx = { date: string; created_at?: string; regul_covered?: boolean; displayDate?: string };
 
-/** Comparateur : date décroissante ; même jour → « déjà incluses » en bas, sinon created_at décroissant. */
+/**
+ * Jour auquel une ligne s'affiche RÉELLEMENT.
+ *
+ * Pour une occurrence dépliée, c'est le jour du modèle reporté dans le mois visé, borné au dernier
+ * jour de ce mois (un « 31 » tombe au 28/30 selon les mois). Pour tout le reste, c'est sa date.
+ *
+ * ⚠️ `new Date('2026-08-31')` est parsé en UTC : `getDate()` renvoyait 30 dans tout fuseau à l'ouest
+ * de Greenwich, et l'occurrence se rangeait au mauvais jour — donc parfois du mauvais côté de la
+ * frontière passé / à venir. On lit en heure LOCALE (`T00:00:00`), comme partout ailleurs.
+ */
+export function getEffectiveDate(item: { date: string; displayDate?: string }): string {
+  if (!item.displayDate) return item.date;
+  const [y, m] = item.displayDate.split('-').map(Number);
+  const origDay = new Date(`${String(item.date).slice(0, 10)}T00:00:00`).getDate();
+  const maxDay = new Date(y, m, 0).getDate();
+  const day = Math.min(origDay, maxDay);
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * Comparateur : date décroissante ; même jour → « déjà incluses » en bas, sinon created_at décroissant.
+ *
+ * La comparaison porte sur la date EFFECTIVE, pas sur `date` : sans quoi les occurrences dépliées
+ * d'une récurrente se rangeaient toutes au jour du modèle. Sur les lignes ordinaires (sans
+ * `displayDate`), les deux sont identiques — l'ordre du détail de compte ne change pas.
+ */
 export function compareTransactionsForDisplay(a: OrderableTx, b: OrderableTx): number {
-  if (a.date !== b.date) return b.date.localeCompare(a.date);
+  const da = getEffectiveDate(a);
+  const db = getEffectiveDate(b);
+  if (da !== db) return db.localeCompare(da);
   const ca = a.regul_covered ? 1 : 0;
   const cb = b.regul_covered ? 1 : 0;
   if (ca !== cb) return ca - cb; // couverte (1) → plus bas

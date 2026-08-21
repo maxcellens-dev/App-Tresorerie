@@ -16,6 +16,8 @@ export interface RecurringItem {
   rule: string;           // daily | weekly | monthly | quarterly | yearly
   nextDate: string;       // prochaine échéance (ancre `date`)
   accountName: string | null;
+  /** Devise NATIVE du compte prélevé : le montant est libellé dedans, pas en devise de référence. */
+  accountCurrency: string | null;
   upcoming: boolean;      // prochaine échéance dans le futur (pas encore passée)
 }
 
@@ -36,7 +38,7 @@ export function useRecurringTransactions(userId: string | undefined) {
         .from('transactions')
         .select(`
           id, amount, date, note, recurrence_rule, recurrence_end_date, linked_account_id, category_id,
-          account:accounts!account_id(name),
+          account:accounts!account_id(name, currency),
           category:categories!category_id(name),
           linked_account:accounts!linked_account_id(name)
         `)
@@ -63,7 +65,10 @@ export function useRecurringTransactions(userId: string | undefined) {
           const label = isTransfer
             ? `${acc ?? '?'} → ${dest}`
             : (note || r.category?.name || 'Sans catégorie');
-          return { id: r.id, kind, label, amount: Math.abs(amt), rule: r.recurrence_rule, nextDate: r.date, accountName: acc, upcoming: r.date > today };
+          return {
+            id: r.id, kind, label, amount: Math.abs(amt), rule: r.recurrence_rule, nextDate: r.date,
+            accountName: acc, accountCurrency: r.account?.currency ?? null, upcoming: r.date > today,
+          };
         });
     },
     staleTime: 30 * 1000,
