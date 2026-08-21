@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import type { Project } from '../../types/database';
 import { todayISO } from '../../lib/dateUtils';
+import { monthlyOccurrenceDates } from '../../lib/finance/recurrence';
 import { buildProjectTransactions, projectMode, type ProjectMode } from '../../lib/finance/projectTx';
 import { reverseBalanceAndDeleteTransactions, recomputeBalances, TX_REVERSAL_COLS } from './useTransactions';
 
@@ -66,13 +67,16 @@ function buildScheduleRows(input: ScheduleInput): any[] {
   }
 
   if (!(input.monthlyAllocation > 0)) return rows;
-  const cursor = new Date(input.startDate + 'T00:00:00');
-  const endLimit = input.targetDate ? new Date(input.targetDate + 'T23:59:59') : null;
-  for (let i = 0; i < MAX_SCHEDULE_MONTHS; i++) {
-    if (endLimit && cursor > endLimit) break;
-    const d = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+  /* ⚠️ Dates générées par `monthlyOccurrenceDates` (lib/finance/recurrence), et non par un
+     `cursor.setMonth(cursor.getMonth() + 1)`.
+
+     Cette boucle CRÉE LES VRAIES TRANSACTIONS du projet. Avec l'incrément naïf, une échéance au 31
+     janvier produisait : 31/01, puis « 31 février » → que JavaScript fait glisser au 3 mars. Deux
+     dégâts, tous deux écrits en base : FÉVRIER était purement sauté (aucune échéance ce mois-là),
+     et toutes les suivantes tombaient le 3 au lieu du 31. Le jour est désormais borné au dernier du
+     mois puis REMIS au jour d'origine. */
+  for (const d of monthlyOccurrenceDates(input.startDate, input.targetDate ?? null, MAX_SCHEDULE_MONTHS)) {
     if (keep(d) && !input.skipMonths?.has(d.slice(0, 7))) rows.push(...one(input.monthlyAllocation, d));
-    cursor.setMonth(cursor.getMonth() + 1);
   }
   return rows;
 }

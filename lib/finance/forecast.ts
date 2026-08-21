@@ -9,6 +9,7 @@
  */
 import { isProjectSpendTx } from './projectTx';
 import { isRegul as isRegulTx } from './regul';
+import { dayOfMonthISO } from '../dateUtils';
 
 export interface ForecastMonth {
   year: number;
@@ -125,7 +126,7 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
         const occ = recurrenceAmount(t, year, month);
         if (!occ) continue;
         if (onlyRemaining) {
-          const recDay = new Date(t.date).getDate();
+          const recDay = dayOfMonthISO(t.date);
           if (!t.is_draft && recDay < now.getDate()) continue;
         }
         total += Math.abs(occ);
@@ -179,7 +180,7 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
         const amt = Number(t.amount);
         if (t.is_recurring && t.recurrence_rule) {
           const occ = realSigned(t, year, month, recurrenceAmount(t, year, month));
-          const recDay = new Date(t.date).getDate();
+          const recDay = dayOfMonthISO(t.date);
           if (occ !== 0 && recDay >= now.getDate()) upcoming += external ? Math.abs(occ) : occ;
         } else if (t.date.startsWith(prefix) && t.date > todayStr) {
           const real = realSigned(t, year, month, amt);

@@ -24,7 +24,7 @@ import { computeCashflowTrough } from './relyka';
 import { computeReferenceMonthlyIncome } from './incomeAverage';
 import { variablePacePercentage } from './spendingPace';
 import { addRecurrenceToMonth, recurrencePastInMonth, recurrenceOccurrencesBetween } from './recurrence';
-import { isoDay } from '../dateUtils';
+import { isoDay, dayOfMonthISO } from '../dateUtils';
 import type { DriftCalibration } from './confidenceEngine';
 import type { Account, FinancialProfile, Project, Profile, RecurrenceRule, TransactionWithDetails } from '../../types/database';
 
@@ -210,7 +210,7 @@ export function detectExpectedIncome(transactions: any[], checkingIds: Set<strin
   if (explicit.length > 0) {
     const top = explicit.slice().sort((a, b) => Number(b.amount) - Number(a.amount))[0];
     const occ = recurrenceOccurrencesBetween(top.date, 'monthly', top.recurrence_end_date ?? null, todayStr, addDaysIso(todayStr, 40))[0] ?? null;
-    return { monthlyAmount: Number(top.amount), nextDate: occ, day: new Date(top.date).getDate(), confidence: 1, source: 'explicit' };
+    return { monthlyAmount: Number(top.amount), nextDate: occ, day: dayOfMonthISO(top.date), confidence: 1, source: 'explicit' };
   }
   // 2) Inféré : recettes ponctuelles régulières (même libellé, ≥ 2 mois distincts) sur 4 mois.
   const now = new Date(todayStr + 'T00:00:00');
@@ -223,7 +223,7 @@ export function detectExpectedIncome(transactions: any[], checkingIds: Set<strin
     const key = norm(t.note ?? '') || 'revenu';
     (groups[key] ??= { amounts: [], days: [], months: new Set() });
     groups[key].amounts.push(Number(t.amount));
-    groups[key].days.push(new Date(t.date).getDate());
+    groups[key].days.push(dayOfMonthISO(t.date));
     groups[key].months.add(t.date.slice(0, 7));
   }
   let best: ExpectedIncome = none;

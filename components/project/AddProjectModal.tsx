@@ -53,7 +53,8 @@ import { useCategories, useAddCategory } from '../../hooks/data/useCategories';
 import { supabase } from '../../lib/platform/supabase';
 import type { Project } from '../../types/database';
 import { projectMode, type ProjectMode } from '../../lib/finance/projectTx';
-import { todayISO, isoDay } from '../../lib/dateUtils';
+import { todayISO, isoDay, dayOfMonthISO } from '../../lib/dateUtils';
+import { monthlyOccurrenceCount } from '../../lib/finance/recurrence';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
@@ -364,14 +365,13 @@ export default function AddProjectModal() {
     const targetAmount = parseFloat(form.target_amount);
     const amountToAccumulate = Math.max(0, targetAmount - form.current_accumulated);
     const startDate = form.first_payment_date || today;
-    const endLimit = new Date(form.target_date + 'T23:59:59');
-    // Count payment months using same cursor logic as the delete recalculation
-    const cursor = new Date(startDate + 'T00:00:00');
-    if (cursor > endLimit) return null;
-    let monthsLeft = 0;
-    const c = new Date(cursor);
-    while (c <= endLimit) { monthsLeft++; c.setMonth(c.getMonth() + 1); }
-    monthsLeft = Math.max(1, monthsLeft);
+    if (startDate > form.target_date) return null;
+    /* Compte PARTAGÉ (lib/finance/recurrence) — même source que la carte du projet.
+       La boucle qui vivait ici avançait par `c.setMonth(+1)`, qui DÉBORDE : depuis le 31 janvier,
+       JavaScript passe par « 31 février » et bascule au 3 mars, puis dérive. Le nombre de mois
+       était donc faux dès que la 1ʳᵉ échéance tombe le 29, 30 ou 31 — et avec lui la mensualité
+       calculée ici, qui est ENREGISTRÉE sur le projet. */
+    const monthsLeft = Math.max(1, monthlyOccurrenceCount(startDate, form.target_date));
     return amountToAccumulate / monthsLeft;
   }, [form.allocation_type, form.target_date, form.target_amount, form.current_accumulated, form.first_payment_date, today]);
 
@@ -561,7 +561,10 @@ export default function AddProjectModal() {
       source_account_id: form.source_account_id,
       // Le hook normalise selon le mode (destination = source si « conserver », aucune si « dépenser »).
       linked_account_id: mode === 'transfer' ? form.linked_account_id : mode === 'reserve' ? form.source_account_id : null,
-      transaction_day: form.first_payment_date ? new Date(form.first_payment_date).getDate() : 1,
+      /* Jour lu SUR LA CHAÎNE (cf. dayOfMonthISO) : `new Date(iso).getDate()` parse en UTC, et
+         écrivait donc le jour de la VEILLE à l'ouest de Greenwich — dans une colonne PERSISTÉE qui
+         pilote ensuite toutes les échéances du projet. */
+      transaction_day: dayOfMonthISO(form.first_payment_date) || 1,
       first_payment_date: form.first_payment_date || undefined,
       ponctuel_entries: ponctuelList,
     };

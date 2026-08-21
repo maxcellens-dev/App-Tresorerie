@@ -39,6 +39,7 @@ import { useCredits } from '../../../hooks/data/useCredits';
 import { computeAmortization } from '../../../lib/finance/amortization';
 import { projectMode, type ProjectMode } from '../../../lib/finance/projectTx';
 import { todayISO } from '../../../lib/dateUtils';
+import { monthlyOccurrenceCount } from '../../../lib/finance/recurrence';
 import { useProfile } from '../../../hooks/data/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/engagement/useRelykaWorld';
@@ -254,15 +255,19 @@ function ProjectsScreen() {
 
     const monthsToComplete = (() => {
       if (project.target_date && (project.allocation_type === 'date' || !project.allocation_type)) {
-        const now = new Date();
-        const paymentDay = project.transaction_day ?? now.getDate();
-        const cursor = new Date(now.getFullYear(), now.getMonth(), paymentDay);
-        if (cursor <= now) cursor.setMonth(cursor.getMonth() + 1);
-        const endLimit = new Date(project.target_date + 'T23:59:59');
-        let count = 0;
-        const c = new Date(cursor);
-        while (c <= endLimit) { count++; c.setMonth(c.getMonth() + 1); }
-        return count;
+        /* Compte PARTAGÉ (lib/finance/recurrence). La boucle qui vivait ici avançait par
+           `cursor.setMonth(+1)` : partant du 31, JavaScript passe par « 31 février » et fait
+           glisser toute la série au 3 du mois — le nombre de mois restants était donc faux pour
+           tout projet dont l'échéance tombe le 29, 30 ou 31. */
+        const paymentDay = project.transaction_day ?? Number(today.slice(8, 10));
+        const [y, m] = today.split('-').map(Number);
+        const dim = new Date(y, m, 0).getDate();
+        const thisMonthOcc = `${y}-${String(m).padStart(2, '0')}-${String(Math.min(paymentDay, dim)).padStart(2, '0')}`;
+        // L'échéance du mois courant ne compte que si elle n'est pas déjà passée.
+        const firstOcc = thisMonthOcc > today
+          ? thisMonthOcc
+          : `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-${String(paymentDay).padStart(2, '0')}`;
+        return monthlyOccurrenceCount(firstOcc, project.target_date);
       }
       return monthlyAllocation > 0 ? Math.ceil((targetAmount - currentAccumulated) / monthlyAllocation) : 0;
     })();
@@ -270,8 +275,8 @@ function ProjectsScreen() {
     const statusColors: Record<string, string> = {
       active: COLORS.primary,
       on_hold: COLORS.textSecondary,
-      completed: '#10b981',
-      archived: '#f59e0b',
+      completed: COLORS.green,
+      archived: COLORS.orange,
     };
 
     const statusLabels = {
@@ -382,7 +387,7 @@ function ProjectsScreen() {
               <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
                 {mCfg.progress}
               </Text>
-              <Text style={[styles.progressPercentage, { color: isComplete ? '#10b981' : COLORS.primary }]}>
+              <Text style={[styles.progressPercentage, { color: isComplete ? COLORS.green : COLORS.primary }]}>
                 {progress}%
               </Text>
             </View>
@@ -397,7 +402,7 @@ function ProjectsScreen() {
                   styles.progressFill,
                   {
                     width: `${Math.min(progress, 100)}%`,
-                    backgroundColor: isComplete ? '#10b981' : COLORS.primary,
+                    backgroundColor: isComplete ? COLORS.green : COLORS.primary,
                   },
                 ]}
               />
@@ -430,12 +435,12 @@ function ProjectsScreen() {
           {/* Bouton Archiver : manuel, disponible pour tout projet non archivé */}
           {project.status !== 'archived' && (
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: '#f59e0b20' }]}
+              style={[styles.actionButton, { backgroundColor: COLORS.orange + '20' }]}
               onPress={() => handleArchiveClick(project.id)}
               disabled={archiveMutation.isPending}
             >
               <Ionicons name="archive" size={16} color="#f59e0b" />
-              <Text style={[styles.actionButtonText, { color: '#f59e0b' }]}>
+              <Text style={[styles.actionButtonText, { color: COLORS.orange }]}>
                 {archiveMutation.isPending ? 'Archivage...' : 'Archiver'}
               </Text>
             </TouchableOpacity>
@@ -672,7 +677,7 @@ function ProjectsScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.rwChoiceOpt} activeOpacity={0.85}
               onPress={() => { setShowTypeChoice(false); setShowRwCreate(true); }}>
-              <View style={[styles.rwChoiceIcon, { backgroundColor: '#3b82f6' + '22' }]}><Ionicons name="earth" size={22} color="#3b82f6" /></View>
+              <View style={[styles.rwChoiceIcon, { backgroundColor: COLORS.blue + '22' }]}><Ionicons name="earth" size={22} color={COLORS.blue} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rwChoiceTitle}>Partagé</Text>
                 <Text style={styles.rwChoiceSub}>Dépenses partagées entre amis, avec équilibres</Text>
@@ -774,9 +779,9 @@ function ProjectsScreen() {
                   <View style={styles.deleteOptionRadio}>
                     <View style={[
                       styles.radioOuter,
-                      deleteMode === 'from-date' && { borderColor: '#f59e0b' },
+                      deleteMode === 'from-date' && { borderColor: COLORS.orange },
                     ]}>
-                      {deleteMode === 'from-date' && <View style={[styles.radioInner, { backgroundColor: '#f59e0b' }]} />}
+                      {deleteMode === 'from-date' && <View style={[styles.radioInner, { backgroundColor: COLORS.orange }]} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.deleteOptionTitle, { color: COLORS.text }]}>
@@ -919,7 +924,7 @@ function ProjectsScreen() {
                 <Text style={[styles.confirmCancelBtnText, { color: COLORS.textSecondary }]}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmActionBtn, { backgroundColor: '#f59e0b' }]}
+                style={[styles.confirmActionBtn, { backgroundColor: COLORS.orange }]}
                 onPress={() => doArchive(archiveConfirmId)}
                 disabled={archiveMutation.isPending}
               >
@@ -963,7 +968,7 @@ function makeStyles(c: any) {
   rwInvCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary + '55', borderRadius: 14, padding: 12, marginBottom: 8 },
   rwInvDecline: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.danger + '1A' },
   rwInvAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.primary },
-  rwProjCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: '#3b82f6' + '44', borderRadius: 14, padding: 14, marginBottom: 8 },
+  rwProjCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.blue + '44', borderRadius: 14, padding: 14, marginBottom: 8 },
   rwProjName: { fontSize: 15, fontWeight: '700', color: c.text },
   rwProjSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   rwAvatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
@@ -1097,7 +1102,7 @@ function makeStyles(c: any) {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#10b98115',
+    backgroundColor: c.green + '15',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -1106,7 +1111,7 @@ function makeStyles(c: any) {
     borderColor: '#10b98130',
   },
   completeBannerText: {
-    color: '#10b981',
+    color: c.green,
     fontSize: 12,
     fontWeight: '500',
     flex: 1,
@@ -1240,8 +1245,8 @@ function makeStyles(c: any) {
     backgroundColor: c.background,
   },
   dateChipActive: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#f59e0b20',
+    borderColor: c.orange,
+    backgroundColor: c.orange + '20',
   },
   dateChipText: {
     color: c.textSecondary,
@@ -1249,7 +1254,7 @@ function makeStyles(c: any) {
     fontWeight: '500',
   },
   dateChipTextActive: {
-    color: '#f59e0b',
+    color: c.orange,
     fontWeight: '600',
   },
   /* Action buttons in confirm dialog */

@@ -165,3 +165,64 @@ export const MONTHLY_FACTOR_BY_RULE: Record<string, number> = {
 export function monthlyEquivalent(rule: string | null | undefined, amount: number): number {
   return amount * (MONTHLY_FACTOR_BY_RULE[String(rule)] ?? 0);
 }
+
+/**
+ * Nombre d'échéances MENSUELLES entre `startISO` et `endISO`, bornes INCLUSES.
+ *
+ * Le jour de l'échéance est celui de `startISO`, borné au dernier jour de chaque mois : le 31 tombe
+ * au 28/29 en février, au 30 en avril — puis REVIENT au 31 le mois suivant.
+ *
+ * ⚠️ C'est tout l'objet de cette fonction. Les deux écrans Projets comptaient ces mois à la main
+ * avec `cursor.setMonth(cursor.getMonth() + 1)`, qui DÉBORDE : partant du 31 janvier, JavaScript
+ * passe par « 31 février », le fait glisser au 3 mars — et toute la série dérive ensuite sur le 3.
+ * Le compte de mois était donc faux pour tout projet dont l'échéance tombe le 29, 30 ou 31, et avec
+ * lui la mensualité calculée en mode « date » (un montant qui est ENREGISTRÉ).
+ *
+ * On raisonne en mois absolus (année × 12 + mois), jamais en incréments de `Date`.
+ */
+/**
+ * Dates ISO des échéances MENSUELLES à partir de `startISO`, jusqu'à `endISO` inclus (ou
+ * `maxCount` échéances si aucune fin). Le jour est celui de `startISO`, borné au dernier jour de
+ * chaque mois puis REMIS au jour d'origine le mois suivant.
+ *
+ * ⚠️ Primitive volontairement partagée : trois boucles la réécrivaient à la main avec
+ * `cursor.setMonth(cursor.getMonth() + 1)`, qui DÉBORDE. Depuis le 31 janvier, JavaScript passe par
+ * « 31 février », bascule au 3 mars — et la série dérive ensuite sur le 3. Conséquences constatées :
+ * un projet dont l'échéance tombe le 31 SAUTAIT février, et toutes ses transactions suivantes
+ * étaient créées le 3. On raisonne donc en mois absolus (année × 12 + mois), jamais en incréments
+ * de `Date`.
+ */
+export function monthlyOccurrenceDates(
+  startISO: string,
+  endISO: string | null,
+  maxCount = 240,
+): string[] {
+  const start = String(startISO ?? '').slice(0, 10);
+  const end = endISO ? String(endISO).slice(0, 10) : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return [];
+  if (end !== null && !/^\d{4}-\d{2}-\d{2}$/.test(end)) return [];
+  if (end !== null && end < start) return [];
+
+  const [sy, sm, baseDay] = start.split('-').map(Number);
+  const startTotal = sy * 12 + (sm - 1);
+  const out: string[] = [];
+
+  for (let i = 0; i < maxCount; i++) {
+    const total = startTotal + i;
+    const yy = Math.floor(total / 12);
+    const mm = total % 12;
+    // `new Date(yy, mm + 1, 0)` = jour 0 du mois suivant = dernier jour du mois visé (heure locale).
+    const daysInMonth = new Date(yy, mm + 1, 0).getDate();
+    const day = Math.min(baseDay, daysInMonth);
+    const occ = `${yy}-${String(mm + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (end !== null && occ > end) break;
+    out.push(occ);
+  }
+  return out;
+}
+
+/** Nombre d'échéances mensuelles entre les deux bornes, incluses (cf. `monthlyOccurrenceDates`). */
+export function monthlyOccurrenceCount(startISO: string, endISO: string): number {
+  if (!endISO) return 0;
+  return monthlyOccurrenceDates(startISO, endISO).length;
+}
