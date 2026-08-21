@@ -626,8 +626,12 @@ function makeStyles(c: any) {
   tabLabel: { fontSize: 17, fontWeight: '700', color: c.textSecondary },
   tabLabelActive: { color: c.text, fontWeight: '800' },
   totalsFilterRow: { flexDirection: 'row', gap: 4, marginBottom: 8, marginTop: 4 },
-  totalsFilterChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
-  totalsFilterChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
+  // Pas de contour : ces puces sont un réglage secondaire, elles ne doivent pas concurrencer
+  // visuellement les cartes de totaux juste en dessous. L'état actif est porté par le seul fond
+  // (+ le libellé plus foncé/gras), un peu plus marqué qu'avant puisqu'il n'y a plus de bordure
+  // pour le signaler. Le padding gagne 1 px pour compenser la bordure retirée (taille inchangée).
+  totalsFilterChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  totalsFilterChipActive: { backgroundColor: c.text + '16' },
   totalsFilterText: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
   totalsFilterTextActive: { color: c.text, fontWeight: '700' },
   // flexWrap : avec une 4e carte (« Autre »), un petit écran ne peut plus tenir la ligne — les
