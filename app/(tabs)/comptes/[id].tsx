@@ -888,7 +888,15 @@ function AccountDetailScreen() {
                   key={`${t.id}-${idx}`}
                   style={[styles.transferRow, idx === (showUpcoming ? upcomingThisMonth : visibleTransactions).length - 1 && styles.transferRowLast]}
                   onPress={() => {
-                    if (creditId) { router.push(`/(tabs)/comptes/credit/${creditId}` as any); return; }
+                    // Prélèvement de crédit → sa fiche, positionnée SUR l'échéance touchée
+                    // (`credit_period`) : c'est là qu'elle se corrige, pas dans l'éditeur de
+                    // transaction. Sans le n° d'échéance, on atterrissait en haut d'un tableau
+                    // qui peut compter des centaines de lignes.
+                    if (creditId) {
+                      const period = (t as any).credit_period;
+                      router.push(`/(tabs)/comptes/credit/${creditId}${period != null ? `?period=${period}` : ''}` as any);
+                      return;
+                    }
                     if (!isVirtual) setSelectedTxId(t.id);
                   }}
                   disabled={isVirtual && !creditId}

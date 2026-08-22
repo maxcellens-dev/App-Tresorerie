@@ -707,8 +707,19 @@ function TransactionsListBody() {
     // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
     const isDraftQuickAction = isDraft;
     const navigateToEdit = () => {
-      // #2 — une mensualité de crédit (flux synthétique) renvoie au crédit, pas à l'édition de tx.
-      if ((item as any).is_credit_flow) { router.push(`/(tabs)/comptes/credit/${(item as any).credit_id}` as any); return; }
+      /* #2 — une mensualité de crédit renvoie au CRÉDIT, pas à l'éditeur de transaction : elle est
+         le reflet du tableau d'amortissement, et toute modification faite ici serait de toute façon
+         réécrite au prochain réalignement (resync_credit_materialized).
+         Vaut pour le flux à venir (`is_credit_flow`) comme pour l'échéance déjà prélevée, qui est
+         une VRAIE transaction porteuse de `credit_id` — celle-ci ouvrait jusqu'ici l'éditeur
+         ordinaire, où la correction saisie disparaissait sans explication quelques jours plus tard.
+         Le n° d'échéance suit, pour arriver directement sur la bonne ligne. */
+      const creditId = (item as any).credit_id;
+      if (creditId && ((item as any).is_credit_flow || (item as any).credit_period != null)) {
+        const period = (item as any).credit_period;
+        router.push(`/(tabs)/comptes/credit/${creditId}${period != null ? `?period=${period}` : ''}` as any);
+        return;
+      }
       const route = item.displayDate
         ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
         : `/(tabs)/transactions/edit/${item.id}`;

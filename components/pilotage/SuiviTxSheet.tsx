@@ -60,7 +60,15 @@ export default function SuiviTxSheet({
             const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
             const canEdit = isMine && !!t.id && !t._perimeter_synthetic;
             const goEdit = () => {
-              if (isCredit) { onEdit(`/(tabs)/comptes/credit/${t.credit_id}`); return; }
+              /* Échéance de crédit → sa fiche, sur la bonne ligne du tableau. Vaut aussi pour une
+                 échéance DÉJÀ prélevée (vraie transaction, donc `credit_period` renseigné) : elle
+                 ouvrait l'éditeur ordinaire, où toute correction était réécrite au réalignement
+                 suivant, sans que rien ne le dise. */
+              if (isCredit || t.credit_period != null) {
+                const period = t.credit_period;
+                onEdit(`/(tabs)/comptes/credit/${t.credit_id}${period != null ? `?period=${period}` : ''}`);
+                return;
+              }
               onEdit(t.is_recurring
                 ? `/(tabs)/transactions/edit/${t.id}?instanceDate=${monthKey}`
                 : `/(tabs)/transactions/edit/${t.id}`);

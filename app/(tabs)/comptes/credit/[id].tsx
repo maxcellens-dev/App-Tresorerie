@@ -1,7 +1,7 @@
 /**
  * Détail d'un crédit (module Crédit, Lot C2) : synthèse (CRD, mensualité, coût) + tableau d'amortissement.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, BackHandler, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
@@ -32,8 +32,13 @@ export default function CreditDetailScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
+  /* `period` : échéance à mettre en avant. Arriver ici depuis une transaction de prélèvement
+     (fiche du compte, liste des transactions) revient à demander « montre-moi CETTE échéance » —
+     sans ce repère, on atterrissait en haut de la fiche, à charge de retrouver la bonne ligne
+     dans un tableau de 240. */
+  const params = useLocalSearchParams<{ id: string; period?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const focusPeriod = Number(Array.isArray(params.period) ? params.period[0] : params.period) || null;
   const { user } = useAuth();
   const { data: credits = [] } = useCredits(user?.id);
   const { data: accounts = [] } = useAllAccounts(user?.id);
@@ -53,6 +58,24 @@ export default function CreditDetailScreen() {
   const [evtAmount, setEvtAmount] = useState('');
   const [evtDate, setEvtDate] = useState(todayISO());
   const submitLock = useSubmitLock();
+
+  /* Mise en avant de l'échéance d'où l'on vient (`?period=`) : on fait défiler jusqu'au tableau et
+     on surligne la ligne. Le surlignage RESTE (il ne clignote pas puis disparaît) tant qu'on n'a
+     pas touché une autre ligne — c'est un repère, pas une notification. */
+  const scrollRef = useRef<any>(null);
+  const tableY = useRef(0);
+  const [highlightPeriod, setHighlightPeriod] = useState<number | null>(null);
+  const focusedOnce = useRef(false);
+  useEffect(() => {
+    if (!focusPeriod || focusedOnce.current || !credit) return;
+    focusedOnce.current = true;
+    setHighlightPeriod(focusPeriod);
+    // Laisse le tableau se mesurer (`onLayout`) avant de viser sa position.
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo?.({ y: Math.max(0, tableY.current - 12), animated: true });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [focusPeriod, credit]);
 
   // #3 — retour matériel (Android) : revenir à la page précédente plutôt que de quitter.
   useFocusEffect(useCallback(() => {
@@ -169,7 +192,7 @@ export default function CreditDetailScreen() {
             </TouchableOpacity>
           ) : undefined}
         />
-        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Synthèse */}
           <View style={styles.card}>
             <Text style={styles.crdLabel}>Capital restant dû</Text>
@@ -255,8 +278,10 @@ export default function CreditDetailScreen() {
             ))}
           </View>
 
-          {/* Tableau d'amortissement — éditable manuellement par échéance (mensualité + assurance). */}
-          <View style={styles.evtHead}>
+          {/* Tableau d'amortissement — éditable manuellement par échéance (mensualité + assurance).
+              `onLayout` retient sa position verticale : c'est la cible du défilement quand on arrive
+              depuis une transaction de prélèvement (`?period=`). */}
+          <View style={styles.evtHead} onLayout={(e) => { tableY.current = e.nativeEvent.layout.y; }}>
             <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
             {editTable ? (
               <TouchableOpacity onPress={() => { setEditRowPeriod(null); setEditTable(false); }}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Terminé</Text></TouchableOpacity>
@@ -298,8 +323,10 @@ export default function CreditDetailScreen() {
                 {rows.map((r, i) => {
                   const past = r.date < today;
                   const isNext = i === nextIdx;
+                  // Échéance d'où l'on vient : surlignée, et jamais estompée même si elle est passée.
+                  const isFocused = highlightPeriod != null && r.period === highlightPeriod;
                   const rowInner = (
-                    <View style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext, editTable && overridden(r) && styles.tRowEditing]}>
+                    <View style={[styles.tRow, past && !editTable && !isFocused && { opacity: 0.5 }, isNext && styles.tRowNext, editTable && overridden(r) && styles.tRowEditing, isFocused && styles.tRowFocused]}>
                       <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
                       <Text style={[styles.tc, isNext && styles.tNextText]}>{r.payment.toFixed(2)}</Text>
                       {hasInsurance && <Text style={[styles.tc, isNext && styles.tNextText]}>{r.insurance.toFixed(2)}</Text>}
@@ -484,6 +511,9 @@ function makeStyles(c: any) {
     tRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
     tRowNext: { backgroundColor: c.blue + '1A', borderRadius: 6 },
     tRowEditing: { backgroundColor: c.emerald + '18', borderRadius: 6, borderWidth: 1, borderColor: c.emerald + '66' },
+    // Échéance ciblée depuis une transaction (`?period=`) : repère franc, distinct du bleu de la
+    // prochaine échéance et du vert d'une ligne déjà corrigée.
+    tRowFocused: { backgroundColor: c.orange + '22', borderRadius: 6, borderWidth: 1, borderColor: c.orange + '88' },
     tNextText: { color: c.blue, fontWeight: '800' },
     tHead: { borderBottomWidth: 1 },
     tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 12.5 },

@@ -6,6 +6,7 @@ import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
 import { useAllCreditEvents } from './useCreditEvents';
 import { computeCreditSchedule, creditScheduleHash } from '../../lib/finance/creditMaterialization';
+import { reportError } from '../../lib/platform/errorReporting';
 
 /**
  * Matérialisation des échéances de crédit échues en VRAIES transactions (migration 143) — pendant
@@ -43,10 +44,16 @@ export function useMaterializeCredits(profileId: string | undefined) {
        `useCloseAccount` refuse en amont de fermer un compte porteur d'un crédit actif. Ici on évite
        simplement de republier un échéancier pour un compte que plus personne ne regarde. */
     const activeAccountIds = new Set(accounts.map((a) => a.id));
-    // Crédits dont JE publie le tableau. `materialized_until` absent = migration 143 pas encore
-    // appliquée → on ne tente rien (ni cache ni RPC), silencieusement.
+    /* Crédits dont JE publie le tableau.
+       `_role === 'write'` en fait partie AUTANT que `'owner'` : un co-emprunteur qui corrige une
+       échéance doit voir l'effet TOUT DE SUITE, sans attendre que le propriétaire ouvre l'app.
+       Avant, sa correction restait purement locale au tableau — le cache serveur n'était pas
+       republié et les transactions déjà écrites gardaient leur ancien montant, indéfiniment.
+       (Les droits correspondants sont ouverts côté base par la migration 199.)
+       `materialized_until` absent = migration 143 pas encore appliquée → on ne tente rien
+       (ni cache ni RPC), silencieusement. */
     const own = credits.filter(
-      (c) => c._role === 'owner' && c.is_active && !c.is_simulation && !!c.account_id
+      (c) => (c._role === 'owner' || c._role === 'write') && c.is_active && !c.is_simulation && !!c.account_id
         && activeAccountIds.has(c.account_id!)
         && c.materialized_until != null,
     );
@@ -94,9 +101,17 @@ export function useMaterializeCredits(profileId: string | undefined) {
              celles qui n'existent plus ou qui sont repoussées après aujourd'hui, et recalcule les
              soldes des comptes touchés. On ne la lance QUE quand le tableau a réellement changé
              (on est dans la branche `hash différent`). */
-          const { data: n } = await supabase!.rpc('resync_credit_materialized', {
+          /* ⚠️ L'ERREUR DE CET APPEL DOIT ÊTRE LUE.
+             Elle était jetée (`const { data: n } = ...` sans `error`), et c'est CE silence qui
+             produisait le symptôme le plus déroutant du module : on corrige le montant d'une
+             échéance dans le tableau, la ligne change bien de couleur… et la transaction déjà
+             écrite sur le compte garde son ancien montant, sans le moindre message.
+             Tout ce qui peut faire échouer cette RPC — migration 180 absente, droits insuffisants,
+             coupure réseau — passait pour un « rien à réaligner ». */
+          const { data: n, error: resyncErr } = await supabase!.rpc('resync_credit_materialized', {
             p_credit: c.id, p_today: todayISO(),
           });
+          if (resyncErr) throw resyncErr;
           resynced += Number(n ?? 0);
         }
 
@@ -112,9 +127,15 @@ export function useMaterializeCredits(profileId: string | undefined) {
           client.invalidateQueries({ queryKey: ['credits', profileId] });
           client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
         }
-      } catch {
+      } catch (e: any) {
         // Nouvelle tentative au prochain montage / changement (réseau, migration pas appliquée…).
         syncedSig.current = null;
+        /* …mais on ne se tait plus. Une panne DURABLE ici (migration manquante, droits) n'a aucun
+           symptôme visible : les échéances passées cessent simplement de suivre le tableau. Sans
+           trace, elle est indétectable — d'où la remontée au Centre de sécurité, dédoublonnée. */
+        reportError('error', `Synchronisation des crédits : ${e?.message ?? 'échec inconnu'}`, e?.stack ?? null, {
+          where: 'useMaterializeCredits',
+        });
       }
     })();
   }, [profileId, creditsReady, eventsReady, accountsReady, credits, eventsByCredit, accounts, client]);
