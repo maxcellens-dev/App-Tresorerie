@@ -63,8 +63,13 @@ export function useReservations(profileId: string | undefined) {
         .eq('profile_id', profileId)
         .is('libere_at', null)
         .order('created_at', { ascending: false });
-      if (error || !data) return [];
-      return (data as Reservation[]).map((r) => ({ ...r, montant: Number(r.montant) }));
+      /* ⚠️ Une lecture EN ÉCHEC ne doit JAMAIS passer pour « aucune réservation » : ces montants sont
+         DÉDUITS du Relyka. Les renvoyer à 0 sur une coupure réseau gonflait le budget libre affiché,
+         et la modale « Conserver ce mois » — qui pré-remplit le TOTAL réservé à partir de ce chiffre
+         — repartait ensuite de ce zéro, effaçant la réservation en cours. On lève : le cache
+         précédent reste affiché et react-query réessaie. Même règle que `usePreSavings`. */
+      if (error) throw error;
+      return ((data ?? []) as Reservation[]).map((r) => ({ ...r, montant: Number(r.montant) }));
     },
     enabled: !!profileId,
   });

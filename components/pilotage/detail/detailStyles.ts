@@ -97,8 +97,6 @@ export function makeDetailStyles(c: AppColors) {
   detailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 4 },
   detailEditBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '12' },
   detailEditBtnText: { fontSize: 13, fontWeight: '700', color: c.emerald },
-  varProfileBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14', marginVertical: 4 },
-  varProfileBannerText: { flex: 1, fontSize: 12, color: c.text, lineHeight: 16, fontWeight: '600' },
   suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
   });
 }

@@ -13,7 +13,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
-import { usePlan, useSetPremium } from '../../../hooks/config/usePlan';
+import { usePlan, useAwaitPremiumFromServer } from '../../../hooks/config/usePlan';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useGamificationConfig } from '../../../hooks/engagement/useGamificationConfig';
 import { purchasePremium, restorePurchases, getSubscriptionInfo, getPlanPrices, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/platform/purchases';
@@ -42,7 +42,8 @@ export default function PremiumScreen() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { isPremium, premiumEnabled } = usePlan(user?.id);
-  const setPremium = useSetPremium(user?.id);
+  // `is_premium` est verrouillé côté base (migration 203) : le client attend le serveur, il n'écrit plus.
+  const awaitPremium = useAwaitPremiumFromServer(user?.id);
   const { data: gam } = useGamificationConfig();
   const discount = gam?.premium_discount_pct ?? 0;
   const [selectedPlan, setSelectedPlan] = React.useState<'monthly' | 'annual'>('annual');
@@ -70,9 +71,15 @@ export default function PremiumScreen() {
     const res = await purchasePremium(selectedPlan, user?.id);
     setBusy(null);
     if (res.ok) {
-      // Achat confirmé → on bascule en Premium immédiatement (RevenueCat reste la source de vérité).
-      setPremium.mutate(true);
-      setPurchaseMsg('🎉 Bienvenue dans Premium ! Ton abonnement est actif.');
+      /* Achat confirmé par le store. Le droit Premium est posé par le SERVEUR (webhook RevenueCat,
+         migration 203) : l'app ne se l'accorde plus elle-même — sans quoi n'importe qui pouvait
+         envoyer la même écriture à la main. On attend la confirmation plutôt que de l'annoncer. */
+      setBusy('buy');
+      const confirmed = await awaitPremium(true);
+      setBusy(null);
+      setPurchaseMsg(confirmed
+        ? '🎉 Bienvenue dans Premium ! Ton abonnement est actif.'
+        : 'Paiement bien reçu ✓ L\'activation prend parfois une minute — elle se fera toute seule.');
       refreshSub();
     } else if (res.reason === 'cancelled') {
       setPurchaseMsg('Souscription annulée. Tu peux réessayer quand tu veux.');
@@ -87,8 +94,13 @@ export default function PremiumScreen() {
     const res = await restorePurchases();
     setBusy(null);
     if (res.ok) {
-      setPremium.mutate(true);
-      setPurchaseMsg('Achats restaurés. Ton abonnement Premium est de nouveau actif.');
+      // Même principe : c'est le serveur qui rétablit le droit (événement TRANSFER de RevenueCat).
+      setBusy('restore');
+      const confirmed = await awaitPremium(true);
+      setBusy(null);
+      setPurchaseMsg(confirmed
+        ? 'Achats restaurés. Ton abonnement Premium est de nouveau actif.'
+        : 'Abonnement retrouvé ✓ La réactivation prend parfois une minute.');
       refreshSub();
     } else {
       setPurchaseMsg(res.message ?? 'Aucun abonnement à restaurer.');

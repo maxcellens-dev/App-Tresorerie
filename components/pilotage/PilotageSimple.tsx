@@ -64,6 +64,9 @@ export interface PilotageSimpleProps {
   checkingBalance: number;
   spentThisMonth: number;
   variableRemaining: number;
+  /** Dépenses variables du mois DÉJÀ SAISIES pour les jours à venir : elles ne sont plus dans
+   *  l'estimation (elles pèsent déjà sur le Relyka via le point bas) mais elles vont bien sortir. */
+  variablePlanned?: number;
   /** Récurrentes du mois pas encore passées : elles vont sortir du compte comme les variables. */
   recurringUpcoming: number;
   recurringUpcomingCount: number;
@@ -364,8 +367,12 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
                 : 'estimé d’après tes habitudes'}
             </Text>
           </View>
+          {/* Les dépenses variables DÉJÀ SAISIES pour la fin du mois sont comptées ici : elles ne
+              sont plus dans l'estimation (elles pèsent déjà sur le Relyka par le point bas), mais
+              elles vont bel et bien sortir du compte — les omettre annonçait un total plus petit
+              que la réalité. */}
           <Text style={[styles.lineValue, { color: semanticText(COLORS.yellow, COLORS) }]}>
-            {fmt(Math.max(0, p.variableRemaining) + Math.max(0, p.recurringUpcoming))}
+            {fmt(Math.max(0, p.variableRemaining) + Math.max(0, p.variablePlanned ?? 0) + Math.max(0, p.recurringUpcoming))}
           </Text>
           <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />
         </TouchableOpacity>

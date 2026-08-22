@@ -18,6 +18,7 @@ import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useRel
 import { usePulseSnapshots } from './usePulseState';
 import { computePulse, monthKey, type PulseInputs, type PulseResult } from '../../lib/pulse/pulseEngine';
 import { computeRelyka } from '../../lib/finance/relyka';
+import { monthReservationsTotal } from '../../lib/finance/pilotageView';
 import { resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 
@@ -207,9 +208,11 @@ function buildPulse(deps: PulseDeps): PulseData | null {
 
   // ── Relyka (budget réellement libre) : même formule que la carte du Pilotage.
   const currentMonth = monthKey(today);
-  const reservationsTotal = (reservations as any[])
-    .filter((r) => String(r.created_at ?? '').slice(0, 7) === currentMonth)
-    .reduce((s, r) => s + Number(r.montant), 0);
+  /* Mois LOCAL des réservations, via la fonction PARTAGÉE avec le Pilotage. Le découpage à la main
+     (`created_at.slice(0, 7)`) lisait un mois UTC : une réservation posée le 1ᵉʳ à 00 h 30 à Paris
+     est stockée au 31 du mois précédent, elle disparaissait donc du total — et le Pouls annonçait
+     alors un Relyka PLUS ÉLEVÉ que le tableau de bord, qui, lui, avait déjà été corrigé. */
+  const reservationsTotal = monthReservationsTotal(reservations as any[], today);
   const cumulsTotal = (preSavings?.epargne.total_cumule ?? 0) + (preSavings?.invest.total_cumule ?? 0);
   const safetyMargin = pilotage.safety_margin_amount ?? 0;
   const relykaInputs = {
@@ -298,9 +301,12 @@ function buildPulse(deps: PulseDeps): PulseData | null {
   /* CONSERVÉ du mois écoulé = ce qui a été mis en réserve PENDANT ce mois. Les réservations
      portent leur date de création : c'est la seule trace historique dont on dispose, et elle
      suffit — « conserver » est un geste daté, pas un état. */
-  const lastMonthKept = (reservations as any[])
-    .filter((r) => String(r.created_at ?? '').slice(0, 7) === lastMonth)
-    .reduce((s, r) => s + Math.max(0, Number(r.montant) || 0), 0);
+  // Même lecture LOCALE du mois que ci-dessus (une date au milieu du mois écoulé sert de repère) :
+  // le découpage UTC faisait basculer d'un mois à l'autre les réservations des premières heures.
+  const lastMonthKept = Math.max(0, monthReservationsTotal(
+    reservations as any[],
+    new Date(today.getFullYear(), today.getMonth() - 1, 15),
+  ));
 
   /* Les signaux du bilan portent sur le MOIS ÉCOULÉ (dépenses variables), sauf ceux qui décrivent
      un état à date (matelas, patrimoine, fin de mois) : le bilan se lit après la clôture, donc

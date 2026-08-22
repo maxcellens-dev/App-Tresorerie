@@ -9,7 +9,7 @@
  * plus et le retour matériel non plus. Perdre cette règle rendrait l'étape contournable, donc le
  * profil financier incalculable.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, Modal, Pressable, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import type { AppColors } from '../../theme/palette';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
@@ -43,6 +43,21 @@ export default function PilotageInputModal({
 }: Props) {
   const s = useMemo(() => makeStyles(colors), [colors]);
   const dismiss = () => { if (canCancel) onCancel(); };
+
+  /* ── VERROU SYNCHRONE contre la double soumission ────────────────────────────────────────────────
+     « Conserver ce mois » n'est PAS idempotent : la mutation efface les réservations du mois puis en
+     réinsère une. Deux taps rapprochés lancent deux effacements suivis de deux insertions — et le
+     montant « Réservé » se retrouve doublé, alors qu'il est DÉDUIT du Relyka. Fermer la modale ne
+     protège pas : `visible` est un état React, il ne prend effet qu'au rendu SUIVANT, et le second
+     tap passe avant. Une référence, elle, se pose immédiatement (cf. hooks/useSubmitLock).
+     Remise à zéro à chaque ouverture : la modale sert plusieurs fois par session. */
+  const fired = useRef(false);
+  useEffect(() => { if (visible) fired.current = false; }, [visible]);
+  const saveOnce = () => {
+    if (fired.current) return;
+    fired.current = true;
+    onSave();
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={dismiss}>
@@ -78,7 +93,7 @@ export default function PilotageInputModal({
             )}
             <TouchableOpacity
               style={[s.varModalSave, saveDisabled && { opacity: 0.45 }]}
-              onPress={onSave}
+              onPress={saveOnce}
               disabled={saveDisabled}
               accessibilityRole="button"
             >

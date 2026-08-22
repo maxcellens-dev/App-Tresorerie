@@ -4,12 +4,24 @@
  * - isPremium : l'utilisateur a le droit Premium ET l'offre est active.
  * Le droit (profiles.is_premium) sera alimenté par l'intégration de paiement (RevenueCat…).
  */
+import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { useFeatureFlags } from './useFeatureFlags';
 import { useProfile } from '../data/useProfile';
 
-/** Définit/retire le droit Premium d'un utilisateur (usage admin/test ; sinon via paiement). */
+/**
+ * Définit/retire le droit Premium — RÉSERVÉ AUX ADMINISTRATEURS depuis la migration 203.
+ *
+ * `profiles.is_premium` est verrouillé en base : un déclencheur remet la colonne à sa valeur
+ * précédente pour tout appelant qui n'est ni administrateur ni le serveur. C'est volontaire —
+ * l'app parle directement à la base avec le jeton de son utilisateur, donc tout ce qu'elle peut
+ * écrire, l'utilisateur peut l'écrire à la main : le Premium s'offrait en une requête.
+ *
+ * L'activation après un ACHAT ne passe donc plus par ici : c'est le webhook RevenueCat
+ * (`supabase/functions/revenuecat-webhook`) qui la pose côté serveur. Le client se contente
+ * d'attendre et de relire — cf. `useAwaitPremiumFromServer`.
+ */
 export function useSetPremium(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
@@ -21,6 +33,30 @@ export function useSetPremium(userId: string | undefined) {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['profile', userId] }); },
   });
+}
+
+/**
+ * Attend que le SERVEUR ait posé (ou retiré) le droit Premium, puis rafraîchit l'écran.
+ *
+ * Après un achat, RevenueCat prévient notre webhook, qui écrit `is_premium`. Cela prend une à
+ * quelques secondes : on relit le profil plusieurs fois plutôt que d'annoncer un état qu'on ne
+ * ferait que supposer. Rend `true` dès que le serveur confirme, `false` si rien n'est venu dans le
+ * délai — l'écran peut alors le dire au lieu de laisser croire à un abonnement actif.
+ */
+export function useAwaitPremiumFromServer(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useCallback(async (expected: boolean, attempts = 6): Promise<boolean> => {
+    if (!userId) return false;
+    for (let i = 0; i < attempts; i++) {
+      await qc.invalidateQueries({ queryKey: ['profile', userId] });
+      const profile = qc.getQueryData<any>(['profile', userId]);
+      if (!!profile?.is_premium === expected) return true;
+      // Le webhook arrive vite, mais pas instantanément : on laisse le temps à l'aller-retour
+      // store → RevenueCat → notre fonction → base.
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    return false;
+  }, [qc, userId]);
 }
 
 export function usePlan(userId: string | undefined) {

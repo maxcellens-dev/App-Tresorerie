@@ -57,7 +57,6 @@ const recurUpcoming = {
 const baseProps: any = {
   detailKey: null,
   onClose: jest.fn(),
-  plannedTab: 'recurrentes',
   suiviDetail,
   recurUpcoming,
   pilotageData,
@@ -84,7 +83,6 @@ const baseProps: any = {
   onShowTroughInfo: jest.fn(),
   onEditEstimate: jest.fn(),
   onSetMargin: jest.fn(),
-  onOpenProfile: jest.fn(),
 };
 
 const show = (over: any = {}) => renderWithProviders(<DetailModal {...baseProps} {...over} />);
@@ -107,11 +105,12 @@ describe('DetailModal — aiguillage et en-tête', () => {
     expect(screen.getByText(title)).toBeOnTheScreen();
   });
 
-  it('titre la vue « planned » selon son onglet, et non par sa clé', () => {
-    show({ detailKey: 'planned', plannedTab: 'recurrentes' });
-    expect(screen.getByText('Dépenses récurrentes')).toBeOnTheScreen();
-    show({ detailKey: 'planned', plannedTab: 'variables' });
-    expect(screen.getByText('Dépenses variables prévues restantes')).toBeOnTheScreen();
+  /* La clé « planned » (« Dépenses prévues restantes », deux onglets) a été retirée : dernier reste
+     de la « vue complète », plus aucun chemin de l'app ne l'ouvrait depuis que la ligne « Tu devrais
+     encore dépenser » mène à `planned_simple`. */
+  it('ignore une clé inconnue au lieu d\'ouvrir une vue vide', () => {
+    show({ detailKey: 'planned' as any });
+    expect(screen.queryByText('Dépenses récurrentes')).toBeNull();
   });
 
   it('ferme au bouton Fermer', () => {

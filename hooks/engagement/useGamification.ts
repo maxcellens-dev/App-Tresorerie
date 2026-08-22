@@ -254,12 +254,15 @@ export function useGamification(userId: string | undefined) {
       const today = dayKey(new Date());
       if (state.last_free_gems_day === today) return { ok: false, reason: 'déjà réclamé aujourd’hui' };
       const reward = Number((item.payload as any)?.gems) || 5;
-      await supabase.from('user_gamification').update({
+      /* L'erreur DOIT être lue : sans ça, un crédit refusé (réseau, RLS) renvoyait quand même
+         « ok », l'écran affichait « Acheté ✓ » et le cadeau n'était nulle part. */
+      const { error: giftError } = await supabase.from('user_gamification').update({
         gems: state.gems + reward,
         gems_earned_total: state.gems_earned_total + reward,
         last_free_gems_day: today,
         updated_at: new Date().toISOString(),
       }).eq('profile_id', userId);
+      if (giftError) return { ok: false, reason: 'le cadeau n’a pas pu être enregistré, réessaie' };
       invalidate();
       return { ok: true };
     }
@@ -283,18 +286,33 @@ export function useGamification(userId: string | undefined) {
     const price = shopFinalPrice(item.price, { isPremium, premiumPct: config.premium_discount_pct });
     if (state.gems < price) return { ok: false, reason: 'relyks insuffisants' };
 
-    await supabase.from('user_gamification')
+    /* ── PAYER PUIS LIVRER, ET VÉRIFIER LES DEUX ────────────────────────────────────────────────
+       Aucune de ces deux écritures ne lisait son erreur. Les deux issues étaient réelles :
+         • DÉBIT en échec → l'article était livré quand même, gratuitement ;
+         • LIVRAISON en échec → les relyks étaient partis et l'écran affichait « Acheté ✓ ».
+       On débite d'abord (on ne livre jamais sans paiement), puis on livre — et si la livraison
+       échoue, on REND les relyks : sans transaction côté base, c'est la seule façon de ne pas
+       laisser quelqu'un payer pour rien. */
+    const { error: debitError } = await supabase.from('user_gamification')
       .update({ gems: state.gems - price, updated_at: new Date().toISOString() })
       .eq('profile_id', userId);
+    if (debitError) return { ok: false, reason: 'le paiement n’a pas pu être enregistré, réessaie' };
 
     /* ⚠️ Lecture avalée + upsert derrière = stock détruit : une erreur ici rendait `existing` null,
        et la quantité de l'article était RÉÉCRITE à 1 par-dessus les exemplaires déjà possédés. */
     const { data: existing, error: existingError } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
-    if (existingError) throw existingError;
-    await supabase.from('user_inventory').upsert(
+    const { error: grantError } = existingError ? { error: existingError } : await supabase.from('user_inventory').upsert(
       { profile_id: userId, item_key: itemKey, qty: (existing?.qty ?? 0) + 1 },
       { onConflict: 'profile_id,item_key' },
     );
+    if (grantError) {
+      // Remboursement (le verrou de l'écran garantit qu'aucun autre achat n'a bougé le solde entre-temps).
+      await supabase.from('user_gamification')
+        .update({ gems: state.gems, updated_at: new Date().toISOString() })
+        .eq('profile_id', userId);
+      invalidate();
+      return { ok: false, reason: 'l’article n’a pas pu être livré — tes relyks t’ont été rendus' };
+    }
     invalidate();
     return { ok: true };
   }

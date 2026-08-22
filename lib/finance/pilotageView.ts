@@ -13,6 +13,9 @@
  */
 import { CURRENCY_SYMBOL, floorToTen, convertAmount, type RatesMap } from './currency';
 import { buildMaterializedIndex, recurrenceForMonth } from './recurrenceMonth';
+import { relykaGross } from './relyka';
+import { isRegul } from './regul';
+import { isProjectSpendTx } from './projectTx';
 import type { PilotageData } from './pilotageEngine';
 
 /** « 24 juillet » — date lisible, pour situer le point bas de trésorerie dans le temps. */
@@ -76,6 +79,8 @@ export interface RelykaBreakdown {
   troughLimits: boolean;
   troughExplain: string;
   incomeIsGuessed: boolean;
+  /** D'où vient la rentrée d'argent principale : saisie, devinée, ou introuvable (cf. `incomeIsGuessed`). */
+  incomeSource: 'explicit' | 'inferred' | 'none';
   misDeCoteTotal: number;
   relykaAlloueVolontairement: boolean;
   baseADepenser: number;
@@ -101,12 +106,8 @@ export function computeRelykaBreakdown(
   pilotageData: PilotageData | null | undefined,
   ctx: { reservationsTotal: number; preEpargneTotal: number; preInvestTotal: number },
 ): RelykaBreakdown {
-  /* ⚠️ `?? 0` ne rattrape PAS `NaN` : il ne couvre que `null` / `undefined`. Or il suffit qu'un
-     seul des huit termes soit `NaN` (montant illisible, colonne numérique rendue en texte, division
-     par zéro en amont) pour que toute la soustraction le devienne — et le chiffre le plus important
-     de l'app s'affiche alors « NaN € », ce qu'aucun écran ne rattrape en aval. On normalise donc
-     chaque entrée : ce qui n'est pas un nombre fini vaut 0. Un terme manquant vaut mieux qu'un
-     tableau de bord illisible, et le reste du calcul garde un sens. */
+  /* Normalisation des entrées : ce qui n'est pas un nombre fini vaut 0 (même règle que
+     `lib/relyka`, qui porte la soustraction elle-même — cf. le commentaire qui l'accompagne). */
   const n = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
 
   const cumulsTotal = n(ctx.preEpargneTotal) + n(ctx.preInvestTotal);
@@ -123,16 +124,19 @@ export function computeRelykaBreakdown(
      attente de virement → on les retire aussi du budget libre tant qu'ils ne sont pas libérés ou
      transformés en virement (auquel cas ils repassent à 0 et sont déduits via les virements).
      Valeur BRUTE (peut être négative) : sert à savoir si le Relyka est à 0 par CHOIX (mises de côté)
-     ou par manque d'argent — les deux méritent des messages opposés. */
-  const resteDisponibleBrut =
-    cashflowTrough
-    - savingsRemaining
-    - investRemaining
-    - n(pilotageData?.monthly_reserve_planned)
-    - n(ctx.reservationsTotal)
-    - cumulsTotal
-    - variableEnvelopeRemaining
-    - safetyMarginDisplay;
+     ou par manque d'argent — les deux méritent des messages opposés.
+     La soustraction elle-même vit dans `lib/relyka` (source unique, partagée avec le moteur de
+     recos, le Pouls et le bandeau « prochaine action ») : elle n'est plus recopiée ici. */
+  const resteDisponibleBrut = relykaGross({
+    cashflowTrough,
+    savingsFuture: savingsRemaining,
+    investFuture: investRemaining,
+    reservePlanned: n(pilotageData?.monthly_reserve_planned),
+    reservationsTotal: n(ctx.reservationsTotal),
+    cumulsTotal,
+    variableEnvelopeRemaining,
+    safetyMargin: safetyMarginDisplay,
+  });
   const resteDisponible = Math.max(0, resteDisponibleBrut);
   /* Montant Relyka tel qu'AFFICHÉ (dizaine inférieure). C'est LUI qui décide de la couleur et du
      message, jamais le montant brut : entre 1 € et 9 €, la carte affichait « 0 € » tout en servant
@@ -160,8 +164,13 @@ export function computeRelykaBreakdown(
     : '';
 
   /* Revenu non déclaré en récurrent → le moteur l'INFÈRE et ne le compte que partiellement (pondéré
-     par la prudence) : le Relyka est durablement sous-évalué. On le dit, avec l'action qui corrige. */
-  const incomeIsGuessed = !!pilotageData && pilotageData.expected_income_source !== 'explicit';
+     par la prudence) : le Relyka est durablement sous-évalué. On le dit, avec l'action qui corrige.
+     ⚠️ DEUX situations très différentes se cachent derrière : « devinée » (l'app a repéré un motif
+     dans l'historique) et « introuvable » (aucune recette exploitable). Leur servir la même phrase
+     — « ta rentrée est estimée à partir de ton historique » — affirmait une estimation qui n'existe
+     pas à quelqu'un qui n'a rien saisi. On expose donc la source, et l'écran choisit sa phrase. */
+  const incomeSource: 'explicit' | 'inferred' | 'none' = pilotageData?.expected_income_source ?? 'explicit';
+  const incomeIsGuessed = !!pilotageData && incomeSource !== 'explicit';
 
   /* Tout ce que l'utilisateur a MIS DE CÔTÉ ce mois-ci et qu'il POSSÈDE ENCORE : épargne et
      investissement (déjà virés — donc déjà dans le point bas — ou seulement prévus), réservé de
@@ -177,14 +186,21 @@ export function computeRelykaBreakdown(
      Sans ce test, quelqu'un à −1 000 € qui a 100 € réservés lirait « rien d'inquiétant ». */
   const relykaAlloueVolontairement = misDeCoteTotal > 0 && resteDisponibleBrut + misDeCoteTotal > 0;
 
-  const baseADepenser = n(pilotageData?.safe_to_spend);
+  /* ── « Tes réservations dépassent ton reste disponible » ─────────────────────────────────────────
+     Ce que les cumuls (pré-épargne / pré-invest) avaient à leur disposition : le Relyka AVANT de les
+     retirer. L'alerte se lisait auparavant sur `safe_to_spend`, l'ANCIEN modèle de budget — un
+     agrégat qui ne déduit ni l'enveloppe variable, ni les virements prévus, ni les réservations, et
+     qui vaut donc plusieurs centaines d'euros de plus que le Relyka. Résultat : l'alerte annonçait
+     « tes réservations dépassent ton reste disponible » en se comparant à un tout autre montant que
+     celui affiché juste au-dessus — elle se taisait quand elle aurait dû parler, et l'inverse. */
+  const baseADepenser = resteDisponibleBrut + cumulsTotal;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
   return {
     cumulsTotal, safetyMarginDisplay, variableEnvelopeRemaining, savingsRemaining, investRemaining,
     monthExpensesPast, cashflowTrough, resteDisponibleBrut, resteDisponible, relykaAffiche,
     troughDate, nextIncomeDate, nextIncomeAmount, troughLimits, troughExplain, incomeIsGuessed,
-    misDeCoteTotal, relykaAlloueVolontairement, baseADepenser, enDepassement,
+    incomeSource, misDeCoteTotal, relykaAlloueVolontairement, baseADepenser, enDepassement,
   };
 }
 
@@ -225,10 +241,16 @@ export function relykaTone(
  * ailleurs) : elles restent toujours affichées, en tête.
  */
 export function buildRelykaBaseMessage(
-  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'misDeCoteTotal' | 'variableEnvelopeRemaining'>,
+  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'misDeCoteTotal' | 'variableEnvelopeRemaining' | 'resteDisponibleBrut'>,
   relykaRangeIsRange: boolean,
 ): { text: string; isGeneric: boolean } {
-  if (b.relykaAffiche < 0) {
+  /* ⚠️ Cette branche testait `relykaAffiche < 0` — une condition qui n'est JAMAIS vraie, puisque le
+     montant affiché dérive d'un `Math.max(0, …)`. Le message du budget dépassé n'a donc jamais pu
+     s'afficher : quelqu'un réellement à −900 € lisait « tout ton argent est alloué », c'est-à-dire
+     la phrase d'une situation NORMALE, sous un chiffre affiché en rouge. Exactement la même erreur
+     que celle déjà corrigée sur la couleur (`relykaTone`) : c'est le montant BRUT qui porte le
+     signe, c'est lui qu'on interroge. */
+  if (b.resteDisponibleBrut < 0 && !b.relykaAlloueVolontairement) {
     return { text: 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.', isGeneric: false };
   }
   if (b.relykaAffiche <= 0) {
@@ -299,19 +321,28 @@ export function computeSuiviDetail(
       if (linked === 'investment' && (src === 'checking' || src === 'savings')) invest.push(t);
       else if (linked === 'savings' && src === 'checking') savings.push(t);
     }
-    // Vraies dépenses depuis un compte courant (hors virements / projets / régul)
-    if (!t.linked_account_id && !t.project_id && checkingIds.has(t.account_id) && !draft) {
+    /* Vraies dépenses depuis un compte courant (hors virements).
+       Les projets sont écartés, SAUF les dépenses d'un projet « Dépenser petit à petit » : ce sont
+       de vraies dépenses catégorisées, validées d'emblée, qui sortent réellement du compte. Le
+       moteur les compte déjà dans « Tu as dépensé » (`isBudgetExpense`) ; les exclure ici faisait
+       que la somme des lignes du modal ne retombait pas sur le chiffre du tableau de bord. */
+    if (!t.linked_account_id && (!t.project_id || isProjectSpendTx(t)) && checkingIds.has(t.account_id) && !draft) {
       const cat = t.category;
       // « Dépensé ce mois » = dépenses (catégorie de dépense) et remboursements (montant positif
       // sur une catégorie de dépense). Les recettes (catégorie income) sont exclues — §1.
       const isExpenseOrRefund = !cat || cat.type === 'expense';
-      // On NE doit PAS exclure les réguls : un « Solde initial » / « régularisation » qui RÉDUIT le
-      // solde (négatif) compte comme dépensé — exactement comme « Total dépensé » (month_expenses_past).
-      // Seul exclu : un régul qui AUGMENTE le solde (catégorie nulle, montant positif) → pas une dépense.
-      const isNamedRegul = !!(cat?.name && /r[ée]gularisation|ajustement de solde/i.test(cat.name));
+      /* On NE doit PAS exclure les réguls : un « Solde initial » / « régularisation » qui RÉDUIT le
+         solde (négatif) compte comme dépensé — exactement comme « Total dépensé »
+         (month_expenses_past). Un filtre sur le NOM de la catégorie les rejetait pourtant toutes :
+         depuis la migration 175, chaque régularisation porte la sous-catégorie « Régularisation
+         Solde », donc ce filtre les attrapait systématiquement. Le total du modal était alors plus
+         bas que la ligne « Tu as dépensé » pour tous ceux qui vérifient leur solde — c'est-à-dire
+         ceux à qui l'app le demande.
+         Une régul qui AUGMENTE le solde reste exclue : sa catégorie est de type `income` (donc
+         écartée par `isExpenseOrRefund`), ou elle est sans catégorie (lignes d'avant la 175). */
       const isNullCatIncome = !cat && amt > 0;
       const isInMonth = inMonth(t.date) && t.date <= todayStr;
-      if (isExpenseOrRefund && !isNamedRegul && !isNullCatIncome) {
+      if (isExpenseOrRefund && !isNullCatIncome) {
         // Récurrentes actives (template) → liste récurrentes (pour le modal plannifié)
         if (recurring && amt < 0) recurrentes.push(t);
         // Toute dépense/remboursement passé(e) dans le mois → liste spent (modal « Dépensé ce mois »)
@@ -413,9 +444,11 @@ export function computeSetupState(
 ): SetupState {
   const hasRecurringTx = transactions.some((t) => t.is_recurring && t.recurrence_rule);
   const noAccountsYet = accounts.length === 0;
-  const hasAnyTx = transactions.some(
-    (t) => !(typeof t.note === 'string' && /r[ée]gularisation|ajustement de solde/i.test(t.note)),
-  );
+  /* Définition CANONIQUE de la régularisation (lib/finance/regul), et pas une regex locale sur la
+     note : une régul saisie à la main peut n'avoir AUCUNE note et n'être reconnue qu'à son
+     `regul_target`. Elle passait alors pour une vraie opération, l'app en concluait « ce compte est
+     installé », et l'accueil qui explique le Relyka à 0 disparaissait sans que rien ne le remplace. */
+  const hasAnyTx = transactions.some((t) => !isRegul(t));
   return {
     hasRecurringTx,
     noAccountsYet,
@@ -427,9 +460,18 @@ export function computeSetupState(
   };
 }
 
-/** Compte courant principal (solde le plus élevé) — cible du lien « Vérifier mon solde ». */
+/**
+ * Compte courant PRINCIPAL — source des virements pré-remplis par les recommandations.
+ *
+ * C'est le compte « principal » choisi par l'utilisateur (`is_default`, migration 146) : c'est déjà
+ * lui que la saisie d'une transaction pré-sélectionne et lui qui passe en tête de toutes les listes
+ * (lib/accountOrder). Ne retenir que le solde le plus élevé faisait partir le virement d'épargne
+ * d'un autre compte que celui attendu — et, en multi-devises, convertissait le montant dans une
+ * devise qui n'était pas la sienne. Repli sur le solde le plus élevé quand aucun principal n'est
+ * défini (comptes créés avant la 146).
+ */
 export function pickMainCheckingId(accounts: any[]): string | undefined {
-  return [...accounts]
-    .filter((a) => a.type === 'checking')
-    .sort((a, b) => Number(b.balance) - Number(a.balance))[0]?.id;
+  const checking = accounts.filter((a) => a.type === 'checking');
+  return checking.find((a) => a.is_default)?.id
+    ?? [...checking].sort((a, b) => Number(b.balance) - Number(a.balance))[0]?.id;
 }

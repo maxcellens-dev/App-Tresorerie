@@ -12,6 +12,7 @@ import {
   type ComputeRecoOptions,
 } from './recommendationEngine';
 import { floorToTen } from './currency';
+import { computeRelyka } from './relyka';
 import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
 import type { FinancialProfileId, RecommendationSettings } from '../../types/database';
 
@@ -95,13 +96,27 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
   const investRemaining = data.month_invest_future ?? 0;
   const savingsExecuted = Math.max(0, (data.month_savings_total ?? 0) - savingsRemaining);
   const investExecuted = Math.max(0, (data.month_invest_total ?? 0) - investRemaining);
-  const variableOverspend = Math.max(0, (data.variable_envelope_spent ?? 0) - (data.variable_envelope_initial ?? 0));
-  const recoGrossBudget = Math.max(0, trough - varRemaining - margin);
-  // Relyka (reste disponible) — même formule que la carte du Pilotage (lib/relyka la partage aussi).
-  const resteDisponible = Math.max(0,
-    trough - savingsRemaining - investRemaining - (data.monthly_reserve_planned ?? 0)
-    - x.reservationsTotal - cumulsTotal - varRemaining - margin,
+  /* Dépassement de l'enveloppe : ce qui a été dépensé au-delà de ce qui était prévu pour le mois.
+     Les dépenses variables DÉJÀ SAISIES pour les jours à venir font partie du prévu — elles sont
+     déduites de l'enveloppe restante, pas un dépassement. */
+  const variableOverspend = Math.max(
+    0,
+    (data.variable_envelope_spent ?? 0) + (data.variable_envelope_planned ?? 0) - (data.variable_envelope_initial ?? 0),
   );
+  const recoGrossBudget = Math.max(0, trough - varRemaining - margin);
+  /* Relyka (reste disponible) — la MÊME fonction que la carte du Pilotage, le Pouls et le bandeau
+     « prochaine action » (lib/relyka). Cette soustraction à huit termes était recopiée ici : le jour
+     où un terme change, les montants proposés cessent de faire exactement le Relyka. */
+  const resteDisponible = computeRelyka({
+    cashflowTrough: trough,
+    savingsFuture: savingsRemaining,
+    investFuture: investRemaining,
+    reservePlanned: data.monthly_reserve_planned ?? 0,
+    reservationsTotal: x.reservationsTotal,
+    cumulsTotal,
+    variableEnvelopeRemaining: varRemaining,
+    safetyMargin: margin,
+  });
 
   return {
     customTierAllocations: x.customTierAllocations,

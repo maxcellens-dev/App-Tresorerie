@@ -29,6 +29,8 @@ export interface PilotageBalances {
   total_invested: number;
   variable_envelope_initial: number;
   variable_envelope_spent: number;
+  /** Dépenses variables du mois déjà saisies pour les jours à venir (cf. pilotageEngine). */
+  variable_envelope_planned?: number;
   variable_envelope_remaining: number;
 }
 
@@ -95,7 +97,13 @@ export function applyOpToPilotage<T extends PilotageBalances>(
   if (consumed !== 0) {
     // Le « dépensé » ne peut pas devenir négatif (suppressions en série d'un mois déjà vidé).
     next.variable_envelope_spent = Math.max(0, data.variable_envelope_spent + consumed);
-    next.variable_envelope_remaining = Math.max(0, data.variable_envelope_initial - next.variable_envelope_spent);
+    /* Les dépenses variables DÉJÀ SAISIES pour la fin du mois restent déduites : elles ne bougent
+       pas ici (ce patch ne traite que les opérations ÉCHUES), et les oublier ferait remonter le
+       Relyka d'autant à chaque saisie, avant que le refetch ne le redescende. */
+    next.variable_envelope_remaining = Math.max(
+      0,
+      data.variable_envelope_initial - next.variable_envelope_spent - (data.variable_envelope_planned ?? 0),
+    );
   }
 
   return next;

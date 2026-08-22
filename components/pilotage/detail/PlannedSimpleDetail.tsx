@@ -39,24 +39,42 @@ export default function PlannedSimpleDetail({
   onSaveVarMode, onEditEstimate, onPressTx, toRefAmt, colors, styles,
 }: Props) {
   const varLeft = Math.max(0, pilotageData.variable_envelope_remaining ?? 0);
+  /* Dépenses variables DÉJÀ SAISIES pour les jours à venir : sorties du calcul de l'estimation
+     (elles pèsent déjà sur le Relyka via le point bas), elles doivent rester VISIBLES ici — c'est
+     de l'argent qui va sortir, et le total du modal doit retomber sur la ligne du tableau de bord. */
+  const varPlanned = Math.max(0, pilotageData.variable_envelope_planned ?? 0);
   const recurLeft = Math.max(0, recurUpcoming.amount);
   /* CONTEXTE de l'enveloppe variable. Sans lui, la ligne affichait « 0 € » sans rien qui
      l'explique : l'enveloppe était simplement déjà consommée, mais ni le montant estimé ni ce qui
      avait été dépensé n'apparaissaient nulle part. */
   const varEnvelope = Math.max(0, pilotageData.variable_envelope_initial ?? 0);
   const varUsed = Math.max(0, varSpentMonth);
-  const varRatio = varEnvelope > 0 ? Math.min(1, varUsed / varEnvelope) : 0;
-  const varExhausted = varEnvelope > 0 && varUsed >= varEnvelope;
+  /* La BARRE mesure ce que l'enveloppe a déjà absorbé : le dépensé ET ce qui est déjà saisi pour la
+     fin de la période. Sans cette seconde part, elle pouvait rester à moitié pleine alors qu'il ne
+     restait plus rien à prévoir — la ligne « Reste » disait 0 et la barre le contredisait. */
+  const varConsumed = varUsed + varPlanned;
+  const varRatio = varEnvelope > 0 ? Math.min(1, varConsumed / varEnvelope) : 0;
+  const varExhausted = varEnvelope > 0 && varConsumed >= varEnvelope;
   const barColor = varExhausted ? semanticText(colors.danger, colors) : semanticText(colors.orange, colors);
 
   return (
     <View style={{ gap: 6, paddingTop: 4 }}>
       <View style={styles.detailRow}>
         <Text style={[styles.detailRowLabel, { flex: 1 }]}>Total à venir</Text>
-        <Text style={[styles.detailRowValue, { color: semanticText(colors.yellow, colors) }]}>{fmtAmount(varLeft + recurLeft)}</Text>
+        <Text style={[styles.detailRowValue, { color: semanticText(colors.yellow, colors) }]}>{fmtAmount(varLeft + varPlanned + recurLeft)}</Text>
       </View>
 
       <View style={styles.suiviDivider} />
+
+      {varPlanned > 0 && (
+        <View style={styles.detailRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.detailRowLabel}>Dépenses variables déjà saisies</Text>
+            <Text style={styles.detailRowSub}>datées d’ici la fin de la période — déjà comptées dans ton Relyka</Text>
+          </View>
+          <Text style={[styles.detailRowValue, { color: semanticText(colors.orange, colors) }]}>{fmtAmount(varPlanned)}</Text>
+        </View>
+      )}
 
       <View style={styles.detailRow}>
         <Text style={[styles.detailRowLabel, { flex: 1 }]}>Dépenses variables estimées</Text>
@@ -139,7 +157,7 @@ export default function PlannedSimpleDetail({
         {varEnvelope <= 0
           ? `Aucun budget variable habituel n'est encore estimé : tant qu'il vaut ${fmtAmount(0)}, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation pour que le calcul démarre.`
           : varExhausted
-          ? `Enveloppe déjà consommée (${fmtAmount(varUsed)} sur ${fmtAmount(varEnvelope)}) : c'est pour ça qu'il ne reste rien à prévoir de ce côté.`
+          ? `Enveloppe déjà consommée (${fmtAmount(varConsumed)} sur ${fmtAmount(varEnvelope)}${varPlanned > 0 ? `, dont ${fmtAmount(varPlanned)} déjà saisis pour les jours à venir` : ''}) : c'est pour ça qu'il ne reste rien à prévoir de ce côté.`
           : ''}
       </Text>
 

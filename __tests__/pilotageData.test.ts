@@ -231,6 +231,64 @@ describe('computePilotageData — enveloppe des dépenses variables', () => {
     });
     expect(r.variable_envelope_remaining).toBeGreaterThanOrEqual(0);
   });
+
+  /* ── ANTICIPER SES DÉPENSES NE DOIT PAS COÛTER DEUX FOIS ──────────────────────────────────────
+     Une dépense variable datée DANS LE FUTUR est déjà déduite du point bas (il rejoue les opérations
+     jour après jour). L'enveloppe restante continuait pourtant de provisionner le mois entier : la
+     même dépense pesait DEUX FOIS sur le Relyka. Mesuré avant correction : 200 € saisis pour le 25
+     faisaient tomber le Relyka de 567 € à 367 €, alors que ces mêmes 200 € déjà dépensés le
+     laissaient à 567 €. L'app encourage la saisie à l'avance : elle ne peut pas la punir. */
+  describe('dépense variable déjà saisie pour les jours à venir', () => {
+    const accounts = [account({ id: 'a1', balance: 1000 })];
+    const q = { q9: 100 }; // ≈ 433 €/mois d'enveloppe
+
+    it('sort du provisionnement ce qui est déjà saisi (et le dit)', () => {
+      const r = run({
+        accounts, questionnaireAnswers: q,
+        transactions: [tx({ account_id: 'a1', amount: -200, date: iso(2026, 6, 25) })],
+      });
+      expect(r.variable_envelope_planned).toBe(200);
+      expect(Math.round(r.variable_envelope_remaining)).toBe(233); // 433 − 0 dépensé − 200 prévus
+      expect(r.cashflow_trough).toBe(800);                          // les 200 sont bien dans le point bas
+    });
+
+    it('coûte au Relyka exactement la même chose que la même dépense déjà passée', () => {
+      const futur = run({
+        accounts, questionnaireAnswers: q,
+        transactions: [tx({ account_id: 'a1', amount: -200, date: iso(2026, 6, 25) })],
+      });
+      const passe = run({
+        accounts: [account({ id: 'a1', balance: 800 })], questionnaireAnswers: q,
+        transactions: [tx({ account_id: 'a1', amount: -200, date: iso(2026, 6, 10) })],
+      });
+      const relyka = (d: any) => d.cashflow_trough - d.variable_envelope_remaining;
+      expect(relyka(futur)).toBeCloseTo(relyka(passe), 2);
+    });
+
+    it('ne touche pas au « dépensé » du mois, qui ne parle que du passé', () => {
+      const r = run({
+        accounts, questionnaireAnswers: q,
+        transactions: [tx({ account_id: 'a1', amount: -200, date: iso(2026, 6, 25) })],
+      });
+      expect(r.variable_envelope_spent).toBe(0);
+      expect(r.month_expenses_past).toBe(0);
+    });
+
+    it('ne retire de l\'enveloppe que ce qui est réellement DANS le point bas', () => {
+      /* La dépense du 28 tombe APRÈS le point bas (la paie du 20 relève la trajectoire) : elle n'est
+         pas dans le point bas, on ne la retire donc pas de l'enveloppe — sinon elle disparaîtrait de
+         tous les calculs à la fois. */
+      const r = run({
+        accounts, questionnaireAnswers: q,
+        transactions: [
+          tx({ account_id: 'a1', amount: 2000, date: iso(2026, 6, 20), category: { name: 'Salaire', type: 'income' } }),
+          tx({ account_id: 'a1', amount: -200, date: iso(2026, 6, 28) }),
+        ],
+      });
+      expect(r.cashflow_trough_date).toBe(iso(2026, 6, 15)); // aujourd'hui : rien ne creuse avant
+      expect(r.variable_envelope_planned).toBe(0);
+    });
+  });
 });
 
 describe('computePilotageData — point bas de trésorerie', () => {

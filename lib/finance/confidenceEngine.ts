@@ -244,6 +244,14 @@ export function toRange(net: number, conf: ConfidenceResult, config: Reliability
   if (conf.doubtRatio < config.highMax || conf.uncertaintyEur <= 0) {
     return { low: net, high: net, isRange: false };
   }
+  /* RIEN À FOURCHER À ZÉRO. Le Relyka est planché à 0 : au-dessous, sa vraie valeur est NÉGATIVE.
+     Fourcher autour de ce 0 fabriquait une borne haute à partir de rien — quelqu'un à −900 € lisait
+     « minimum sûr 0 € · jusqu'à 100 € si tout est à jour » juste sous un « 0 € » rouge et un message
+     de budget dépassé. Trois affirmations contradictoires sur la même ligne. À 0, on n'annonce que
+     le chiffre : l'incertitude ne peut pas rendre de l'argent qui n'existe pas. */
+  if (net <= 0) {
+    return { low: net, high: net, isRange: false };
+  }
   // Borne basse jamais négative : le Relyka est déjà planché à 0 (on ne « doit » rien à personne),
   // et une borne basse négative n'était de toute façon clampée qu'à l'affichage.
   const low = Math.max(0, roundTo(net - conf.uncertaintyEur, config.roundStep));

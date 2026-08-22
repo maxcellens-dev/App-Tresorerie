@@ -66,16 +66,35 @@ export interface RelykaInputs {
   safetyMargin: number;
 }
 
+/* ⚠️ `?? 0` ne rattrape PAS `NaN` : il ne couvre que `null` / `undefined`. Or il suffit qu'UN des
+   huit termes soit `NaN` (montant illisible, colonne numérique rendue en texte, division par zéro en
+   amont) pour que toute la soustraction le devienne — et le chiffre le plus important de l'app
+   s'affiche alors « NaN € », ce qu'aucun écran ne rattrape en aval. Un terme manquant vaut mieux
+   qu'un tableau de bord illisible. */
+const n = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
+
+/**
+ * Relyka BRUT — la soustraction, sans plancher. Il peut être NÉGATIF, et c'est indispensable :
+ * c'est le signe qui distingue « à 0 parce que tout est rangé ailleurs » de « à 0 parce qu'il ne
+ * reste rien », deux situations qui méritent des messages et une couleur opposés.
+ *
+ * ⚠️ SOURCE UNIQUE de la formule. Elle a été recopiée jusqu'à quatre fois (carte du Pilotage,
+ * entrées du moteur de recos, Pouls, bandeau « prochaine action ») : une soustraction à huit termes
+ * dupliquée diverge au premier terme ajouté — et deux écrans annoncent alors deux budgets libres
+ * différents pour le même mois, sans que rien ne le signale.
+ */
+export function relykaGross(i: RelykaInputs): number {
+  return n(i.cashflowTrough)
+    - n(i.savingsFuture)
+    - n(i.investFuture)
+    - n(i.reservePlanned)
+    - n(i.reservationsTotal)
+    - n(i.cumulsTotal)
+    - n(i.variableEnvelopeRemaining)
+    - n(i.safetyMargin);
+}
+
+/** Relyka AFFICHABLE : on ne « doit » rien à personne, le budget libre ne descend pas sous 0. */
 export function computeRelyka(i: RelykaInputs): number {
-  return Math.max(
-    0,
-    i.cashflowTrough
-      - i.savingsFuture
-      - i.investFuture
-      - i.reservePlanned
-      - i.reservationsTotal
-      - i.cumulsTotal
-      - i.variableEnvelopeRemaining
-      - i.safetyMargin,
-  );
+  return Math.max(0, relykaGross(i));
 }

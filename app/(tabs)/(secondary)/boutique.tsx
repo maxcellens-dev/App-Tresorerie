@@ -4,7 +4,7 @@
  */
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -16,8 +16,10 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useGamification } from '../../../hooks/engagement/useGamification';
+import { useGamificationConfig } from '../../../hooks/engagement/useGamificationConfig';
 import { usePlan } from '../../../hooks/config/usePlan';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, shopFinalPrice, type ShopItem, type ShopCategory } from '../../../lib/engagement/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/platform/purchases';
 
@@ -39,10 +41,23 @@ function BoutiqueScreen() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = (profile as any)?.is_admin === true;
-  const { state, config, inventory, buyItem, creditGems, canClaimDailyGems } = useGamification(user?.id);
+  const { state, config, inventory, buyItem, creditGems, canClaimDailyGems, isReady, isError, isImpersonating } = useGamification(user?.id);
+  // Même requête (même clé) que celle du hook ci-dessus : on ne lit ici que son ÉTAT, pour savoir
+  // distinguer « config en route » de « config illisible » — les deux donnent `config` indéfini.
+  const cfgQuery = useGamificationConfig();
   const { isPremium, premiumEnabled } = usePlan(user?.id);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
+  /* Le message d'issue porte son TON, il ne se devine plus à son texte. La couleur se décidait sur
+     `msg.startsWith('Acheté')` : un pack de relyks payé en argent réel (« +500 Relyks ✓ ») ou un
+     crédit administrateur s'affichaient donc en ROUGE, comme un échec. */
+  const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
+  const say = (text: string, tone: 'ok' | 'error') => setMsg({ text, tone });
+  /* VERROU SYNCHRONE : les achats ne sont PAS idempotents (débit du solde, crédit du cadeau du
+     jour, ajout à l'inventaire) et ne sont protégés que par `busyKey`, un état React — il ne prend
+     effet qu'au rendu SUIVANT. Deux taps rapprochés passaient donc tous les deux : le cadeau
+     quotidien était encaissé deux fois (relyks gratuits à volonté), et un article unique débité
+     deux fois pour un seul exemplaire livré. Une référence se pose immédiatement. */
+  const submit = useSubmitLock();
   const { focus } = useLocalSearchParams<{ focus?: string }>();
   const [tab, setTab] = useState<ShopTab>('app');
   // focus=gems (depuis « mes Relyks ») → pré-sélectionne « Recharger en relyks ».
@@ -69,6 +84,10 @@ function BoutiqueScreen() {
   // L'onglet « Relyka » est masquable en admin : si masqué, pas de barre d'onglets (seulement « App »).
   const relykaTabEnabled = config?.relyka_tab_enabled ?? true;
   const activeTab: ShopTab = relykaTabEnabled ? tab : 'app';
+  /* Gamification coupée globalement (admin) : plus de série, plus de succès… mais la boutique en
+     relyks restait ouverte. On ferme la partie « App » (toute l'économie en relyks) ; les services
+     Relyka, qui ne dépendent pas de la monnaie, continuent d'être présentés. */
+  const gamificationOff = !!config && config.identity.enabled === false;
 
   // Articles regroupés par catégorie (dans l'ordre défini). Un article sans catégorie retombe sur
   // « Apparence » — la catégorie « Séries » n'existe plus (gels et rachat de série ont disparu
@@ -76,6 +95,7 @@ function BoutiqueScreen() {
   const shopByCategory = SHOP_CATEGORY_ORDER
     .map((cat) => ({ cat, items: (config?.shop ?? []).filter((s) => (s.category ?? 'apparence') === cat) }))
     .filter((g) => g.items.length > 0);
+  const visibleGroups = catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter);
 
   // Défile la barre de filtres jusqu'à « Recharger en relyks » (dernier, tout à droite) dès qu'il
   // est sélectionné et que la liste est rendue (dépend de la longueur, donc rejoue après le chargement).
@@ -85,37 +105,73 @@ function BoutiqueScreen() {
     return () => clearTimeout(t);
   }, [catFilter, activeTab, shopByCategory.length]);
 
+  /* Le message d'issue s'efface tout seul. Il restait affiché indéfiniment : on lisait encore
+     « Impossible : relyks insuffisants » plusieurs achats plus tard, sans savoir à quoi il se
+     rapportait. Les échecs restent plus longtemps que les réussites — il y a quelque chose à y
+     comprendre. */
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), msg.tone === 'ok' ? 3500 : 7000);
+    return () => clearTimeout(t);
+  }, [msg]);
+
+  /* « Connecté en tant que » : la boutique dépenserait les relyks de la personne visitée. La RLS
+     refuse l'écriture (403), mais l'utilisateur n'en lisait qu'un « Impossible : connexion perdue »
+     incompréhensible. On le dit franchement, et on ne tente rien. */
+  const blockedByImpersonation = () => {
+    if (!isImpersonating) return false;
+    say("Consultation seule : tu es connecté en tant qu'un autre utilisateur.", 'error');
+    return true;
+  };
+
   const onBuy = async (key: string) => {
+    if (blockedByImpersonation()) return;
+    if (!submit.acquire()) return;
     setBusyKey(key); setMsg(null);
     try {
       const res = await buyItem(key);
-      setMsg(res.ok ? 'Acheté ✓' : `Impossible : ${res.reason}`);
+      if (res.ok) say('Acheté ✓', 'ok');
+      else say(`Impossible : ${res.reason}`, 'error');
     } catch {
       // `buyItem` interrompt l'achat plutôt que d'écrire à partir d'une lecture ratée (le stock
       // serait écrasé). Sans ce filet, le bouton restait bloqué sur son indicateur d'attente.
-      setMsg('Impossible : connexion perdue, réessaie.');
+      say('Impossible : connexion perdue, réessaie.', 'error');
     } finally {
       setBusyKey(null);
+      submit.release();
     }
   };
 
   // Pack de gemmes en argent réel (RevenueCat) → crédite les gemmes si l'achat aboutit.
   const onBuyGems = async (item: ShopItem) => {
+    if (blockedByImpersonation()) return;
+    if (!submit.acquire()) return;
     const productId = String((item.payload as any)?.productId ?? '');
     const gemsAmount = Number((item.payload as any)?.gems) || 0;
     setBusyKey(item.key); setMsg(null);
-    const res = await purchaseGemsPack(productId);
-    if (res.ok) {
-      // L'achat est passé côté store : si le crédit échoue (réseau), on le DIT au lieu de laisser
-      // croire que les relyks sont arrivés — ils seront recrédités à la prochaine tentative.
-      const credited = await creditGems(gemsAmount);
-      setMsg(credited.ok
-        ? `+${formatCurrency(gemsAmount, currencyName)} ✓`
-        : 'Achat validé, mais le crédit a échoué. Rouvre la boutique pour le récupérer.');
+    try {
+      const res = await purchaseGemsPack(productId);
+      if (res.ok) {
+        /* ARGENT RÉEL DÉJÀ DÉBITÉ : on ne peut pas se contenter d'un essai. Le pack est un
+           consommable — une fois payé, rien ne le rejoue. On réessaie donc le crédit plusieurs fois
+           avant d'abandonner, et si ça échoue vraiment, on dit la VÉRITÉ : le message promettait
+           « rouvre la boutique pour le récupérer » alors qu'aucun mécanisme de rattrapage n'existe.
+           Laisser quelqu'un attendre un crédit qui ne viendra jamais est pire que de lui dire quoi
+           faire. */
+        let credited = await creditGems(gemsAmount);
+        for (let attempt = 0; attempt < 2 && !credited.ok; attempt++) {
+          await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+          credited = await creditGems(gemsAmount);
+        }
+        if (credited.ok) say(`+${formatCurrency(gemsAmount, currencyName)} ✓`, 'ok');
+        else say(`Achat validé, mais tes ${formatCurrency(gemsAmount, currencyName)} n'ont pas pu être crédités. Écris-nous depuis Réglages → Aide : on les ajoute à ton compte.`, 'error');
+      }
+      else if (res.reason === 'cancelled') say('Achat annulé.', 'error');
+      else say(res.message ?? 'Achat indisponible.', 'error');
+    } finally {
+      setBusyKey(null);
+      submit.release();
     }
-    else if (res.reason === 'cancelled') setMsg('Achat annulé.');
-    else setMsg(res.message ?? 'Achat indisponible.');
-    setBusyKey(null);
   };
 
   // Bouton d'achat selon le type d'article (cadeau du jour / pack gemmes / achat en gemmes).
@@ -131,9 +187,14 @@ function BoutiqueScreen() {
       );
     }
     if (item.type === 'daily_gems') {
+      /* `canClaimDailyGems` se déduit d'une donnée pas encore lue : tant que l'état n'est pas
+         chargé, il vaut `true` par construction (aucune date de dernier cadeau connue). Le bouton
+         invitait donc à « Réclamer » un cadeau déjà pris, pour répondre « déjà réclamé » en rouge.
+         On attend de SAVOIR. */
+      const claimable = canClaimDailyGems && isReady;
       return (
-        <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canClaimDailyGems ? COLORS.green : COLORS.cardBorder, paddingHorizontal: 14 }]} onPress={() => canClaimDailyGems && onBuy(item.key)} disabled={!canClaimDailyGems || busy} activeOpacity={0.85}>
-          {busy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[styles.buyText, { color: canClaimDailyGems ? '#fff' : COLORS.textSecondary }]}>{canClaimDailyGems ? 'Réclamer' : 'Demain'}</Text>}
+        <TouchableOpacity style={[styles.buyBtn, { backgroundColor: claimable ? COLORS.green : COLORS.cardBorder, paddingHorizontal: 14 }]} onPress={() => claimable && onBuy(item.key)} disabled={!claimable || busy} activeOpacity={0.85}>
+          {busy || !isReady ? <ActivityIndicator size="small" color={isReady ? '#fff' : COLORS.textSecondary} /> : <Text style={[styles.buyText, { color: claimable ? '#fff' : COLORS.textSecondary }]}>{claimable ? 'Réclamer' : 'Demain'}</Text>}
         </TouchableOpacity>
       );
     }
@@ -187,7 +248,16 @@ function BoutiqueScreen() {
             {isAdmin && (
               <TouchableOpacity
                 style={styles.adminGemBtn}
-                onPress={async () => { await creditGems(100); setMsg('+100 relyks (admin)'); }}
+                // Le résultat était ignoré : un crédit refusé annonçait quand même « +100 relyks ».
+                onPress={async () => {
+                  if (blockedByImpersonation()) return;
+                  if (!submit.acquire()) return;
+                  try {
+                    const r = await creditGems(100);
+                    if (r.ok) say('+100 relyks (admin)', 'ok');
+                    else say("Le crédit administrateur n'a pas pu être enregistré.", 'error');
+                  } finally { submit.release(); }
+                }}
                 activeOpacity={0.85}
                 accessibilityLabel="Ajouter 100 relyks (admin)"
               >
@@ -204,7 +274,9 @@ function BoutiqueScreen() {
               accessibilityLabel="Recharger en relyks"
             >
               <Ionicons name="diamond" size={14} color={COLORS.blue} />
-              <Text style={styles.gemText}>{gems}</Text>
+              {/* Un solde inconnu n'est pas un solde à zéro : tant que la lecture n'a pas abouti,
+                  afficher « 0 » laissait croire que tous les relyks avaient disparu. */}
+              <Text style={styles.gemText}>{isReady ? gems : '…'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -223,9 +295,40 @@ function BoutiqueScreen() {
           </View>
         )}
 
+        {/* ISSUE DE LA DERNIÈRE ACTION — au-dessus de la liste, jamais dedans.
+            Elle s'affichait tout en bas, après toutes les catégories : sur une page qui fait
+            plusieurs écrans de haut, personne ne voyait ni « Acheté ✓ » ni la raison d'un refus.
+            Un achat semblait alors n'avoir aucun effet. */}
+        {msg && (
+          <View style={[styles.msgBox, { borderColor: (msg.tone === 'ok' ? COLORS.emerald : COLORS.danger) + '66', backgroundColor: (msg.tone === 'ok' ? COLORS.emerald : COLORS.danger) + '14' }]}>
+            <Ionicons name={msg.tone === 'ok' ? 'checkmark-circle' : 'alert-circle'} size={15} color={msg.tone === 'ok' ? COLORS.emerald : COLORS.danger} />
+            <Text style={[styles.msg, { color: msg.tone === 'ok' ? COLORS.emerald : COLORS.danger }]}>{msg.text}</Text>
+            <TouchableOpacity onPress={() => setMsg(null)} hitSlop={8} accessibilityLabel="Masquer le message">
+              <Ionicons name="close" size={15} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {activeTab === 'app' ? (
+            gamificationOff ? (
+              /* Interrupteur global de la gamification (admin) : il coupait la série et les succès,
+                 mais laissait la boutique entièrement fonctionnelle — on pouvait continuer à gagner
+                 et à dépenser des relyks dans une économie officiellement éteinte. */
+              <Text style={styles.empty}>
+                La boutique est fermée pour le moment. Reviens plus tard !
+              </Text>
+            ) : (
             <>
+              {/* Le solde n'a pas pu être lu : tous les articles paraissent hors de portée sans que
+                  rien ne l'explique. On le dit, avec de quoi réessayer. */}
+              {isError && (
+                <View style={[styles.msgBox, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '14', marginBottom: 12 }]}>
+                  <Ionicons name="cloud-offline-outline" size={15} color={COLORS.danger} />
+                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de relyks n'a pas pu être lu — les achats sont indisponibles.</Text>
+                </View>
+              )}
+
               {/* Bandeau premium */}
               {premiumEnabled && (
                 isPremium ? (
@@ -276,7 +379,7 @@ function BoutiqueScreen() {
                 </ScrollView>
               )}
 
-              {(catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter)).map(({ cat, items }) => {
+              {visibleGroups.map(({ cat, items }) => {
                 const compact = cat === 'gems';
                 return (
                   <View key={cat}>
@@ -350,9 +453,36 @@ function BoutiqueScreen() {
                   </View>
                 );
               })}
-              {shopByCategory.length === 0 && <Text style={styles.empty}>La boutique est vide pour le moment.</Text>}
-              {msg && <Text style={[styles.msg, { color: msg.startsWith('Acheté') ? COLORS.emerald : COLORS.danger }]}>{msg}</Text>}
+              {/* « Vide » ne se dit QUE lorsqu'on sait qu'elle l'est. Sans config chargée, la page
+                  annonçait « La boutique est vide pour le moment » pendant tout le chargement — et
+                  aussi quand la lecture échouait, ce qui est un mensonge doublé d'une impasse. */}
+              {!config ? (
+                cfgQuery.isError ? (
+                  <View style={{ alignItems: 'center', marginTop: 30, gap: 10 }}>
+                    <Text style={styles.empty}>La boutique n'a pas pu être chargée.</Text>
+                    <TouchableOpacity onPress={() => cfgQuery.refetch()} activeOpacity={0.8}>
+                      <Text style={[styles.apparenceLinkText, { fontSize: 13 }]}>Réessayer</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <ActivityIndicator style={{ marginTop: 30 }} color={COLORS.emerald} />
+                )
+              ) : shopByCategory.length === 0 ? (
+                <Text style={styles.empty}>La boutique est vide pour le moment.</Text>
+              ) : visibleGroups.length === 0 ? (
+                /* Filtre qui ne correspond à rien — on y arrive sans le vouloir : la page peut
+                   s'ouvrir directement sur « Recharger en relyks » (lien depuis les Succès) alors
+                   que l'administration a retiré cette catégorie. Sans issue, c'était une page
+                   blanche : la barre de filtres, elle, ne s'affiche qu'à partir de deux catégories. */
+                <View style={{ alignItems: 'center', marginTop: 30, gap: 10 }}>
+                  <Text style={styles.empty}>Aucun article dans cette catégorie.</Text>
+                  <TouchableOpacity onPress={() => setCatFilter('all')} activeOpacity={0.8}>
+                    <Text style={[styles.apparenceLinkText, { fontSize: 13 }]}>Voir toute la boutique</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </>
+            )
           ) : (
             <>
               <Text style={styles.sectionIntro}>Des accompagnements humains et IA pour t’aider à mieux gérer tes finances.</Text>
@@ -378,8 +508,11 @@ function BoutiqueScreen() {
       </SafeAreaView>
 
       {/* Confirmation d'achat (évite les dépenses accidentelles en un clic) */}
-      <Modal visible={!!confirmItem} transparent animationType="fade" onRequestClose={() => setConfirmItem(null)}>
-        <View style={styles.modalOverlay}>
+      {/* `statusBarTranslucent` : sans lui, le voile s'arrête sous la barre de statut sur Android —
+          la modale flotte alors dans un cadre blanc. Même réglage que les autres modales de l'app. */}
+      <Modal visible={!!confirmItem} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setConfirmItem(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setConfirmItem(null)}>
+          <Pressable style={{ width: '100%', alignItems: 'center' }} onPress={() => {}}>
           <View style={styles.modalCard}>
             <View style={[styles.modalIcon, { backgroundColor: COLORS.blue + '22' }]}>
               <Ionicons name="diamond" size={26} color={COLORS.blue} />
@@ -404,7 +537,8 @@ function BoutiqueScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -465,7 +599,11 @@ function makeStyles(c: any) {
     buyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, minWidth: 64, justifyContent: 'center' },
     buyText: { fontSize: 13, fontWeight: '800' },
     empty: { color: c.textSecondary, textAlign: 'center', marginTop: 30 },
-    msg: { textAlign: 'center', marginTop: 12, fontWeight: '600' },
+    msgBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10,
+    },
+    msg: { flex: 1, fontSize: 12.5, fontWeight: '600', lineHeight: 17 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
     modalCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 20, padding: 24, alignItems: 'center' },
     modalIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },

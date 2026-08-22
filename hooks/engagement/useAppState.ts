@@ -12,6 +12,8 @@ import { useOnboarding } from './useOnboarding';
 import { useAppLockPrompt } from '../platform/useAppLockPrompt';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useReliability';
 import { monthlyEquivalent } from '../../lib/finance/recurrence';
+import { computeRelyka } from '../../lib/finance/relyka';
+import { monthReservationsTotal } from '../../lib/finance/pilotageView';
 import { isRegul } from '../../lib/finance/regul';
 import { getCurrentAction, type AppAction } from '../../lib/engagement/appStateEngine';
 import { CURRENCY_SYMBOL, floorToTen } from '../../lib/finance/currency';
@@ -42,22 +44,23 @@ export function useAppState(): AppAction | null {
     if (!accountsReady || !txReady) return null;
     // Relyka AFFICHÉ = même formule que le Pilotage (« Ton Relyka » / budget libre) — pas safe_to_spend,
     // qui est un agrégat différent : le bandeau doit annoncer le MÊME montant que la carte.
-    const monthKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; })();
-    const reservationsTotal = (reservations as any[])
-      .filter((r) => (r.created_at ?? '').slice(0, 7) === monthKey)
-      .reduce((s, r) => s + Number(r.montant), 0);
+    /* Mois LOCAL des réservations + soustraction PARTAGÉE (lib/relyka, lib/pilotageView) : cette
+       formule à huit termes était recopiée ici, avec un découpage de date en UTC. Deux écarts en
+       découlaient — un terme ajouté au Relyka manquait dans le bandeau, et une réservation posée
+       dans les premières heures d'un mois n'y était pas comptée. Le bandeau annonçait alors un
+       montant que le tableau de bord, juste en dessous, contredisait. */
+    const reservationsTotal = monthReservationsTotal(reservations as any[]);
     const cumulsTotal = (preSavings?.epargne.total_cumule ?? 0) + (preSavings?.invest.total_cumule ?? 0);
-    const cashflowTrough = pilotage.cashflow_trough ?? pilotage.current_checking_balance ?? 0;
-    const relyka = Math.max(0,
-      cashflowTrough
-      - (pilotage.month_savings_future ?? 0)
-      - (pilotage.month_invest_future ?? 0)
-      - (pilotage.monthly_reserve_planned ?? 0)
-      - reservationsTotal
-      - cumulsTotal
-      - (pilotage.variable_envelope_remaining ?? 0)
-      - (pilotage.safety_margin_amount ?? 0)
-    );
+    const relyka = computeRelyka({
+      cashflowTrough: pilotage.cashflow_trough ?? pilotage.current_checking_balance ?? 0,
+      savingsFuture: pilotage.month_savings_future ?? 0,
+      investFuture: pilotage.month_invest_future ?? 0,
+      reservePlanned: pilotage.monthly_reserve_planned ?? 0,
+      reservationsTotal,
+      cumulsTotal,
+      variableEnvelopeRemaining: pilotage.variable_envelope_remaining ?? 0,
+      safetyMargin: pilotage.safety_margin_amount ?? 0,
+    });
     const conf = relCfg ? deriveRelykaConfidence(pilotage, relyka, relCfg) : null;
 
     const txs = transactions as any[];

@@ -415,10 +415,19 @@ export function isUniqueItem(item: ShopItem): boolean {
    boutique plus qu'elle ne servait, et faisait cohabiter deux prix pour le même article. Il ne
    reste qu'une remise, celle des abonnés Premium. */
 
-/** Prix final arrondi d'un article (remise Premium le cas échéant). */
+/**
+ * Prix final arrondi d'un article (remise Premium le cas échéant).
+ *
+ * ⚠️ JAMAIS NÉGATIF, et jamais `NaN`. Les prix viennent de la configuration d'administration : une
+ * saisie négative (ou un champ vidé) produisait un prix négatif, et l'achat CRÉDITAIT alors des
+ * relyks au lieu d'en débiter (`gems − (−50)`). Une faute de frappe en administration ouvrait un
+ * robinet à monnaie. La borne se pose ici, à l'endroit unique où le prix est calculé — l'affichage
+ * et l'achat passent tous deux par cette fonction.
+ */
 export function shopFinalPrice(base: number, opts: { isPremium: boolean; premiumPct: number }): number {
+  const price = Number.isFinite(base) ? Math.max(0, base) : 0;
   const factor = opts.isPremium ? Math.max(0, 1 - Math.max(0, opts.premiumPct) / 100) : 1;
-  return Math.round(base * factor);
+  return Math.max(0, Math.round(price * factor));
 }
 
 // ── Semaines (pour le streak) ───────────────────────────────────────────────

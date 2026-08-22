@@ -56,6 +56,27 @@ describe('detectExpectedIncome — revenu explicite', () => {
     expect(r.source).not.toBe('explicit');
   });
 
+  /* Seul le rythme « mensuel » était reconnu comme déclaré. Une paie HEBDOMADAIRE pourtant saisie en
+     récurrente repartait donc sur l'inférence — qui la retrouvait dans l'historique et ajoutait une
+     rentrée FANTÔME au point bas, par-dessus les occurrences réelles. */
+  it('reconnaît une récurrente NON mensuelle et la ramène à son équivalent mensuel', () => {
+    const r = detectExpectedIncome(
+      [rec({ amount: 500, date: '2026-06-01', is_recurring: true, recurrence_rule: 'weekly' })],
+      CHECKING, TODAY,
+    );
+    expect(r.source).toBe('explicit');
+    expect(r.confidence).toBe(1);
+    expect(Math.round(r.monthlyAmount)).toBe(2165); // 500 × 4,33 semaines
+  });
+
+  it('compare les récurrentes sur leur poids MENSUEL, pas sur le montant d\'une occurrence', () => {
+    const r = detectExpectedIncome([
+      rec({ amount: 900, date: '2026-06-01', is_recurring: true, recurrence_rule: 'weekly' }),   // ≈ 3 897 €/mois
+      rec({ amount: 2400, date: '2026-01-25', is_recurring: true, recurrence_rule: 'monthly' }), // 2 400 €/mois
+    ], CHECKING, TODAY);
+    expect(Math.round(r.monthlyAmount)).toBe(3897);
+  });
+
   it('ignore une récurrente sur un compte hors périmètre', () => {
     const r = detectExpectedIncome(
       [rec({ account_id: 'autre', amount: 2400, date: '2026-01-25', is_recurring: true, recurrence_rule: 'monthly' })],

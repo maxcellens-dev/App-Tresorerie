@@ -48,7 +48,7 @@ import { useAppColors } from '../hooks/theme/useAppColors';
 import { useCurrency } from '../hooks/data/useCurrency';
 import { useRatesAutoRefresh } from '../hooks/data/useRatesAutoRefresh';
 import { useProfile } from '../hooks/data/useProfile';
-import { useSetPremium, usePlan } from '../hooks/config/usePlan';
+import { useAwaitPremiumFromServer, usePlan } from '../hooks/config/usePlan';
 import { handleUsageLimitError, setCachedIsPremium, getCachedIsPremium } from '../lib/finance/usageLimits';
 import { reportUnhandledWriteError } from '../lib/ui/writeErrors';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/platform/purchases';
@@ -207,15 +207,24 @@ function UsagePremiumSync() {
   return null;
 }
 
-/** Synchronise l'abonnement RevenueCat (natif) avec le droit Premium (profiles.is_premium).
- *  Sur mobile, RevenueCat fait foi : achat confirmé → Premium ; expiration/annulation effective → retrait.
- *  Aucun effet sur le web (PURCHASES_SUPPORTED = false). */
+/**
+ * Aligne l'écran sur l'abonnement RevenueCat (natif). RevenueCat fait foi ; c'est le SERVEUR qui en
+ * tire les conséquences.
+ *
+ * ⚠️ Ce composant ÉCRIVAIT `profiles.is_premium` depuis le téléphone. Comme l'app parle directement
+ * à la base avec le jeton de son utilisateur, la même écriture pouvait être envoyée à la main :
+ * l'abonnement payant s'offrait en une requête. La colonne est verrouillée depuis la migration 203,
+ * et le webhook RevenueCat pose le droit côté serveur. Il ne reste donc ici qu'à RELIRE le profil
+ * quand le store dit quelque chose de différent de la base — le temps que le webhook arrive.
+ *
+ * Aucun effet sur le web (PURCHASES_SUPPORTED = false).
+ */
 function PurchasesSync() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const setPremium = useSetPremium(user?.id);
+  const awaitPremium = useAwaitPremiumFromServer(user?.id);
   const isPremiumDb = !!(profile as any)?.is_premium;
-  // Premium « manuel » (offert par un admin) : on ne le retire JAMAIS via RevenueCat.
+  // Premium « manuel » (offert par un admin) : le serveur ne le retire jamais via RevenueCat.
   const isManual = !!(profile as any)?.premium_manual;
   const isPremiumRef = useRef(isPremiumDb);
   const isManualRef = useRef(isManual);
@@ -227,9 +236,11 @@ function PurchasesSync() {
     let unsub = () => {};
     let cancelled = false;
     const apply = (active: boolean) => {
-      if (active && !isPremiumRef.current) setPremium.mutate(true);
-      // Rétrogradation UNIQUEMENT si le Premium n'est pas un grant manuel admin.
-      else if (!active && isPremiumRef.current && !isManualRef.current) setPremium.mutate(false);
+      // Le store et la base disent la même chose → rien à attendre.
+      if (active === isPremiumRef.current) return;
+      // Une rétrogradation ne concerne pas un Premium offert par un administrateur.
+      if (!active && isManualRef.current) return;
+      awaitPremium(active).catch(() => {});
     };
     (async () => {
       await configurePurchases(user.id);

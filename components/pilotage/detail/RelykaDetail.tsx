@@ -45,9 +45,14 @@ export default function RelykaDetail({
      le user voie tout, puis on déduit ce qui n'y est pas encore. */
   const eiRealises = Math.max(0, (pilotageData.month_savings_total ?? 0) - sFut)
     + Math.max(0, (pilotageData.month_invest_total ?? 0) - iFut);
+  /* Les dépenses variables DÉJÀ SAISIES pour les jours à venir sont, elles aussi, comprises dans le
+     point bas (il rejoue les opérations jour après jour). C'est la raison pour laquelle l'estimation
+     ci-dessous ne les provisionne plus : sans cette ligne, on croirait qu'elles ont disparu. */
+  const varPlanned = Math.max(0, pilotageData.variable_envelope_planned ?? 0);
   const infos = [
     { l: 'Dépenses récurrentes', v: recurringTotal ?? 0 },
     { l: 'Dépenses variables déjà dépensées', v: varSpentMonth },
+    ...(varPlanned > 0 ? [{ l: 'Dépenses variables déjà saisies (à venir)', v: varPlanned }] : []),
     { l: 'Épargne & investissement réalisés', v: eiRealises },
   ];
   const deductions: { l: string; v: number; term?: GlossaryTerm }[] = [

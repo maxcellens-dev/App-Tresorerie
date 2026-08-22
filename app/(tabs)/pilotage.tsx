@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 // ⚠️ Ne JAMAIS monter le <StatusBar> de react-native : react-native-keyboard-controller patche son
 // module natif, et le défaut `translucent: false` de RN écrase alors le `statusBarTranslucent` du
 // KeyboardProvider → barre blanche en haut + tout le contenu décalé. Utiliser expo-status-bar.
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Modal, findNodeHandle, Platform, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, findNodeHandle, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/layout/ScreenGradient';
 import PageLoader from '../../components/layout/PageLoader';
@@ -19,13 +19,12 @@ import RelykaShiftModal from '../../components/pilotage/RelykaShiftModal';
 import PilotageInputModal from '../../components/pilotage/PilotageInputModal';
 import SuiviTxSheet from '../../components/pilotage/SuiviTxSheet';
 import ReservedModal from '../../components/pilotage/ReservedModal';
-import DetailModal from '../../components/pilotage/DetailModal';
+import DetailModal, { type DetailKey } from '../../components/pilotage/DetailModal';
 import MonthlyClosure from '../../components/closure/MonthlyClosure';
 import { useMonthlyClosure } from '../../hooks/pilotage/useMonthlyClosure';
 import { useTransactions } from '../../hooks/data/useTransactions';
 import { useOnbHighlight } from '../../lib/engagement/onbHighlight';
 import { useUpdateOnboarding } from '../../hooks/engagement/useOnboarding';
-import { supabase } from '../../lib/platform/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -59,7 +58,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/finance/currency';
 import { WEEKS_PER_MONTH } from '../../lib/finance/financialProfileEngine';
-import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
+import { useSheetBottomPadding } from '../../lib/ui/appLayout';
 import { useResponsive } from '../../hooks/theme/useResponsive';
 import { contentWidth } from '../../lib/ui/webLayout';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
@@ -69,21 +68,6 @@ import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } 
    (cf. docs/PLAN_REFACTOR_TESTS.md, phase C2). L'écran ne fait plus que du rendu. */
 import { usePilotageViewModel } from '../../hooks/pilotage/usePilotageViewModel';
 import { shortDay, eur, computeRelykaBreakdown } from '../../lib/finance/pilotageView';
-
-
-/**
- * Puces de filtre / de légende posées DANS une liste défilante.
- *
- * Le camembert, lui, est `pointerEvents="none"` (purement décoratif) : un glissement dessus part
- * droit au ScrollView, donc « ça scrolle ». Les puces, elles, sont des `TouchableOpacity` : elles
- * prennent le doigt dès qu'il se pose, et le ScrollView doit ensuite le leur reprendre — c'est ce
- * temps de négociation qu'on ressent comme un scroll qui « galère » quand on démarre le geste sur
- * la barre de filtres.
- *
- * `delayPressIn` diffère la prise : un glissement part directement au ScrollView, un vrai appui
- * reste parfaitement normal (le délai est sous le seuil de perception).
- */
-const scrollFriendlyPress = { delayPressIn: 120 } as const;
 
 
 /**
@@ -225,11 +209,10 @@ function PilotageScreen() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [showReservedModal, setShowReservedModal] = useState(false);
   // Modaux détail du « Suivi du mois » (toutes les zones sont cliquables, §3)
-  // `planned_simple` : version « vue simplifiée » de la ligne « Tu devrais encore dépenser ». Elle
-  // couvre variables ET récurrentes à venir — un modal à part, pour ne pas toucher à celui de la
-  // vue détaillée (`planned`), qui répond à une autre question.
-  const [detailKey, setDetailKey] = useState<'checking' | 'savings' | 'invest' | 'spent' | 'planned' | 'planned_simple' | 'relyka' | null>(null);
-  const [plannedTab, setPlannedTab] = useState<'recurrentes' | 'variables'>('recurrentes');
+  // `planned_simple` : la ligne « Tu devrais encore dépenser » — variables estimées ET récurrentes
+  // à venir. (La vue `planned` de l'ancienne « vue complète » a été retirée : plus aucun chemin de
+  // l'app ne l'ouvrait.)
+  const [detailKey, setDetailKey] = useState<DetailKey | null>(null);
   // Détail d'une transaction depuis les modaux Épargné/Investi (feuille « Fermer / Modifier »).
   const [suiviTx, setSuiviTx] = useState<any | null>(null);
   const [showTroughInfo, setShowTroughInfo] = useState(false); // popup « point bas de trésorerie » (§N8)
@@ -407,9 +390,9 @@ function PilotageScreen() {
   });
   const {
     preEpargneTotal, preInvestTotal, reservationsTotal, mainCheckingId,
-    cumulsTotal, safetyMarginDisplay, variableEnvelopeRemaining, monthExpensesPast,
+    cumulsTotal, monthExpensesPast,
     resteDisponible, relykaAffiche, troughDate, troughExplain, nextIncomeDate, nextIncomeAmount,
-    misDeCoteTotal, relykaAlloueVolontairement, baseADepenser, enDepassement,
+    baseADepenser, enDepassement,
     setupIncomplete, setupHint, firstName, welcomeStep, welcomeRoute,
     relConf, recoList, recoMessages, relykaMessages, suiviDetail, recurUpcoming, relykaColor,
   } = vm;
@@ -459,6 +442,10 @@ function PilotageScreen() {
   // Synchroniser le statut des cumuls (actif / en_depassement)
   React.useEffect(() => {
     if (!preSavings) return;
+    /* « Connecté en tant que » : cet écran est en LECTURE SEULE. Cette synchro est cosmétique, mais
+       elle écrit bel et bien sur le compte visité — la règle posée plus bas (`blockedByImpersonation`)
+       vaut aussi pour les écritures automatiques, sinon consulter cesse d'être consulter. */
+    if (isImpersonating) return;
     const wanted = enDepassement ? 'en_depassement' : 'actif';
     (['epargne', 'invest'] as PreSavingType[]).forEach((t) => {
       const row = preSavings[t];
@@ -467,7 +454,7 @@ function PilotageScreen() {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enDepassement, preSavings?.epargne.total_cumule, preSavings?.invest.total_cumule]);
+  }, [enDepassement, isImpersonating, preSavings?.epargne.total_cumule, preSavings?.invest.total_cumule]);
 
   // Construit l'URL de virement pré-rempli (query-string fiable + retour vers Pilotage)
   const buildTransferUrl = (opts: {
@@ -668,6 +655,9 @@ function PilotageScreen() {
               checkingBalance={pilotageData.current_checking_balance ?? 0}
               spentThisMonth={monthExpensesPast}
               variableRemaining={pilotageData.variable_envelope_remaining ?? 0}
+              // Déjà saisies pour les jours à venir : hors de l'estimation (elles pèsent déjà sur le
+              // Relyka via le point bas), mais bien présentes dans « ce qui va encore sortir ».
+              variablePlanned={pilotageData.variable_envelope_planned ?? 0}
               recurringUpcoming={recurUpcoming.amount}
               recurringUpcomingCount={recurUpcoming.count}
               safetyMargin={pilotageData.safety_margin_amount ?? 0}
@@ -728,21 +718,8 @@ function PilotageScreen() {
       </SafeAreaView>
 
 
-      {/* ══════════ GUIDE UTILISATEUR ══════════ */}
-
       {/* Les écrans de présentation (1ʳᵉ ouverture) sont montés À LA RACINE — cf. AppIntroGate dans
           app/_layout : ils ne doivent pas attendre le chargement de ce tableau de bord. */}
-
-      {/* LA présentation du tableau de bord — une seule séquence, cinq zones. */}
-
-      {/* 3. Dépenses variables — la bulle scrolle jusqu'à la ligne et l'ouvre. */}
-
-      {/* 4. Marge de sécurité. */}
-
-      {/* 6. Tout à la fin : le menu de l'entête. L'avatar trace lui-même son anneau (rond), donc
-             le cadre tombe pile dessus quelle que soit la hauteur de la barre de statut. */}
-
-      {/* 5. Ouvrir le détail du Relyka (remonte en haut de page). */}
 
       {/* ══ PARCOURS DE DÉMARRAGE — étapes 3 et 4, les deux derniers repères ══════════════════════
           Elles se jouent SUR le tableau de bord, pas dans un écran de réglages : la page a défilé
@@ -841,7 +818,6 @@ function PilotageScreen() {
       <DetailModal
         detailKey={detailKey}
         onClose={() => setDetailKey(null)}
-        plannedTab={plannedTab}
         suiviDetail={suiviDetail}
         recurUpcoming={recurUpcoming}
         pilotageData={pilotageData}
@@ -868,7 +844,6 @@ function PilotageScreen() {
         onShowTroughInfo={() => setShowTroughInfo(true)}
         onEditEstimate={() => { setDetailKey(null); openVariableInput(); }}
         onSetMargin={() => { setDetailKey(null); setMarginInput(''); setShowMarginModal(true); }}
-        onOpenProfile={() => { setDetailKey(null); router.push('/(tabs)/(secondary)/profil-financier?edit=1' as any); }}
       />
 
       {/* Détail d'une transaction depuis Épargné/Investi — feuille du bas « Fermer / Modifier »,
@@ -1026,88 +1001,10 @@ function makeStyles(c: AppColors) {
   },
   safetyBannerText: { flex: 1, fontSize: 12, color: c.yellow, lineHeight: 18 },
 
-
-
-
-
-  /* Feuille du bas — détail d'une transaction depuis les modaux Épargné/Investi */
-  txSheetOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
-  txSheet: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
-  txSheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, marginBottom: 14 },
-  txSheetAmount: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
-  txSheetLabel: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },
-  txSheetDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 14 },
-  txSheetRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
-  txSheetKey: { fontSize: 13.5, color: c.textSecondary },
-  txSheetVal: { fontSize: 13.5, fontWeight: '600', color: c.text, flexShrink: 1, textAlign: 'right', marginLeft: 12 },
-  txSheetBtns: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  txSheetClose: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
-  txSheetCloseText: { fontSize: 15, fontWeight: '700', color: c.text },
-  txSheetEdit: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 13, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald },
-  txSheetEditText: { fontSize: 15, fontWeight: '700', color: c.bg },
-
-
-
-  envRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  envLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: '600', flexShrink: 1 },
-  envVal: { fontSize: 13, fontWeight: '800' },
-  relykaShiftRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 6 },
-  relykaShiftOld: { fontSize: 15, color: c.textSecondary, textDecorationLine: 'line-through' },
-  relykaShiftNew: { fontSize: 26, fontWeight: '800', color: c.emerald },
-
-  troughInfoText: { fontSize: 13, color: c.textSecondary, lineHeight: 20 },
-
-
-  // Modal Réservé
-  reservedOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  reservedSheet: {
-    width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20,
-    padding: 18, borderWidth: 1, borderColor: c.cardBorder, gap: 8,
-  },
-  reservedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  reservedTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-  reservedSectionLabel: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 2 },
-  reservedItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-  reservedItemIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  reservedItemName: { fontSize: 14, fontWeight: '700', color: c.text },
-  reservedItemHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
-  reservedItemAmount: { fontSize: 15, fontWeight: '800' },
-  reservedProjectBlock: {
-    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14,
-    paddingHorizontal: 12, marginTop: 8, backgroundColor: c.card,
-  },
-  reservedActions: { flexDirection: 'row', gap: 8, paddingBottom: 12, paddingTop: 2 },
-  reservedReleaseBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: c.danger + '44', backgroundColor: c.danger + '12',
-  },
-  reservedReleaseText: { fontSize: 12, fontWeight: '700', color: c.danger },
-  reservedTransferBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: c.green + '44', backgroundColor: c.green + '12',
-  },
-  reservedTransferText: { fontSize: 12, fontWeight: '700', color: c.green },
-  // Modale enveloppe variable
-  varModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  varModalBox: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 22 },
-  varModalTitle: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 8 },
-  varModalHint: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 18 },
-  varModalInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  varModalInput: {
-    flexGrow: 0, flexShrink: 1, width: 150, maxWidth: '60%',
-    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700', color: c.text,
-  },
-  varModalUnit: { fontSize: 14, color: c.textSecondary, fontWeight: '600', flexShrink: 0 },
+  /* Équivalent mensuel affiché sous le champ « dépenses variables » — le seul style de modale qui
+     reste ici : toutes les autres ont leur propre composant (components/pilotage/) et leurs styles
+     avec elles. Ceux qu'elles ont emportés étaient restés là, orphelins. */
   varModalMonthly: { fontSize: 13, color: c.emerald, fontWeight: '600', marginTop: 10 },
-  varModalActions: { flexDirection: 'row', gap: 12, marginTop: 22 },
-  varModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-  varModalCancelText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
-  varModalSave: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
-  varModalSaveText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-
   });
 }
 

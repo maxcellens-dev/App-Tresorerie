@@ -197,7 +197,7 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
 
   const relykaBase = React.useMemo(
     () => buildRelykaBaseMessage(breakdown, !!relConf?.relykaRange.isRange),
-    [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.misDeCoteTotal, breakdown.variableEnvelopeRemaining, relConf],
+    [breakdown, relConf],
   );
 
   /* Couleur du chiffre principal — décidée par `relykaTone` (lib/pilotageView) et EXPOSÉE, pour que
@@ -231,9 +231,14 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
     baseMessage: relykaBase.text,
     baseIsGeneric: relykaBase.isGeneric,
     troughMessage: breakdown.troughExplain,
-    incomeGuessedMessage: breakdown.incomeIsGuessed
-      ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
-      : null,
+    /* Deux situations, deux phrases. « Devinée » = un motif a été repéré dans l'historique et le
+       Relyka est prudent en attendant. « Introuvable » = aucune recette exploitable : annoncer une
+       estimation qui n'existe pas laissait croire que l'app avait compris quelque chose, et rendait
+       l'action à faire incompréhensible. */
+    incomeGuessedMessage: !breakdown.incomeIsGuessed ? null
+      : breakdown.incomeSource === 'inferred'
+        ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
+        : 'Relyka n\'a pas encore repéré ta rentrée d\'argent : enregistre-la en récurrente pour qu\'il cesse de calculer sans elle.',
     guardMessage: composeGuardMessage(recoList.filter((r) => r.amount > 0)),
     unverifiedMessage: relConf?.result.level === 'low'
       ? `Solde non vérifié ${unverifiedSincePhrase(relConf.result.daysSinceVerification)} — fais une régul ou saisis tes dépenses pour l'actualiser.`

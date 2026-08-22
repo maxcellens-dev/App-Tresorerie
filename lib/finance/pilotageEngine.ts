@@ -23,7 +23,7 @@ import { computeTresoRows } from './tresoProjection';
 import { computeCashflowTrough } from './relyka';
 import { computeReferenceMonthlyIncome } from './incomeAverage';
 import { variablePacePercentage } from './spendingPace';
-import { addRecurrenceToMonth, recurrencePastInMonth, recurrenceOccurrencesBetween } from './recurrence';
+import { addRecurrenceToMonth, recurrencePastInMonth, recurrenceOccurrencesBetween, monthlyEquivalent } from './recurrence';
 import { isoDay, dayOfMonthISO } from '../dateUtils';
 import type { DriftCalibration } from './confidenceEngine';
 import type { Account, FinancialProfile, Project, Profile, RecurrenceRule, TransactionWithDetails } from '../../types/database';
@@ -101,7 +101,14 @@ export interface PilotageData {
   // Enveloppe des dépenses variables (estimation dynamique)
   variable_envelope_initial: number;    // enveloppe estimée du mois (historique ou onboarding)
   variable_envelope_spent: number;      // dépenses variables déjà engagées ce mois
-  variable_envelope_remaining: number;  // = max(0, initial − spent) : reste à déduire du « Reste du mois »
+  /**
+   * Dépenses variables du mois DÉJÀ SAISIES pour les jours à venir (jusqu'au point bas). Elles sont
+   * déjà déduites du point bas : l'enveloppe ne doit donc plus les provisionner, sinon elles pèsent
+   * DEUX FOIS sur le Relyka. Exposée pour que l'écran puisse continuer à les montrer dans « ce qui
+   * va encore sortir » — elles sortiront bel et bien.
+   */
+  variable_envelope_planned: number;
+  variable_envelope_remaining: number;  // = max(0, initial − spent − planned) : reste à PROVISIONNER
   variable_envelope_source: 'history' | 'onboarding' | 'none';
   /** Référence choisie par l'utilisateur (migration 164). */
   variable_envelope_mode: 'auto' | 'estimate' | 'real';
@@ -203,14 +210,24 @@ export interface ExpectedIncome { monthlyAmount: number; nextDate: string | null
 /** Détecte le revenu attendu : récurrent explicite, sinon inféré de l'historique (4 mois). */
 export function detectExpectedIncome(transactions: any[], checkingIds: Set<string>, todayStr: string): ExpectedIncome {
   const none: ExpectedIncome = { monthlyAmount: 0, nextDate: null, day: 1, confidence: 0, source: 'none' };
-  // 1) Explicite : virement/recette récurrent(e) mensuel(le) entrant(e) sur un compte courant.
+  /* 1) EXPLICITE : une recette récurrente entrante déclarée sur un compte courant, QUEL QUE SOIT son
+     rythme.
+     ⚠️ Seul le rythme « mensuel » était accepté. Une paie hebdomadaire ou trimestrielle — pourtant
+     saisie en récurrente — ne comptait donc pas comme déclarée : le moteur repartait sur l'INFÉRENCE,
+     retrouvait ces mêmes paies dans l'historique, et ajoutait une rentrée d'argent FANTÔME à la
+     simulation du point bas… en plus des occurrences réelles, déjà comptées. Le Relyka en ressortait
+     gonflé, et l'écran demandait par-dessus « enregistre ta rentrée en récurrente » à quelqu'un qui
+     venait précisément de le faire.
+     Le montant est ramené à son ÉQUIVALENT MENSUEL (lib/recurrence) : c'est ce que ce champ promet,
+     et il sert ailleurs de diviseur (« combien de mois d'épargne d'avance »). */
   const explicit = transactions.filter((t) =>
-    checkingIds.has(t.account_id) && t.is_recurring && t.recurrence_rule === 'monthly'
-    && Number(t.amount) > 0 && !t.is_draft && !t.linked_account_id);
+    checkingIds.has(t.account_id) && t.is_recurring && t.recurrence_rule
+    && Number(t.amount) > 0 && !t.is_draft && !t.is_reserved && !t.linked_account_id);
   if (explicit.length > 0) {
-    const top = explicit.slice().sort((a, b) => Number(b.amount) - Number(a.amount))[0];
-    const occ = recurrenceOccurrencesBetween(top.date, 'monthly', top.recurrence_end_date ?? null, todayStr, addDaysIso(todayStr, 40))[0] ?? null;
-    return { monthlyAmount: Number(top.amount), nextDate: occ, day: dayOfMonthISO(top.date), confidence: 1, source: 'explicit' };
+    const perMonth = (t: any) => monthlyEquivalent(t.recurrence_rule, Number(t.amount)) || Number(t.amount);
+    const top = explicit.slice().sort((a, b) => perMonth(b) - perMonth(a))[0];
+    const occ = recurrenceOccurrencesBetween(top.date, top.recurrence_rule as RecurrenceRule, top.recurrence_end_date ?? null, todayStr, addDaysIso(todayStr, 40))[0] ?? null;
+    return { monthlyAmount: perMonth(top), nextDate: occ, day: dayOfMonthISO(top.date), confidence: 1, source: 'explicit' };
   }
   // 2) Inféré : recettes ponctuelles régulières (même libellé, ≥ 2 mois distincts) sur 4 mois.
   const now = new Date(todayStr + 'T00:00:00');
@@ -438,10 +455,11 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
 
   /**
    * Dépenses VARIABLES réellement passées sur un mois donné, en NET (un remboursement sur une
-   * catégorie de dépense vient en déduction). `upTo` borne au jour près (mois courant).
+   * catégorie de dépense vient en déduction). `upTo` borne au jour près (mois courant), `after`
+   * exclut tout ce qui est daté à cette date ou avant (pour ne garder que le futur connu).
    * MÊME fonction pour le dépensé du mois et pour les mois d'historique qui calibrent l'enveloppe.
    */
-  const monthVariableSpent = (year: number, month: number, upTo?: string): number => {
+  const monthVariableSpent = (year: number, month: number, upTo?: string, after?: string): number => {
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
     let sum = 0;
     for (const t of transactions as any[]) {
@@ -450,6 +468,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
       const d = String(t.date ?? '');
       if (!d.startsWith(prefix)) continue;
       if (upTo && d > upTo) continue;
+      if (after && d <= after) continue;
       if (!isBudgetExpense(t)) continue;
       const amt = Number(t.amount);
       // Montant positif : ce n'est un remboursement (à déduire) que sur une VRAIE catégorie de
@@ -939,7 +958,26 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     variable_envelope_months_used = monthsWithData.length;
   }
 
-  const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
+  /* ── DÉPENSES VARIABLES DÉJÀ SAISIES POUR LA FIN DU MOIS ────────────────────────────────────────
+     Une dépense variable DATÉE DANS LE FUTUR (un achat prévu le 25) est déjà déduite du point bas :
+     `computeCashflowTrough` la rejoue jour après jour. Or l'enveloppe restante, elle, continuait de
+     provisionner le mois entier comme si de rien n'était — la même dépense était donc retirée DEUX
+     FOIS du Relyka. Constat mesuré : 200 € saisis pour le 25 faisaient tomber le Relyka de 567 € à
+     367 €, alors que les mêmes 200 € déjà dépensés le laissaient à 567 €. Anticiper ses dépenses,
+     ce que l'app encourage, était donc puni.
+     BORNE au point bas : au-delà de cette date, la dépense n'est PAS dans le point bas (celui-ci est
+     un minimum, pas un solde de fin de mois) — la retirer de l'enveloppe la ferait disparaître de
+     tous les calculs. Elle reste alors couverte par l'estimation, comme avant. */
+  const troughBound = troughDate > todayStr ? troughDate : todayStr;
+  const variable_envelope_planned = monthVariableSpent(
+    currentYear, currentMonth,
+    troughBound < curMonthEnd ? troughBound : curMonthEnd,
+    todayStr,
+  );
+  const variable_envelope_remaining = Math.max(
+    0,
+    variable_envelope_initial - variable_envelope_spent - variable_envelope_planned,
+  );
 
   /* ── DÉPENSES ESSENTIELLES DU MOIS : ce qu'il faut couvrir pour continuer à vivre ─────────────
      Charges RÉCURRENTES du mois (loyer, abonnements, crédits, assurances…) + enveloppe variable
@@ -1103,6 +1141,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     variable_pace_percentage,
     variable_envelope_initial,
     variable_envelope_spent,
+    variable_envelope_planned,
     variable_envelope_remaining,
     variable_envelope_source,
     variable_envelope_mode: variableMode,

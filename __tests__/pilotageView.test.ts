@@ -246,14 +246,60 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
     expect(b.troughLimits).toBe(false);
   });
 
-  it('ne signale un dépassement que si les cumuls excèdent une base à dépenser NON NULLE', () => {
-    expect(computeRelykaBreakdown(pdata({ safe_to_spend: 100 }), { ...noCumuls, preEpargneTotal: 150 }).enDepassement).toBe(true);
-    expect(computeRelykaBreakdown(pdata({ safe_to_spend: 0 }), { ...noCumuls, preEpargneTotal: 150 }).enDepassement).toBe(false);
+  /* ── « Tes réservations dépassent ton reste disponible » ────────────────────────────────────────
+     L'alerte se comparait à `safe_to_spend`, l'ANCIEN modèle de budget : il ne déduit ni l'enveloppe
+     variable, ni les virements prévus, ni les réservations, et vaut donc bien plus que le Relyka.
+     Elle annonçait un dépassement « du reste disponible » en se mesurant à un tout autre montant que
+     celui affiché juste au-dessus. La base, c'est le Relyka AVANT retrait des cumuls. */
+  describe('dépassement des cumuls', () => {
+    it('se déclenche quand les cumuls dépassent ce qui restait vraiment', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 100 }), { ...noCumuls, preEpargneTotal: 150 });
+      expect(b.baseADepenser).toBe(100);      // ce que les cumuls avaient à disposition
+      expect(b.resteDisponibleBrut).toBe(-50); // 50 € de trop mis de côté
+      expect(b.enDepassement).toBe(true);
+    });
+
+    it('reste muet tant qu\'il y a de quoi couvrir les cumuls', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 400 }), { ...noCumuls, preEpargneTotal: 150 });
+      expect(b.enDepassement).toBe(false);
+    });
+
+    it('ne juge rien sur un compte neuf, où il n\'y a pas encore de base à dépenser', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), { ...noCumuls, preEpargneTotal: 150 });
+      expect(b.baseADepenser).toBe(0);
+      expect(b.enDepassement).toBe(false);
+    });
+
+    it('ignore désormais `safe_to_spend`, l\'ancien modèle de budget', () => {
+      const b = computeRelykaBreakdown(pdata({ safe_to_spend: 5000, cashflow_trough: 100 }), { ...noCumuls, preEpargneTotal: 150 });
+      expect(b.enDepassement).toBe(true);
+    });
   });
 });
 
 describe('buildRelykaBaseMessage', () => {
-  const base = { relykaAffiche: 0, relykaAlloueVolontairement: false, misDeCoteTotal: 0, variableEnvelopeRemaining: 0 };
+  const base = {
+    relykaAffiche: 0, relykaAlloueVolontairement: false, misDeCoteTotal: 0,
+    variableEnvelopeRemaining: 0, resteDisponibleBrut: 0,
+  };
+
+  /* Le message du budget dépassé testait `relykaAffiche < 0` — impossible, puisque le montant
+     affiché dérive d'un `Math.max(0, …)`. Il n'a donc JAMAIS pu s'afficher : quelqu'un à −900 €
+     lisait « tout ton argent est alloué », la phrase d'une situation normale, sous un chiffre rouge.
+     C'est le brut qui porte le signe (même correction que pour la couleur). */
+  it('annonce le budget dépassé quand le Relyka est réellement négatif', () => {
+    const m = buildRelykaBaseMessage({ ...base, resteDisponibleBrut: -900, variableEnvelopeRemaining: 120 }, false);
+    expect(m.text).toContain('Budget dépassé');
+    expect(m.isGeneric).toBe(false);
+  });
+
+  it('préfère « tout est rangé ailleurs » quand les mises de côté expliquent le négatif', () => {
+    const m = buildRelykaBaseMessage(
+      { ...base, resteDisponibleBrut: -100, relykaAlloueVolontairement: true, misDeCoteTotal: 500 },
+      false,
+    );
+    expect(m.text).toContain("Rien d'inquiétant");
+  });
 
   it('salue la mise de côté au lieu d\'alerter quand le 0 est un CHOIX', () => {
     const m = buildRelykaBaseMessage({ ...base, relykaAlloueVolontairement: true, misDeCoteTotal: 500 }, false);
@@ -329,23 +375,37 @@ describe('computeSuiviDetail — les listes des modaux du Suivi du mois', () => 
     expect(d.spent[0].amount).toBe(30);
   });
 
-  it("garde une régul qui RÉDUIT le solde, exclut celle qui l'augmente", () => {
+  /* Une régul est de l'argent réellement en moins : elle compte comme dépensée, exactement comme
+     dans « Tu as dépensé » (month_expenses_past). Un filtre sur le NOM de la catégorie les rejetait
+     pourtant TOUTES depuis la migration 175, qui leur donne la sous-catégorie « Régularisation
+     Solde » : le total du modal tombait alors sous le chiffre du tableau de bord. */
+  it("garde une régul qui RÉDUIT le solde, catégorisée ou non, exclut celle qui l'augmente", () => {
     const d = computeSuiviDetail([
-      tx({ amount: -80, category: null }),   // régul négative (catégorie nulle) → dépensé
-      tx({ amount: 120, category: null }),   // régul positive → pas une dépense
-      tx({ amount: -60, category: { name: 'Régularisation de solde', type: 'expense' } }),
+      tx({ amount: -80, category: null }),   // régul ancienne (sans catégorie) → dépensé
+      tx({ amount: 120, category: null }),   // régul positive ancienne → pas une dépense
+      tx({ amount: -60, category: { name: 'Régularisation Solde', type: 'expense' } }),  // depuis la 175
+      tx({ amount: 90, category: { name: 'Régularisation Solde', type: 'income' } }),    // régul à la hausse
     ], accounts, NOW);
-    expect(d.spent).toHaveLength(1);
-    expect(d.spent[0].amount).toBe(-80);
+    expect(d.spent.map((t: any) => t.amount).sort((a: number, b: number) => a - b)).toEqual([-80, -60]);
   });
 
-  it('exclut les brouillons, les virements et les dépenses de projet du « Dépensé »', () => {
+  it('exclut les brouillons et les virements du « Dépensé »', () => {
     const d = computeSuiviDetail([
       tx({ amount: -50, is_draft: true }),
       tx({ amount: -50, linked_account_id: 'acc-savings' }),
-      tx({ amount: -50, project_id: 'proj-1' }),
+      // Projet « Mettre de côté » / « Conserver » : un brouillon, jamais une dépense.
+      tx({ amount: -50, project_id: 'proj-1', is_draft: true }),
+      tx({ amount: -50, project_id: 'proj-1', linked_account_id: 'acc-savings' }),
     ], accounts, NOW);
     expect(d.spent).toHaveLength(0);
+  });
+
+  /* Un projet « Dépenser petit à petit » produit de VRAIES dépenses, validées d'emblée : le moteur
+     les compte dans « Tu as dépensé », le modal les ignorait — la somme des lignes ne retombait pas
+     sur le chiffre du tableau de bord. */
+  it('compte la dépense d\'un projet « Dépenser petit à petit »', () => {
+    const d = computeSuiviDetail([tx({ amount: -50, project_id: 'proj-1' })], accounts, NOW);
+    expect(d.spent).toHaveLength(1);
   });
 
   it('ne compte pas les dépenses faites depuis un compte NON courant', () => {
@@ -436,6 +496,14 @@ describe('computeSetupState — pourquoi le Relyka est à 0', () => {
     expect(s.hasAnyTx).toBe(false);
   });
 
+  /* La reconnaissance se faisait sur la NOTE. Or une régularisation saisie à la main peut n'avoir
+     aucune note et n'être identifiée que par `regul_target` : elle passait alors pour une vraie
+     opération, et l'accueil qui explique le Relyka à 0 disparaissait sans rien pour le remplacer. */
+  it('reconnaît aussi une régul SANS note, identifiée par son seul marqueur', () => {
+    const s = computeSetupState([account()], [tx({ note: null, regul_target: 1200 })], 0);
+    expect(s.hasAnyTx).toBe(false);
+  });
+
   it('une vraie opération compte, elle', () => {
     expect(computeSetupState([account()], [tx({ note: 'Boulangerie' })], 0).hasAnyTx).toBe(true);
     expect(computeSetupState([account()], [tx({ note: null })], 0).hasAnyTx).toBe(true);
@@ -447,6 +515,18 @@ describe('computeSetupState — pourquoi le Relyka est à 0', () => {
 });
 
 describe('pickMainCheckingId', () => {
+  /* C'est ce compte qui sert de SOURCE aux virements pré-remplis par les recommandations. Ne retenir
+     que le solde le plus élevé faisait partir le virement d'un autre compte que le principal choisi
+     par l'utilisateur (is_default, migration 146) — et, en multi-devises, convertissait le montant
+     dans une devise qui n'était pas la sienne. */
+  it('retient le compte PRINCIPAL de l\'utilisateur avant tout', () => {
+    const id = pickMainCheckingId([
+      account({ id: 'c1', type: 'checking', balance: 100, is_default: true }),
+      account({ id: 'c2', type: 'checking', balance: 9000 }),
+    ]);
+    expect(id).toBe('c1');
+  });
+
   it('retient le compte courant au solde le plus élevé', () => {
     const id = pickMainCheckingId([
       account({ id: 'c1', type: 'checking', balance: 100 }),

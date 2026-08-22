@@ -1,11 +1,15 @@
 /**
  * Modal de DÉTAIL du « Suivi du mois » : ce qui s'ouvre au clic sur un montant du tableau de bord.
  *
- * Sept clés, quatre vues réelles. Cette modale faisait 675 lignes dans `app/(tabs)/pilotage.tsx`,
- * avec 65 identifiants capturés par fermeture — ce n'était pas un déplacement mécanique comme les
- * sept autres modales, mais une refonte. Elle est découpée en quatre sous-blocs indépendants
+ * Six clés, autant de vues. Cette modale faisait 675 lignes dans `app/(tabs)/pilotage.tsx`, avec 65
+ * identifiants capturés par fermeture — ce n'était pas un déplacement mécanique comme les sept
+ * autres modales, mais une refonte. Elle est découpée en sous-blocs indépendants
  * (`components/pilotage/detail/`), chacun ne recevant que ce qu'il affiche, et les FILTRES sont
  * descendus avec les vues qu'ils pilotent au lieu de remonter en état d'écran.
+ *
+ * La clé `planned` (« Dépenses prévues restantes », deux onglets) a été retirée : c'était le dernier
+ * reste de la « vue complète », plus aucun chemin de l'app ne l'ouvrait depuis que la ligne « Tu
+ * devrais encore dépenser » mène à `planned_simple`.
  *
  * Ce qui reste ici : la coquille, l'en-tête et l'aiguillage. Cf. docs/PLAN_REFACTOR_TESTS.md.
  */
@@ -19,17 +23,15 @@ import { makeDetailStyles } from './detail/detailStyles';
 import { TxList, makeAmountResolvers, fmtAmount } from './detail/detailShared';
 import SpentDetail from './detail/SpentDetail';
 import PlannedSimpleDetail from './detail/PlannedSimpleDetail';
-import PlannedDetail from './detail/PlannedDetail';
 import RelykaDetail from './detail/RelykaDetail';
 
-export type DetailKey = 'checking' | 'savings' | 'invest' | 'spent' | 'planned' | 'planned_simple' | 'relyka';
+export type DetailKey = 'checking' | 'savings' | 'invest' | 'spent' | 'planned_simple' | 'relyka';
 
 const TITLES: Record<DetailKey, string> = {
   checking: 'Budget courant actuel',
   savings: 'Épargne du mois',
   invest: 'Investissement du mois',
   spent: 'Dépensé ce mois',
-  planned: 'Dépenses prévues restantes',
   planned_simple: 'Ce qui va encore sortir',
   relyka: 'Ton Relyka (Budget libre)',
 };
@@ -37,8 +39,6 @@ const TITLES: Record<DetailKey, string> = {
 interface Props {
   detailKey: DetailKey | null;
   onClose: () => void;
-  /** Onglet de la vue `planned` (piloté depuis l'écran, qui choisit par quel bouton on entre). */
-  plannedTab: 'recurrentes' | 'variables';
   suiviDetail: {
     checking: any[]; savings: any[]; invest: any[]; spent: any[]; recurrentes: any[];
     recurringTotal: number; recurringPassed: number;
@@ -69,15 +69,13 @@ interface Props {
   onShowTroughInfo: () => void;
   onEditEstimate: () => void;
   onSetMargin: () => void;
-  onOpenProfile: () => void;
 }
 
 export default function DetailModal({
-  detailKey, onClose, plannedTab, suiviDetail, recurUpcoming, pilotageData, profile, accounts,
+  detailKey, onClose, suiviDetail, recurUpcoming, pilotageData, profile, accounts,
   rates, catParentName, reservationsTotal, cumulsTotal, resteDisponible, relykaAffiche, troughDate,
   troughExplain, varMode, onVarMode, varModeDirty, savingVarMode, onSaveVarMode, scrollMaxHeight,
   isDesktop, colors, onPressTx, onShowRecurring, onShowTroughInfo, onEditEstimate, onSetMargin,
-  onOpenProfile,
 }: Props) {
   const styles = useMemo(() => makeDetailStyles(colors), [colors]);
 
@@ -111,15 +109,13 @@ export default function DetailModal({
               ?? Math.max(0, (pilotageData.month_expenses_past ?? 0) - recurSpentMonth);
             /* Lignes tapables (→ détail de la transaction) dans TOUS les modaux de suivi : épargné,
                investi, total dépensé et dépenses prévues/récurrentes (§3). */
-            const rowsTappable = detailKey === 'savings' || detailKey === 'invest' || detailKey === 'spent' || detailKey === 'planned';
+            const rowsTappable = detailKey === 'savings' || detailKey === 'invest' || detailKey === 'spent';
 
             return (
               <>
                 <View style={styles.detailHeader}>
                   <Text style={[styles.detailTitle, isDesktop && styles.detailTitleDesktop]}>
-                    {detailKey === 'planned'
-                      ? (plannedTab === 'recurrentes' ? 'Dépenses récurrentes' : 'Dépenses variables prévues restantes')
-                      : TITLES[detailKey]}
+                    {TITLES[detailKey]}
                   </Text>
                   {/* Raccourci « toutes les récurrentes » : seulement sur « ce qui va encore
                       sortir », où il complète la lecture. Dans « Dépensé ce mois », il envoyait
@@ -127,11 +123,6 @@ export default function DetailModal({
                   {detailKey === 'planned_simple' && (
                     <TouchableOpacity onPress={onShowRecurring} style={{ padding: 4, marginRight: 2 }} accessibilityLabel="Toutes les transactions récurrentes">
                       <Ionicons name="repeat" size={20} color={colors.orange} />
-                    </TouchableOpacity>
-                  )}
-                  {detailKey === 'planned' && plannedTab === 'recurrentes' && (
-                    <TouchableOpacity onPress={onShowRecurring} style={{ padding: 4, marginRight: 2 }} accessibilityLabel="Toutes les transactions récurrentes">
-                      <Ionicons name="repeat" size={20} color={colors.emerald} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={{ padding: 4 }}>
@@ -190,18 +181,6 @@ export default function DetailModal({
                       varModeDirty={varModeDirty} savingVarMode={savingVarMode}
                       onSaveVarMode={onSaveVarMode} onEditEstimate={onEditEstimate}
                       onPressTx={onPressTx} toRefAmt={toRefAmt} colors={colors} styles={styles}
-                    />
-                  )}
-
-                  {detailKey === 'planned' && (
-                    <PlannedDetail
-                      key={openSeq}
-                      tab={plannedTab} recurrentes={suiviDetail.recurrentes}
-                      pilotageData={pilotageData} profile={profile} varSpentMonth={varSpentMonth}
-                      catParentName={catParentName} toRef={toRef} toRefAmt={toRefAmt}
-                      onPressTx={onPressTx} onOpenProfile={onOpenProfile}
-                      onEditEstimate={onEditEstimate} isDesktop={isDesktop}
-                      colors={colors} styles={styles}
                     />
                   )}
 

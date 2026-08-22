@@ -13,7 +13,14 @@ export function useGamificationConfig() {
     queryKey: [KEY],
     queryFn: async (): Promise<GamificationConfig> => {
       if (!supabase) return mergeGamificationConfig(undefined);
-      const { data } = await supabase.from('app_config').select('gamification').eq('id', 'default').maybeSingle();
+      const { data, error } = await supabase.from('app_config').select('gamification').eq('id', 'default').maybeSingle();
+      /* ⚠️ Une lecture EN ÉCHEC ne doit PAS se transformer en « config par défaut ».
+         Cette config porte les PRIX de la boutique : sur une simple coupure réseau, l'app affichait
+         les prix du code au lieu de ceux réglés en administration — et débitait à ce prix-là. Un
+         article passé à 500 relyks en admin repartait à 70. On lève : react-query garde le dernier
+         cache (persisté d'un lancement à l'autre) et réessaie ; à défaut, les écrans savent qu'ils
+         n'ont pas de config plutôt que d'en inventer une. */
+      if (error) throw error;
       return mergeGamificationConfig((data as any)?.gamification);
     },
     staleTime: 5 * 60 * 1000,

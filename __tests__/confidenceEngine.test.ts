@@ -176,6 +176,14 @@ describe('toRange', () => {
     expect(r.high).toBeGreaterThan(0);
   });
 
+  /* Le Relyka est planché à 0 : en dessous, sa vraie valeur est NÉGATIVE. Fourcher autour de ce 0
+     fabriquait une borne haute à partir de rien — « minimum sûr 0 € · jusqu'à 100 € si tout est à
+     jour » s'affichait sous un « 0 € » rouge accompagné d'un message de budget dépassé. */
+  it('aucune fourchette à zéro : l’incertitude ne rend pas de l’argent qui n’existe pas', () => {
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, dailyDrift: 57, coldStart: true, activityDamped: false };
+    expect(toRange(0, huge, cfg)).toEqual({ low: 0, high: 0, isRange: false });
+  });
+
   it('garde-fou d’arrondi : bornes égales après arrondi → un seul chiffre (quel que soit le pas)', () => {
     // Doute au-dessus de highMax mais faible en €, gros pas d'arrondi → les bornes se rejoignent.
     const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, dailyDrift: 1.7, coldStart: false, activityDamped: false };
