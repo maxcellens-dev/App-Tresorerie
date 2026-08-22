@@ -59,23 +59,54 @@ export default function CreditDetailScreen() {
   const [evtDate, setEvtDate] = useState(todayISO());
   const submitLock = useSubmitLock();
 
-  /* Mise en avant de l'échéance d'où l'on vient (`?period=`) : on fait défiler jusqu'au tableau et
-     on surligne la ligne. Le surlignage RESTE (il ne clignote pas puis disparaît) tant qu'on n'a
-     pas touché une autre ligne — c'est un repère, pas une notification. */
+  /* Mise en avant de l'échéance d'où l'on vient (`?period=`) : on fait défiler jusqu'à ELLE et on
+     la surligne. Le surlignage RESTE (il ne clignote pas puis disparaît) tant qu'on n'a pas touché
+     une autre ligne — c'est un repère, pas une notification.
+
+     Le défilement vise la LIGNE, pas le tableau : viser le tableau amenait son en-tête en haut de
+     l'écran, donc l'échéance cherchée en bas — voire hors champ sur un crédit de 240 mois.
+     Deux mesures suffisent : la position du bloc « tableau » dans la page (`tableWrapY`) et celle
+     de la ligne dans ce bloc (`onLayout` de la ligne visée). */
   const scrollRef = useRef<any>(null);
-  const tableY = useRef(0);
+  const tableWrapY = useRef(0);
+  const focusRowY = useRef<number | null>(null);
+  const focusTries = useRef(0);
+  const focusDone = useRef(false);
   const [highlightPeriod, setHighlightPeriod] = useState<number | null>(null);
-  const focusedOnce = useRef(false);
+  useEffect(() => { if (focusPeriod) setHighlightPeriod(focusPeriod); }, [focusPeriod]);
+
+  /** Marge au-dessus de la ligne visée : elle arrive juste sous l'en-tête de l'écran. */
+  const FOCUS_TOP_GAP = 16;
+
+  /* Le défilement se REJOUE tant que la page grandit encore.
+     Un seul essai après un délai fixe ne pouvait pas marcher à l'arrivée par navigation : la page
+     se mesure par morceaux (le graphe du crédit, puis le tableau et ses centaines de lignes). Tant
+     que le contenu est court, `scrollTo` est ÉCRÊTÉ à la hauteur connue à cet instant — on ne
+     bougeait donc pas, alors qu'un rechargement de la page, où tout est mesuré d'un coup,
+     fonctionnait. D'où le symptôme « ça ne scrolle qu'après actualisation ».
+     On rejoue donc à chaque nouvelle mesure (ligne, tableau, taille du contenu), quelques fois au
+     plus, et on s'arrête dès que l'utilisateur prend la main sur le défilement. */
+  const applyFocusScroll = useCallback(() => {
+    if (focusDone.current || focusRowY.current == null) return;
+    const y = Math.max(0, tableWrapY.current + focusRowY.current - FOCUS_TOP_GAP);
+    // `animated: false` : une animation relancée à chaque mesure donnerait un défilement saccadé.
+    scrollRef.current?.scrollTo?.({ y, animated: false });
+    if (++focusTries.current >= 8) focusDone.current = true;
+  }, []);
+
+  const focusRow = useCallback((rowY: number) => {
+    focusRowY.current = rowY;
+    applyFocusScroll();
+  }, [applyFocusScroll]);
+
+  /* Fenêtre de temps bornée : passé ce délai, l'arrivée sur l'écran est finie et on ne reprend
+     plus jamais la main. Sans ça, une remise en page tardive — basculer le tableau en mode
+     édition, par exemple — aurait pu ramener l'utilisateur à la ligne d'origine bien plus tard. */
   useEffect(() => {
-    if (!focusPeriod || focusedOnce.current || !credit) return;
-    focusedOnce.current = true;
-    setHighlightPeriod(focusPeriod);
-    // Laisse le tableau se mesurer (`onLayout`) avant de viser sa position.
-    const t = setTimeout(() => {
-      scrollRef.current?.scrollTo?.({ y: Math.max(0, tableY.current - 12), animated: true });
-    }, 350);
+    if (!focusPeriod) return;
+    const t = setTimeout(() => { focusDone.current = true; }, 2000);
     return () => clearTimeout(t);
-  }, [focusPeriod, credit]);
+  }, [focusPeriod]);
 
   // #3 — retour matériel (Android) : revenir à la page précédente plutôt que de quitter.
   useFocusEffect(useCallback(() => {
@@ -192,7 +223,17 @@ export default function CreditDetailScreen() {
             </TouchableOpacity>
           ) : undefined}
         />
-        <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          // La page se mesure par morceaux : on rejoue le défilement ciblé à chaque fois qu'elle
+          // grandit, sinon il reste écrêté à la hauteur connue au premier essai.
+          onContentSizeChange={applyFocusScroll}
+          // L'utilisateur fait défiler lui-même → on ne lui reprend plus la main.
+          onScrollBeginDrag={() => { focusDone.current = true; }}
+        >
           {/* Synthèse */}
           <View style={styles.card}>
             <Text style={styles.crdLabel}>Capital restant dû</Text>
@@ -278,10 +319,8 @@ export default function CreditDetailScreen() {
             ))}
           </View>
 
-          {/* Tableau d'amortissement — éditable manuellement par échéance (mensualité + assurance).
-              `onLayout` retient sa position verticale : c'est la cible du défilement quand on arrive
-              depuis une transaction de prélèvement (`?period=`). */}
-          <View style={styles.evtHead} onLayout={(e) => { tableY.current = e.nativeEvent.layout.y; }}>
+          {/* Tableau d'amortissement — éditable manuellement par échéance (mensualité + assurance). */}
+          <View style={styles.evtHead}>
             <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
             {editTable ? (
               <TouchableOpacity onPress={() => { setEditRowPeriod(null); setEditTable(false); }}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Terminé</Text></TouchableOpacity>
@@ -308,8 +347,13 @@ export default function CreditDetailScreen() {
             // Largeur mini pour que toutes les colonnes soient lisibles : le tableau glisse horizontalement
             // sur les petits écrans (scroll latéral).
             const tableMinW = 150 + (4 + (hasInsurance ? 1 : 0) + (hasDeferred ? 1 : 0)) * 96; // Échéance + N colonnes chiffrées
+            // `onLayout` sur le tableau retient sa position DANS la page : additionnée à celle de
+            // la ligne visée (mesurée plus bas), elle donne le point exact où défiler.
             return (
-              <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
+              <ScrollView
+                horizontal showsHorizontalScrollIndicator nestedScrollEnabled
+                onLayout={(e) => { tableWrapY.current = e.nativeEvent.layout.y; applyFocusScroll(); }}
+              >
               <View style={[styles.card, { minWidth: tableMinW }]}>
                 <View style={[styles.tRow, styles.tHead]}>
                   <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
@@ -337,9 +381,12 @@ export default function CreditDetailScreen() {
                       {editTable && <Ionicons name="chevron-forward" size={13} color={COLORS.blue} style={{ marginLeft: 2 }} />}
                     </View>
                   );
+                  // La LIGNE visée se mesure elle-même : c'est elle qu'on amène en haut de l'écran,
+                  // pas le début du tableau (qui peut être des centaines de lignes plus haut).
+                  const onRowLayout = isFocused ? (e: any) => focusRow(e.nativeEvent.layout.y) : undefined;
                   return editTable
-                    ? <TouchableOpacity key={`${r.date}-${i}`} activeOpacity={0.6} onPress={() => setEditRowPeriod(r.period)}>{rowInner}</TouchableOpacity>
-                    : <View key={`${r.date}-${i}`}>{rowInner}</View>;
+                    ? <TouchableOpacity key={`${r.date}-${i}`} activeOpacity={0.6} onLayout={onRowLayout} onPress={() => setEditRowPeriod(r.period)}>{rowInner}</TouchableOpacity>
+                    : <View key={`${r.date}-${i}`} onLayout={onRowLayout}>{rowInner}</View>;
                 })}
                 <Text style={styles.tNote}>{editTable ? 'Touche une ligne pour l\'éditer dans une fenêtre : chaque enregistrement est immédiat. « Terminé » ferme le mode édition.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
               </View>
