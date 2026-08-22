@@ -46,8 +46,11 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const items: ({ icon: string; label: string; route: string; color?: string; premium?: boolean } | false)[] = [
     { icon: 'person-circle-outline', label: 'Mon Profil', route: '/(tabs)/(secondary)/profile' },
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
-    { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: true },
-    { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: true },
+    /* L'étoile signale « réservé aux abonnés » : elle n'a donc de sens que pour un NON-abonné.
+       Elle était affichée en dur, si bien qu'un abonné Premium voyait un cadenas sur des pages
+       qu'il paye — et le menu web (WebSideNav), lui, la masquait déjà correctement. */
+    { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: !isPremium },
+    { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: !isPremium },
     /* « Succès » manquait ici. Sur mobile, la page n'était atteignable QUE par la pastille de série
        de l'en-tête — laquelle disparaît tant que l'état de gamification n'est pas chargé (ou s'il
        échoue) : la page devenait alors purement et simplement inaccessible. Elle est à sa place à

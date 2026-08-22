@@ -223,6 +223,31 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
 
   return (
     <>
+      {/* Ce que cet onglet règle — et ce qu'il ne règle PAS. Sans cet encart, on cherche
+          longtemps où « ajouter un agent avec sa clé » : la réponse est qu'on ne le fait pas ici,
+          et surtout pas depuis l'app (cf. l'avertissement de sécurité ci-dessous). */}
+      <View style={[s.card, { alignItems: 'flex-start' }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.cardTitle}>Fournisseur : Google Gemini</Text>
+          <Text style={s.cardDesc}>
+            Cet onglet règle QUELS MODÈLES Gemini sont utilisés et dans quel ORDRE. Il ne sert pas à
+            ajouter un autre fournisseur (Claude, GPT…) : l'Edge Function n'appelle aujourd'hui que
+            l'API Gemini.
+          </Text>
+          <Text style={[s.cardDesc, { marginTop: 6 }]}>
+            Les CLÉS API ne se saisissent pas ici, volontairement : cette page écrit dans une table
+            que TOUS les utilisateurs connectés peuvent lire. Une clé posée là partirait dans chaque
+            application installée. Elles vivent donc dans les secrets du serveur :
+          </Text>
+          <Text style={[s.cardDesc, { marginTop: 4 }]}>• GEMINI_API_KEY — clé gratuite principale</Text>
+          <Text style={s.cardDesc}>• GEMINI_API_KEY_2 — 2ᵉ clé gratuite (optionnelle, bascule automatique)</Text>
+          <Text style={s.cardDesc}>• GEMINI_API_KEY_PAID — clé facturée (requêtes rechargées, Premium, bascule payante)</Text>
+          <Text style={[s.cardDesc, { marginTop: 6, fontStyle: 'italic' }]}>
+            Pour en ajouter/changer une : « supabase secrets set NOM=valeur » puis redéployer la
+            fonction ai-advice. Le test ci-dessous dit ensuite, en direct, si chaque clé répond.
+          </Text>
+        </View>
+      </View>
       <Text style={s.hint}>Les modèles sont essayés de haut en bas : si le 1ᵉ échoue (épuisé, retiré…), on bascule sur le suivant. L'ID doit correspondre EXACTEMENT au nom Gemini (ex. « gemini-2.5-flash »). Désactive ou supprime ceux que tu ne veux pas.</Text>
       <TouchableOpacity style={[s.checkBtn, check.isPending && { opacity: 0.6 }]} onPress={runCheck} disabled={check.isPending}>
         {check.isPending ? <ActivityIndicator size="small" color={c.emerald} /> : <Ionicons name="pulse-outline" size={16} color={c.emerald} />}

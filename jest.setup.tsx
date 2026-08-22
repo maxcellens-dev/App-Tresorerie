@@ -29,6 +29,14 @@ export const mockSupabase = {
   rpc: jest.fn(async () => ({ data: null, error: null })),
   functions: { invoke: jest.fn(async () => ({ data: null, error: null })) },
   storage: { from: jest.fn() },
+  /* Temps réel : plusieurs écrans s'abonnent au montage (`supabase.channel(...).on(...).subscribe()`).
+     Sans ces deux méthodes, le simple fait de monter un tel écran lève « channel is not a function »
+     — l'écran entier disparaît et le test échoue sur un message qui ne dit rien du vrai sujet. */
+  channel: jest.fn(() => {
+    const ch: any = { on: jest.fn(() => ch), subscribe: jest.fn(() => ch), unsubscribe: jest.fn() };
+    return ch;
+  }),
+  removeChannel: jest.fn(),
 };
 jest.mock('./lib/platform/supabase', () => ({ supabase: mockSupabase }));
 

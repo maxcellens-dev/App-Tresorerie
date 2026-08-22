@@ -126,10 +126,27 @@ serve(async (req) => {
   const kind: string = body.kind === 'analysis' ? 'analysis' : 'chat';
   const analysisKey: string | null = kind === 'analysis' ? String(body.analysis_key ?? '') : null;
   const question: string = kind === 'chat' ? String(body.question ?? '').slice(0, 2000) : '';
-  const snapshot: string = String(body.snapshot ?? '').slice(0, 20000);
+  // Plafond de l'instantané. 20 000 caractères tronquaient SILENCIEUSEMENT le snapshot d'un compte
+  // bien rempli (le texte fait couramment 15–25 k) : les dernières sections — crédits, puis
+  // « LIMITES DES DONNÉES », c'est-à-dire les garde-fous — disparaissaient du prompt et le modèle
+  // raisonnait sur des données amputées sans que personne ne le sache. 60 000 caractères ≈ 15 k
+  // tokens, négligeable pour les modèles utilisés (fenêtre ≥ 1 M).
+  const snapshot: string = String(body.snapshot ?? '').slice(0, 60000);
   const wantedModel: string | undefined = body.model || undefined; // choix éventuel du user
   // Conversation (fil) à laquelle rattacher les messages. Le client en fournit toujours une.
   const conversationId: string | null = typeof body.conversation_id === 'string' ? body.conversation_id : null;
+
+  /* Une conversation doit APPARTENIR à celui qui écrit dedans. Le `conversation_id` vient du corps
+     de la requête : sans cette vérification, n'importe quel utilisateur authentifié pouvait passer
+     l'identifiant d'une conversation d'AUTRUI — l'historique de ce fil (lu ici avec le service role,
+     donc hors RLS) partait alors dans le prompt et pouvait ressortir dans la réponse qui lui était
+     rendue. Même chose en « connecté en tant que » côté admin, où le JWT et la conversation ne
+     désignent pas la même personne. */
+  const ownsConversation = async (convId: string | null, ownerId: string): Promise<boolean> => {
+    if (!convId) return true;
+    const { data } = await admin.from('ai_conversations').select('id').eq('id', convId).eq('profile_id', ownerId).maybeSingle();
+    return !!data;
+  };
 
   // ── Test ADMIN : ping chaque modèle pour connaître sa disponibilité en temps réel (OK / 429 / 404…).
   if (body.admin_check_models === true) {
@@ -176,6 +193,20 @@ serve(async (req) => {
       const { data: tk } = await admin.from('ai_tickets').select('conversation_id').eq('id', body.ticket_id).maybeSingle();
       convId = (tk as any)?.conversation_id ?? null;
     }
+    // La conversation doit être celle du user CIBLE (sinon la réponse atterrirait dans le fil d'un tiers).
+    if (!(await ownsConversation(convId, targetUser))) return json({ error: 'conversation_mismatch' }, 400);
+    /* Sans conversation, le message serait INVISIBLE côté user (sa page n'affiche que le fil
+       sélectionné) : on rattache la relance à son fil le plus récent, sinon on en ouvre un. */
+    if (!convId) {
+      const { data: last } = await admin.from('ai_conversations')
+        .select('id').eq('profile_id', targetUser).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      convId = (last as any)?.id ?? null;
+      if (!convId) {
+        const { data: created } = await admin.from('ai_conversations')
+          .insert({ profile_id: targetUser, title: 'Mes conseils' }).select('id').single();
+        convId = (created as any)?.id ?? null;
+      }
+    }
     const fp = pr.prompt_template
       .replaceAll('{{SNAPSHOT}}', snapshot)
       .replaceAll('{{HISTORY}}', kind === 'chat' ? await conversationHistory(admin, convId) : '')
@@ -184,9 +215,19 @@ serve(async (req) => {
     const { reply: rep, model: mdl, lastErr: le } = await generateWithFallback((acfg!.models as any[]).filter((x) => x.enabled), fp);
     if (!rep) return json({ ok: false, queued: true, error: le });
     await admin.from('ai_messages').insert({ profile_id: targetUser, role: 'assistant', content: rep, model: mdl, conversation_id: convId });
+    /* Remonter le fil en tête : la page s'ouvre sur la conversation la PLUS RÉCEMMENT active. Sans
+       ce coup de pouce, une réponse arrivée plusieurs heures après (relance admin) restait enterrée
+       sous des conversations plus récentes — l'utilisateur, notifié, ne la trouvait pas. */
+    if (convId) await admin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId);
     if (body.ticket_id) await admin.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', body.ticket_id);
     return json({ ok: true, reply: rep, model: mdl });
   }
+
+  // 1 bis) Validation de la demande AVANT toute écriture (une requête vide ou bidon ne doit ni
+  //        écrire dans l'historique, ni consommer une requête, ni partir chez le modèle).
+  if (kind === 'chat' && !question.trim()) return json({ error: 'empty_question' }, 400);
+  if (kind === 'analysis' && !/^analysis_[a-z0-9_-]+$/i.test(analysisKey ?? '')) return json({ error: 'invalid_analysis' }, 400);
+  if (!(await ownsConversation(conversationId, user.id))) return json({ error: 'conversation_not_found' }, 403);
 
   // 2) Config + droit d'accès + quota.
   const [{ data: cfg }, { data: featRow }, { data: profile }] = await Promise.all([
@@ -233,8 +274,10 @@ serve(async (req) => {
   // 3) Prompt : template admin + instantané (déjà anonymisé côté client) + historique de la
   //    conversation (chat) — AVANT l'insertion du message user pour ne pas l'inclure deux fois.
   const key = kind === 'analysis' ? analysisKey! : 'chat_system';
-  const { data: prompt } = await admin.from('ai_prompts').select('prompt_template, title').eq('key', key).maybeSingle();
+  const { data: prompt } = await admin.from('ai_prompts').select('prompt_template, title, is_active').eq('key', key).maybeSingle();
   if (!prompt) return json({ error: 'prompt_missing' }, 500);
+  // Une analyse DÉSACTIVÉE en admin ne doit pas rester exécutable en forgeant la requête.
+  if (kind === 'analysis' && prompt.is_active === false) return json({ error: 'analysis_disabled' }, 400);
   const finalPrompt = prompt.prompt_template
     .replaceAll('{{SNAPSHOT}}', snapshot)
     .replaceAll('{{HISTORY}}', kind === 'chat' ? await conversationHistory(admin, conversationId) : '')

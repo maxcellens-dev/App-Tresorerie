@@ -14,7 +14,10 @@ export function makeTestQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity, staleTime: Infinity, refetchOnMount: false, refetchOnWindowFocus: false },
-      mutations: { retry: false },
+      /* `gcTime: Infinity` AUSSI sur les mutations : sinon react-query programme un minuteur de
+         nettoyage (5 min par défaut) dès qu'une mutation se termine, et jest signale « a worker
+         process has failed to exit gracefully » à la fin d'un test qui écrit. */
+      mutations: { retry: false, gcTime: Infinity },
     },
   });
 }

@@ -8,8 +8,11 @@
  * Reporting pouvait être visible d'un côté et masquée de l'autre pour le même utilisateur.
  *
  * Retirés parce qu'acquis : `ads_enabled`, `reporting_enabled`, `reco_context_enabled`,
- * `quick_add_enabled`, `quick_add_mode`. Les clés correspondantes peuvent rester dans
- * `app_config.features` : plus personne ne les lit.
+ * `quick_add_enabled`, `quick_add_mode`. Également retiré : `ai_advice_enabled`, qui était DÉCLARÉ
+ * ici mais lu NULLE PART (aucun écran, aucun interrupteur admin) — un drapeau fantôme laisse croire
+ * qu'on peut couper la page Conseils IA, alors que son accès dépend uniquement de Premium et de
+ * `ai_config.open_to_all`. Les clés correspondantes peuvent rester dans `app_config.features` :
+ * plus personne ne les lit.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
@@ -18,8 +21,6 @@ export interface FeatureFlags {
   monthly_closure_enabled?: boolean;
   /** Offre Premium active (sinon : tout le monde gratuit, pas d'UI premium). */
   premium_enabled?: boolean;
-  /** Page Conseils IA accessible (gate Premium + flag ai_open_to_all dans ai_config). */
-  ai_advice_enabled?: boolean;
   /** Dernière version publiée sur le store (ex. "1.0.2"). Si > version installée → bandeau « mise à jour ». */
   latest_version?: string;
   /** Version minimale requise (ex. "1.0.1"). Si > version installée → mise à jour OBLIGATOIRE (bandeau non fermable). */

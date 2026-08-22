@@ -70,6 +70,33 @@ export function useAiPrompts() {
   });
 }
 
+/** Analyse proposée à l'utilisateur : le TITRE seul (jamais le modèle de prompt). */
+export interface AiAnalysisItem { key: string; title: string; sort_order: number }
+
+/**
+ * Liste des analyses ACTIVES pour la page utilisateur. Passe par la fonction `ai_analyses()`
+ * (migration 201) : le texte des prompts reste côté serveur. Repli sur la lecture directe tant que
+ * la migration n'est pas appliquée — sans lui, la liste d'analyses serait vide entre l'OTA et la
+ * migration. (Le repli devient inopérant une fois la migration 202 jouée, ce qui est voulu : à ce
+ * moment-là, la table n'est plus lisible que par un admin.)
+ */
+export function useAiAnalyses() {
+  return useQuery({
+    queryKey: ['ai_analyses'],
+    queryFn: async (): Promise<AiAnalysisItem[]> => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.rpc('ai_analyses');
+      if (!error) return (data ?? []) as AiAnalysisItem[];
+      // Fonction absente (migration pas encore jouée) → ancienne lecture de la table.
+      const { data: rows, error: e2 } = await supabase.from('ai_prompts').select('key, title, sort_order, is_active').order('sort_order');
+      if (e2) throw e2;
+      return ((rows ?? []) as any[])
+        .filter((p) => p.is_active && String(p.key).startsWith('analysis_'))
+        .map((p) => ({ key: p.key, title: p.title, sort_order: p.sort_order }));
+    },
+  });
+}
+
 export function useUpdateAiPrompt() {
   const qc = useQueryClient();
   return useMutation({
@@ -158,14 +185,23 @@ export function useAiConversations(userId: string | undefined) {
 export function useCreateConversation(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (title?: string): Promise<string> => {
+    mutationFn: async (title?: string): Promise<AiConversation> => {
       if (!supabase || !userId) throw new Error('Non connecté');
       const clean = (title ?? '').trim().slice(0, 80) || 'Nouvelle conversation';
-      const { data, error } = await supabase.from('ai_conversations').insert({ profile_id: userId, title: clean }).select('id').single();
+      const { data, error } = await supabase.from('ai_conversations').insert({ profile_id: userId, title: clean }).select('*').single();
       if (error) throw new Error(error.message);
-      return (data as any).id as string;
+      return data as AiConversation;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai_conversations', userId] }),
+    /* La nouvelle conversation est écrite DANS LE CACHE tout de suite, avant l'invalidation.
+       Sans ça, la page sélectionnait un fil que sa propre liste (encore périmée, le temps d'un
+       aller-retour réseau) ne contenait pas : son garde-fou « la conversation courante a disparu »
+       la dé-sélectionnait aussitôt, et la question posée — comme la réponse qui suit — atterrissait
+       dans un fil que l'utilisateur ne regardait plus. */
+    onSuccess: (conv) => {
+      qc.setQueryData<AiConversation[]>(['ai_conversations', userId], (old) =>
+        (old ?? []).some((c) => c.id === conv.id) ? (old ?? []) : [conv, ...(old ?? [])]);
+      qc.invalidateQueries({ queryKey: ['ai_conversations', userId] });
+    },
   });
 }
 
@@ -174,8 +210,12 @@ export function useRenameConversation(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; title: string }) => {
-      if (!supabase) throw new Error('Backend indisponible');
-      const { error } = await supabase.from('ai_conversations').update({ title: input.title.trim().slice(0, 80) || 'Conversation' }).eq('id', input.id);
+      if (!supabase || !userId) throw new Error('Non connecté');
+      // Filtre sur le profil EN PLUS de la RLS : la policy autorise aussi l'admin, un id erroné
+      // renommerait alors la conversation de quelqu'un d'autre.
+      const { error } = await supabase.from('ai_conversations')
+        .update({ title: input.title.trim().slice(0, 80) || 'Conversation' })
+        .eq('id', input.id).eq('profile_id', userId);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ai_conversations', userId] }),
@@ -187,8 +227,8 @@ export function useDeleteConversation(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      if (!supabase) throw new Error('Backend indisponible');
-      const { error } = await supabase.from('ai_conversations').delete().eq('id', id);
+      if (!supabase || !userId) throw new Error('Non connecté');
+      const { error } = await supabase.from('ai_conversations').delete().eq('id', id).eq('profile_id', userId);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -393,8 +433,27 @@ export function useAdminReplyAi() {
         const { data: tk } = await supabase.from('ai_tickets').select('conversation_id').eq('id', input.ticketId).maybeSingle();
         convId = (tk as any)?.conversation_id ?? null;
       }
+      /* Un message SANS conversation est INVISIBLE pour l'utilisateur : sa page n'affiche jamais que
+         le fil sélectionné (`conversation_id = …`). Un ticket sans conversation (ancien ticket, ou
+         conversation supprimée depuis) donnait donc une réponse dans le vide — avec en prime une
+         notification push annonçant une réponse introuvable. On rattache donc à sa conversation la
+         plus récente, et on en crée une si le user n'en a aucune. */
+      if (!convId) {
+        const { data: last } = await supabase.from('ai_conversations')
+          .select('id').eq('profile_id', input.profileId).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        convId = (last as any)?.id ?? null;
+        if (!convId) {
+          const { data: created, error: cErr } = await supabase.from('ai_conversations')
+            .insert({ profile_id: input.profileId, title: 'Réponse de l\'équipe Relyka' }).select('id').single();
+          if (cErr) throw new Error(cErr.message);
+          convId = (created as any).id as string;
+        }
+      }
       const { error } = await supabase.from('ai_messages').insert({ profile_id: input.profileId, role: 'admin', content: input.content, conversation_id: convId });
       if (error) throw new Error(error.message);
+      // Le fil remonte en tête : la page s'ouvre sur la conversation la plus récemment active, une
+      // réponse tardive resterait sinon invisible sous des conversations plus récentes.
+      await supabase.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId);
       if (input.ticketId) await supabase.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', input.ticketId);
       // Notifie le user que sa demande a reçu une réponse.
       sendPushToProfile(input.profileId, 'Conseils Intelligents', 'Une réponse à ta demande est disponible.').catch(() => {});

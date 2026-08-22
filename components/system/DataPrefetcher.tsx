@@ -25,7 +25,7 @@ import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMon
 import { useSharedContribution } from '../../hooks/data/useSharedContribution';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { useRwProjects, useRwInvitations, useRwProjectsStats } from '../../hooks/engagement/useRelykaWorld';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiConversations } from '../../hooks/admin/useAi';
+import { useAiConfig, useAiQuota, useAiAnalyses, useAiConversations } from '../../hooks/admin/useAi';
 
 /** Monte les hooks de données → react-query remplit son cache ; ne rend rien. */
 function Warm({ userId }: { userId: string }) {
@@ -65,7 +65,7 @@ function WarmSecondary({ userId }: { userId: string }) {
   useRwProjectsStats(userId, rwProjects.filter((p) => !p.archived_at).map((p) => p.id));
   useAiConfig();
   useAiQuota(userId);
-  useAiPrompts();
+  useAiAnalyses();
   useAiConversations(userId);
   return null;
 }

@@ -4,7 +4,7 @@
  * l'historique. L'appel au modèle passe par l'Edge Function `ai-advice` (clé API jamais côté client).
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/layout/ScreenGradient';
 import CalculatorButton from '../../components/transaction/CalculatorButton';
 import { withDeferredMount } from '../../hooks/platform/useDeferredMount';
@@ -18,6 +18,7 @@ import { useResponsive } from '../../hooks/theme/useResponsive';
 import { pageColumn } from '../../lib/ui/webLayout';
 import { useNavBack } from '../../hooks/platform/useNavBack';
 import { useUsageGuard } from '../../hooks/config/useUsageLimits';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { parseUsageLimitError } from '../../lib/finance/usageLimits';
 import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -35,8 +36,15 @@ import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom
 import AiRichText from '../../components/ai/AiRichText';
 import AiReport from '../../components/ai/AiReport';
 import { parseAiReport } from '../../lib/ai/aiReport';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/admin/useAi';
+import { useAiConfig, useAiQuota, useAiAnalyses, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/admin/useAi';
+import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
+import { resolveAiAccess } from '../../lib/ai/aiAccess';
+import { appPrompt } from '../../lib/ui/appDialog';
+import { supabase } from '../../lib/platform/supabase';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+
+/** Longueur max d'une question (le serveur tronque au-delà : on le dit AVANT, plutôt que de couper en silence). */
+const MAX_QUESTION = 2000;
 
 export default withDeferredMount(ConseilsIaScreen);
 function ConseilsIaScreen() {
@@ -91,39 +99,44 @@ function ConseilsIaScreen() {
     return () => sub.remove();
   }, []);
 
-  const { isPremium } = usePlan(uid);
-  const { data: profile, isSuccess: profileReady } = useProfile(uid);
+  const { isPremium, premiumEnabled } = usePlan(uid);
+  const { data: profile, isSuccess: profileReady, isError: profileFailed, refetch: refetchProfile } = useProfile(uid);
   const isAdmin = (profile as any)?.is_admin === true;
 
-  const { data: cfg, isSuccess: cfgReady } = useAiConfig();
-  const { data: quota, refetch: refetchQuota } = useAiQuota(uid);
+  const { data: cfg, isSuccess: cfgReady, isError: cfgFailed, refetch: refetchCfg } = useAiConfig();
+  const { data: quota, refetch: refetchQuota, isSuccess: quotaOk, isError: quotaFailed } = useAiQuota(uid);
   useAiExtraCreditsRealtime(uid); // crédit d'achat affiché dès qu'il tombe (webhook async)
   // Filet de sécurité : à chaque fois qu'on revient sur l'écran, on relit le quota (crédit tardif).
   useFocusEffect(useCallback(() => { refetchQuota(); }, [refetchQuota]));
-  const { data: prompts } = useAiPrompts();
+  const { data: analysesList } = useAiAnalyses();
 
   // ── Conversations séparées (comme ChatGPT/Claude) ──
-  const { data: conversations = [] } = useAiConversations(uid);
+  const { data: conversations = [], isSuccess: convsOk } = useAiConversations(uid);
   // undefined = pas encore initialisé ; null = « nouvelle conversation » vide (pas encore créée en base).
   const [conversationId, setConversationId] = useState<string | null | undefined>(undefined);
   // Initialise sur la conversation la plus récente (ou « nouvelle » si aucune) une fois la liste chargée.
   useEffect(() => {
-    if (conversationId === undefined) setConversationId(conversations[0]?.id ?? null);
-  }, [conversations, conversationId]);
-  // Si la conversation courante disparaît (supprimée ailleurs), on bascule sur la plus récente.
+    if (convsOk && conversationId === undefined) setConversationId(conversations[0]?.id ?? null);
+  }, [conversations, conversationId, convsOk]);
+  /* Si la conversation courante disparaît (supprimée ailleurs), on bascule sur la plus récente.
+     ⚠️ `convsOk` est indispensable : sans lui, la liste vaut `[]` PENDANT SON CHARGEMENT, et ce
+     garde-fou dé-sélectionnait la conversation en cours au premier rendu — y compris celle qu'on
+     venait de créer pour y poser une question. */
   useEffect(() => {
+    if (!convsOk) return;
     if (conversationId && !conversations.some((cv) => cv.id === conversationId)) {
       setConversationId(conversations[0]?.id ?? null);
     }
-  }, [conversations, conversationId]);
+  }, [conversations, conversationId, convsOk]);
   const [showConvs, setShowConvs] = useState(false);
   const createConv = useCreateConversation(uid);
   const renameConv = useRenameConversation(uid);
   const delConv = useDeleteConversation(uid);
   const { guard: usageGuard } = useUsageGuard(uid);
+  const roGuard = useReadOnlyGuard(); // « connecté en tant que » : aucune écriture sur le compte visité
   const currentConv = conversations.find((cv) => cv.id === conversationId) ?? null;
 
-  const { data: history } = useAiMessages(uid, conversationId ?? null);
+  const { data: history, isSuccess: historyOk } = useAiMessages(uid, conversationId ?? null);
   useAiMessagesRealtime(uid);
   const ask = useAskAi(uid);
   const purchase = usePurchaseExtraCredits(uid);
@@ -159,42 +172,55 @@ function ConseilsIaScreen() {
     }
   }, [lastUserId, scrollToQuestion]);
 
-  /* ⚠️ Les TROIS conditions d'accès viennent de requêtes : l'abonnement (profil), le rôle admin
-     (profil) et l'ouverture à tous (config IA). Tant qu'elles n'ont pas répondu, elles valent toutes
-     `false` — l'écran « réservé aux abonnés » s'affichait donc une fraction de seconde à CHAQUE
-     ouverture, y compris pour un abonné ou quand l'accès est ouvert à tous. On ne tranche qu'une
-     fois les deux lectures posées. */
-  const accessReady = profileReady && cfgReady;
-  const allowed = isPremium || isAdmin || !!cfg?.open_to_all;
-  const readOnly = isImpersonating || (!isPremium && !isAdmin && !cfg?.open_to_all); // consultation : pas d'envoi
-  const remaining = quota?.remaining ?? 0;
-  // Crédits payants (rechargés) : utilisables quand le quota mensuel est épuisé.
-  const extraCredits = quota?.extra_credits ?? 0;
+  /* ⚠️ Les conditions d'accès viennent TOUTES de requêtes : l'abonnement (profil), le rôle admin
+     (profil), l'ouverture à tous (config IA) et le solde de crédits achetés (quota). Tant qu'elles
+     n'ont pas répondu, elles valent toutes `false` — l'écran « réservé aux abonnés » s'affichait
+     donc une fraction de seconde à CHAQUE ouverture, y compris pour un abonné ou quand l'accès est
+     ouvert à tous. On ne tranche qu'une fois les lectures nécessaires posées. */
   // ── Compteur UNIQUE côté user : requêtes gratuites + rechargées confondues. En arrière-plan le
   //    serveur consomme d'abord le gratuit, puis le payant — mais l'utilisateur voit juste « X / Y ».
-  const available = remaining + extraCredits;         // requêtes utilisables maintenant
-  const totalRequests = (quota?.limit ?? 0) + extraCredits; // capacité totale du cycle
-  const canSend = available > 0;
+  //    Toutes ces règles vivent dans lib/ai/aiAccess (pur, testé) : elles doivent coïncider avec
+  //    celles de l'Edge Function, et une expression booléenne noyée dans le rendu ne se vérifie pas.
   const packs: AiCreditPack[] = cfg?.extra_credit_packs ?? [];
+  const access = resolveAiAccess({
+    isPremium, isAdmin, isImpersonating,
+    profileReady, cfgReady, quotaSettled: quotaOk || quotaFailed,
+    openToAll: !!cfg?.open_to_all,
+    payToUseEnabled: !!cfg?.pay_to_use_enabled,
+    paidFallbackEnabled: !!cfg?.paid_fallback_enabled,
+    packsCount: packs.length,
+    quota,
+  });
+  const { accessReady, allowed, readOnly, quotaLoaded, available, totalRequests, extraCredits, canSend, canRecharge, outOfRequests } = access;
+  const accessFailed = profileFailed || cfgFailed; // réseau coupé / requête en erreur → on le DIT
   const [showPaywall, setShowPaywall] = useState(false);
+  const openRecharge = () => { if (canRecharge) setShowPaywall(true); };
 
   const eur = (cents: number) => (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ` ${CURRENCY_SYMBOL}`;
 
+  // Achat : verrou synchrone (un double tap = deux achats) + suivi du pack en cours (le voyant ne
+  // doit tourner que sur la ligne tapée, pas sur toutes les offres).
+  const buyLock = useSubmitLock();
+  const [buyingId, setBuyingId] = useState<string | null>(null);
   const buyPack = async (pack: AiCreditPack) => {
+    if (readOnly || !buyLock.acquire()) return;
+    setBuyingId(pack.id);
     try {
       await purchase.mutateAsync(pack);
       setShowPaywall(false);
       Alert.alert('Merci ! 🙌', `Achat validé. Tes ${pack.credits} requêtes arrivent dans quelques secondes (le temps de la validation).`);
     } catch (e: any) {
-      const reason = e?.reason;
-      if (reason === 'cancelled') return; // l'utilisateur a annulé → silencieux
+      const reason = e?.reason; // 'cancelled' → l'utilisateur a annulé, on ne dit rien
       if (reason === 'not_supported') {
         Alert.alert('Sur mobile uniquement', 'La recharge de requêtes se fait depuis l\'application mobile Relyka (iOS / Android).');
       } else if (reason === 'not_configured') {
         Alert.alert('Produit indisponible', e?.message ?? 'Ce pack n\'est pas encore disponible. Réessaie plus tard.');
-      } else {
+      } else if (reason !== 'cancelled') {
         Alert.alert('Achat impossible', e?.message ?? 'Réessaie plus tard.');
       }
+    } finally {
+      buyLock.release(); // sans ça, un achat annulé condamnerait le bouton pour de bon
+      setBuyingId(null);
     }
   };
 
@@ -204,6 +230,9 @@ function ConseilsIaScreen() {
 
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
+  // Fil dans lequel la demande en cours a été envoyée : si l'utilisateur change de conversation
+  // pendant que le conseiller réfléchit, le « … » ne doit pas s'afficher sur le fil qu'il consulte.
+  const [pendingConvId, setPendingConvId] = useState<string | null>(null);
   // Confirmation « utiliser 1 requête » : modal custom (une Alert native ne peut pas porter la case
   // « ne plus me demander »). Préférence persistée côté compte (ui_prefs.ai_confirm_skip).
   const { prefs: uiPrefs, patch: patchUiPrefs } = useUiPrefs(uid);
@@ -215,23 +244,45 @@ function ConseilsIaScreen() {
   // Titre d'une nouvelle conversation à partir de la première demande.
   const titleFor = (payload: RunPayload) =>
     payload.kind === 'analysis'
-      ? ((prompts ?? []).find((p) => p.key === payload.analysis_key)?.title ?? 'Analyse')
+      ? ((analysesList ?? []).find((p) => p.key === payload.analysis_key)?.title ?? 'Analyse')
       : (payload.question ?? 'Nouvelle conversation');
+
+  /* VERROU SYNCHRONE (cf. useSubmitLock) : `pending` est un état, il n'existe qu'au rendu SUIVANT.
+     Deux taps rapprochés sur « Continuer » (ou sur une analyse quand la confirmation est désactivée)
+     trouvaient donc tous les deux `pending === false` et partaient tous les deux → DEUX requêtes
+     facturées, deux réponses, et éventuellement deux conversations créées. */
+  const submit = useSubmitLock();
+
+  /** Supprime le fil créé à la volée s'il est resté VIDE (échec réseau) — sinon on accumule des
+   *  conversations fantômes qui comptent dans la limite d'usage. Ne supprime jamais un fil qui a
+   *  des messages (la requête a pu aboutir côté serveur sans que la réponse nous revienne). */
+  const dropEmptyConversation = async (convId: string) => {
+    try {
+      if (!supabase || !uid) return;
+      const { count } = await supabase.from('ai_messages').select('id', { count: 'exact', head: true }).eq('conversation_id', convId);
+      if ((count ?? 0) === 0) await delConv.mutateAsync(convId);
+    } catch { /* best effort */ }
+  };
 
   // Envoi effectif (après validation) — consomme 1 requête en cas de succès.
   const execute = async (payload: RunPayload) => {
-    // Nouvelle conversation → une ligne sera créée en base : vérifier la limite AVANT (message +
-    // renvoi Premium / suppression). Le serveur reste le vrai garde-fou.
-    if (!conversationId && !(await usageGuard('ai_conversation'))) return;
-    if (payload.kind === 'chat') setInput('');
-    setPending(true);
+    if (!submit.acquire()) return; // un envoi est déjà parti
+    let createdConvId: string | null = null;
+    const typed = payload.kind === 'chat' ? (payload.question ?? '') : '';
     try {
+      // Nouvelle conversation → une ligne sera créée en base : vérifier la limite AVANT (message +
+      // renvoi Premium / suppression). Le serveur reste le vrai garde-fou.
+      if (!conversationId && !(await usageGuard('ai_conversation'))) return;
+      if (payload.kind === 'chat') setInput('');
+      setPending(true);
       // Crée la conversation à la volée si on est sur un fil « neuf » (évite les conversations vides).
       let convId = conversationId ?? null;
       if (!convId) {
-        convId = await createConv.mutateAsync(titleFor(payload));
+        convId = (await createConv.mutateAsync(titleFor(payload))).id;
+        createdConvId = convId;
         setConversationId(convId);
       }
+      setPendingConvId(convId);
       const res = await ask.mutateAsync({ ...payload, snapshot: buildSnap(), conversation_id: convId });
       // Bilan global réussi → persiste les métriques top-line pour l'ÉVOLUTION du prochain bilan.
       if (res.ok && !res.queued && payload.kind === 'analysis' && payload.analysis_key === 'analysis_global' && currentBilanMetrics) {
@@ -240,15 +291,33 @@ function ConseilsIaScreen() {
       if (res.queued) {
         Alert.alert('Réessai en cours', "Le service n'a pas pu répondre tout de suite. Ta demande a été transmise — tu seras notifié dès qu'une réponse est disponible. Cette requête n'a pas été décomptée.");
       } else if (!res.ok) {
-        if (res.error === 'quota_exceeded') setShowPaywall(true);
-        else if (res.error === 'premium_required') Alert.alert('Réservé Premium', 'Cette fonctionnalité est réservée aux abonnés Premium.');
-        else Alert.alert('Indisponible', `Le service de conseils est momentanément indisponible.${res.error ? `\n\n(détail : ${res.error})` : ''}`);
+        // Rien n'a été envoyé au modèle → on rend sa question à l'utilisateur (sinon elle est perdue).
+        if (typed) setInput((v) => v || typed);
+        if (createdConvId) await dropEmptyConversation(createdConvId);
+        if (res.error === 'quota_exceeded') {
+          refetchQuota();
+          if (canRecharge) setShowPaywall(true);
+          else Alert.alert('Plus de requêtes', 'Tu as utilisé toutes tes requêtes pour ce mois-ci. Elles se renouvellent au début du mois prochain.');
+        } else if (res.error === 'premium_required') {
+          Alert.alert('Réservé Premium', 'Cette fonctionnalité est réservée aux abonnés Premium.');
+        } else if (res.error === 'conversation_not_found') {
+          setConversationId(null);
+          Alert.alert('Conversation introuvable', 'Cette conversation n\'existe plus. Ta question n\'a pas été envoyée — repose-la dans un nouveau fil.');
+        } else if (res.error === 'empty_question' || res.error === 'invalid_analysis' || res.error === 'analysis_disabled') {
+          Alert.alert('Demande invalide', 'Cette demande n\'est plus disponible. Recharge la page et réessaie.');
+        } else {
+          Alert.alert('Indisponible', `Le service de conseils est momentanément indisponible.${res.error ? `\n\n(détail : ${res.error})` : ''}`);
+        }
       }
     } catch (e: any) {
+      if (typed) setInput((v) => v || typed); // réseau coupé : la question reste dans le champ
+      if (createdConvId) await dropEmptyConversation(createdConvId);
       // Limite d'usage : déjà signalée par le backstop global (message convivial) → pas de doublon.
       if (!parseUsageLimitError(e)) Alert.alert('Erreur', e?.message ?? 'Échec de la requête.');
     } finally {
+      submit.release();
       setPending(false);
+      setPendingConvId(null);
       // La réponse est là → on garde la QUESTION en haut (lecture depuis le début), pas de saut en bas.
       setTimeout(scrollToQuestion, 200);
     }
@@ -257,10 +326,16 @@ function ConseilsIaScreen() {
   // Validation préalable : une seule confirmation, sans distinction gratuit/payant (transparent pour le
   // user). Case « ne plus me demander » (ui_prefs.ai_confirm_skip) → envoi direct les fois suivantes.
   const run = (payload: RunPayload) => {
-    if (readOnly || pending) return;
-    if (!snapshotReady) { Alert.alert('Patiente', 'Tes données sont en cours de chargement.'); return; }
-    // Plus aucune requête → on propose le click-to-pay (recharge).
-    if (!canSend) { setShowPaywall(true); return; }
+    if (readOnly || pending || submit.isBusy()) return;
+    // Formulation valable dans les DEUX cas : chargement en cours… ou lecture en échec (réseau).
+    // « Tes données sont en cours de chargement » était faux — et sans issue — quand elle avait échoué.
+    if (!snapshotReady) { Alert.alert('Un instant', 'Tes données ne sont pas encore prêtes. Réessaie dans quelques secondes.'); return; }
+    // Plus aucune requête : recharge si elle est proposée, sinon simple explication.
+    if (!canSend) {
+      if (canRecharge) setShowPaywall(true);
+      else Alert.alert('Plus de requêtes', `Tu as utilisé tes ${totalRequests} requête${totalRequests > 1 ? 's' : ''} de ce mois-ci. Elles se renouvellent au début du mois prochain.`);
+      return;
+    }
     if (uiPrefs.ai_confirm_skip === true) { execute(payload); return; }
     setConfirmSkip(false);
     setConfirmPayload(payload);
@@ -274,7 +349,7 @@ function ConseilsIaScreen() {
   };
 
   const sendChat = () => {
-    const q = input.trim();
+    const q = input.trim().slice(0, MAX_QUESTION);
     if (!q) return;
     run({ kind: 'chat', question: q });
   };
@@ -282,6 +357,10 @@ function ConseilsIaScreen() {
   // Démarre un fil neuf (créé en base au premier message). Vérifie la limite AVANT (message
   // immédiat au clic « + » si l'utilisateur est déjà au plafond de conversations).
   const newConversation = async () => {
+    if (readOnly) return;
+    // Déjà sur un fil neuf (rien n'a encore été créé en base) : ne pas re-vérifier la limite —
+    // l'utilisateur au plafond voyait « limite atteinte » alors qu'aucune conversation ne serait créée.
+    if (conversationId === null) { setShowConvs(false); return; }
     if (!(await usageGuard('ai_conversation'))) return;
     setConversationId(null);
     setInput('');
@@ -293,26 +372,32 @@ function ConseilsIaScreen() {
     setShowConvs(false);
   };
 
+  /* Renommer / supprimer sont des ÉCRITURES : elles n'ont rien à faire dans une consultation admin
+     (« connecté en tant que »). La policy RLS des conversations autorise l'admin — le geste
+     PASSERAIT donc réellement, et effacerait les conversations de la personne visitée. */
   const deleteConversation = (conv: AiConversation) => {
+    if (roGuard.blocked()) return;
     Alert.alert('Supprimer la conversation', `« ${conv.title} » sera définitivement supprimée.`, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: () => delConv.mutate(conv.id) },
     ]);
   };
 
-  const renamePrompt = (conv: AiConversation) => {
-    if (Platform.OS === 'web') {
-      const t = (globalThis as any).prompt?.('Renommer la conversation', conv.title);
-      if (t && t.trim()) renameConv.mutate({ id: conv.id, title: t.trim().slice(0, 80) });
-      return;
-    }
-    (Alert as any).prompt?.(
-      'Renommer la conversation',
-      undefined,
-      (t: string) => { if (t && t.trim()) renameConv.mutate({ id: conv.id, title: t.trim().slice(0, 80) }); },
-      'plain-text',
-      conv.title,
-    );
+  /* Renommage : dialogue IN-APP (lib/ui/appDialog), sur les deux plateformes.
+     Avant : `Alert.prompt` sur mobile — qui N'EXISTE QUE SUR iOS. Sur Android l'appel optionnel
+     `?.()` ne faisait rigoureusement RIEN : le bouton « crayon » était mort, sans le moindre
+     message. Et sur web, c'était la pop-up `window.prompt` du navigateur, que l'app a justement
+     supprimée partout (elle est bloquée dans certains contextes et casse le style). */
+  const renamePrompt = async (conv: AiConversation) => {
+    if (roGuard.blocked()) return;
+    const t = await appPrompt({
+      title: 'Renommer la conversation',
+      defaultValue: conv.title,
+      placeholder: 'Nom de la conversation',
+      confirmText: 'Renommer',
+    });
+    const clean = (t ?? '').trim().slice(0, 80);
+    if (clean && clean !== conv.title) renameConv.mutate({ id: conv.id, title: clean });
   };
 
   // Supprime la conversation courante (bouton corbeille de l'en-tête).
@@ -321,7 +406,17 @@ function ConseilsIaScreen() {
     deleteConversation(currentConv);
   };
 
-  const analyses = (prompts ?? []).filter((p) => p.key.startsWith('analysis_') && p.is_active);
+  const analyses = analysesList ?? [];
+  /* Dernier message = une QUESTION restée sans réponse (échec côté service : la demande est en file
+     d'attente). Sans repère visuel, l'utilisateur revenait sur son fil, voyait sa question seule, et
+     croyait avoir perdu une requête. */
+  const lastMsg = history?.length ? history[history.length - 1] : null;
+  // « … » et « en attente » ne valent que pour le fil AFFICHÉ (une demande partie sur un autre fil
+  // continue en arrière-plan sans polluer celui qu'on lit).
+  const pendingHere = pending && (pendingConvId == null || pendingConvId === conversationId);
+  const awaitingAnswer = !pendingHere && !!lastMsg && lastMsg.role === 'user';
+  // Fil vide : nouvelle conversation (pas encore créée) ou conversation chargée sans message.
+  const emptyThread = !pendingHere && !readOnly && (conversationId === null || (historyOk && !history?.length));
 
   // On ne sait pas encore si l'accès est ouvert : on attend plutôt que d'annoncer un refus à tort.
   if (!accessReady) {
@@ -329,8 +424,24 @@ function ConseilsIaScreen() {
       <View style={s.root}>
         <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
         <ScreenGradient />
-        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} edges={['left', 'right']}>
-          <ActivityIndicator size="large" color={c.emerald} />
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }} edges={['left', 'right']}>
+          {/* Requête en échec (réseau coupé, session expirée) : on le DIT au lieu de tourner à vide. */}
+          {accessFailed ? (
+            <>
+              <Ionicons name="cloud-offline-outline" size={40} color={c.textSecondary} />
+              <Text style={s.payTitle}>Impossible de charger les Conseils Intelligents</Text>
+              <Text style={s.paySub}>Vérifie ta connexion, puis réessaie.</Text>
+              <TouchableOpacity style={s.payBtn} onPress={() => { refetchProfile(); refetchCfg(); }} activeOpacity={0.85}>
+                <Ionicons name="refresh" size={16} color="#0f172a" />
+                <Text style={s.payBtnTxt}>Réessayer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ marginTop: 14 }} onPress={goBack}>
+                <Text style={{ color: c.textSecondary, fontWeight: '700', fontSize: 13.5 }}>Retour</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <ActivityIndicator size="large" color={c.emerald} />
+          )}
         </SafeAreaView>
       </View>
     );
@@ -351,12 +462,22 @@ function ConseilsIaScreen() {
           </View>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
             <Ionicons name="sparkles-outline" size={48} color={c.amber} />
-            <Text style={s.payTitle}>Conseils Intelligents réservés aux abonnés Premium</Text>
-            <Text style={s.paySub}>Analyses personnalisées de tes finances et conseiller en discussion : passe Premium pour en profiter.</Text>
-            <TouchableOpacity style={s.payBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
-              <Ionicons name="star" size={16} color="#0f172a" />
-              <Text style={s.payBtnTxt}>Passer Premium</Text>
-            </TouchableOpacity>
+            {/* L'offre Premium peut être coupée globalement (admin) : inviter à « passer Premium »
+                mènerait alors à une page qui répond « pas encore disponible ». */}
+            <Text style={s.payTitle}>
+              {premiumEnabled ? 'Conseils Intelligents réservés aux abonnés Premium' : 'Conseils Intelligents bientôt disponibles'}
+            </Text>
+            <Text style={s.paySub}>
+              {premiumEnabled
+                ? 'Analyses personnalisées de tes finances et conseiller en discussion : passe Premium pour en profiter.'
+                : 'Analyses personnalisées de tes finances et conseiller en discussion : cette fonctionnalité n\'est pas encore ouverte. Reviens bientôt !'}
+            </Text>
+            {premiumEnabled && (
+              <TouchableOpacity style={s.payBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+                <Ionicons name="star" size={16} color="#0f172a" />
+                <Text style={s.payBtnTxt}>Passer Premium</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </SafeAreaView>
       </View>
@@ -384,8 +505,8 @@ function ConseilsIaScreen() {
             <TouchableOpacity onPress={newConversation} style={s.headBtn} accessibilityRole="button" accessibilityLabel="Nouvelle conversation" disabled={readOnly}>
               <Ionicons name="add" size={22} color={readOnly ? c.textSecondary : c.emerald} />
             </TouchableOpacity>
-            {!!currentConv && (
-              <TouchableOpacity onPress={confirmDelete} style={s.trashBtn} disabled={delConv.isPending} accessibilityLabel="Supprimer cette conversation">
+            {!!currentConv && !readOnly && (
+              <TouchableOpacity onPress={confirmDelete} style={s.trashBtn} disabled={delConv.isPending} accessibilityRole="button" accessibilityLabel="Supprimer cette conversation">
                 <Ionicons name="trash-outline" size={18} color={c.danger} />
               </TouchableOpacity>
             )}
@@ -404,26 +525,75 @@ function ConseilsIaScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={s.counter} activeOpacity={0.8} onPress={() => setShowPaywall(true)} accessibilityRole="button" accessibilityLabel="Recharger mes requêtes IA">
-                <Text style={s.counterNum}>{available}</Text>
-                <Text style={s.counterLbl}>/ {totalRequests} requêtes</Text>
+              {/* Compteur : muet tant que le quota n'est pas lu (il affichait « 0 / 0 » à chaque
+                  ouverture, ce qui ressemblait à un compte épuisé). Cliquable seulement si la
+                  recharge est réellement proposée. */}
+              <TouchableOpacity
+                style={s.counter}
+                activeOpacity={canRecharge ? 0.8 : 1}
+                disabled={!canRecharge}
+                onPress={openRecharge}
+                accessibilityRole={canRecharge ? 'button' : 'text'}
+                accessibilityLabel={quotaLoaded ? `${available} requêtes disponibles sur ${totalRequests}` : 'Requêtes disponibles en cours de chargement'}
+              >
+                <Text style={s.counterNum}>{quotaLoaded ? available : '—'}</Text>
+                <Text style={s.counterLbl}>{quotaLoaded ? `/ ${totalRequests} requêtes` : 'requêtes'}</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Plus aucune requête disponible → bandeau click-to-pay. */}
-            {available <= 0 && !readOnly && (
-              <TouchableOpacity style={s.rechargeBanner} activeOpacity={0.85} onPress={() => setShowPaywall(true)}>
-                <Ionicons name="flash" size={18} color={c.emerald} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rechargeTitle}>Tu n'as plus de requêtes disponibles</Text>
-                  <Text style={s.rechargeSub}>Recharge des requêtes à l'unité pour continuer, sans attendre le mois prochain.</Text>
+            {/* Plus aucune requête disponible → recharge si elle est activée, sinon explication. */}
+            {outOfRequests && (
+              canRecharge ? (
+                <TouchableOpacity style={s.rechargeBanner} activeOpacity={0.85} onPress={openRecharge}>
+                  <Ionicons name="flash" size={18} color={c.emerald} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rechargeTitle}>Tu n'as plus de requêtes disponibles</Text>
+                    <Text style={s.rechargeSub}>Recharge des requêtes à l'unité pour continuer, sans attendre le mois prochain.</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={c.emerald} />
+                </TouchableOpacity>
+              ) : (
+                <View style={s.infoBanner}>
+                  <Ionicons name="time-outline" size={18} color={c.textSecondary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rechargeTitle}>Tu as utilisé tes requêtes du mois</Text>
+                    <Text style={s.rechargeSub}>
+                      Elles se renouvellent au début du mois prochain. Ton historique reste consultable.
+                      {!isPremium ? ' Passe Premium pour en avoir davantage chaque mois.' : ''}
+                    </Text>
+                  </View>
+                  {!isPremium && (
+                    <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} accessibilityRole="button" accessibilityLabel="Voir Premium">
+                      <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={c.emerald} />
-              </TouchableOpacity>
+              )
+            )}
+
+            {/* Quota du mois épuisé mais la bascule payante éditeur prend le relais : le compteur à 0
+                inquiétait alors qu'il n'y a aucun mur. On le dit. */}
+            {quotaLoaded && available <= 0 && !!cfg?.paid_fallback_enabled && !readOnly && (
+              <View style={s.infoBanner}>
+                <Ionicons name="gift-outline" size={18} color={c.emerald} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rechargeTitle}>Tu as utilisé tes requêtes du mois</Text>
+                  <Text style={s.rechargeSub}>Tu peux quand même continuer : c'est offert pendant la phase de lancement.</Text>
+                </View>
+              </View>
             )}
 
             {/* Consentement */}
             <Text style={s.consent}>{cfg?.consent_text ?? 'Un résumé anonymisé de tes finances est envoyé à un service d\'IA tiers pour générer ces conseils.'}</Text>
+
+            {/* « Ne plus me demander » était un aller SANS RETOUR : plus aucune confirmation avant de
+                dépenser une requête, et nulle part où revenir en arrière. */}
+            {!readOnly && uiPrefs.ai_confirm_skip === true && (
+              <TouchableOpacity style={s.confirmOffRow} onPress={() => patchUiPrefs({ ai_confirm_skip: false })} accessibilityRole="button">
+                <Ionicons name="flash-outline" size={13} color={c.textSecondary} />
+                <Text style={s.confirmOffTxt}>Envoi direct, sans confirmation. <Text style={{ color: c.emerald, fontWeight: '700' }}>Redemander avant chaque requête</Text></Text>
+              </TouchableOpacity>
+            )}
 
             {readOnly && (
               <View style={s.banner}>
@@ -432,17 +602,34 @@ function ConseilsIaScreen() {
               </View>
             )}
 
-            {/* Analyses structurées */}
-            <Text style={s.sectionLbl}>Analyses</Text>
-            <View style={{ gap: 8 }}>
-              {analyses.map((a) => (
-                <TouchableOpacity key={a.key} style={[s.analysisBtn, (readOnly || pending) && { opacity: 0.5 }]} disabled={readOnly || pending} onPress={() => run({ kind: 'analysis', analysis_key: a.key })}>
-                  <Ionicons name="document-text-outline" size={18} color={c.emerald} />
-                  <Text style={s.analysisTxt}>{a.title}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={c.textSecondary} />
-                </TouchableOpacity>
-              ))}
-            </View>
+            {/* Analyses structurées — masquées s'il n'y en a aucune d'active (un intitulé seul,
+                suivi de rien, se lit comme un bug). */}
+            {analyses.length > 0 && (
+              <>
+                <Text style={s.sectionLbl}>Analyses</Text>
+                <View style={{ gap: 8 }}>
+                  {analyses.map((a) => (
+                    <TouchableOpacity key={a.key} style={[s.analysisBtn, (readOnly || pending) && { opacity: 0.5 }]} disabled={readOnly || pending} onPress={() => run({ kind: 'analysis', analysis_key: a.key })}>
+                      <Ionicons name="document-text-outline" size={18} color={c.emerald} />
+                      <Text style={s.analysisTxt} numberOfLines={2}>{a.title}</Text>
+                      <Ionicons name="chevron-forward" size={16} color={c.textSecondary} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Fil vide (première visite, ou nouvelle conversation) : on dit quoi faire, au lieu de
+                laisser un blanc entre les analyses et la barre de saisie. */}
+            {emptyThread && (
+              <View style={[s.bubbleAssistant, { marginTop: 18, gap: 6 }]}>
+                <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Par où commencer ?</Text>
+                <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 19 }}>
+                  Choisis une analyse ci-dessus pour un point complet sur tes finances, ou pose directement ta question
+                  en bas de l'écran. Chaque demande utilise 1 requête et la réponse s'affiche ici.
+                </Text>
+              </View>
+            )}
 
             {/* Historique / fil de discussion */}
             {!!history?.length && (
@@ -458,15 +645,28 @@ function ConseilsIaScreen() {
               </>
             )}
 
-            {pending && (
+            {pendingHere && (
               <View style={[s.bubbleAssistant, { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }]}>
                 <ActivityIndicator size="small" color={c.emerald} />
                 <Text style={{ color: c.textSecondary, fontSize: 13 }}>Le conseiller réfléchit…</Text>
               </View>
             )}
 
-            {/* Questions prédéfinies */}
-            {!readOnly && (
+            {/* Question restée sans réponse (le service n'a pas répondu) : on l'explique DANS le fil,
+                l'alerte du moment de l'envoi ayant disparu depuis longtemps. */}
+            {awaitingAnswer && (
+              <View style={[s.bubbleAssistant, { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10 }]}>
+                <Ionicons name="hourglass-outline" size={16} color={c.amber} style={{ marginTop: 1 }} />
+                <Text style={{ color: c.textSecondary, fontSize: 13, flex: 1, lineHeight: 18 }}>
+                  Réponse en attente : le service n'a pas pu répondre tout de suite. Ta demande a été transmise et cette requête n'a pas été décomptée — tu seras notifié dès qu'une réponse est disponible.
+                </Text>
+              </View>
+            )}
+
+            {/* Questions prédéfinies — l'admin peut toutes les supprimer : dans ce cas, pas d'intitulé
+                orphelin. Chaque pastille est bornée à la largeur de la colonne (une question longue
+                débordait de l'écran sur mobile). */}
+            {!readOnly && (cfg?.predefined_questions ?? []).length > 0 && (
               <>
                 <Text style={[s.sectionLbl, { marginTop: 18 }]}>Questions rapides</Text>
                 <View style={s.chips}>
@@ -487,17 +687,25 @@ function ConseilsIaScreen() {
           {/* Barre de saisie : collée au bas de la colonne, que le KAV rétrécit. */}
           {!readOnly && (
             <View style={s.inputBar}>
-              <TextInput
-                style={s.input}
-                value={input}
-                onChangeText={setInput}
-                placeholder="Pose ta question…"
-                placeholderTextColor={c.textSecondary}
-                multiline
-                editable={!pending}
-                onSubmitEditing={sendChat}
-                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
-              />
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={s.input}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Pose ta question…"
+                  placeholderTextColor={c.textSecondary}
+                  multiline
+                  editable={!pending}
+                  /* Le serveur coupe à 2 000 caractères : on borne ici pour que personne ne voie sa
+                     question tronquée en silence après l'envoi. */
+                  maxLength={MAX_QUESTION}
+                  onSubmitEditing={sendChat}
+                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
+                />
+                {input.length > MAX_QUESTION * 0.8 && (
+                  <Text style={s.inputCount}>{input.length} / {MAX_QUESTION} caractères</Text>
+                )}
+              </View>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="Envoyer" style={[s.sendBtn, (pending || !input.trim()) && { opacity: 0.5 }]} disabled={pending || !input.trim()} onPress={sendChat}>
                 <Ionicons name="send" size={18} color="#fff" />
               </TouchableOpacity>
@@ -507,7 +715,7 @@ function ConseilsIaScreen() {
       </SafeAreaView>
 
       {/* Paywall « click-to-pay » : offres de recharge de requêtes. */}
-      <Modal visible={showPaywall} transparent animationType="fade" onRequestClose={() => setShowPaywall(false)}>
+      <Modal visible={showPaywall} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowPaywall(false)}>
         {/* Fond tapable → ferme ; la feuille stoppe la propagation du tap. */}
         <Pressable style={s.payOverlay} onPress={() => setShowPaywall(false)}>
           <Pressable style={[s.paySheet, { paddingBottom: sheetPad }]} onPress={() => {}}>
@@ -520,6 +728,10 @@ function ConseilsIaScreen() {
                 ? `Il te reste ${available} requête${available > 1 ? 's' : ''}. Ajoutes-en autant que tu veux : les requêtes achetées ne périment pas.`
                 : 'Tu n\'as plus de requêtes. Achètes-en à l\'unité et continue tout de suite — sans passer Premium ni attendre le mois prochain.'}
             </Text>
+            {/* Le compteur unique regroupe l'inclus et l'acheté : on le dit ici, une fois. */}
+            {extraCredits > 0 && (
+              <Text style={[s.paySheetSub, { marginTop: 4 }]}>Dont {extraCredits} requête{extraCredits > 1 ? 's' : ''} rechargée{extraCredits > 1 ? 's' : ''}, valable{extraCredits > 1 ? 's' : ''} sans limite de date.</Text>
+            )}
 
             {packs.length === 0 ? (
               <Text style={[s.paySheetSub, { marginTop: 12 }]}>Offres bientôt disponibles.</Text>
@@ -527,14 +739,15 @@ function ConseilsIaScreen() {
               <View style={{ gap: 10, marginTop: 14 }}>
                 {packs.map((p) => {
                   const perUnit = p.credits > 0 ? p.price_cents / p.credits : p.price_cents;
+                  const busy = buyingId === p.id;
                   return (
-                    <TouchableOpacity key={p.id} style={s.packRow} activeOpacity={0.85} disabled={purchase.isPending} onPress={() => buyPack(p)}>
+                    <TouchableOpacity key={p.id} style={[s.packRow, purchase.isPending && !busy && { opacity: 0.5 }]} activeOpacity={0.85} disabled={purchase.isPending} onPress={() => buyPack(p)}>
                       <View style={s.packLeft}>
-                        <Text style={s.packCredits}>{p.credits} requêtes</Text>
+                        <Text style={s.packCredits}>{p.credits} requête{p.credits > 1 ? 's' : ''}</Text>
                         <Text style={s.packUnit}>{eur(perUnit)} / requête</Text>
                       </View>
                       <View style={s.packPrice}>
-                        {purchase.isPending ? <ActivityIndicator color="#fff" /> : <Text style={s.packPriceTxt}>{eur(p.price_cents)}</Text>}
+                        {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.packPriceTxt}>{eur(p.price_cents)}</Text>}
                       </View>
                     </TouchableOpacity>
                   );
@@ -553,9 +766,9 @@ function ConseilsIaScreen() {
       </Modal>
 
       {/* Liste des conversations (historiques séparés). */}
-      <Modal visible={showConvs} transparent animationType="fade" onRequestClose={() => setShowConvs(false)}>
+      <Modal visible={showConvs} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowConvs(false)}>
         <Pressable style={s.payOverlay} onPress={() => setShowConvs(false)}>
-          <Pressable style={s.convSheet} onPress={() => {}}>
+          <Pressable style={[s.convSheet, { paddingBottom: sheetPad }]} onPress={() => {}}>
             <View style={s.convHeader}>
               <Text style={s.convTitle}>Mes conversations</Text>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowConvs(false)} style={s.convClose}>
@@ -580,12 +793,16 @@ function ConseilsIaScreen() {
                         <Text style={[s.convRowTitle, active && { color: c.emerald }]} numberOfLines={1}>{cv.title}</Text>
                         <Text style={s.convRowDate}>{new Date(cv.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => renamePrompt(cv)} style={s.convAction} accessibilityLabel="Renommer">
-                        <Ionicons name="create-outline" size={17} color={c.textSecondary} />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => deleteConversation(cv)} style={s.convAction} accessibilityLabel="Supprimer">
-                        <Ionicons name="trash-outline" size={17} color={c.danger} />
-                      </TouchableOpacity>
+                      {!readOnly && (
+                        <>
+                          <TouchableOpacity onPress={() => renamePrompt(cv)} style={s.convAction} accessibilityRole="button" accessibilityLabel="Renommer la conversation">
+                            <Ionicons name="create-outline" size={17} color={c.textSecondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => deleteConversation(cv)} style={s.convAction} accessibilityRole="button" accessibilityLabel="Supprimer la conversation">
+                            <Ionicons name="trash-outline" size={17} color={c.danger} />
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   );
                 })
@@ -596,12 +813,13 @@ function ConseilsIaScreen() {
       </Modal>
 
       {/* Confirmation « utiliser 1 requête » — dialogue CENTRÉ, avec case « ne plus me demander ». */}
-      <Modal visible={confirmPayload != null} transparent animationType="fade" onRequestClose={() => setConfirmPayload(null)}>
+      <Modal visible={confirmPayload != null} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setConfirmPayload(null)}>
         <Pressable style={s.confirmOverlay} onPress={() => setConfirmPayload(null)}>
           <Pressable style={s.confirmCard} onPress={() => {}}>
             <Text style={[s.paySheetTitle, { textAlign: 'left' }]}>Utiliser une requête ?</Text>
             <Text style={[s.paySheetSub, { textAlign: 'left', marginTop: 8 }]}>
-              Cette demande utilise 1 requête. Il t'en restera {Math.max(0, available - 1)} sur {totalRequests}.
+              Cette demande utilise 1 requête.
+              {quotaLoaded && available > 0 ? ` Il t'en restera ${available - 1} sur ${totalRequests}.` : ''}
             </Text>
             <TouchableOpacity style={s.skipRow} activeOpacity={0.7} onPress={() => setConfirmSkip((v) => !v)}>
               <View style={[s.skipBox, confirmSkip && { backgroundColor: c.emerald, borderColor: c.emerald }]}>
@@ -626,18 +844,24 @@ function ConseilsIaScreen() {
 }
 
 function Bubble({ m, s, c }: { m: AiMessage; s: any; c: any }) {
-  if (m.role === 'user') {
+  const isUser = m.role === 'user';
+  const isAdminMsg = m.role === 'admin';
+  const stamp = formatStamp(m.created_at);
+  /* Réponses de l'IA : rendu en CARTES si structuré (synthèse + sections), sinon texte simple.
+     Les réponses HUMAINES (équipe Relyka) restent en texte brut.
+     ⚠️ Ce hook doit être appelé AVANT tout retour conditionnel : il était placé après le `return`
+     des messages utilisateur, si bien que le composant rendait 0 ou 1 hook selon le rôle du
+     message — un ordre de hooks variable, que React sanctionne dès qu'une même position de liste
+     change de rôle (« Rendered fewer hooks than expected »). */
+  const report = useMemo(() => (isUser || isAdminMsg ? null : parseAiReport(m.content)), [isUser, isAdminMsg, m.content]);
+
+  if (isUser) {
     return (
       <View style={s.bubbleUserWrap}>
         <View style={s.bubbleUser}><Text style={s.bubbleUserTxt}>{m.content}</Text></View>
       </View>
     );
   }
-  const isAdminMsg = m.role === 'admin';
-  const stamp = formatStamp(m.created_at);
-  // Réponses de l'IA : rendu en CARTES si structuré (synthèse + sections), sinon texte simple.
-  // Les réponses HUMAINES (équipe Relyka) restent en texte brut.
-  const report = useMemo(() => (isAdminMsg ? null : parseAiReport(m.content)), [isAdminMsg, m.content]);
   const asCards = !!report && (!!report.summary || report.sections.length >= 2);
 
   if (asCards && report) {
@@ -680,7 +904,9 @@ function makeStyles(c: any) {
     headBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, minWidth: 36, paddingHorizontal: 8, borderRadius: 18, alignSelf: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     headBtnCount: { fontSize: 12, fontWeight: '800', color: c.text },
     trashBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.danger + '44' },
-    convSheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 18, paddingBottom: 28 },
+    // `sheetWidth` comme toutes les feuilles de l'app : sans lui, sur web bureau, la liste des
+    // conversations s'étalait sur toute la largeur de la fenêtre (la feuille d'achat, elle, non).
+    convSheet: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 18 },
     convHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     convTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: c.text },
     convClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
@@ -700,8 +926,9 @@ function makeStyles(c: any) {
     counter: { alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6 },
     counterNum: { fontSize: 18, fontWeight: '800', color: c.emerald },
     counterLbl: { fontSize: 9.5, color: c.textSecondary },
-    counterExtra: { fontSize: 9.5, fontWeight: '800', color: c.amber, marginTop: 1 },
     rechargeBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 12, padding: 12, marginBottom: 4 },
+    // Même bandeau, ton NEUTRE : « plus de requêtes » n'est pas une action à faire, juste un état.
+    infoBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 4 },
     rechargeTitle: { fontSize: 13.5, fontWeight: '800', color: c.text },
     rechargeSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     payOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -726,6 +953,8 @@ function makeStyles(c: any) {
     payClose: { alignItems: 'center', paddingVertical: 12, marginTop: 6 },
     payCloseTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
     consent: { fontSize: 11, fontStyle: 'italic', color: c.textSecondary, lineHeight: 15, marginTop: 12 },
+    confirmOffRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+    confirmOffTxt: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
     banner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderRadius: 10, padding: 10, marginTop: 10 },
     bannerTxt: { fontSize: 12, color: c.textSecondary, flex: 1 },
     sectionLbl: { fontSize: 12.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 16, marginBottom: 8 },
@@ -742,10 +971,11 @@ function makeStyles(c: any) {
     bubbleAssistantTxt: { color: c.text, fontSize: 14, lineHeight: 21 },
     modelTag: { fontSize: 10.5, color: c.textSecondary, marginTop: 8, fontWeight: '600' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { backgroundColor: c.emerald + '14', borderWidth: 1, borderColor: c.emerald + '44', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
+    chip: { maxWidth: '100%', flexShrink: 1, backgroundColor: c.emerald + '14', borderWidth: 1, borderColor: c.emerald + '44', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
     chipTxt: { fontSize: 13, color: c.emerald, fontWeight: '600' },
     inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.cardBorder, backgroundColor: c.bg },
-    input: { flex: 1, maxHeight: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: c.text, fontSize: 14 },
+    input: { maxHeight: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: c.text, fontSize: 14 },
+    inputCount: { fontSize: 10.5, color: c.textSecondary, textAlign: 'right', marginTop: 3, marginRight: 6 },
     sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
     payTitle: { color: c.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' },
     paySub: { color: c.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 },
