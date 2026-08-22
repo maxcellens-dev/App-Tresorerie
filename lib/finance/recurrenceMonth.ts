@@ -136,12 +136,23 @@ export function recurrenceOccurrencesInMonth(t: RecurrenceTemplate, year: number
   if (anchor > monthEnd || (end && end < monthStart)) return [];
 
   if (rule === 'weekly') {
-    const out: string[] = [];
+    /* On SAUTE directement au voisinage du mois demandé, au lieu de dérouler semaine après semaine
+       depuis l'ancre. L'ancienne boucle s'arrêtait au bout de 400 pas (~7,6 ans) : une récurrente
+       hebdomadaire ancrée il y a plus longtemps que ça ne produisait plus AUCUNE occurrence — elle
+       disparaissait purement du mois projeté, sans le moindre signe.
+       Le saut se calcule en UTC des deux côtés (`Date.UTC`) : un décalage d'heure d'été fausserait
+       la division par 7 et décalerait le jour de la semaine. Le pas reste un multiple de 7 → même
+       jour de semaine que l'ancre, au plus 6 jours avant le début du mois. */
+    const anchorUTC = Date.UTC(+anchor.slice(0, 4), +anchor.slice(5, 7) - 1, +anchor.slice(8, 10));
+    const dayDiff = Math.floor((Date.UTC(year, month - 1, 1) - anchorUTC) / 86400000);
     const d = new Date(anchor + 'T00:00:00');
-    for (let i = 0; i < 400; i++) {
+    if (dayDiff > 0) d.setDate(d.getDate() + Math.floor(dayDiff / 7) * 7);
+    const out: string[] = [];
+    // Au plus 5 occurrences hebdomadaires dans un mois (+ la marge du saut) → 10 tours suffisent.
+    for (let i = 0; i < 10; i++) {
       const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (s > monthEnd) break;
-      if (s >= monthStart && (!end || s <= end)) out.push(s);
+      if (s >= monthStart && s >= anchor && (!end || s <= end)) out.push(s);
       d.setDate(d.getDate() + 7);
     }
     return out;
@@ -180,23 +191,26 @@ export function recurringAmountForMonth(
 ): number {
   const okey = `${t.id}:${year}:${month}`;
   if (overridesMap[okey] !== undefined) return overridesMap[okey];
-  const rule = t.recurrence_rule;
-  const start = new Date(t.date);
-  const end = t.recurrence_end_date ? new Date(t.recurrence_end_date) : new Date(year + 5, 0, 1);
-  const msStart = new Date(year, month - 1, 1);
-  const msEnd = new Date(year, month, 0);
-  if (start > msEnd || end < msStart) return 0;
-  if (rule === 'monthly') return Number(t.amount);
-  if (rule === 'quarterly') {
-    const sm = start.getFullYear() * 12 + start.getMonth();
-    const tm = year * 12 + (month - 1);
-    return (tm - sm) % 3 === 0 && tm >= sm ? Number(t.amount) : 0;
-  }
-  if (rule === 'yearly') return start.getMonth() === month - 1 ? Number(t.amount) : 0;
-  if (rule === 'weekly') {
-    let count = 0; const d = new Date(start);
-    while (d <= msEnd) { if (d >= msStart && d <= end) count++; d.setDate(d.getDate() + 7); }
-    return count * Number(t.amount);
-  }
-  return 0;
+  /* ── POURQUOI CETTE FONCTION N'A PLUS D'ARITHMÉTIQUE À ELLE ────────────────────────────────────
+   * Elle refaisait, en objets `Date`, le calcul que `recurrenceOccurrencesInMonth` fait déjà en
+   * chaînes ISO. Et elle le refaisait FAUX, parce qu'elle mélangeait deux repères de temps :
+   *     new Date('2026-08-31')      → minuit UTC
+   *     new Date(2026, 8, 0)        → minuit LOCAL du 31 août
+   * À l'est de Greenwich (donc en France), le premier tombe APRÈS le second. La condition
+   * `start > msEnd` était alors vraie et la fonction rendait 0 : **toute récurrente ancrée le
+   * DERNIER jour de son mois disparaissait de ce mois-là** — salaire du 31, loyer du 30, échéance
+   * du 28 en février. Elle manquait donc à la courbe de la Projection, aux soldes 12 mois du
+   * Pilotage (donc au garde-fou des recommandations) et aux mois à venir du Reporting.
+   * Symétriquement, `start.getMonth()` lu sur une date UTC désigne le mois PRÉCÉDENT à l'ouest de
+   * Greenwich pour une ancre du 1er → trimestrielles et annuelles décalées d'un mois.
+   *
+   * Deux bonus en passant, tous deux déjà traités par `recurrenceOccurrencesInMonth` :
+   *   • le jour est borné à la longueur du mois (une récurrente du 31 tombe le 28 en février) ;
+   *   • une série qui se termine EN COURS de mois ne compte plus si son occurrence tombe après la
+   *     date de fin (avant, le mois entier était compté).
+   */
+  const occurrences = recurrenceOccurrencesInMonth(t, year, month);
+  // `0 * -800` vaut `-0` en JavaScript. Fonctionnellement identique à 0, mais il se propage dans les
+  // sommes et finit par s'afficher « −0 € » : on rend un vrai zéro.
+  return occurrences.length === 0 ? 0 : occurrences.length * Number(t.amount);
 }

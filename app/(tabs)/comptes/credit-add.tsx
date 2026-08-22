@@ -55,6 +55,11 @@ const EXTRA_FEES: { key: string; label: string }[] = [
   { key: 'other_fees', label: 'Autres frais' },
 ];
 
+// Au-delà, le calcul et le rendu de milliers d'échéances peuvent bloquer un téléphone sans
+// représenter un crédit réaliste. Ces bornes sont aussi appliquées côté base (migration 198).
+const MAX_CREDIT_DURATION_MONTHS = 1200;
+const MAX_DEFERRAL_MONTHS = 600;
+
 function CreditAddScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -69,7 +74,17 @@ function CreditAddScreen() {
   const { data: allCredits = [] } = useCredits(user?.id);
   const editing = editId ? allCredits.find((c) => c.id === editId) : undefined;
   const { data: accounts = [] } = useAllAccounts(user?.id);
-  const checking = accounts.filter((a) => a.type === 'checking');
+  /* Un invité « écriture » peut corriger le crédit, mais ne doit jamais pouvoir le faire prélever
+     sur son compte personnel. Il ne peut choisir que les comptes réellement partagés/joints ; le
+     compte privé du propriétaire éventuellement déjà lié reste conservé (`accountId` est initialisé
+     depuis le crédit et renvoyé tel quel), sans être exposé ici.
+
+     La liste reprend EXACTEMENT la règle du serveur (migration 198 : `acct_role IN ('owner','write')`) :
+     un compte partagé en CONSULTATION seule était proposé alors que la base le refuse toujours —
+     l'utilisateur remplissait son formulaire pour se voir opposer une erreur au moment d'enregistrer. */
+  const isCollaborator = !!editId && !!editing && editing._role !== 'owner';
+  const canDebit = (a: any) => (a._role === 'owner' ? !!a.is_joint : a._role === 'write');
+  const checking = accounts.filter((a) => a.type === 'checking' && (!isCollaborator || canDebit(a)));
   const { data: projects = [] } = useProjects(user?.id);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -291,9 +306,23 @@ function CreditAddScreen() {
   const save = async () => {
     setError(null);
     const C = num(principal), n = parseInt(duration, 10);
+    if (editId && !editing) return setError("Ce crédit n'est plus accessible. Reviens à la liste et actualise-la.");
     if (!label.trim()) return setError('Donne un libellé au crédit.');
-    if (!C || C <= 0) return setError('Renseigne le capital emprunté.');
-    if (!n || n <= 0) return setError('Renseigne la durée (en mois).');
+    if (!Number.isFinite(C) || C <= 0) return setError('Renseigne un capital emprunté valide.');
+    if (!/^\d+$/.test(duration) || !n || n > MAX_CREDIT_DURATION_MONTHS) return setError(`La durée doit être comprise entre 1 et ${MAX_CREDIT_DURATION_MONTHS} mois.`);
+    if (rate.trim() && (!Number.isFinite(num(rate)) || num(rate) < 0 || num(rate) > 100)) return setError('Le taux annuel doit être compris entre 0 et 100 %.');
+    if (insurance.trim() && (!Number.isFinite(num(insurance)) || num(insurance) < 0)) return setError("L'assurance mensuelle doit être un montant positif ou nul.");
+    if (deferralMonths.trim() && (!/^\d+$/.test(deferralMonths) || deferN > MAX_DEFERRAL_MONTHS)) return setError(`Le différé doit être compris entre 0 et ${MAX_DEFERRAL_MONTHS} mois.`);
+    /* Le différé s'AJOUTE à la durée d'amortissement (le tableau fait `différé + durée` échéances).
+       Rien ne le reliait donc à la durée du prêt : un différé de 600 mois sur un crédit de 12 mois
+       passait, et produisait un échéancier qui n'a aucun sens financier — 50 ans à ne payer que des
+       intérêts avant un an de remboursement. Un différé plus long que la période de remboursement
+       n'existe pas comme produit : on le borne à la durée. */
+    if (deferN > n) return setError(`Le différé (${deferN} mois) ne peut pas dépasser la durée de remboursement (${n} mois).`);
+    const optionalAmounts = [interestManual, ...Object.values(fees), ...Object.values(insYear), ...Object.values(payYear), ...segments.map((s) => s.payment), ...insSegments.map((s) => s.amount)];
+    if (optionalAmounts.some((value) => value.trim() !== '' && (!Number.isFinite(num(value)) || num(value) < 0))) {
+      return setError('Chaque montant renseigné doit être un nombre positif ou nul.');
+    }
     /* VERROU SYNCHRONE. `saving` est un état React : il ne désactive le bouton qu'au rendu SUIVANT,
        donc deux taps rapprochés créaient DEUX crédits identiques — deux échéanciers, deux séries de
        mensualités matérialisées, un « reste à payer » doublé. Placé après les validations, qui
@@ -386,7 +415,7 @@ function CreditAddScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Durée (mois) *</Text>
-              <TextInput style={styles.input} value={duration} onChangeText={setDuration} keyboardType="number-pad" placeholder="240" placeholderTextColor={COLORS.textSecondary} />
+              <TextInput style={styles.input} value={duration} onChangeText={(v) => setDuration(v.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" placeholder="240" placeholderTextColor={COLORS.textSecondary} />
             </View>
           </View>
 
@@ -589,7 +618,7 @@ function CreditAddScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.label}>Durée du différé (mois)</Text>
                     <TextInput
-                      style={styles.input} value={deferralMonths} onChangeText={setDeferralMonths}
+                      style={styles.input} value={deferralMonths} onChangeText={(v) => setDeferralMonths(v.replace(/\D/g, '').slice(0, 3))}
                       keyboardType="number-pad" placeholder="0" placeholderTextColor={COLORS.textSecondary}
                     />
                   </View>
@@ -728,6 +757,11 @@ function CreditAddScreen() {
             </>
           )}
 
+          {/* Bascule « Simulation » : PROPRIÉTAIRE uniquement. Repasser un crédit en simulation le
+              retire de la projection et de la trésorerie de tous les participants — c'est un
+              archivage déguisé, au même titre que « Désactiver ». Le verrou est en base
+              (migration 198) ; on évite ici de proposer une action qui serait refusée. */}
+          {!isCollaborator && (
           <TouchableOpacity style={styles.simRow} onPress={() => setIsSimulation((v) => !v)} activeOpacity={0.8}>
             <Ionicons name={isSimulation ? 'flask' : 'flask-outline'} size={20} color={isSimulation ? COLORS.orange : COLORS.textSecondary} />
             <View style={{ flex: 1 }}>
@@ -736,6 +770,7 @@ function CreditAddScreen() {
             </View>
             <View style={[styles.check, isSimulation && { backgroundColor: COLORS.orange, borderColor: COLORS.orange }]}>{isSimulation && <Ionicons name="checkmark" size={14} color={COLORS.bg} />}</View>
           </TouchableOpacity>
+          )}
 
           {amort && (() => {
             // #5 — décomposition des coûts. Avec un différé, les intercalaires sont DÉJÀ dans les

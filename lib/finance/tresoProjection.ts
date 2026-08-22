@@ -25,6 +25,18 @@ export interface TresoMonthRow {
   isCurrent: boolean;
   /** Solde de départ (mois courant uniquement). */
   startBalance: number | null;
+
+  /* ── Part ENCORE À VENIR du mois ────────────────────────────────────────────────────────────
+   * Sur les mois futurs, ces trois valeurs sont égales à `income` / `expense` / `other`.
+   * Sur le mois COURANT, elles n'en gardent que ce qui n'est pas encore échu — et c'est la SEULE
+   * lecture qui explique le solde prévu :
+   *     balance = startBalance + incomeRemaining − expenseRemaining − variable + otherRemaining
+   * Le mois courant affichait ses totaux PLEINS (passé + à venir) à côté d'un solde de départ qui
+   * contenait déjà le passé : l'addition sous les yeux de l'utilisateur ne tombait jamais juste. */
+  incomeRemaining: number;
+  /** Valeur absolue, comme `expense`. */
+  expenseRemaining: number;
+  otherRemaining: number;
 }
 
 export interface TresoProjectionInput {
@@ -142,17 +154,52 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
     let income = 0;   // revenus (comptes courants, hors virements/régul)
     let expense = 0;  // dépenses récurrentes + réelles (signe négatif)
+    // Part encore À VENIR du mois : sur un mois futur tout est à venir, sur le mois courant
+    // seulement ce qui n'est pas échu. C'est CETTE part qui construit le solde prévu.
+    let incomeRemaining = 0;
+    let expenseRemaining = 0;
 
     for (const t of transactions) {
       if (!usable(t)) continue;
+      /* ── OÙ VA UNE RÉGULARISATION ──────────────────────────────────────────────────────────────
+       * Une régul est une correction constatée APRÈS COUP, jamais une prévision. Elle n'est donc
+       * jamais une « dépense prévue » : une charge prévue est connue d'avance.
+       *   • à la BAISSE → c'est une dépense VARIABLE (« il manque 80 €, donc 80 € ont été dépensés,
+       *     on ne sait juste pas en quoi »). Elle est déjà portée par l'enveloppe variable, que le
+       *     Pilotage a diminuée d'autant (`variable_envelope_spent`) : la reprendre ici la
+       *     compterait DEUX fois — une fois dans la ligne « Variables », une fois en dépense.
+       *   • à la HAUSSE → c'est une recette : de l'argent est réellement arrivé sans avoir été saisi.
+       *     Elle compte donc dans les revenus DU MOIS.
+       * Dans les deux cas elle est déjà dans le solde du compte : elle ne rejoint jamais le « à
+       * venir », qui seul construit le solde prévu. Et sur un mois futur, une régul n'a aucun sens.
+       *
+       * Avant, la règle n'était appliquée qu'au sens POSITIF : une régul à la baisse s'affichait en
+       * « dépenses prévues » ET se retranchait une seconde fois de la trajectoire. */
+      if (isRegul(t)) {
+        const rAmt = Number(t.amount);
+        if (isCurrent && rAmt > 0 && String(t.date ?? '').startsWith(prefix)) income += rAmt;
+        continue;
+      }
       const amt = Number(t.amount);
       let monthAmt: number;
-      if (t.is_recurring && t.recurrence_rule) monthAmt = recurrenceAmount(t, year, month);
-      else if (t.date.startsWith(prefix)) monthAmt = amt;
-      else continue;
+      let stillToCome: boolean;
+      if (t.is_recurring && t.recurrence_rule) {
+        monthAmt = recurrenceAmount(t, year, month);
+        // Récurrence encore à venir = son jour d'occurrence n'est pas encore échu (aujourd'hui
+        // compte comme PASSÉ, cf. `isOccPast` — même règle que le Pilotage et que le solde serveur).
+        stillToCome = !isCurrent || !isOccPast(t, year, month);
+      } else if (t.date.startsWith(prefix)) {
+        monthAmt = amt;
+        stillToCome = !isCurrent || t.date > todayStr;
+      } else continue;
       if (monthAmt === 0) continue;
-      if (monthAmt > 0) { if (!isRegul(t)) income += monthAmt; }
-      else { expense += monthAmt; }
+      if (monthAmt > 0) {
+        income += monthAmt;
+        if (stillToCome) incomeRemaining += monthAmt;
+      } else {
+        expense += monthAmt;
+        if (stillToCome) expenseRemaining += monthAmt;
+      }
     }
 
     // Dépenses variables : reste estimé pour le mois courant, estimation mensuelle ensuite.
@@ -160,31 +207,16 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
     const other = otherForMonth(year, month, false);
     const otherRemaining = isCurrent ? otherForMonth(year, month, true) : other;
 
-    // Solde prévu (fin de mois). Mois courant : on ne reprojette que ce qui est encore à venir
-    // (récurrences + ponctuels datés après aujourd'hui) pour ne pas double-compter le solde réel.
-    if (isCurrent) {
-      let upcoming = 0;
-      for (const t of transactions) {
-        if (!usable(t)) continue;
-        const amt = Number(t.amount);
-        if (t.is_recurring && t.recurrence_rule) {
-          // Récurrence encore à venir = son jour d'occurrence n'est pas encore échu (aujourd'hui
-          // compte comme PASSÉ, cf. `isOccPast` — même règle que le Pilotage et que le solde serveur).
-          const occ = recurrenceAmount(t, year, month);
-          if (occ !== 0 && !isOccPast(t, year, month)) upcoming += occ;
-        } else if (t.date.startsWith(prefix) && t.date > todayStr) {
-          if (!(amt > 0 && isRegul(t))) upcoming += amt;
-        }
-      }
-      // `otherRemaining` est signé (sortie négative / entrée positive) → on l'AJOUTE.
-      runningBalance = checkingBalance + upcoming - variableRemaining + otherRemaining;
-    } else {
-      runningBalance += income + expense - variable + other;
-    }
+    // Solde prévu (fin de mois). Mois courant : le solde du compte contient DÉJÀ tout le passé du
+    // mois — on ne lui rajoute donc que la part à venir, sans quoi le passé compterait deux fois.
+    // `otherRemaining` est signé (sortie négative / entrée positive) → on l'AJOUTE.
+    if (isCurrent) runningBalance = checkingBalance + incomeRemaining + expenseRemaining - variable + otherRemaining;
+    else runningBalance += income + expense - variable + other;
 
     return {
       year, month, label, income, expense: Math.abs(expense), variable, other, balance: runningBalance, isCurrent,
       startBalance: isCurrent ? checkingBalance : null,
+      incomeRemaining, expenseRemaining: Math.abs(expenseRemaining), otherRemaining,
     };
   });
 }

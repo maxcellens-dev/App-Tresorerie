@@ -17,7 +17,7 @@ import CurrencyPicker from '../../../components/account/CurrencyPicker';
 import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
-import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 
 
 const TYPES = [
@@ -84,12 +84,29 @@ export default function AddAccountScreen() {
       return;
     }
     const num = parseFloat(balance.replace(',', '.'));
-    if (Number.isNaN(num)) {
+    if (!Number.isFinite(num)) {
       showError('Le solde initial doit être un nombre valide.', ['balance']);
       return;
     }
-    if (!initDate) {
-      showError('La date du solde est obligatoire.', ['initDate']);
+    // La saisie manuelle ne doit pas pouvoir contourner la limite du calendrier. Sans cette
+    // vérification, une date invalide conservait silencieusement l'ancienne date et une date future
+    // créait un solde « constaté » dans le futur.
+    const parsedInitDate = parseDateFromFrench(initDateDisplay);
+    if (!parsedInitDate || parsedInitDate !== initDate || parsedInitDate > todayISO()) {
+      showError('Saisis une date de solde valide, qui ne soit pas dans le futur.', ['initDate']);
+      return;
+    }
+    /* Apport initial : champ propre aux comptes d'INVESTISSEMENT, et validé seulement pour eux.
+       Le valider dans tous les cas bloquait la création sur un champ que l'utilisateur ne voit
+       plus : saisir un apport, puis rebasculer le type sur « Courant », laissait par exemple une
+       virgule seule dans l'état — assez pour déclencher l'erreur, sans aucun champ à corriger
+       à l'écran. */
+    const isInvestment = type === 'investment';
+    const contributed = isInvestment && initialContributed.trim()
+      ? parseFloat(initialContributed.replace(',', '.'))
+      : null;
+    if (contributed != null && (!Number.isFinite(contributed) || contributed < 0)) {
+      showError("L'apport initial doit être un montant positif ou nul.", ['initialContributed']);
       return;
     }
 
@@ -106,8 +123,8 @@ export default function AddAccountScreen() {
         shared_mode: isJoint ? sharedMode : null,
         is_default: isDefault,
         fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
-        initial_contributed: type === 'investment' && initialContributed.trim() ? parseFloat(initialContributed.replace(',', '.')) : null,
-        init_date: initDate,
+        initial_contributed: type === 'investment' ? contributed : null,
+        init_date: parsedInitDate,
       });
 
       // Compte joint → on file directement vers l'écran de partage pour envoyer les invitations.
@@ -288,7 +305,7 @@ export default function AddAccountScreen() {
           <TextInput
             style={[styles.input, errorFields.includes('balance') && styles.inputError]}
             value={balance}
-            onChangeText={(v) => { setBalance(v); clearFieldError('balance'); }}
+            onChangeText={(v) => { setBalance(sanitizeSignedAmountInput(v)); clearFieldError('balance'); }}
             onFocus={handleFocus}
             placeholder="0"
             placeholderTextColor={COLORS.textSecondary}

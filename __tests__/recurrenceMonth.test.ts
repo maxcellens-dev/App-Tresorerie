@@ -1,4 +1,4 @@
-import { buildMaterializedIndex, recurrenceForMonth, recurrenceOccurrencesInMonth, type RecurrenceTemplate } from '../lib/finance/recurrenceMonth';
+import { buildMaterializedIndex, recurrenceForMonth, recurrenceOccurrencesInMonth, recurringAmountForMonth, type RecurrenceTemplate } from '../lib/finance/recurrenceMonth';
 
 // On se place le 15 juillet 2026 : une échéance au 5 est passée, une au 28 est à venir.
 const NOW = new Date(2026, 6, 15);
@@ -148,5 +148,77 @@ describe('recurrenceOccurrencesInMonth — projection pure (fiche de compte, « 
   it('hebdomadaire : toutes les occurrences du mois', () => {
     const w = tpl({ date: '2026-07-03', recurrence_rule: 'weekly' });
     expect(recurrenceOccurrencesInMonth(w, 2026, 7)).toEqual(['2026-07-03', '2026-07-10', '2026-07-17', '2026-07-24', '2026-07-31']);
+  });
+
+  // RÉGRESSION — la boucle s'arrêtait au bout de 400 semaines (~7,6 ans) : une hebdomadaire ancrée
+  // avant ça ne produisait plus AUCUNE occurrence et disparaissait du mois projeté.
+  it('hebdomadaire ancrée il y a plus de 8 ans → toujours projetée', () => {
+    const w = tpl({ date: '2015-01-02', recurrence_rule: 'weekly' }); // un vendredi
+    const out = recurrenceOccurrencesInMonth(w, 2026, 7);
+    expect(out).toEqual(['2026-07-03', '2026-07-10', '2026-07-17', '2026-07-24', '2026-07-31']);
+  });
+
+  it('hebdomadaire : rien avant son ancre', () => {
+    const w = tpl({ date: '2026-07-17', recurrence_rule: 'weekly' });
+    expect(recurrenceOccurrencesInMonth(w, 2026, 7)).toEqual(['2026-07-17', '2026-07-24', '2026-07-31']);
+  });
+});
+
+describe('recurringAmountForMonth — montant signé projeté sur un mois', () => {
+  /* RÉGRESSION CENTRALE : la fonction comparait `new Date('2026-08-31')` (minuit UTC) à
+     `new Date(2026, 8, 0)` (minuit LOCAL). En France, le premier tombe APRÈS le second → toute
+     récurrente ancrée le DERNIER jour de son mois rendait 0 pour ce mois-là. Un salaire du 31
+     manquait donc à la courbe de la Projection, aux soldes 12 mois du Pilotage et au Reporting. */
+  it('ancrée le DERNIER jour du mois → comptée sur ce mois (pas 0)', () => {
+    const salaire = tpl({ id: 'sal', date: '2026-08-31', amount: 2500, recurrence_rule: 'monthly' });
+    expect(recurringAmountForMonth(salaire, 2026, 8)).toBe(2500);
+    expect(recurringAmountForMonth(salaire, 2026, 9)).toBe(2500);
+  });
+
+  it('le 30 d’un mois de 30 jours, le 28 de février : même règle', () => {
+    expect(recurringAmountForMonth(tpl({ date: '2026-09-30', amount: -800 }), 2026, 9)).toBe(-800);
+    expect(recurringAmountForMonth(tpl({ date: '2026-02-28', amount: -800 }), 2026, 2)).toBe(-800);
+  });
+
+  it('mensuelle ordinaire : comptée tous les mois à partir de son ancre', () => {
+    const loyer = tpl({ date: '2026-07-05', amount: -800 });
+    expect(recurringAmountForMonth(loyer, 2026, 6)).toBe(0);   // avant l'ancre
+    expect(recurringAmountForMonth(loyer, 2026, 7)).toBe(-800);
+    expect(recurringAmountForMonth(loyer, 2026, 12)).toBe(-800);
+  });
+
+  it('série terminée EN COURS de mois : l’occurrence postérieure à la fin ne compte plus', () => {
+    // Loyer du 28, série arrêtée le 10 juillet → l'échéance du 28 juillet n'existe pas.
+    const t = tpl({ date: '2026-01-28', amount: -800, recurrence_end_date: '2026-07-10' });
+    expect(recurringAmountForMonth(t, 2026, 7)).toBe(0);
+    expect(recurringAmountForMonth(t, 2026, 6)).toBe(-800);
+  });
+
+  it('trimestrielle et annuelle : ancre du 1er du mois (repère UTC/local)', () => {
+    const q = tpl({ date: '2026-01-01', amount: -300, recurrence_rule: 'quarterly' });
+    expect(recurringAmountForMonth(q, 2026, 1)).toBe(-300);
+    expect(recurringAmountForMonth(q, 2026, 4)).toBe(-300);
+    expect(recurringAmountForMonth(q, 2026, 5)).toBe(0);
+    const y = tpl({ date: '2025-03-01', amount: -120, recurrence_rule: 'yearly' });
+    expect(recurringAmountForMonth(y, 2026, 3)).toBe(-120);
+    expect(recurringAmountForMonth(y, 2026, 4)).toBe(0);
+  });
+
+  it('hebdomadaire : autant de fois que d’occurrences dans le mois', () => {
+    const w = tpl({ date: '2026-07-03', amount: -50, recurrence_rule: 'weekly' });
+    expect(recurringAmountForMonth(w, 2026, 7)).toBe(-250); // 5 vendredis
+    expect(recurringAmountForMonth(w, 2026, 8)).toBe(-200); // 4 vendredis
+  });
+
+  it('échéance modifiée : l’override remplace tout le calcul', () => {
+    const loyer = tpl({ date: '2026-07-05', amount: -800 });
+    expect(recurringAmountForMonth(loyer, 2026, 9, { 'loyer:2026:9': -950 })).toBe(-950);
+    // Un override à 0 (échéance annulée pour ce mois) doit être respecté, pas ignoré.
+    expect(recurringAmountForMonth(loyer, 2026, 9, { 'loyer:2026:9': 0 })).toBe(0);
+  });
+
+  it('modèle sans règle ou à date illisible → 0, jamais NaN', () => {
+    expect(recurringAmountForMonth(tpl({ recurrence_rule: null }), 2026, 7)).toBe(0);
+    expect(recurringAmountForMonth(tpl({ date: '' }), 2026, 7)).toBe(0);
   });
 });

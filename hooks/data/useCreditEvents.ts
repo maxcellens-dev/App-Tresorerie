@@ -31,14 +31,41 @@ export function useCreditEvents(creditId: string | undefined) {
   });
 }
 
-/** TOUS mes événements (pour que les flux tréso/projection reflètent les remboursements anticipés, etc.). */
+/**
+ * Tous les événements des crédits auxquels j'ai accès.
+ *
+ * Un événement créé par un co-emprunteur porte SON `profile_id`. Le filtrer sur mon profil masquait
+ * donc son remboursement anticipé dans la trésorerie et la projection, alors que la fiche du crédit
+ * (qui lit par `credit_id`) le montrait bien. Le périmètre est donc le CRÉDIT, pas l'auteur.
+ *
+ * ⚠️ La RLS ne remplace PAS ce filtre. La policy `credit_events_all` (110) est
+ * `profile_id = auth.uid() OR credit_can_access(credit_id) OR is_app_admin()` : la branche admin
+ * étant OU-ée, un `select('*')` nu rend à un administrateur les événements de TOUS les utilisateurs
+ * — téléchargés puis écrits dans le cache react-query persisté de son appareil. On borne donc la
+ * lecture aux crédits réellement accessibles, comme le fait `useCredits`.
+ */
 export function useAllCreditEvents(profileId: string | undefined) {
   return useQuery({
     queryKey: ['credit_events_all', profileId],
     enabled: !!profileId,
     queryFn: async (): Promise<Record<string, CreditEventRow[]>> => {
       if (!supabase || !profileId) return {};
-      const { data, error } = await supabase.from('credit_events').select('*').eq('profile_id', profileId).order('date');
+      // Crédits accessibles = les miens + ceux dont je suis membre (même règle que `useCredits`).
+      // Deux lectures d'identifiants seulement, en parallèle.
+      const [ownRes, memRes] = await Promise.all([
+        supabase.from('credits').select('id').eq('profile_id', profileId),
+        supabase.from('credit_members').select('credit_id').eq('user_id', profileId),
+      ]);
+      // Erreurs propagées : une lecture ratée n'est pas « aucun crédit ». La renvoyer en liste vide
+      // ferait disparaître les remboursements anticipés des flux, sans le moindre signe.
+      if (ownRes.error) throw ownRes.error;
+      if (memRes.error) throw memRes.error;
+      const ids = [...new Set([
+        ...((ownRes.data ?? []) as any[]).map((r) => r.id),
+        ...((memRes.data ?? []) as any[]).map((r) => r.credit_id),
+      ])];
+      if (ids.length === 0) return {};
+      const { data, error } = await supabase.from('credit_events').select('*').in('credit_id', ids).order('date');
       if (error) throw error;
       const byCredit: Record<string, CreditEventRow[]> = {};
       for (const r of (data ?? [])) (byCredit[r.credit_id] ??= []).push(map(r));

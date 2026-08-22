@@ -365,18 +365,29 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   const safety_margin_percent = profile?.safety_margin_percent ?? 10; // conservé pour rétrocompatibilité
   const safety_margin_amount = profile?.safety_margin_amount ?? 0;
   const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  // Overrides du mois courant : montant modifié d'une occurrence récurrente pour CE mois. Les
-  // indicateurs (dépensé, épargné, investi) doivent refléter ce RÉEL, pas le montant figé du template.
+  /* Overrides « échéance modifiée » : montant modifié d'une occurrence récurrente pour un mois donné.
+     ⚠️ MULTI-DEVISES : un override est enregistré dans la devise DU COMPTE, comme la transaction
+     qu'il remplace. Comptes et transactions sont convertis en devise de référence plus haut, mais
+     les overrides ne l'étaient pas : sur un compte en devise étrangère, une échéance modifiée
+     entrait dans les calculs avec son montant BRUT — un loyer de 900 CHF comptait pour 900 €. Et
+     comme l'écran Projection, lui, convertissait déjà, les deux trajectoires divergeaient. */
+  const txCurrencyById = new Map(
+    (data.transactions as any[]).map((t) => [t.id, accountCurrency.get(t.account_id) ?? refCode]),
+  );
+  const overrideToRef = (o: any) => toRef(Number(o.override_amount), txCurrencyById.get(o.transaction_id) ?? refCode);
+
+  // Mois courant : les indicateurs (dépensé, épargné, investi) doivent refléter ce RÉEL, pas le
+  // montant figé du template.
   const ovrByTx: Record<string, number> = {};
   for (const o of (data as any).monthOverrides ?? []) {
-    if (o.year === currentYear && o.month === currentMonth && o.override_amount != null) ovrByTx[o.transaction_id] = Math.abs(Number(o.override_amount));
+    if (o.year === currentYear && o.month === currentMonth && o.override_amount != null) ovrByTx[o.transaction_id] = Math.abs(overrideToRef(o));
   }
   /** Montant d'une transaction pour le mois courant : override mensuel s'il existe, sinon le montant du modèle. */
   const effAbs = (t: any) => ovrByTx[t.id] ?? Math.abs(Number(t.amount));
   // Overrides TOUS MOIS (pour projeter le RÉEL au-delà du mois courant : creux, prochaines recettes).
   const ovrByTxMonth: Record<string, number> = {};
   for (const o of (data as any).monthOverrides ?? []) {
-    if (o.override_amount != null) ovrByTxMonth[`${o.transaction_id}:${o.year}:${o.month}`] = Math.abs(Number(o.override_amount));
+    if (o.override_amount != null) ovrByTxMonth[`${o.transaction_id}:${o.year}:${o.month}`] = Math.abs(overrideToRef(o));
   }
   /** Montant SIGNÉ réel d'une occurrence à sa date (override du mois de l'occurrence s'il existe). */
   const realSignedAt = (t: any, occ: string): number => {
@@ -1028,7 +1039,9 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   // pour le garde-fou marge des recommandations. Overrides SIGNÉS tous mois, format `${id}:${y}:${m}`.
   const signedOvrAllMonths: Record<string, number> = {};
   for (const o of (data as any).monthOverrides ?? []) {
-    if (o.override_amount != null) signedOvrAllMonths[`${o.transaction_id}:${o.year}:${o.month}`] = Number(o.override_amount);
+    // Converti en devise de référence (cf. `overrideToRef`) : la trajectoire raisonne dans cette
+    // devise, comme l'écran Projection qui affiche la même courbe.
+    if (o.override_amount != null) signedOvrAllMonths[`${o.transaction_id}:${o.year}:${o.month}`] = overrideToRef(o);
   }
   const projection_rows_12m = computeTresoRows({
     transactions,

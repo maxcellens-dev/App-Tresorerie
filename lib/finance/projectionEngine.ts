@@ -27,6 +27,17 @@ export interface InvestProjectionParams {
 }
 
 /**
+ * Lecture DÉFENSIVE d'un nombre. Tous les paramètres de ce moteur viennent soit d'un champ de
+ * saisie libre, soit de `profiles.projection_assumptions` — un JSON que l'utilisateur peut écrire
+ * lui-même. Une valeur illisible (`NaN`, `Infinity`, `null`) se propageait jusqu'à l'écran, qui
+ * affichait « NaN € » sans rien signaler.
+ */
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
  * Projette un portefeuille d'investissement année par année.
  * Modèle : valeur_début = valeur_fin_précédente + apport ; valeur_fin = valeur_début × (1 + taux).
  * La fiscalité ne s'applique qu'à la plus-value (valeur − capital versé).
@@ -39,12 +50,30 @@ export interface InvestProjectionParams {
  */
 export function projectInvestment(p: InvestProjectionParams): InvestYearRow[] {
   const startYear = p.startYear ?? new Date().getFullYear();
-  const rate = p.annualRatePct / 100;
-  const tax = p.taxRatePct / 100;
+  const rate = num(p.annualRatePct) / 100;
+  /* La fiscalité est bornée à [0 %, 100 %]. Le champ est libre et une faute de frappe courante
+     (« 30 » qui devient « 300 ») produisait une taxe de 300 % : la plus-value nette passait en
+     NÉGATIF et l'écran affichait « Plus-value nette : +-12 400 € ». Une part d'impôt ne peut ni
+     être négative ni dépasser le gain. */
+  const tax = Math.min(1, Math.max(0, num(p.taxRatePct) / 100));
+  // Horizon borné : `years` vient d'un JSON de profil que l'utilisateur peut écrire lui-même.
+  // Sans borne, une valeur aberrante fige l'écran dans une boucle de plusieurs millions de tours.
+  const years = Math.max(0, Math.min(100, Math.floor(num(p.years))));
   const rows: InvestYearRow[] = [];
 
-  let value = p.initialValue;
-  let cumulativeContribution = p.initialContributed ?? p.initialValue;
+  let value = num(p.initialValue);
+  let cumulativeContribution = p.initialContributed != null ? num(p.initialContributed) : value;
+
+  /**
+   * Valeur nette si on retirait tout : on ne paie l'impôt QUE sur une plus-value positive.
+   *
+   * L'ancienne formule (`capital versé + plus-value nette`) donnait le bon résultat tant que le
+   * compte était en gain, mais mentait dès qu'il était en MOINS-VALUE : la plus-value nette étant
+   * plafonnée à 0, elle renvoyait le capital versé — c'est-à-dire PLUS que la valeur réelle du
+   * compte. La colonne « Net après taxe » affichait donc un montant supérieur à la colonne
+   * « Valeur », comme si une perte se récupérait au retrait.
+   */
+  const afterTax = (v: number, gain: number) => v - Math.max(0, gain) * tax;
 
   // Ligne « année en cours » (N) : état réel actuel, hors hypothèse.
   const gainLatent0 = value - cumulativeContribution;
@@ -55,23 +84,23 @@ export function projectInvestment(p: InvestProjectionParams): InvestYearRow[] {
     cumulativeContribution,
     value,
     gainLatent: gainLatent0,
-    valueAfterTax: cumulativeContribution + prevNetGainTotal,
+    valueAfterTax: afterTax(value, gainLatent0),
     netGainTotal: prevNetGainTotal,
     netGainAnnual: 0,
     netGainMonthly: 0,
   });
 
   // Années projetées (N+1 … N+years) : l'hypothèse s'applique.
-  for (let i = 1; i <= p.years; i++) {
+  for (let i = 1; i <= years; i++) {
     const year = startYear + i;
     // L'apport est versé en début d'année puis fructifie
-    const contribution = p.annualContribution;
+    const contribution = num(p.annualContribution);
     value = (value + contribution) * (1 + rate);
     cumulativeContribution += contribution;
 
     const gainLatent = value - cumulativeContribution;
     const netGainTotal = Math.max(0, gainLatent) * (1 - tax);
-    const valueAfterTax = cumulativeContribution + netGainTotal;
+    const valueAfterTax = afterTax(value, gainLatent);
     const netGainAnnual = netGainTotal - prevNetGainTotal;
     prevNetGainTotal = netGainTotal;
 
@@ -111,20 +140,24 @@ export function projectSavings(
   horizonsYears: number[],
   annualRatePct = 0,
 ): SavingsHorizon[] {
-  const monthlyRate = annualRatePct / 100 / 12;
-  return horizonsYears.map((years) => {
+  const monthlyRate = num(annualRatePct) / 100 / 12;
+  const start = num(initial);
+  const perMonth = num(monthly);
+  return horizonsYears.map((y) => {
+    // Horizon borné (cf. `projectInvestment`) : les valeurs viennent de l'écran, pas d'un constant.
+    const years = Math.max(0, Math.min(100, Math.floor(num(y))));
     const months = years * 12;
-    let value = initial;
+    let value = start;
     for (let m = 0; m < months; m++) {
-      value = value * (1 + monthlyRate) + monthly;
+      value = value * (1 + monthlyRate) + perMonth;
     }
-    const contributed = monthly * months;
+    const contributed = perMonth * months;
     return {
       years,
       label: years === 1 ? '1 an' : `${years} ans`,
       total: value,
       contributed,
-      fromInitial: initial * Math.pow(1 + monthlyRate, months),
+      fromInitial: start * Math.pow(1 + monthlyRate, months),
     };
   });
 }
@@ -198,8 +231,13 @@ function savingsContribution(t: SavedTx): number {
 
 /**
  * Estime l'épargne mensuelle moyenne réelle.
- * Compte les virements vers l'épargne ET les apports directs sur les comptes d'épargne,
- * en excluant les transactions d'initialisation (solde d'ouverture).
+ *
+ * Compte UNIQUEMENT les virements sortants d'un compte courant vers un compte d'épargne. Les
+ * apports directs posés sur un livret sont volontairement écartés (cf. `savingsContribution`) :
+ * ce sont presque toujours des initialisations de solde, pas un effort d'épargne du mois.
+ * (Le commentaire annonçait auparavant l'inverse de ce que le code fait — et l'écran répétait cette
+ * promesse à l'utilisateur, qui cherchait donc un écart inexistant.)
+ *
  * Règle : on lisse TOUJOURS sur 12 mois — la somme épargnée sur les 12 derniers mois ÷ 12.
  * (Ex. 5 000 € épargnés en 3 mois → 417 €/mois.) On démarre dès qu'il y a ≥ 1 mois de données.
  */

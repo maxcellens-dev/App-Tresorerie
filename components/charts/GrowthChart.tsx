@@ -41,9 +41,19 @@ export default function GrowthChart({ points, width, color, height = 200, gradie
   const usableH = h - padT - padB;
   if (points.length < 2 || usableW <= 0 || usableH <= 0) return null;
 
-  const maxVal = Math.max(...points.map(p => p.value), 1);
+  /* L'échelle couvre les DEUX séries, pas seulement la valeur.
+     Avec `max(valeurs)` seul, un portefeuille en MOINS-VALUE (capital versé > valeur) envoyait la
+     ligne pointillée « Capital investi » au-dessus du cadre : selon la plateforme elle était rognée
+     ou débordait de la carte. La légende annonçait donc une courbe invisible — et le graphe donnait
+     à lire un portefeuille en gain alors qu'il était en perte.
+     Le plancher inclut 0 (repère naturel d'un patrimoine) et descend plus bas si une série passe
+     en négatif, pour qu'aucun point ne sorte du cadre. */
+  const allVals = points.flatMap((p) => [p.value, p.contributed]).filter((v) => Number.isFinite(v));
+  const maxVal = Math.max(...allVals, 1);
+  const minVal = Math.min(...allVals, 0);
+  const span = maxVal - minVal || 1;
   const x = (i: number) => padL + (i / (points.length - 1)) * usableW;
-  const y = (v: number) => padT + (1 - v / maxVal) * usableH;
+  const y = (v: number) => padT + (1 - (v - minVal) / span) * usableH;
 
   const valLine = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.value)}`).join(' ');
   const area = `${valLine} L ${x(points.length - 1)} ${padT + usableH} L ${x(0)} ${padT + usableH} Z`;
@@ -64,7 +74,9 @@ export default function GrowthChart({ points, width, color, height = 200, gradie
         return (
           <React.Fragment key={i}>
             <Line x1={padL} y1={yy} x2={width - padR} y2={yy} stroke={c.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
-            <SvgText x={padL - 6} y={yy + 4} fill={c.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * p)}</SvgText>
+            {/* Graduation lue sur l'échelle réelle (plancher compris), sinon l'axe ment dès que
+                le graphe ne démarre plus à zéro. */}
+            <SvgText x={padL - 6} y={yy + 4} fill={c.textSecondary} fontSize={9} textAnchor="end">{fmtK(minVal + span * p)}</SvgText>
           </React.Fragment>
         );
       })}

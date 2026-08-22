@@ -154,6 +154,38 @@ describe('computePilotageData — régularisations', () => {
     expect(avec.month_expenses_total - sans.month_expenses_total).toBeCloseTo(250, 2);
   });
 
+  /* OÙ atterrit une régul du mois courant — la règle produit, figée ici parce que trois écrans en
+     dépendent (Suivi du mois, Projection, Reporting) :
+       • à la BAISSE  → dépense VARIABLE (elle consomme l'enveloppe du mois) ;
+       • à la HAUSSE  → recette (elle ne consomme rien) ;
+       • jamais une « dépense prévue » : une charge prévue est connue d'avance, une régul est
+         constatée après coup. */
+  it('une régul à la baisse consomme l’enveloppe variable (et pas les charges prévues)', () => {
+    const accounts = [account({ id: 'a1', balance: 1000 })];
+    const regul = (over: any) => tx({
+      account_id: 'a1', date: iso(2026, 6, 9), category_id: null, category: null,
+      note: 'Régularisation', ...over,
+    });
+    const sans = run({ accounts, questionnaireAnswers: { q9: 200 } });
+    const avec = run({ accounts, questionnaireAnswers: { q9: 200 }, transactions: [regul({ amount: -80, regul_target: 920 })] });
+    expect(avec.variable_envelope_spent - sans.variable_envelope_spent).toBeCloseTo(80, 2);
+    expect(avec.variable_envelope_remaining).toBeCloseTo(sans.variable_envelope_remaining - 80, 2);
+  });
+
+  it('une régul à la hausse ne consomme PAS l’enveloppe variable', () => {
+    const accounts = [account({ id: 'a1', balance: 1000 })];
+    const sans = run({ accounts, questionnaireAnswers: { q9: 200 } });
+    const avec = run({
+      accounts, questionnaireAnswers: { q9: 200 },
+      transactions: [tx({
+        account_id: 'a1', amount: 120, date: iso(2026, 6, 9), regul_target: 1120,
+        category_id: 'cat-regul-in', category: { name: 'Régularisation Solde', type: 'income' },
+        note: 'Régularisation',
+      })],
+    });
+    expect(avec.variable_envelope_spent).toBeCloseTo(sans.variable_envelope_spent, 2);
+  });
+
   it('retient la régularisation comme date de dernière vérification', () => {
     const r = run({
       accounts: [account({ id: 'a1', balance: 1000 })],

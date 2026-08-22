@@ -32,7 +32,7 @@ import { useAccounts } from '../../hooks/data/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/pilotage/useFinancialProfile';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useResponsive } from '../../hooks/theme/useResponsive';
-import { pageColumn } from '../../lib/ui/webLayout';
+import { pageColumn, MAX_W, GUTTER } from '../../lib/ui/webLayout';
 import { useProjectionHorizon } from '../../hooks/config/useUiPrefs';
 import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../../hooks/data/useFiscalEnvelopes';
 import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/pilotage/useProjectionAssumptions';
@@ -46,7 +46,8 @@ import { semanticText } from '../../theme/palette';
 import { computeConfidence, resolveReliabilityConfig } from '../../lib/finance/confidenceEngine';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
 import KeyboardAwareScrollView from '../../components/layout/KeyboardAwareScrollView';
-import { sanitizeAmountInput } from '../../lib/ui/amountInput';
+import { sanitizeAmountInput, sanitizeRateInput } from '../../lib/ui/amountInput';
+import { todayISO } from '../../lib/dateUtils';
 
 /* Les constantes de marque `INVEST_COLOR` / `SAVINGS_COLOR` qui vivaient ici étaient MORTES : le
    corps de l'écran les redéfinit à partir du thème (`COLORS.investment` / `COLORS.savings`), donc
@@ -66,25 +67,63 @@ import { sanitizeAmountInput } from '../../lib/ui/amountInput';
  */
 const SAVINGS_ANNUAL_RATE_PCT = 2;
 
+/**
+ * Durées proposées pour la projection d'investissement.
+ *
+ * Cette liste est aussi le FILTRE de la durée relue en base : `projection_assumptions` est un JSON
+ * du profil, et une valeur qui n'est pas dans les puces laisse l'écran dans un état qu'aucun bouton
+ * ne reflète — l'utilisateur lit « sur 37 ans » sans pouvoir revenir en arrière autrement qu'en
+ * choisissant une autre durée.
+ */
+const YEAR_CHOICES = [10, 15, 20, 25] as const;
+const DEFAULT_YEARS = 20;
+
 const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+
+/**
+ * Montant SIGNÉ (« +1 200 € », « −340 € », « 0 € »).
+ *
+ * Plusieurs montants de cet écran peuvent légitimement être négatifs — la plus-value d'un compte en
+ * perte, le gain net d'une année sans progression — et l'écran leur collait un « + » en dur dans le
+ * JSX. On lisait donc « +-1 234 € ». Le signe se déduit du nombre, une seule fois, ici ; et zéro
+ * n'a pas de signe.
+ */
+const fmtSigned = (n: number) => {
+  const r = Math.round(n);
+  if (r === 0) return fmt(0);
+  return (r > 0 ? '+' : '−') + fmt(Math.abs(r));
+};
 
 interface AccountHypo { contributed: string; annual: string; rate: string; tax: string; contributedBase?: number }
 
 /* ── Champ numérique compact ── */
-function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
+function NumField({ label, value, onChange, suffix, colors, flex = 1, sanitize = sanitizeAmountInput }: {
   label: string; value: string; onChange: (v: string) => void; suffix?: string; colors: any; flex?: number;
+  /** Normalisation à la frappe : montant (2 décimales) par défaut, taux (3) pour les %. */
+  sanitize?: (raw: string) => string;
 }) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  /* Le champ garde SA frappe tant qu'il a le focus.
+     « Apport mensuel » est une valeur DÉRIVÉE (apport annuel ÷ 12) : chaque caractère tapé était
+     converti en apport annuel, puis redivisé et arrondi pour réécrire le champ. Poser une virgule
+     était donc impossible — « 12, » repassait à « 12 » avant même la décimale, et saisir 12,50 €
+     par mois n'avait aucun moyen d'aboutir.
+     Règle générale : un champ dont la valeur est recalculée en amont ne corrige pas l'utilisateur
+     pendant qu'il tape ; il se réaligne quand il le quitte. */
+  const [draft, setDraft] = useState<string | null>(null);
   return (
     <View style={[styles.field, { flex }]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldInputWrap}>
         <TextInput
           style={styles.fieldInput}
-          value={value}
-          onChangeText={(t) => onChange(sanitizeAmountInput(t))}
+          value={draft ?? value}
+          onChangeText={(t) => { const s = sanitize(t); setDraft(s); onChange(s); }}
+          onFocus={() => setDraft(value)}
+          onBlur={() => setDraft(null)}
           keyboardType="decimal-pad"
           placeholderTextColor={colors.textSecondary}
+          accessibilityLabel={label}
         />
         {suffix ? <Text style={styles.fieldSuffix}>{suffix}</Text> : null}
       </View>
@@ -173,8 +212,17 @@ function ProjectionBody() {
     return map;
   }, [monthOverrides, rawTransactions, rates, refCode]);
 
-  const chartWidth = Math.min(width - 48, 560);
+  /* Largeur du graphe d'investissement.
+     Elle se DÉDUIT de la place réellement disponible, pas de la largeur de fenêtre : la carte est
+     dans un ScrollView de 16 px de marge et a elle-même 12 px de padding, soit 56 px consommés.
+     L'ancienne formule (`width − 48`) était optimiste de 8 px — le SVG dépassait donc du cadre
+     arrondi de la carte sur tous les téléphones (et se faisait rogner sur Android). Sur ordinateur,
+     la page vit dans une colonne centrée : c'est elle qui borne, pas la fenêtre. */
+  const columnWidth = isDesktop ? Math.min(width, MAX_W.dashboard) - 2 * GUTTER : width;
+  const chartWidth = Math.max(0, Math.min(columnWidth - 56, 560));
   const num = (s: string) => parseFloat(String(s).replace(/\s/g, '').replace(/,/g, '.')) || 0;
+  /** Apport mensuel affiché depuis l'apport annuel stocké : au centime, sans décimale inutile. */
+  const monthlyFromAnnual = (annual: string) => String(Math.round((num(annual) / 12) * 100) / 100);
 
   // ── Guide de présentation (bulles) ──
   const scrollRef = React.useRef<ScrollView>(null);
@@ -232,6 +280,11 @@ function ProjectionBody() {
     return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre', initialContributed: null as number | null }];
   }, [allAccounts]);
 
+  /* Aucun compte d'investissement : l'écran travaille sur un compte FICTIF à 0 €. Sans le dire, il
+     affichait une page entière de « 0 € » — valeur projetée, capital, plus-value, courbe plate —
+     qu'un nouvel utilisateur lit comme un bug ou comme un verdict sur sa situation. */
+  const isSimulationOnly = investAccounts.length === 1 && investAccounts[0].id === 'manual';
+
   // Apport repris dans l'hypothèse = « apport actuel » dérivé des transactions (apports + virements − retraits au prorata).
   // À défaut (aucun apport de base défini), on retombe sur la valeur du compte.
   const autoContributedFor = React.useCallback((acc: { id: string; balance: number; initialContributed: number | null }) => {
@@ -251,7 +304,7 @@ function ProjectionBody() {
 
   // ── État : hypothèses par compte + durée globale ──
   const [hypos, setHypos] = useState<Record<string, AccountHypo>>({});
-  const [years, setYears] = useState(20);
+  const [years, setYears] = useState<number>(DEFAULT_YEARS);
   const [selectedAccId, setSelectedAccId] = useState<string>('');
   const [loaded, setLoaded] = useState(false);
 
@@ -291,7 +344,7 @@ function ProjectionBody() {
       }
     }
     setHypos(initialHypos);
-    if (saved?.years) setYears(saved.years);
+    if ((YEAR_CHOICES as readonly number[]).includes(Number(saved?.years))) setYears(Number(saved.years));
     // Épargne « personnalisé » : on restaure la saisie de l'utilisateur (§P5).
     if (saved?.savingsMonthlyPerso != null) setSavingsMonthlyPerso(String(saved.savingsMonthlyPerso));
     if (saved?.savingsInitial != null) { setSavingsInitial(String(saved.savingsInitial)); setSavSynced(true); }
@@ -368,6 +421,14 @@ function ProjectionBody() {
     markProjectionEdited();
   };
 
+  /* Les champs d'hypothèses gardent la frappe en cours tant qu'ils ont le focus (cf. `NumField`).
+     Ce compteur les REMONTE quand leur contenu doit repartir de la valeur officielle :
+       • après un « Réinitialiser » — sinon, sur mobile, appuyer sur le bouton ne fait pas perdre le
+         focus au champ, qui continuerait d'afficher la saisie abandonnée ;
+       • au changement de compte — sinon on lirait la frappe faite sur le compte PRÉCÉDENT.
+     Il fait partie de la `key` des champs : le remontage remet la frappe en cours à zéro. */
+  const [hypoNonce, setHypoNonce] = useState(0);
+
   // Réinitialise les hypothèses du compte aux valeurs par défaut :
   // apport = total apporté à la création + apports/virements, 0 € d'apport mensuel/annuel,
   // 7 % de rendement et fiscalité de l'enveloppe.
@@ -380,6 +441,7 @@ function ProjectionBody() {
       rate: '7',
       tax: String(taxRateFor(fiscalRates, acc.envelope)),
     });
+    setHypoNonce((n) => n + 1);
   };
 
   const selectedAcc = investAccounts.find((a) => a.id === selectedAccId) ?? investAccounts[0];
@@ -527,9 +589,16 @@ function ProjectionBody() {
     // Solde actuel total des comptes d'invest
     const totalBalance = investAccounts.reduce((s, a) => s + (a.id !== 'manual' ? a.balance : 0), 0);
 
-    // Pour chaque année passée, reconstruire le solde = totalBalance - sum(transactions > fin d'année)
+    /* Pour chaque année passée : solde = solde actuel − somme des mouvements postérieurs.
+       ⚠️ On s'arrête à AUJOURD'HUI. Le solde d'un compte ne contient que les mouvements ÉCHUS
+       (le recalcul serveur somme les transactions de date ≤ aujourd'hui) : retrancher en plus des
+       apports DATÉS DANS LE FUTUR — un versement programmé, une échéance à venir — revenait à les
+       soustraire d'un solde qui ne les a jamais contenus. Tous les points du passé s'en trouvaient
+       décalés vers le bas, d'autant plus que le futur saisi est important.
+       C'est la règle que le Reporting applique déjà pour reconstruire le patrimoine. */
+    const todayStr = todayISO();
     const investTxs = (transactions as any[]).filter(
-      (t) => investAccountIds.has(t.account_id) && !t.is_draft
+      (t) => investAccountIds.has(t.account_id) && !t.is_draft && String(t.date ?? '') <= todayStr,
     );
 
     const rows: { year: number; value: number; isPast: true }[] = [];
@@ -582,7 +651,55 @@ function ProjectionBody() {
           )}
 
           {activeTab === 'invest' && (<>
-          <Text style={styles.sectionHint}>Projection globale sur {years} ans (tous comptes)</Text>
+          <Text style={styles.sectionHint}>
+            {isSimulationOnly
+              ? `Simulation libre sur ${years} ans`
+              : `Projection globale sur ${years} ans (tous comptes)`}
+          </Text>
+
+          {/* Pas encore de compte d'investissement : on explique les zéros et on montre la sortie. */}
+          {isSimulationOnly && (
+            <View style={styles.emptyCard}>
+              <Ionicons name="flask-outline" size={20} color={COLORS.textSecondary} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={styles.emptyTitle}>Tu n'as pas encore de compte d'investissement</Text>
+                <Text style={styles.emptyText}>
+                  Les montants ci-dessous partent donc de zéro. Renseigne un apport mensuel dans
+                  « Hypothèses » pour simuler librement — ou crée un compte pour suivre ton vrai portefeuille.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/comptes/add')}
+                  accessibilityRole="button"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}
+                >
+                  <Text style={[styles.emptyLink, { color: semanticText(INVEST_COLOR, COLORS) }]}>Créer un compte d'investissement</Text>
+                  <Ionicons name="chevron-forward" size={14} color={semanticText(INVEST_COLOR, COLORS)} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Les hypothèses ne se chargent/enregistrent pas : on le DIT. Sans ce signal, l'écran
+              repartait sur ses valeurs par défaut et les réglages saisis disparaissaient au
+              prochain démarrage, sans que rien ne l'ait laissé deviner. */}
+          {assumptionsQuery.isError ? (
+            <View style={styles.warnCard}>
+              <Ionicons name="cloud-offline-outline" size={16} color={COLORS.orange} />
+              <Text style={styles.warnText}>
+                Tes hypothèses enregistrées n'ont pas pu être chargées. Les valeurs affichées sont
+                celles par défaut, et tes modifications ne seront pas conservées tant que la connexion
+                n'est pas rétablie.
+              </Text>
+            </View>
+          ) : saveAssumptions.isError ? (
+            <View style={styles.warnCard}>
+              <Ionicons name="cloud-offline-outline" size={16} color={COLORS.orange} />
+              <Text style={styles.warnText}>
+                Tes dernières modifications n'ont pas pu être enregistrées. Elles restent affichées ici,
+                mais seront perdues si tu recharges l'application.
+              </Text>
+            </View>
+          ) : null}
 
           {/* ── Suivi annuel ── */}
           {yearlyInvested > 0 && (
@@ -612,7 +729,7 @@ function ProjectionBody() {
           <View style={styles.kpiRow}>
             <View style={[styles.kpiCard, { borderLeftColor: SAVINGS_COLOR }]}>
               <Text style={styles.kpiLabel}>Plus-value nette</Text>
-              <Text style={[styles.kpiValue, { color: semanticText(SAVINGS_COLOR, COLORS) }]}>+{fmt(investFinal?.netGainTotal ?? 0)}</Text>
+              <Text style={[styles.kpiValue, { color: semanticText(SAVINGS_COLOR, COLORS) }]}>{fmtSigned(investFinal?.netGainTotal ?? 0)}</Text>
               <Text style={styles.kpiSub}>après fiscalité</Text>
             </View>
             <View style={styles.kpiCard}>
@@ -650,15 +767,24 @@ function ProjectionBody() {
             {investAccounts.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -2 }}>
                 <View style={styles.accChipRow}>
-                  {investAccounts.map((a) => (
-                    <TouchableOpacity
-                      key={a.id}
-                      style={[styles.accChip, selectedAccId === a.id && { backgroundColor: INVEST_COLOR + '22', borderColor: INVEST_COLOR }]}
-                      onPress={() => setSelectedAccId(a.id)}
-                    >
-                      <Text style={[styles.accChipText, selectedAccId === a.id && { color: INVEST_COLOR, fontWeight: '700' }]}>{a.name}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {/* On surligne le compte RÉELLEMENT affiché (`selectedAcc`), pas l'identifiant
+                      mémorisé : quand le compte sélectionné a été supprimé ailleurs dans l'app, les
+                      champs retombent sur le premier compte mais AUCUNE puce n'était mise en avant
+                      — on ne savait plus de quel compte on lisait les hypothèses. */}
+                  {investAccounts.map((a) => {
+                    const active = selectedAcc?.id === a.id;
+                    return (
+                      <TouchableOpacity
+                        key={a.id}
+                        style={[styles.accChip, active && { backgroundColor: INVEST_COLOR + '22', borderColor: INVEST_COLOR }]}
+                        onPress={() => setSelectedAccId(a.id)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text style={[styles.accChipText, active && { color: INVEST_COLOR, fontWeight: '700' }]} numberOfLines={1}>{a.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </ScrollView>
             )}
@@ -669,28 +795,47 @@ function ProjectionBody() {
                   <Text style={styles.valueBadgeLabel}>Valeur actuelle</Text>
                   <Text style={styles.valueBadgeValue}>{fmt(selectedAcc.balance)}</Text>
                 </View>
+                {/* `key` = compte + compteur de réinitialisation : voir `hypoNonce`. Elle garantit
+                    qu'un champ ne conserve jamais une frappe faite sur un AUTRE compte. */}
                 <View style={styles.fieldRow}>
-                  <NumField label="Apport existant" value={selHypo.contributed} onChange={(v) => updateHypo(selectedAcc.id, { contributed: v, contributedBase: autoContributedFor(selectedAcc) })} suffix={CURRENCY_SYMBOL} colors={COLORS} />
+                  <NumField key={`ct-${selectedAcc.id}-${hypoNonce}`} label="Apport existant" value={selHypo.contributed} onChange={(v) => updateHypo(selectedAcc.id, { contributed: v, contributedBase: autoContributedFor(selectedAcc) })} suffix={CURRENCY_SYMBOL} colors={COLORS} />
                   <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 10 }}>
                     <Text style={styles.miniHint}>Plus-value = valeur − apport.</Text>
                   </View>
                 </View>
                 <View style={styles.fieldRow}>
                   <NumField
+                    key={`mo-${selectedAcc.id}-${hypoNonce}`}
                     label="Apport mensuel" suffix={CURRENCY_SYMBOL} colors={COLORS}
-                    value={String(Math.round(num(selHypo.annual) / 12))}
+                    // Affiché au centime près (et non arrondi à l'euro) : un apport annuel de 100 €
+                    // vaut 8,33 €/mois, pas 8 € — et l'arrondi se répercutait sur l'apport annuel
+                    // dès qu'on touchait ce champ.
+                    value={monthlyFromAnnual(selHypo.annual)}
                     onChange={(v) => updateHypo(selectedAcc.id, { annual: String(Math.round(num(v) * 12)) })}
                   />
                   <NumField
+                    key={`an-${selectedAcc.id}-${hypoNonce}`}
                     label="Apport annuel" suffix={CURRENCY_SYMBOL} colors={COLORS}
                     value={selHypo.annual}
                     onChange={(v) => updateHypo(selectedAcc.id, { annual: v })}
                   />
                 </View>
                 <View style={styles.fieldRow}>
-                  <NumField label="Rendement /an" value={selHypo.rate} onChange={(v) => updateHypo(selectedAcc.id, { rate: v })} suffix="%" colors={COLORS} />
-                  <NumField label="Fiscalité (gains)" value={selHypo.tax} onChange={(v) => updateHypo(selectedAcc.id, { tax: v })} suffix="%" colors={COLORS} />
+                  {/* Champs de POURCENTAGE : 3 décimales (un rendement de 7,125 % existe), là où un
+                      montant s'arrête à 2. */}
+                  <NumField key={`ra-${selectedAcc.id}-${hypoNonce}`} label="Rendement /an" value={selHypo.rate} onChange={(v) => updateHypo(selectedAcc.id, { rate: v })} suffix="%" colors={COLORS} sanitize={sanitizeRateInput} />
+                  <NumField key={`tx-${selectedAcc.id}-${hypoNonce}`} label="Fiscalité (gains)" value={selHypo.tax} onChange={(v) => updateHypo(selectedAcc.id, { tax: v })} suffix="%" colors={COLORS} sanitize={sanitizeRateInput} />
                 </View>
+                {/* La fiscalité est bornée à 100 % par le moteur : on le DIT, au lieu de calculer
+                    en silence autre chose que ce que le champ affiche. */}
+                {num(selHypo.tax) > 100 && (
+                  <View style={[styles.fiscalNote, { borderColor: COLORS.orange + '55', backgroundColor: COLORS.orange + '12' }]}>
+                    <Ionicons name="alert-circle-outline" size={14} color={COLORS.orange} />
+                    <Text style={[styles.fiscalNoteText, { color: COLORS.orange }]}>
+                      Une fiscalité ne peut pas dépasser 100 % : la projection calcule avec 100 %.
+                    </Text>
+                  </View>
+                )}
                 {noteFor(fiscalRates, (selectedAcc as any).envelope) && (
                   <View style={styles.fiscalNote}>
                     <Ionicons name="information-circle-outline" size={14} color={COLORS.textSecondary} />
@@ -735,7 +880,7 @@ function ProjectionBody() {
             {/* Durée globale */}
             <Text style={styles.fieldLabel}>Durée (globale)</Text>
             <View style={styles.chipRow}>
-              {[10, 15, 20, 25].map((yy) => (
+              {YEAR_CHOICES.map((yy) => (
                 <TouchableOpacity key={yy} style={[styles.chip, years === yy && { backgroundColor: INVEST_COLOR, borderColor: INVEST_COLOR }]} onPress={() => setYears(yy)}>
                   <Text style={[styles.chipText, years === yy && { color: '#fff', fontWeight: '700' }]}>{yy} ans</Text>
                 </TouchableOpacity>
@@ -785,9 +930,11 @@ function ProjectionBody() {
                     <Text style={[styles.td, { width: 88 }]}>{fmt(r.cumulativeContribution)}</Text>
                     <Text style={[styles.td, { width: 88, color: INVEST_COLOR, fontWeight: '600' }]}>{fmt(r.value)}</Text>
                     <Text style={[styles.td, { width: 92 }]}>{fmt(r.valueAfterTax)}</Text>
-                    <Text style={[styles.td, { width: 92, color: SAVINGS_COLOR }]}>+{fmt(r.gainLatent)}</Text>
-                    <Text style={[styles.td, { width: 88, color: SAVINGS_COLOR }]}>+{fmt(r.netGainAnnual)}</Text>
-                    <Text style={[styles.td, { width: 96, color: SAVINGS_COLOR }]}>+{fmt(r.netGainMonthly)}</Text>
+                    {/* Ces trois colonnes peuvent être négatives (compte en moins-value) : le signe
+                        vient du nombre, pas d'un « + » écrit en dur. Et la couleur suit le sens. */}
+                    <Text style={[styles.td, { width: 92, color: r.gainLatent < 0 ? COLORS.danger : SAVINGS_COLOR }]}>{fmtSigned(r.gainLatent)}</Text>
+                    <Text style={[styles.td, { width: 88, color: r.netGainAnnual < 0 ? COLORS.danger : SAVINGS_COLOR }]}>{fmtSigned(r.netGainAnnual)}</Text>
+                    <Text style={[styles.td, { width: 96, color: r.netGainMonthly < 0 ? COLORS.danger : SAVINGS_COLOR }]}>{fmtSigned(r.netGainMonthly)}</Text>
                   </View>
                 ))}
               </View>
@@ -801,44 +948,90 @@ function ProjectionBody() {
 
           <View style={styles.sourceRow}>
             {([
-              { id: 'reel', label: 'Réel', val: realMonthlySavings, disabled: realMonthlySavings <= 0 },
-              { id: 'questionnaire', label: 'Questionnaire', val: questionnaireMonthlySavings, disabled: questionnaireMonthlySavings <= 0 },
-              { id: 'perso', label: 'Personnalisé', val: num(savingsMonthlyPerso), disabled: false },
-            ] as const).map((s) => (
-              <TouchableOpacity
-                key={s.id} disabled={s.disabled}
-                style={[styles.sourceChip, savingsSource === s.id && { backgroundColor: SAVINGS_COLOR + '22', borderColor: SAVINGS_COLOR }, s.disabled && { opacity: 0.4 }]}
-                onPress={() => setSavingsSource(s.id)}
-              >
-                <Text style={[styles.sourceLabel, savingsSource === s.id && { color: SAVINGS_COLOR, fontWeight: '700' }]}>{s.label}</Text>
-                <Text style={styles.sourceVal}>{fmt(s.val)}/mois</Text>
-              </TouchableOpacity>
-            ))}
+              { id: 'reel', label: 'Réel', val: realMonthlySavings, empty: realMonthlySavings <= 0 },
+              { id: 'questionnaire', label: 'Questionnaire', val: questionnaireMonthlySavings, empty: questionnaireMonthlySavings <= 0 },
+              { id: 'perso', label: 'Personnalisé', val: num(savingsMonthlyPerso), empty: false },
+            ] as const).map((s) => {
+              const active = savingsSource === s.id;
+              /* Une source VIDE se choisit pas — sauf si c'est celle qui est active. Un utilisateur
+                 qui avait choisi « Réel » puis cessé d'épargner pendant 12 mois se retrouvait devant
+                 une puce à la fois SÉLECTIONNÉE et GRISÉE, sans plus aucun moyen d'en changer
+                 l'apparence ni d'en comprendre le 0 €. */
+              const disabled = s.empty && !active;
+              return (
+                <TouchableOpacity
+                  key={s.id} disabled={disabled}
+                  style={[styles.sourceChip, active && { backgroundColor: SAVINGS_COLOR + '22', borderColor: SAVINGS_COLOR }, disabled && { opacity: 0.4 }]}
+                  onPress={() => setSavingsSource(s.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active, disabled }}
+                >
+                  <Text style={[styles.sourceLabel, active && { color: SAVINGS_COLOR, fontWeight: '700' }]}>{s.label}</Text>
+                  <Text style={styles.sourceVal}>{fmt(s.val)}/mois</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          {savingsSource === 'perso' && (
-            <View style={styles.controlsCard}>
-              <View style={styles.fieldRow}>
+          {/* Le capital de DÉPART entre dans tous les totaux, quelle que soit la source choisie —
+              mais il n'était visible (et modifiable) que dans « Personnalisé ». On lisait donc, en
+              « Réel » ou « Questionnaire », des montants gonflés par un capital invisible, parfois
+              saisi à la main des mois plus tôt. Il est désormais toujours affiché. */}
+          <View style={styles.controlsCard}>
+            <View style={styles.fieldRow}>
+              {savingsSource === 'perso' ? (
                 <NumField label="Épargne /mois" value={savingsMonthlyPerso} onChange={(v) => { setSavingsMonthlyPerso(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
-                <NumField label="Déjà épargné" value={savingsInitial} onChange={(v) => { setSavingsInitial(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
-              </View>
-              {/* Réinitialisation au solde actuel des comptes épargne (§N9) */}
-              {Math.round(num(savingsInitial)) !== Math.round(realSavings) && (
-                <TouchableOpacity
-                  style={styles.savingsResetLink}
-                  activeOpacity={0.7}
-                  onPress={() => { setSavingsInitial(String(Math.round(realSavings))); markProjectionEdited(); }}
-                >
-                  <Ionicons name="refresh" size={13} color={COLORS.emerald} />
-                  <Text style={styles.savingsResetText}>Réinitialiser à ton solde réel ({fmt(realSavings)})</Text>
-                </TouchableOpacity>
+              ) : (
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Épargne /mois</Text>
+                  {/* Lecture seule : la valeur vient de la source choisie (Réel / Questionnaire).
+                      Style dédié — `fieldInput` porte des propriétés propres au champ de saisie web
+                      (`width: 0`, suppression du contour) qui n'ont pas de sens sur un texte. */}
+                  <View style={[styles.fieldInputWrap, { paddingVertical: 9 }]}>
+                    <Text style={styles.fieldReadonly} numberOfLines={1}>{Math.round(savingsMonthly).toLocaleString('fr-FR')}</Text>
+                    <Text style={styles.fieldSuffix}>{CURRENCY_SYMBOL}</Text>
+                  </View>
+                </View>
               )}
+              <NumField label="Déjà épargné" value={savingsInitial} onChange={(v) => { setSavingsInitial(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
+            </View>
+            {/* Réinitialisation au solde actuel des comptes épargne (§N9) */}
+            {Math.round(num(savingsInitial)) !== Math.round(realSavings) && (
+              <TouchableOpacity
+                style={styles.savingsResetLink}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                onPress={() => { setSavingsInitial(String(Math.round(realSavings))); markProjectionEdited(); }}
+              >
+                <Ionicons name="refresh" size={13} color={COLORS.emerald} />
+                <Text style={styles.savingsResetText}>Réinitialiser à ton solde réel ({fmt(realSavings)})</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Source active à 0 €/mois : les cartes ci-dessous ne montrent alors que le capital de
+              départ qui fructifie. On le dit, plutôt que de laisser croire à une projection morte. */}
+          {savingsMonthly <= 0 && (
+            <View style={styles.warnCard}>
+              <Ionicons name="information-circle-outline" size={16} color={COLORS.orange} />
+              <Text style={styles.warnText}>
+                {savingsSource === 'reel'
+                  ? "Aucun virement vers l'épargne détecté sur les 12 derniers mois : la projection n'ajoute rien chaque mois."
+                  : savingsSource === 'questionnaire'
+                    ? "Tes réponses au questionnaire n'indiquent aucune épargne mensuelle."
+                    : "Renseigne un montant mensuel pour voir ton épargne progresser."}
+                {savingsSource !== 'perso' ? ' Choisis « Personnalisé » pour saisir ton rythme.' : ''}
+              </Text>
             </View>
           )}
+          {/* Ce que compte VRAIMENT `estimateMonthlySavings` : les virements sortants d'un compte
+              courant vers un compte d'épargne. Le texte annonçait « virements ET apports » alors que
+              les apports directs sur un livret sont explicitement écartés (ce sont le plus souvent
+              des initialisations de compte) — l'utilisateur cherchait donc un écart inexistant. */}
           {savingsSource === 'reel' && realMonthlySavings > 0 && (
-            <Text style={styles.realHint}>💡 Moyenne lissée sur 12 mois (1 an) de tes virements et apports vers l'épargne, hors initialisation.</Text>
+            <Text style={styles.realHint}>💡 Moyenne lissée sur 12 mois de tes virements depuis un compte courant vers l'épargne, hors initialisation de compte.</Text>
           )}
-          {savingsSource === 'questionnaire' && (
+          {savingsSource === 'questionnaire' && questionnaireMonthlySavings > 0 && (
             <Text style={styles.realHint}>💡 Estimé depuis tes réponses au questionnaire ({fmt(questionnaireMonthlySavings)}/mois).</Text>
           )}
 
@@ -853,10 +1046,12 @@ function ProjectionBody() {
           </View>
           {/* L'hypothèse de rendement était INVISIBLE : le total dépassait « capital de départ +
               épargné » sans que rien ne l'explique. Une projection qui ne dit pas sur quoi elle
-              repose n'est pas vérifiable. */}
+              repose n'est pas vérifiable. Le capital de départ est nommé pour la même raison :
+              c'est la seconde moitié de l'écart entre « Épargné » et le total. */}
           <Text style={styles.realHint}>
-            Les totaux supposent un rendement de {SAVINGS_ANNUAL_RATE_PCT} %/an (ordre de grandeur
-            d'un livret réglementé). « Épargné » est la somme de tes versements, sans les intérêts.
+            Départ : {fmt(num(savingsInitial))}, puis {fmt(savingsMonthly)}/mois, avec un rendement
+            supposé de {SAVINGS_ANNUAL_RATE_PCT} %/an (ordre de grandeur d'un livret réglementé).
+            « Épargné » est la somme de tes versements, sans le capital de départ ni les intérêts.
           </Text>
           </>)}
 
@@ -1075,17 +1270,24 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
             );
           })()}
         </Svg>
-        {/* Zones tactiles NATIVES par-dessus les points (les événements SVG sont peu fiables web/natif). */}
-        {rows.map((r, i) => (
-          <TouchableOpacity
-            key={`hit${i}`}
-            style={{ position: 'absolute', left: x(i) - 18, top: y(r.balance) - 18, width: 36, height: 36 }}
-            activeOpacity={0.6}
-            onPress={() => setSel(sel === i ? null : i)}
-            accessibilityRole="button"
-            accessibilityLabel={`Solde prévu ${r.label} : ${tipFor(i)}`}
-          />
-        ))}
+        {/* Zones tactiles NATIVES par-dessus les points (les événements SVG sont peu fiables web/natif).
+            Leur largeur suit l'ÉCART entre deux points : à 36 px fixes, l'horizon 12 mois (≈26 px
+            d'écart) faisait se chevaucher les zones voisines, et c'était toujours le point le plus à
+            droite — dessiné en dernier — qui captait le toucher. On sélectionnait donc un autre mois
+            que celui visé. */}
+        {rows.map((r, i) => {
+          const hitW = Math.max(16, Math.min(36, usableW / Math.max(1, rows.length - 1)));
+          return (
+            <TouchableOpacity
+              key={`hit${i}`}
+              style={{ position: 'absolute', left: x(i) - hitW / 2, top: y(r.balance) - 18, width: hitW, height: 36 }}
+              activeOpacity={0.6}
+              onPress={() => setSel(sel === i ? null : i)}
+              accessibilityRole="button"
+              accessibilityLabel={`Solde prévu ${r.label} : ${tipFor(i)}`}
+            />
+          );
+        })}
       </View>
 
       {/* Légende SOUS le graphe (sous les mois) */}
@@ -1111,16 +1313,42 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
 }) {
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
   const { width: winW } = useWindowDimensions();
-  // La largeur du graphe se MESURE sur son conteneur : sur le web, l'app vit dans une colonne
-  // centrée (maxWidth 840, cf. app/_layout.tsx), donc partir de la largeur de FENÊTRE faisait
-  // déborder la courbe hors de la carte. La valeur initiale n'est qu'un repli pour la 1ʳᵉ frame.
-  const [chartWidth, setChartWidth] = useState(() => Math.max(0, Math.min(winW, 840) - 32 - 24));
+  // La largeur du graphe se MESURE sur son conteneur (`onLayout` plus bas) : sur le web, l'app vit
+  // dans une colonne centrée, donc partir de la largeur de FENÊTRE faisait déborder la courbe hors
+  // de la carte. La valeur initiale n'est qu'un repli pour la 1ʳᵉ frame — bornée à la largeur de
+  // colonne réelle (MAX_W.dashboard) plutôt qu'à une constante qui avait cessé d'être la bonne.
+  const [chartWidth, setChartWidth] = useState(() => Math.max(0, Math.min(winW, MAX_W.dashboard) - 32 - 24));
   const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
   const variableRemaining = pilotage?.variable_envelope_remaining ?? variableMonthly;
 
-  // Calcul partagé avec le garde-fou marge du moteur de recos (une seule trajectoire).
-  // Horizon 6 (défaut) ou 12 mois, choisi par l'utilisateur (persisté).
-  const rows = computeTresoRows({ transactions, accounts, overridesMap, variableMonthly, variableRemaining, monthsCount: horizon });
+  /* Calcul partagé avec le garde-fou marge du moteur de recos (une seule trajectoire).
+     Horizon 6 (défaut) ou 12 mois, choisi par l'utilisateur (persisté).
+     MÉMOÏSÉ : la fonction balaie toutes les transactions une fois par mois projeté (jusqu'à 12).
+     Sans ça, elle repartait de zéro à chaque rendu du composant — dont ceux déclenchés par la
+     simple mesure de la largeur du graphe, ou par un rafraîchissement du Pilotage en arrière-plan. */
+  const rows = useMemo(
+    () => computeTresoRows({ transactions, accounts, overridesMap, variableMonthly, variableRemaining, monthsCount: horizon }),
+    [transactions, accounts, overridesMap, variableMonthly, variableRemaining, horizon],
+  );
+
+  // σ_variables : VRAI écart-type des dépenses variables (mois fiables, hors estimated) ;
+  // repli = fraction de l'enveloppe si historique insuffisant.
+  const sigma = useMemo(() => {
+    const real = pilotage?.variable_sigma ?? 0;
+    return real > 0 ? real : 0.25 * (pilotage?.variable_envelope_initial ?? 0);
+  }, [pilotage?.variable_sigma, pilotage?.variable_envelope_initial]);
+
+  // Facteur d'élargissement du cône selon le niveau de doute (fonction de doute UNIQUE de l'app).
+  const confidenceFactor = useMemo(() => {
+    const ci = pilotage?.confidence_inputs;
+    if (!ci) return 1;
+    const conf = computeConfidence({
+      today: new Date(), lastVerifiedAt: ci.lastVerifiedAt ?? null, lastActivityAt: ci.lastActivityAt ?? null,
+      calibration: ci.calibration ?? null,
+      relyka: pilotage?.safe_to_spend ?? 0, floorBase: ci.floorBase ?? 0, config: resolveReliabilityConfig(null),
+    });
+    return conf.level === 'high' ? 1 : conf.level === 'medium' ? 1.6 : 2.2;
+  }, [pilotage?.confidence_inputs, pilotage?.safe_to_spend]);
 
   return (
     <View>
@@ -1167,22 +1395,8 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
             width={chartWidth}
             COLORS={COLORS}
             marginAmount={pilotage?.safety_margin_amount ?? 0}
-            sigma={(() => {
-              // σ_variables : VRAI écart-type des dépenses variables (mois fiables, hors estimated) ;
-              // repli = fraction de l'enveloppe si historique insuffisant.
-              const real = pilotage?.variable_sigma ?? 0;
-              return real > 0 ? real : 0.25 * (pilotage?.variable_envelope_initial ?? 0);
-            })()}
-            confidenceFactor={(() => {
-              const ci = pilotage?.confidence_inputs;
-              if (!ci) return 1;
-              const conf = computeConfidence({
-                today: new Date(), lastVerifiedAt: ci.lastVerifiedAt ?? null, lastActivityAt: ci.lastActivityAt ?? null,
-                calibration: ci.calibration ?? null,
-                relyka: pilotage?.safe_to_spend ?? 0, floorBase: ci.floorBase ?? 0, config: resolveReliabilityConfig(null),
-              });
-              return conf.level === 'high' ? 1 : conf.level === 'medium' ? 1.6 : 2.2;
-            })()}
+            sigma={sigma}
+            confidenceFactor={confidenceFactor}
           />
         </View>
       </View>
@@ -1197,30 +1411,46 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
               <Text style={[styles.tresoMonthLabel, r.isCurrent && { color: COLORS.blue }]}>{r.label}</Text>
             </View>
             {r.isCurrent && r.startBalance != null && (
+              // « Départ » laissait entendre « début du mois ». C'est le solde D'AUJOURD'HUI : il
+              // contient déjà tout ce qui s'est passé depuis le 1er.
               <Text style={[styles.tresoStartBalance, { color: COLORS.textSecondary }]}>
-                Départ : {fmt(r.startBalance)} {CURRENCY_SYMBOL}
+                Aujourd'hui : {fmt(r.startBalance)} {CURRENCY_SYMBOL}
               </Text>
             )}
           </View>
           <View style={styles.tresoMonthBody}>
+            {/* ── MOIS COURANT : on montre ce qui RESTE à venir ──────────────────────────────────
+                Le solde d'aujourd'hui contient déjà le passé du mois. En affichant à côté de lui
+                les totaux PLEINS (passé + à venir), l'addition ne pouvait pas tomber juste :
+                l'utilisateur lisait « aujourd'hui 1 200 € », « revenus +2 500 », « dépenses −1 800 »
+                et un solde prévu qui ne correspondait à rien de calculable.
+                Avec la part restante, la carte redevient vérifiable de tête :
+                    aujourd'hui + revenus − dépenses − variables + autre = solde prévu. */}
             <View style={styles.tresoMonthRow}>
-              <Text style={styles.tresoKey}>Revenus</Text>
-              <Text style={[styles.tresoVal, { color: COLORS.green }]}>+{fmt(r.income)} {CURRENCY_SYMBOL}</Text>
+              <Text style={styles.tresoKey}>{r.isCurrent ? 'Revenus à venir' : 'Revenus'}</Text>
+              <Text style={[styles.tresoVal, { color: COLORS.green }]}>+{fmt(r.isCurrent ? r.incomeRemaining : r.income)} {CURRENCY_SYMBOL}</Text>
             </View>
             <View style={styles.tresoMonthRow}>
-              <Text style={styles.tresoKey}>Dépenses prévues</Text>
-              <Text style={[styles.tresoVal, { color: COLORS.danger }]}>−{fmt(r.expense)} {CURRENCY_SYMBOL}</Text>
+              <Text style={styles.tresoKey}>{r.isCurrent ? 'Dépenses à venir' : 'Dépenses prévues'}</Text>
+              <Text style={[styles.tresoVal, { color: COLORS.danger }]}>−{fmt(r.isCurrent ? r.expenseRemaining : r.expense)} {CURRENCY_SYMBOL}</Text>
             </View>
             <View style={styles.tresoMonthRow}>
-              <Text style={styles.tresoKey}>Dépenses variables (est.)</Text>
+              <Text style={styles.tresoKey}>{r.isCurrent ? 'Variables (reste estimé)' : 'Dépenses variables (est.)'}</Text>
               <Text style={[styles.tresoVal, { color: COLORS.orange }]}>−{fmt(r.variable)} {CURRENCY_SYMBOL}</Text>
             </View>
-            <View style={styles.tresoMonthRow}>
-              <Text style={styles.tresoKey}>Autre (épargne, invest, projets)</Text>
-              <Text style={[styles.tresoVal, { color: r.other > 0 ? COLORS.green : COLORS.violet }]}>
-                {r.other > 0 ? '+' : '−'}{fmt(Math.abs(r.other))} {CURRENCY_SYMBOL}
-              </Text>
-            </View>
+            {(() => {
+              // Zéro n'a pas de signe : « −0 € » se lisait comme une sortie.
+              const other = r.isCurrent ? r.otherRemaining : r.other;
+              const rounded = Math.round(other);
+              return (
+                <View style={styles.tresoMonthRow}>
+                  <Text style={styles.tresoKey}>Autre (épargne, invest, projets)</Text>
+                  <Text style={[styles.tresoVal, { color: rounded > 0 ? COLORS.green : rounded < 0 ? COLORS.violet : COLORS.textSecondary }]}>
+                    {rounded > 0 ? '+' : rounded < 0 ? '−' : ''}{fmt(Math.abs(other))} {CURRENCY_SYMBOL}
+                  </Text>
+                </View>
+              );
+            })()}
             <View style={[styles.tresoMonthRow, { borderTopWidth: 0.5, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 6 }]}>
               <Text style={[styles.tresoKey, { fontWeight: '700' }]}>Solde prévu</Text>
               <Text style={[styles.tresoVal, { fontWeight: '800', color: r.balance >= 0 ? COLORS.text : COLORS.danger }]}>{fmt(r.balance)} {CURRENCY_SYMBOL}</Text>
@@ -1296,6 +1526,20 @@ function makeStyles(c: any) {
     },
     fiscalNoteText: { flex: 1, fontSize: 11, color: c.textSecondary, lineHeight: 15 },
 
+    // État vide (aucun compte d'investissement) et avertissements de synchronisation.
+    emptyCard: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12,
+      backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 14,
+    },
+    emptyTitle: { fontSize: 13, fontWeight: '700', color: c.text },
+    emptyText: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    emptyLink: { fontSize: 12, fontWeight: '700' },
+    warnCard: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12,
+      backgroundColor: c.orange + '12', borderRadius: 12, borderWidth: 1, borderColor: c.orange + '55', padding: 12,
+    },
+    warnText: { flex: 1, fontSize: 12, color: c.orange, lineHeight: 17 },
+
     fieldRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
     field: { gap: 5, minWidth: 0 },
     fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
@@ -1308,6 +1552,8 @@ function makeStyles(c: any) {
       flex: 1, minWidth: 0, color: c.text, fontSize: 16, fontWeight: '700', paddingVertical: 9,
       ...(Platform.OS === 'web' ? { outlineStyle: 'none', width: 0 } as any : {}),
     },
+    // Valeur affichée sans saisie possible, alignée sur `fieldInput` (même taille, même graisse).
+    fieldReadonly: { flex: 1, minWidth: 0, color: c.textSecondary, fontSize: 16, fontWeight: '700' },
     fieldSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },

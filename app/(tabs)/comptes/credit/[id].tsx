@@ -119,6 +119,12 @@ export default function CreditDetailScreen() {
   }
 
   const canWrite = credit._role !== 'read'; // membre en consultation → lecture seule
+  /* Partager un crédit donne le droit de le CORRIGER, pas celui de le faire disparaître.
+     Activer/désactiver retire le crédit de la projection et de la trésorerie de TOUS les
+     participants, et arrête la matérialisation de ses échéances : au même titre que la suppression
+     et la gestion des membres, cela reste au propriétaire. Le verrou correspondant est en base
+     (migration 198) — ici on évite simplement de proposer une action qui serait refusée. */
+  const isOwner = credit._role === 'owner';
   const crd = amort.crdAtDate(today);
   const paid = amort.paidCountAtDate(today);
   // Capital déjà remboursé (hors intérêts) = emprunté − capital restant dû (= somme de la colonne Capital
@@ -314,8 +320,9 @@ export default function CreditDetailScreen() {
             );
           })()}
 
-          {/* Activer / désactiver (utile pour une simulation : compté ou non en projection/tréso) */}
-          {canWrite && (
+          {/* Activer / désactiver (utile pour une simulation : compté ou non en projection/tréso).
+              PROPRIÉTAIRE uniquement : c'est une mise hors circuit du crédit pour tout le monde. */}
+          {isOwner && (
           <TouchableOpacity style={styles.toggleBtn} onPress={() => update.mutate({ id: credit.id, is_active: !credit.is_active })} activeOpacity={0.8}>
             <Ionicons name={credit.is_active ? 'pause-circle-outline' : 'play-circle-outline'} size={18} color={COLORS.blue} />
             <Text style={styles.toggleLabel}>{credit.is_active ? 'Désactiver (retirer de la projection/tréso)' : 'Activer (compter en projection/tréso)'}</Text>

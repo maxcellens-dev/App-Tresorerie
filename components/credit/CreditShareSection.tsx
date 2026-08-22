@@ -30,7 +30,12 @@ export default function CreditShareSection({ credit }: { credit: Credit }) {
   const updateCredit = useUpdateCredit(credit.profile_id);
 
   const [code, setCode] = useState('');
-  const [role, setRole_] = useState<'write' | 'read'>('read');
+  /* ÉCRITURE par défaut : partager un crédit, c'est le porter à plusieurs — l'invité doit pouvoir
+     le corriger, sinon le partage ne sert qu'à regarder. Les actions qui font disparaître le crédit
+     (activer/désactiver, repasser en simulation, supprimer) et la gestion des membres restent au
+     propriétaire, verrouillées en base (migration 198 + policies 110).
+     « Consultation » reste proposé pour les cas où l'on veut seulement montrer le crédit. */
+  const [role, setRole_] = useState<'write' | 'read'>('write');
 
   if (credit._role && credit._role !== 'owner') return null; // seul le propriétaire partage
 
