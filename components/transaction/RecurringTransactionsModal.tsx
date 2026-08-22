@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
-import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
+import { sheetWidth, useSheetBottomPadding, useSheetFixedHeight } from '../../lib/ui/appLayout';
 import { RootPortal } from '../../lib/rootPortal';
 import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../../hooks/data/useRecurringTransactions';
 
@@ -51,6 +51,10 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
   const s = useMemo(() => makeStyles(c), [c]);
   // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
   const sheetPad = useSheetBottomPadding(26);
+  /* Hauteur FIGÉE (cf. useSheetFixedHeight) : les trois onglets n'ont pas le même nombre de lignes,
+     et une feuille qui se dimensionne à son contenu déplace son bord haut — titre et onglets
+     compris — à chaque bascule. Ici le haut reste au niveau du début de la liste de la page. */
+  const sheetHeight = useSheetFixedHeight();
   const router = useRouter();
   const { data: items = [], isLoading, refetch } = useRecurringTransactions(userId);
 
@@ -93,7 +97,7 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
 
   const body = (
       <Pressable style={s.overlay} onPress={onClose}>
-        <Pressable style={[s.sheet, { paddingBottom: sheetPad }]} onPress={() => {}}>
+        <Pressable style={[s.sheet, { height: sheetHeight, paddingBottom: sheetPad }]} onPress={() => {}}>
           {/* Anneau tracé par la feuille elle-même : le guide peut la désigner en même temps que
               le bouton qui l'ouvre, sans aucune position à mesurer. */}
           <View style={s.grabber} />
@@ -103,10 +107,14 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
             <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} hitSlop={12}><Ionicons name="close" size={22} color={c.textSecondary} /></Pressable>
           </View>
 
+          {/* La feuille ayant une hauteur fixe, chargement et messages vides se posent au MILIEU de
+              l'espace restant plutôt que collés sous le titre, avec un grand vide dessous. */}
           {isLoading ? (
-            <ActivityIndicator color={c.emerald} style={{ marginVertical: 30 }} />
+            <View style={s.fill}><ActivityIndicator color={c.emerald} /></View>
           ) : items.length === 0 ? (
-            <Text style={s.empty}>Aucune transaction récurrente active. Coche « Récurrente » à la saisie pour en créer.</Text>
+            <View style={s.fill}>
+              <Text style={s.empty}>Aucune transaction récurrente active. Coche « Récurrente » à la saisie pour en créer.</Text>
+            </View>
           ) : (
             <>
               {/* Onglets par NATURE. Le compteur reste visible sur chaque onglet : c'est ce qui
@@ -138,9 +146,11 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
               </View>
 
               {visibleItems.length === 0 ? (
-                <Text style={s.empty}>{activeMeta.empty}</Text>
+                <View style={s.fill}><Text style={s.empty}>{activeMeta.empty}</Text></View>
               ) : (
-                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }} contentContainerStyle={{ paddingBottom: 8 }}>
+                /* `flex: 1` (et non plus une hauteur plafond) : la liste occupe tout ce que la
+                   feuille lui laisse, donc l'onglet le plus fourni défile au lieu de pousser. */
+                <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
                   {visibleItems.map((it: RecurringItem) => (
                     <TouchableOpacity key={it.id} style={s.row} activeOpacity={0.7} onPress={() => openEdit(it.id)}>
                       <View style={{ flex: 1, minWidth: 0 }}>
@@ -190,6 +200,8 @@ function makeStyles(c: any) {
     header: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 14 },
     title: { flex: 1, fontSize: 17, fontWeight: '800', color: c.text },
     empty: { fontSize: 13.5, color: c.textSecondary, textAlign: 'center', paddingVertical: 30, lineHeight: 20 },
+    // Occupe la place restante d'une feuille à hauteur fixe et y centre son contenu.
+    fill: { flex: 1, justifyContent: 'center' },
     // Même barre d'onglets que le reste de l'app (cf. le projet partagé) : coquille sur fond carte,
     // onglet actif en aplat de sa couleur sémantique.
     tabs: { flexDirection: 'row', backgroundColor: c.card, borderRadius: 12, padding: 4, marginBottom: 14, borderWidth: 1, borderColor: c.cardBorder, gap: 2 },

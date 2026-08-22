@@ -3,7 +3,7 @@
 // Les Modaux React Native s'affichent, eux, dans un portail plein écran → sans contrainte, une
 // feuille (bottom sheet) prend toute la largeur du navigateur. `sheetWidth` la recentre et la
 // plafonne à la largeur de l'app (sur mobile, l'écran < APP_MAX_WIDTH → pleine largeur, inchangé).
-import { Platform } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -54,4 +54,31 @@ export const sheetWidth: ViewStyle = {
  */
 export function useSheetBottomPadding(base = 20): number {
   return base + useSafeAreaInsets().bottom;
+}
+
+/**
+ * Hauteur FIXE d'une feuille dont le contenu change de taille sans que l'utilisateur quitte la
+ * feuille (onglets, filtres, replis…).
+ *
+ * Une feuille ancrée en bas grandit VERS LE HAUT : en passant de « Virements » (1 ligne) à
+ * « Dépenses » (13 lignes), son bord haut — celui qui porte le titre et les onglets, donc celui que
+ * l'œil suit — saute de plusieurs centimètres, et les onglets fuient sous le doigt. Sur web, où la
+ * feuille est centrée verticalement (cf. `sheetWidth`), ce sont les DEUX bords qui bougent.
+ * On fige donc la hauteur une fois pour toutes : le haut ne bouge plus, le vide s'installe en bas.
+ *
+ * Le repère visé est le haut de la LISTE de la page (sous l'en-tête et le sélecteur de mois),
+ * exprimé en FRACTION de l'écran : il tombe au même endroit sur un petit comme sur un grand
+ * téléphone. Un plancher évite qu'un très petit écran ne réduise la feuille à rien.
+ *
+ * @param topFraction part de la hauteur d'écran laissée visible au-dessus de la feuille (hors
+ *   encoche, ajoutée en plus). 0.15 ≈ en-tête de page + sélecteur de mois.
+ */
+export function useSheetFixedHeight(topFraction = 0.15): number {
+  const { height } = useWindowDimensions();
+  const top = useSafeAreaInsets().top;
+  /* WEB : la feuille est centrée par marges automatiques, pas collée en bas — une hauteur fixe
+     suffit à immobiliser son haut. On la plafonne pour ne pas obtenir, sur un grand écran, une
+     boîte de dialogue qui court du haut au bas de la fenêtre. */
+  if (Platform.OS === 'web') return Math.max(320, Math.min(height - 96, 620));
+  return Math.max(360, Math.round(height * (1 - topFraction)) - top);
 }
