@@ -8,39 +8,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTransactions } from '../../hooks/data/useTransactions';
 import { useGamification } from '../../hooks/engagement/useGamification';
 import { useGamificationConfig } from '../../hooks/engagement/useGamificationConfig';
-import { useMonthlyClosure, addMonthKey } from '../../hooks/pilotage/useMonthlyClosure';
+import { useMonthlyClosure } from '../../hooks/pilotage/useMonthlyClosure';
 import { useProfile } from '../../hooks/data/useProfile';
 import { useOnboarding } from '../../hooks/engagement/useOnboarding';
 import { type BadgeContext } from '../../lib/engagement/gamification';
+/* Le calcul des métriques vit dans lib/engagement/badgeMetrics : il est PARTAGÉ avec l'écran
+   Succès, qui s'en sert pour afficher la progression « 7/12 ». Écrit deux fois, il divergeait —
+   la barre affichée ne mesurait pas tout à fait ce que le déblocage testait. */
+import { buildBadgeMetrics } from '../../lib/engagement/badgeMetrics';
 import { isUploadedAvatar } from '../../services/avatarService';
-
-/** Construit le contexte des métriques calculables depuis les transactions. */
-function buildContext(transactions: any[]): BadgeContext {
-  const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  // invest_followed : nb de virements vers un compte d'investissement (reco suivie)
-  let investFollowed = 0;
-  const netByMonth: Record<string, number> = {};
-  for (const t of transactions) {
-    if ((t as any).is_draft) continue;
-    if (t.account?.type !== 'checking') continue;
-    const amt = Number(t.amount);
-    if (t.linked_account?.type === 'investment' && amt < 0) investFollowed += 1;
-    const mk = (t.date ?? '').slice(0, 7);
-    if (mk && mk < currentMonthKey) netByMonth[mk] = (netByMonth[mk] ?? 0) + amt;
-  }
-
-  // surplus_months_streak : mois PASSÉS consécutifs (du plus récent au plus ancien) à solde net > 0
-  const pastMonths = Object.keys(netByMonth).sort().reverse();
-  let streak = 0;
-  for (const mk of pastMonths) {
-    if (netByMonth[mk] > 0) streak += 1;
-    else break;
-  }
-
-  return { invest_followed: investFollowed, surplus_months_streak: streak };
-}
 
 export default function GamificationSync() {
   const { user, isImpersonating } = useAuth();
@@ -60,27 +36,14 @@ export default function GamificationSync() {
    */
   const ctx = useMemo<BadgeContext | null>(() => {
     if (!user?.id || txLoading) return null; // attendre les transactions (vide = OK)
-    const createdAt = (profile as any)?.created_at ?? (user as any)?.created_at ?? null;
-    const accountAgeDays = createdAt ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000) : 0;
-    // Fiabilité (clôtures) : total confirmé + plus longue série de mois consécutifs.
-    const confirmedKeys = (closures ?? [])
-      .filter((c: any) => (c.status ?? 'confirmed') === 'confirmed')
-      .map((c: any) => c.month_key as string)
-      .sort();
-    let bestRun = 0, run = 0;
-    for (let i = 0; i < confirmedKeys.length; i++) {
-      run = i > 0 && confirmedKeys[i] === addMonthKey(confirmedKeys[i - 1], 1) ? run + 1 : 1;
-      if (run > bestRun) bestRun = run;
-    }
-    return {
-      ...buildContext(transactions),
-      account_age_days: accountAgeDays,
+    return buildBadgeMetrics({
+      transactions,
+      closures,
+      createdAt: (profile as any)?.created_at ?? (user as any)?.created_at ?? null,
       // Succès « photo de profil » : seulement une image TÉLÉVERSÉE (pas l'avatar Google seedé à la création).
-      profile_photo: isUploadedAvatar((profile as any)?.avatar_url) ? 1 : 0,
-      onboarding_done: onboardingDone ? 1 : 0,
-      closures_count: confirmedKeys.length,
-      consecutive_closures: bestRun,
-    };
+      profilePhoto: isUploadedAvatar((profile as any)?.avatar_url),
+      onboardingDone,
+    });
   }, [user?.id, txLoading, transactions, profile, closures, onboardingDone]);
 
   useEffect(() => {

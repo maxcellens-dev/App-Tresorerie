@@ -48,6 +48,11 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
     { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: true },
     { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: true },
+    /* « Succès » manquait ici. Sur mobile, la page n'était atteignable QUE par la pastille de série
+       de l'en-tête — laquelle disparaît tant que l'état de gamification n'est pas chargé (ou s'il
+       échoue) : la page devenait alors purement et simplement inaccessible. Elle est à sa place à
+       côté de la Boutique, qu'elle alimente. */
+    { icon: 'ribbon-outline', label: 'Succès', route: '/(tabs)/(secondary)/succes', color: '#f59e0b' },
     { icon: 'bag-handle-outline', label: 'Boutique', route: '/(tabs)/(secondary)/boutique', color: '#22d3ee' },
     { icon: 'star-outline', label: 'Plan', route: '/(tabs)/(secondary)/premium', color: '#fbbf24' },
     { icon: 'options-outline', label: 'Paramètres', route: '/(tabs)/(secondary)/parametres' },

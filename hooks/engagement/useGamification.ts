@@ -6,6 +6,7 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { useGamificationConfig } from './useGamificationConfig';
 import { usePlan } from '../config/usePlan';
 import {
@@ -38,7 +39,22 @@ function dayKey(d: Date): string {
 export interface UserBadge { badge_key: string; unlocked_at: string; celebrated_at: string | null }
 export interface InventoryItem { item_key: string; qty: number }
 
-async function fetchOrCreateState(userId: string): Promise<GamificationState> {
+/** Graine d'un compte qui n'a encore aucune ligne de gamification. */
+function seedState(userId: string): GamificationState {
+  return { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
+}
+
+/**
+ * `canSeed = false` → on ne CRÉE pas la ligne manquante.
+ *
+ * En « connecté en tant que », le jeton reste celui de l'administrateur : la RLS de
+ * `user_gamification` (profil = auth.uid(), sans branche admin) ne rend aucune ligne pour la
+ * personne visitée. On tentait alors de créer sa ligne — une ÉCRITURE sur le compte de quelqu'un
+ * d'autre, refusée en 403, qui faisait tomber toute la page Succès en erreur. Consulter doit rester
+ * consulter : on renvoie une graine en mémoire, et l'écran dit franchement que ces données ne sont
+ * pas lisibles depuis un autre compte.
+ */
+async function fetchOrCreateState(userId: string, canSeed = true): Promise<GamificationState> {
   const { data, error } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
   /* ⚠️ LEVER, et surtout pas retomber sur la graine à zéro.
      `maybeSingle()` distingue déjà « aucune ligne » (data null, error null) d'un ÉCHEC de lecture.
@@ -48,7 +64,8 @@ async function fetchOrCreateState(userId: string): Promise<GamificationState> {
      gemmes. La flamme ne redescend JAMAIS : c'est ici que ça se garantit. */
   if (error) throw error;
   if (data) return data as GamificationState;
-  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
+  const seed = seedState(userId);
+  if (!canSeed) return seed;
   // Idempotent : évite un conflit de clé si deux composants initialisent en même temps.
   const { error: seedError } = await supabase!.from('user_gamification').upsert(seed, { onConflict: 'profile_id', ignoreDuplicates: true });
   if (seedError) throw seedError;
@@ -61,10 +78,13 @@ export function useGamification(userId: string | undefined) {
   const qc = useQueryClient();
   const { data: config } = useGamificationConfig();
   const { isPremium } = usePlan(userId);
+  // Consultation admin : aucune écriture, et les lectures ne renvoient rien (RLS « chacun ses
+  // lignes ») → les écrans doivent le SAVOIR plutôt qu'afficher des zéros.
+  const { isImpersonating } = useAuth();
 
   const stateQuery = useQuery({
     queryKey: ['user_gamification', userId],
-    queryFn: () => fetchOrCreateState(userId!),
+    queryFn: () => fetchOrCreateState(userId!, !isImpersonating),
     enabled: !!userId && !!supabase,
   });
 
@@ -121,29 +141,53 @@ export function useGamification(userId: string | undefined) {
       ...ctx,
     };
 
-    let gemsToAdd = 0;
+    const gemsByKey = new Map<string, number>();
     const upserts: { profile_id: string; badge_key: string; unlocked_at: string }[] = [];
     for (const def of conf.badges) {
       // Succès lié à la clôture désactivé si la fonctionnalité Clôture est off.
       if ((def.metric === 'closures_count' || def.metric === 'consecutive_closures') && !closureEnabled) continue;
       if (unlocked.has(def.key)) continue;          // déjà débloqué
       if (!isUnlocked(def, fullCtx)) continue;       // seuil non atteint
-      gemsToAdd += def.gems ?? 0;
+      if (gemsByKey.has(def.key)) continue;          // config admin avec une clé en double
+      gemsByKey.set(def.key, Math.max(0, Number(def.gems) || 0));
       upserts.push({ profile_id: userId, badge_key: def.key, unlocked_at: new Date().toISOString() });
     }
 
-    if (upserts.length > 0) {
-      await supabase.from('user_badges').upsert(upserts, { onConflict: 'profile_id,badge_key' });
-    }
+    if (upserts.length === 0) return { newBadges: 0, gemsAwarded: 0 };
+
+    /* ⚠️ ON NE PAIE QUE CE QU'ON A RÉELLEMENT ENREGISTRÉ.
+       Avant : l'écriture des succès n'était pas vérifiée et les relyks étaient crédités juste
+       derrière, quoi qu'il arrive. Deux conséquences, l'une comme l'autre bien réelles :
+         • écriture en échec (réseau coupé, RLS) → relyks crédités pour un succès non enregistré.
+           Au passage suivant, le succès manquait toujours à l'appel : on repayait. À chaque
+           ouverture. C'est un robinet à relyks ouvert par une simple panne réseau.
+         • deux appareils (ou deux onglets) en même temps → les deux voyaient le succès comme
+           « pas encore débloqué » et le créditaient chacun leur tour.
+       `ignoreDuplicates` (ON CONFLICT DO NOTHING) + `select()` : la base nous rend les lignes
+       qu'elle a VRAIMENT insérées. On crédite exactement celles-là, une seule fois. Un doublon de
+       course rend une liste vide → aucun relyk en double. */
+    const { data: inserted, error: upsertError } = await supabase
+      .from('user_badges')
+      .upsert(upserts, { onConflict: 'profile_id,badge_key', ignoreDuplicates: true })
+      .select('badge_key');
+    if (upsertError) throw upsertError;
+
+    const awardedKeys = (inserted ?? []).map((r: any) => r.badge_key as string);
+    const gemsToAdd = awardedKeys.reduce((sum, k) => sum + (gemsByKey.get(k) ?? 0), 0);
+
     if (gemsToAdd > 0) {
-      await supabase.from('user_gamification').update({
+      /* La récompense n'est plus rattrapable une fois le succès enregistré (il ne repassera plus
+         dans la boucle) : une erreur ici doit remonter, pas disparaître. `GamificationSync` la
+         rattrape et réarme sa signature → nouvelle tentative à la prochaine occasion. */
+      const { error: gemsError } = await supabase.from('user_gamification').update({
         gems: state.gems + gemsToAdd,
         gems_earned_total: state.gems_earned_total + gemsToAdd,
         updated_at: new Date().toISOString(),
       }).eq('profile_id', userId);
+      if (gemsError) { invalidate(); throw gemsError; }
     }
-    if (upserts.length > 0 || gemsToAdd > 0) invalidate();
-    return { newBadges: upserts.length, gemsAwarded: gemsToAdd };
+    invalidate();
+    return { newBadges: awardedKeys.length, gemsAwarded: gemsToAdd };
   }
 
   /** Enregistre la connexion du jour et met à jour la série quotidienne. À appeler une fois
@@ -298,6 +342,16 @@ export function useGamification(userId: string | undefined) {
     inventory: inventoryQuery.data ?? [],
     config,
     isLoading: stateQuery.isLoading,
+    /* Un écran ne doit pas afficher « 0 relyk, 0 succès » tant qu'il ne SAIT pas.
+       `isSuccess` (et jamais `isFetched`, vrai aussi après un échec) : tant que les trois sources
+       ne sont pas là, on attend ; si l'une échoue, on le dit. */
+    isReady: stateQuery.isSuccess && badgesQuery.isSuccess && !!config,
+    isError: stateQuery.isError || badgesQuery.isError,
+    refetch: () => {
+      stateQuery.refetch();
+      badgesQuery.refetch();
+    },
+    isImpersonating,
     validateWeek,
     recordLogin,
     evaluate,

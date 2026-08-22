@@ -195,6 +195,40 @@ function ProjectionBody() {
   const fluxTransactions = useMemo(() => transformFluxTransactions(transactions as any[], perimeterCtx), [transactions, perimeterCtx]);
   const fluxAccounts = useMemo(() => splitPerimeterAccounts(allAccounts, perimeterCtx).perimeter, [allAccounts, perimeterCtx]);
 
+  /* ── Filtre par compte courant (onglet Trésorerie UNIQUEMENT) ──────────────────────────────
+     Avec plusieurs comptes courants, la prévision les additionne : on ne peut pas voir où en sera
+     TEL compte, alors que c'est souvent celui sur lequel tombent les prélèvements.
+     Liste VIDE = « Tous » (comportement d'origine, donc rien ne change par défaut).
+     L'état vit ICI et non dans `TresoSimplified` : il survit ainsi au passage par les onglets
+     Invest./Épargne. Il n'est volontairement pas mémorisé d'une visite à l'autre — comme le filtre
+     de la page Transactions, dont celui-ci reprend l'apparence. */
+  const tresoCheckingAccounts = useMemo(
+    () => fluxAccounts.filter((a: any) => a.type === 'checking'),
+    [fluxAccounts],
+  );
+  const [tresoAccountIds, setTresoAccountIds] = useState<string[]>([]);
+
+  /* Une sélection ne doit jamais désigner un compte qui n'existe plus (compte supprimé, ou passage
+     en « connecté en tant que » : le jeu de comptes change entièrement sous nos pieds). Sans ce
+     recoupement, le filtre ne retenait plus AUCUN compte et la prévision s'affichait à zéro, sans
+     que rien à l'écran n'explique pourquoi. */
+  const tresoSelectedIds = useMemo(() => {
+    if (tresoAccountIds.length === 0) return [];
+    const available = new Set(tresoCheckingAccounts.map((a: any) => a.id));
+    return tresoAccountIds.filter((id) => available.has(id));
+  }, [tresoAccountIds, tresoCheckingAccounts]);
+
+  /* ⚠️ On ne retire QUE des comptes COURANTS. Les comptes d'épargne et d'investissement restent
+     dans la liste même quand ils ne sont pas sélectionnés : `computeTresoRows` s'en sert pour
+     reconnaître un virement « courant → épargne » et le classer en « Autre (épargne, invest,
+     projets) ». Les enlever ne filtrait pas cette ligne : elle disparaissait purement et
+     simplement, et le solde prévu devenait faux. */
+  const tresoAccounts = useMemo(() => {
+    if (tresoSelectedIds.length === 0) return fluxAccounts;
+    const keep = new Set(tresoSelectedIds);
+    return fluxAccounts.filter((a: any) => a.type !== 'checking' || keep.has(a.id));
+  }, [fluxAccounts, tresoSelectedIds]);
+
   // Overrides « échéance modifiée » (transaction_month_overrides) : montant FINAL signé d'un mois
   // donné pour une récurrence. Converti dans la devise de référence (comme les transactions) et
   // indexé `${transaction_id}:${year}:${month}` → utilisé par la trésorerie simplifiée pour que la
@@ -647,7 +681,20 @@ function ProjectionBody() {
           {/* ═══════ INVESTISSEMENTS ═══════ */}
           {/* ═══════ TRÉSORERIE SIMPLIFIÉE ═══════ */}
           {activeTab === 'treso' && (
-            <TresoSimplified transactions={fluxTransactions} accounts={fluxAccounts} pilotage={pilotage} overridesMap={overridesMap} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} horizon={tresoHorizon} onChangeHorizon={setTresoHorizon} />
+            <TresoSimplified
+              transactions={fluxTransactions}
+              accounts={tresoAccounts}
+              pilotage={pilotage}
+              overridesMap={overridesMap}
+              COLORS={COLORS}
+              styles={styles}
+              onOpenDetail={() => router.push('/(tabs)/tresorerie')}
+              horizon={tresoHorizon}
+              onChangeHorizon={setTresoHorizon}
+              checkingAccounts={tresoCheckingAccounts}
+              selectedAccountIds={tresoSelectedIds}
+              onChangeAccountIds={setTresoAccountIds}
+            />
           )}
 
           {activeTab === 'invest' && (<>
@@ -1307,11 +1354,28 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
 }
 
 // ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
-function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLORS, styles, onOpenDetail, horizon, onChangeHorizon }: {
+function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLORS, styles, onOpenDetail, horizon, onChangeHorizon, checkingAccounts, selectedAccountIds, onChangeAccountIds }: {
   transactions: any[]; accounts: any[]; pilotage: any; overridesMap: Record<string, number>; COLORS: any; styles: any; onOpenDetail: () => void;
   horizon: 6 | 12; onChangeHorizon: (v: 6 | 12) => void;
+  /** Comptes courants proposés au filtre (le filtre ne porte que sur eux). */
+  checkingAccounts: any[];
+  /** Comptes retenus — liste VIDE = « Tous ». */
+  selectedAccountIds: string[];
+  onChangeAccountIds: (ids: string[]) => void;
 }) {
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
+  const [showAccountFilter, setShowAccountFilter] = useState(false);
+  // Un seul compte courant : le filtre n'aurait rien à trancher, on ne montre pas le bouton.
+  const canFilterAccounts = checkingAccounts.length > 1;
+  const filterActive = selectedAccountIds.length > 0;
+  const toggleAccount = (id: string) => {
+    const next = selectedAccountIds.includes(id)
+      ? selectedAccountIds.filter((x) => x !== id)
+      : [...selectedAccountIds, id];
+    /* Tout décocher = « Tous », et non « aucun compte ». Une prévision vide n'est pas une réponse :
+       on retombe sur l'état par défaut, qui est lisible. */
+    onChangeAccountIds(next);
+  };
   const { width: winW } = useWindowDimensions();
   // La largeur du graphe se MESURE sur son conteneur (`onLayout` plus bas) : sur le web, l'app vit
   // dans une colonne centrée, donc partir de la largeur de FENÊTRE faisait déborder la courbe hors
@@ -1352,11 +1416,86 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
 
   return (
     <View>
-      <TouchableOpacity style={[styles.tresoDetailBtn, { marginTop: 0, marginBottom: 14 }]} onPress={onOpenDetail} activeOpacity={0.8}>
-        <Ionicons name="grid-outline" size={16} color={COLORS.blue} />
-        <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]}>Voir le plan de trésorerie détaillé</Text>
-        <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
-      </TouchableOpacity>
+      {/* Le bouton « plan détaillé » et le filtre partagent la même ligne : le filtre qualifie ce
+          qu'on est en train de lire, il doit se voir sans défiler. */}
+      <View style={styles.tresoActionRow}>
+        <TouchableOpacity style={[styles.tresoDetailBtn, { flex: 1, marginTop: 0, marginBottom: 0 }]} onPress={onOpenDetail} activeOpacity={0.8}>
+          <Ionicons name="grid-outline" size={16} color={COLORS.blue} />
+          <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]} numberOfLines={1}>Voir le plan de trésorerie détaillé</Text>
+          <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
+        </TouchableOpacity>
+        {canFilterAccounts && (
+          <TouchableOpacity
+            style={[styles.tresoFilterBtn, filterActive && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}
+            onPress={() => setShowAccountFilter((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showAccountFilter }}
+            accessibilityLabel={filterActive
+              ? `Filtrer par compte courant — ${selectedAccountIds.length} compte${selectedAccountIds.length > 1 ? 's' : ''} sélectionné${selectedAccountIds.length > 1 ? 's' : ''}`
+              : 'Filtrer par compte courant'}
+          >
+            <Ionicons name="filter" size={18} color={filterActive ? '#fff' : COLORS.textSecondary} />
+            {/* Compteur DANS le bouton (cf. page Transactions) : une pastille débordante se fait
+                rogner sur Android quand le parent a un rayon de bordure. */}
+            {filterActive && <Text style={styles.tresoFilterCount}>{selectedAccountIds.length}</Text>}
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Panneau déplié SUR PLACE (pas une feuille venue du bas) : on garde sous les yeux la
+          prévision qu'on est en train de filtrer. */}
+      {canFilterAccounts && showAccountFilter && (
+        <View style={styles.tresoFilterPanel}>
+          <View style={styles.tresoFilterHead}>
+            <Text style={styles.tresoFilterTitle}>Comptes courants</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              {filterActive && (
+                <TouchableOpacity onPress={() => onChangeAccountIds([])} hitSlop={8} accessibilityRole="button">
+                  <Text style={[styles.tresoFilterReset, { color: COLORS.blue }]}>Tout effacer</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setShowAccountFilter(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Fermer les filtres">
+                <Ionicons name="close" size={19} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.tresoFilterChips}>
+            <TouchableOpacity
+              style={[styles.tresoFilterChip, !filterActive && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}
+              onPress={() => onChangeAccountIds([])}
+              accessibilityRole="button"
+              accessibilityState={{ selected: !filterActive }}
+            >
+              <Text style={[styles.tresoFilterChipText, !filterActive && { color: '#fff', fontWeight: '700' }]}>Tous</Text>
+            </TouchableOpacity>
+            {checkingAccounts.map((acc: any) => {
+              const selected = selectedAccountIds.includes(acc.id);
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[styles.tresoFilterChip, selected && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}
+                  onPress={() => toggleAccount(acc.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.tresoFilterChipText, selected && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>{acc.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {/* Ce que le filtre ne SAIT PAS faire, dit franchement. Les dépenses variables sont une
+              ESTIMATION globale (enveloppe du mois) : elles ne sont rattachées à aucun compte, on ne
+              peut donc pas les répartir. Les compter en entier sur un seul compte rend la prévision
+              prudente — mais il faut le savoir pour lire le solde prévu. */}
+          {filterActive && (
+            <Text style={styles.tresoFilterNote}>
+              Les dépenses variables estimées ne sont pas rattachées à un compte : elles restent
+              comptées en entier. Le solde prévu est donc prudent.
+            </Text>
+          )}
+        </View>
+      )}
       {/* Courbe d'évolution des soldes prévus (points marqués) — au-dessus du 1er mois */}
       <View style={[styles.chartCard, { marginTop: 0, alignItems: 'stretch' }]}>
         {/* La bascule d'horizon (persistée) vit dans l'en-tête du graphique : elle qualifie l'axe des
@@ -1590,7 +1729,24 @@ function makeStyles(c: any) {
     tresoKey: { fontSize: 13, color: c.textSecondary },
     tresoVal: { fontSize: 14, fontWeight: '600' },
     tresoDetailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 8, marginBottom: 8 },
-    tresoDetailBtnText: { fontSize: 13, fontWeight: '700' },
+    tresoDetailBtnText: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+    // ── Filtre par compte courant (onglet Trésorerie) ──
+    tresoActionRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginBottom: 14 },
+    tresoFilterBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
+      ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+    },
+    tresoFilterCount: { fontSize: 11.5, fontWeight: '800', color: '#fff', includeFontPadding: false },
+    tresoFilterPanel: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14 },
+    tresoFilterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    tresoFilterTitle: { fontSize: 13, fontWeight: '800', color: c.text },
+    tresoFilterReset: { fontSize: 13, fontWeight: '600' },
+    // Les puces s'enroulent : un nom de compte long ne doit pas pousser les autres hors de l'écran.
+    tresoFilterChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    tresoFilterChip: { maxWidth: '100%', height: 36, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+    tresoFilterChipText: { fontSize: 13, color: c.text, fontWeight: '500', includeFontPadding: false },
+    tresoFilterNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 12 },
     // En-tête du graphique : titre à gauche, bascule d'horizon à droite.
     chartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
     horizonPills: { flexDirection: 'row', gap: 2, padding: 2, borderRadius: 999, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder },
