@@ -14,6 +14,9 @@
 import { isoDay } from '../dateUtils';
 import type { RecurrenceRule } from '../../types/database';
 import { WEEKS_PER_MONTH } from './financialProfileEngine';
+// Source UNIQUE des occurrences d'un modèle récurrent sur un mois (comparaisons en chaînes ISO,
+// donc sans piège de fuseau horaire). Déjà utilisée par la Projection et le Reporting.
+import { recurrenceOccurrencesInMonth } from './recurrenceMonth';
 
 /**
  * @param year/month  mois visé (month : 1-12)
@@ -26,32 +29,43 @@ export function addRecurrenceToMonth(
   year: number, month: number, amount: number, startDate: string,
   rule: RecurrenceRule, endDate: string | null, currentDate: Date,
 ): number {
-  const start = new Date(startDate);
-  // Horizon borné à 24 mois à partir de maintenant : au-delà, une récurrence sans fin n'a plus de sens.
-  const maxEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 24, 1);
-  const end = endDate ? new Date(Math.min(new Date(endDate).getTime(), maxEndDate.getTime())) : maxEndDate;
-  const thisMonthStart = new Date(year, month - 1, 1);
-  const thisMonthEnd = new Date(year, month, 0);
+  /* ── POURQUOI CETTE FONCTION N'A PLUS D'ARITHMÉTIQUE À ELLE ────────────────────────────────────
+   * Elle refaisait, en objets `Date`, le calcul que `recurrenceOccurrencesInMonth` fait déjà en
+   * chaînes ISO — et elle le refaisait FAUX, en mélangeant deux repères de temps :
+   *     new Date('2026-08-31')   → minuit UTC
+   *     new Date(2026, 8, 0)     → minuit LOCAL du 31 août
+   * À l'est de Greenwich (donc en France), le premier tombe APRÈS le second : la condition
+   * `start > thisMonthEnd` était vraie et la fonction rendait 0. **Toute récurrente ancrée le
+   * DERNIER jour de son mois disparaissait de ce mois-là** — un salaire du 31 valait 0 € en août.
+   * Le Plan de trésorerie, la liste des Transactions et le Pilotage s'appuient tous dessus : la
+   * ligne manquait, et le solde du mois était faux du montant entier.
+   * Symétriquement, `start.getMonth()` lu sur une date UTC désigne le mois PRÉCÉDENT à l'ouest de
+   * Greenwich pour une ancre du 1er → trimestrielles et annuelles décalées d'un mois.
+   *
+   * La même correction avait déjà été faite pour `recurringAmountForMonth` (Projection, Reporting).
+   * Garder ici une seconde implémentation, c'était garantir que les deux écrans divergent.
+   *
+   * Deux effets de bord, tous deux corrects et hérités de la fonction partagée :
+   *   • le jour est borné à la longueur du mois (une récurrente du 31 tombe le 28 en février) ;
+   *   • une série qui s'arrête EN COURS de mois ne compte plus si son occurrence tombe après la
+   *     date de fin (avant, le mois entier était compté).
+   */
+  // Horizon borné à 24 mois à partir de maintenant : au-delà, une récurrence sans fin n'a plus de
+  // sens. Borne posée au DERNIER jour du mois d'horizon, pour conserver la granularité « mois »
+  // d'origine (un horizon au 1er aurait exclu toutes les échéances du 2 au 31 de ce mois-là).
+  const horizon = new Date(currentDate.getFullYear(), currentDate.getMonth() + 25, 0);
+  const maxEndISO = isoDay(horizon);
+  const cleanEnd = endDate ? String(endDate).slice(0, 10) : null;
+  const end = cleanEnd && cleanEnd < maxEndISO ? cleanEnd : maxEndISO;
 
-  if (start > thisMonthEnd || end < thisMonthStart) return 0;
-  if (rule === 'monthly') return amount;
-  if (rule === 'quarterly') {
-    const startMonth = start.getFullYear() * 12 + start.getMonth();
-    const thisMonth = year * 12 + (month - 1);
-    return (thisMonth - startMonth) % 3 === 0 && thisMonth >= startMonth ? amount : 0;
-  }
-  if (rule === 'yearly') return start.getMonth() === month - 1 && year >= start.getFullYear() ? amount : 0;
-  if (rule === 'weekly') {
-    let count = 0;
-    let d = new Date(start);
-    while (d <= thisMonthEnd) {
-      if (d >= thisMonthStart) count++;
-      d.setDate(d.getDate() + 7);
-      if (d > end) break;
-    }
-    return count * amount;
-  }
-  return 0;
+  const occurrences = recurrenceOccurrencesInMonth(
+    { id: '', date: startDate, amount, recurrence_rule: rule, recurrence_end_date: end },
+    year,
+    month,
+  );
+  // `0 * -800` vaut `-0` en JavaScript : il se propage dans les sommes et finit par s'afficher
+  // « −0 € ». On rend un vrai zéro.
+  return occurrences.length === 0 ? 0 : occurrences.length * amount;
 }
 
 /** Montant récurrent déjà passé dans le mois courant (date ≤ todayStr). */

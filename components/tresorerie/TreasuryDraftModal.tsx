@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import type { AppColors } from '../../theme/palette';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
 interface Props {
   visible: boolean;
@@ -70,10 +71,15 @@ export default function TreasuryDraftModal({
           {/* Le montant part sur le compte sélectionné : on annonce SA devise, pas celle de
               référence — sinon on demande des euros pour créditer un compte en francs. */}
           <Text style={styles.label}>Montant ({draftSymbol})</Text>
+          {/* Saisie NORMALISÉE à la frappe (lib/ui/amountInput).
+              Sans elle, le champ acceptait plusieurs séparateurs : taper « 1.234,56 » — réflexe
+              courant pour un millier — affichait bien 1.234,56 et enregistrait **1,23 €**, parce
+              que la lecture ne remplace que le PREMIER séparateur. Aucun message, aucun garde-fou :
+              le brouillon partait au centième de sa valeur. */}
           <TextInput
             style={styles.input}
             value={amount}
-            onChangeText={onAmountChange}
+            onChangeText={(v) => onAmountChange(sanitizeAmountInput(v))}
             placeholder="0,00"
             placeholderTextColor="#64748b"
             keyboardType="decimal-pad"

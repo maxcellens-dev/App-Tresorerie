@@ -93,6 +93,34 @@ describe('computeTresoRows — régularisations de solde', () => {
   });
 });
 
+describe('computeTresoRows — échéance modifiée (convention de SIGNE)', () => {
+  /* `transaction_month_overrides.override_amount` est un montant SIGNÉ : c'est ainsi que le lisent
+     cette trajectoire, le plan de trésorerie et le Reporting.
+     La modale « Modifier montant » du plan de trésorerie enregistrait la valeur ABSOLUE saisie :
+     corriger un loyer de 800 € à 750 € stockait +750 là où le modèle vaut −800, et la dépense
+     devenait une RECETTE — le solde projeté partait 1 550 € trop haut, sur ce mois et tous les
+     suivants. Ce test fige la convention côté lecture. */
+  const loyerAout = { 'loy:2026:8': -750 };
+
+  it('une dépense corrigée reste une dépense', () => {
+    const [, m1] = run([loyer], { overridesMap: loyerAout });
+    expect(m1.expense).toBe(750);
+    expect(m1.income).toBe(0);
+  });
+
+  it('un override POSITIF sur une dépense la transformerait en recette — le signe compte', () => {
+    const [, faux] = run([loyer], { overridesMap: { 'loy:2026:8': 750 } });
+    expect(faux.income).toBe(750);   // comportement si l'on stocke une valeur absolue : à éviter
+    expect(faux.expense).toBe(0);
+  });
+
+  it('l’échéance corrigée se répercute sur le solde prévu', () => {
+    const [, sans] = run([loyer]);
+    const [, avec] = run([loyer], { overridesMap: loyerAout });
+    expect(avec.balance).toBe(sans.balance + 50); // 800 − 750 de dépense en moins
+  });
+});
+
 describe('computeTresoRows — mois suivants', () => {
   it('le mois futur enchaîne sur le solde prévu précédent, avec l’enveloppe variable pleine', () => {
     const [m0, m1] = run([salaire, loyer, passee, aVenir]);

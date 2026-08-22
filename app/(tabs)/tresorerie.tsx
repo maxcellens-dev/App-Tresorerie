@@ -31,6 +31,7 @@ import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } 
    risque que le plan de trésorerie et le tableau de bord affichent des montants différents pour la
    même ligne. Équivalence des deux versions prouvée avant regroupement (__tests__/recurrenceAmount). */
 import { addRecurrenceToMonth } from '../../lib/finance/recurrence';
+import { isRegul } from '../../lib/finance/regul';
 // Utilitaires PURS de cet écran, sortis du fichier pour être testables sans monter la page.
 import { getMonthKey, getMonthsFromOffset, groupCategories, createOverridesMap, getOverrideKey } from '../../lib/finance/treasuryTable';
 import { compositeOver } from '../../lib/ui/colorMix';
@@ -38,7 +39,20 @@ import TreasuryHelpModal from '../../components/tresorerie/TreasuryHelpModal';
 import TreasuryMenuModal, { TreasuryMenuOption } from '../../components/tresorerie/TreasuryMenuModal';
 import TreasuryDraftModal from '../../components/tresorerie/TreasuryDraftModal';
 import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
+import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
+import { parseAmountInput } from '../../lib/ui/amountInput';
 
+
+/* Bornes de navigation dans le temps.
+   Les récurrences ne sont projetées que sur 24 mois (cf. lib/finance/recurrence) : au-delà, TOUTES
+   les lignes valent 0 et le tableau se lit comme « rien de prévu » — alors qu'il dit seulement
+   « je ne sais pas ». Les flèches s'arrêtent donc là où le calcul a encore un sens.
+   La fenêtre affiche 12 mois : un décalage de +13 place le dernier mois pile sur l'horizon. */
+const MONTH_OFFSET_MAX = 13;
+/** Trois ans en arrière : au-delà, il n'y a plus d'historique à montrer dans aucun compte. */
+const MONTH_OFFSET_MIN = -36;
+/** Décalage par défaut : on démarre sur le mois précédent, pour voir d'où l'on vient. */
+const MONTH_OFFSET_DEFAULT = -1;
 
 const TABLE_HEADER_HEIGHT = 52;
 const TABLE_ROW_HEIGHT = 56;
@@ -141,6 +155,8 @@ function TreasuryPlanBody() {
   const [refreshing, setRefreshing] = useState(false);
   /** Fiche « Comment lire ce tableau » : mode d'emploi + légende, à la demande. */
   const [showHelp, setShowHelp] = useState(false);
+  /** Explication des lignes de virement (Épargne / Investissements), ouverte par le « ! ». */
+  const [mouvInfo, setMouvInfo] = useState<'epargne' | 'invest' | null>(null);
 
   /**
    * Légende — définie UNE fois, affichée à deux endroits (sous le tableau sur grand écran, dans la
@@ -196,7 +212,8 @@ function TreasuryPlanBody() {
   const categoriesQuery = useCategories(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const accountsQuery = useAccounts(user?.id);
-  const { data: pilotage } = usePilotageData(user?.id);
+  const pilotageQuery = usePilotageData(user?.id);
+  const { data: pilotage } = pilotageQuery;
   const sharedContribQuery = useSharedContribution(user?.id);
   const { data: sharedContrib } = sharedContribQuery;
 
@@ -251,16 +268,27 @@ function TreasuryPlanBody() {
   const transactions = useMemo(() => transformFluxTransactions(transactionsRaw as any[], perimeterCtx), [transactionsRaw, perimeterCtx]);
   const accounts = useMemo(() => splitPerimeterAccounts(accountsRaw, perimeterCtx).perimeter, [accountsRaw, perimeterCtx]);
   const addTransaction = useAddTransaction(user?.id);
+  // Verrous SYNCHRONES des deux formulaires de saisie (cf. hooks/useSubmitLock).
+  const draftLock = useSubmitLock();
+  const virementLock = useSubmitLock();
 
-  // Filet de sécurité : créer les catégories par défaut si l'utilisateur n'en a aucune
-  // (sinon le plan de trésorerie s'affiche vide).
+  /* Filet de sécurité : créer les catégories par défaut si l'utilisateur n'en a aucune (sinon le
+     plan de trésorerie s'affiche vide).
+     ⚠️ On exige une lecture RÉUSSIE (`isSuccess`), pas seulement « plus en chargement ». Une lecture
+     EN ÉCHEC laisse la liste à sa valeur par défaut — un tableau vide — indiscernable de « cet
+     utilisateur n'a aucune catégorie ». Une simple coupure réseau déclenchait donc la création d'un
+     jeu complet de catégories par-dessus celles qui existaient déjà : des doublons partout, dans
+     tous les écrans, et rien pour les distinguer ensuite.
+     Et pas d'écriture en consultation admin : ce serait créer des catégories chez la personne
+     visitée. */
   const seedDefaultCategories = useSeedDefaultCategories(user?.id);
   const hasSeededRef = React.useRef(false);
   React.useEffect(() => {
-    if (!user?.id || categoriesLoading || categories.length > 0 || hasSeededRef.current) return;
+    if (!user?.id || !categoriesQuery.isSuccess || categories.length > 0 || hasSeededRef.current) return;
+    if (readOnly.readOnly) return;
     hasSeededRef.current = true;
     seedDefaultCategories.mutate();
-  }, [user?.id, categoriesLoading, categories.length]);
+  }, [user?.id, categoriesQuery.isSuccess, categories.length, readOnly.readOnly]);
 
   // Solde réel des comptes courants = point de départ du solde cumulatif
   const checkingBalance = useMemo(
@@ -309,7 +337,9 @@ function TreasuryPlanBody() {
     headerScrollRef.current?.scrollTo({ x, animated: false });
   }, []);
 
-  const [monthOffset, setMonthOffset] = useState(-1);
+  const [monthOffset, setMonthOffset] = useState(MONTH_OFFSET_DEFAULT);
+  const atPast = monthOffset <= MONTH_OFFSET_MIN;
+  const atFuture = monthOffset >= MONTH_OFFSET_MAX;
   const [editModalState, setEditModalState] = useState<{
     visible: boolean;
     transactionId?: string;
@@ -320,6 +350,8 @@ function TreasuryPlanBody() {
     originalAmount?: number;
     /** Devise du compte de l'opération — le montant saisi y est enregistré tel quel. */
     currency?: string;
+    /** Signe de l'opération (−1 pour une dépense) : l'échéance modifiée est enregistrée avec lui. */
+    signHint?: number;
     currentOverrideAmount?: number;
   }>({ visible: false });
   
@@ -340,6 +372,16 @@ function TreasuryPlanBody() {
   const [draftAmount, setDraftAmount] = useState('');
   const [draftNote, setDraftNote] = useState('');
   const [draftAccountId, setDraftAccountId] = useState('');
+
+  /** Choix de l'échéance à retoucher quand la case en contient plusieurs. */
+  const [editChoiceModal, setEditChoiceModal] = useState<{
+    visible: boolean;
+    monthKey: string;
+    categoryId: string;
+    year: number;
+    month: number;
+    candidates: TransactionWithDetails[];
+  } | null>(null);
 
   const [draftChoiceModal, setDraftChoiceModal] = useState<{
     visible: boolean;
@@ -364,6 +406,12 @@ function TreasuryPlanBody() {
   const [virementNote, setVirementNote] = useState('');
   const [virementDestAccountId, setVirementDestAccountId] = useState('');
 
+  /* « Tirer pour rafraîchir » doit rafraîchir TOUT ce que le tableau montre.
+     Il ne rechargeait que transactions, catégories et échéances modifiées : ni les COMPTES (donc le
+     solde de départ, sur lequel toute la colonne « Solde » est ancrée), ni la part des comptes
+     partagés, ni l'enveloppe de dépenses variables du Pilotage (ligne « Dépenses variables » et
+     « Solde anticipé »). Après une saisie faite sur un autre appareil, le geste semblait ne rien
+     faire : les lignes changeaient, les soldes non. */
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -371,6 +419,9 @@ function TreasuryPlanBody() {
         transactionsQuery.refetch?.(),
         categoriesQuery.refetch?.(),
         overridesQuery.refetch?.(),
+        accountsQuery.refetch?.(),
+        sharedContribQuery.refetch?.(),
+        pilotageQuery.refetch?.(),
       ]);
     } finally {
       setRefreshing(false);
@@ -477,11 +528,11 @@ function TreasuryPlanBody() {
       // Identifier les Mouvements
       const isSavingsMove = isChecking && linkedType === 'savings';
       const isInvestMove = isChecking && linkedType === 'investment';
-      // Détection FIABLE : `regul_target` est posé uniquement sur les régularisations de solde
-      // (à la création), donc indépendant du libellé que l'utilisateur a pu saisir. Repli sur le
-      // libellé pour les régul anciennes (avant `regul_target`).
-      const isRegulMove = isChecking && !t.linked_account_id &&
-        ((t as any).regul_target != null || /gul/i.test(t.note ?? '') || t.note === 'Ajustement de solde');
+      /* Détection CANONIQUE (lib/finance/regul), et non une regex maison.
+         Celle qui vivait ici testait `/gul/i` sur le libellé : « Cours Angular » contient « gul »,
+         et se retrouvait donc traité comme une régularisation de solde. Elle ignorait par ailleurs
+         le repli par nom de catégorie que `isRegul` couvre. */
+      const isRegulMove = isChecking && !t.linked_account_id && isRegul(t as any);
       // Exclure l'autre côté d'un virement (compte non-courant avec linked_account_id)
       const isExcluded = !!t.linked_account_id && !isChecking;
 
@@ -503,10 +554,20 @@ function TreasuryPlanBody() {
       // Réservations même-compte (projet) → Réservé.
       if (isProjectTx && isChecking) { addToMouv(mouvProjets, t, amount); continue; }
 
-      // TOUTES les régularisations (montant − ou +) → ligne « Régularisation solde » sous Frais
-      // variables. regulByMonth est SIGNÉ : une régul qui BAISSE le solde (−) = coût ; une qui le
-      // MONTE (+) = crédit (affiché en négatif, comme un remboursement).
-      if (isRegulMove) {
+      /* Régularisations SANS catégorie (écritures antérieures à la migration 175) → ligne dédiée
+         « Régularisation solde » sous Frais variables. Elles n'ont pas d'autre endroit où
+         apparaître : sans catégorie, le traitement classique les range sous `'none'`, qui n'est
+         affiché nulle part.
+
+         ⚠️ Une régul CATÉGORISÉE ne doit surtout pas passer ici. Depuis la migration 175 elle porte
+         « Frais variables › Régularisation Solde » (ou « Autres recettes › … » si elle monte le
+         solde) : le traitement classique la compte donc déjà. L'ajouter en plus à `regulByMonth`
+         la faisait compter DEUX FOIS dans le total « Frais variables » — et donc dans le total
+         DÉPENSES — tout en affichant deux lignes identiques l'une sous l'autre. Une correction de
+         solde de 80 € en pesait 160.
+         Dans l'autre sens, une régul à la hausse était comptée en RECETTES *et* venait retrancher
+         son montant des dépenses : un gain compté deux fois. */
+      if (isRegulMove && !t.category_id) {
         addToMouv(regulByMonth, t, amount);
         // Pas de continue → tombe aussi dans le traitement classique (catégorie 'none', non affichée).
       }
@@ -525,7 +586,12 @@ function TreasuryPlanBody() {
           const overrideKey = getOverrideKey(t.id, m.year, m.month);
           const finalAmt = overridesMap[overrideKey] !== undefined ? overridesMap[overrideKey] : calculatedAmt;
           byCategoryMonth[catId][m.key] = (byCategoryMonth[catId][m.key] ?? 0) + finalAmt;
-          txByMonthCategory[catId][m.key].push(t);
+          /* Rattachée au mois SEULEMENT si elle y pèse vraiment. Le modèle était rattaché aux DOUZE
+             mois, y compris ceux où il ne tombe pas (un loyer trimestriel apparaissait dans les mois
+             sans échéance). « Modifier montant » proposait alors de retoucher une échéance
+             inexistante — et l'enregistrer aurait FAIT EXISTER un montant ce mois-là, puisqu'une
+             échéance modifiée remplace le montant calculé, fût-il nul. */
+          if (finalAmt !== 0) txByMonthCategory[catId][m.key].push(t);
         }
       } else {
         const [y, mo] = t.date.split('-').map(Number);
@@ -654,7 +720,11 @@ function TreasuryPlanBody() {
           });
 
         let regulRow: Row | undefined;
-        if (isFraisVariables) {
+        // Ligne affichée SEULEMENT s'il y a quelque chose dedans : depuis la migration 175 les
+        // régularisations portent leur propre catégorie et apparaissent comme n'importe quelle
+        // autre sous-catégorie. Cette ligne ne sert plus qu'aux écritures anciennes, sans
+        // catégorie — la laisser vide en permanence n'aurait fait qu'ajouter du bruit.
+        if (isFraisVariables && months.some((m) => Math.abs(regulByMonth[m.key] ?? 0) > 0.005)) {
           // Coût signé : régul qui baisse le solde → coût (positif, rouge) ; qui le monte → crédit
           // (négatif). Cohérent avec l'affichage des remboursements (dépense négative = crédit).
           const regulVals: Record<string, number> = {};
@@ -885,8 +955,12 @@ function TreasuryPlanBody() {
     });
 
     return { rows, months, txByMonthCategory, mouvEpargneTx, mouvInvestTx };
-    // `overridesMap` (et non `overrides`) : c'est lui que le calcul lit, et il dépend aussi des taux.
-  }, [transactions, months, incomeGrouped, expenseGrouped, overridesMap, checkingBalance, pilotage, currentYear, currentMonth]);
+    /* `overridesMap` (et non `overrides`) : c'est lui que le calcul lit, et il dépend aussi des taux.
+       `accounts` DOIT être là : le calcul s'en sert pour reconnaître un virement entre deux comptes
+       courants (`checkingAccountIds`) et pour les dates d'initialisation. `checkingBalance` ne suffit
+       pas comme sentinelle — ajouter un compte courant à 0 € le laisse inchangé, et le tableau
+       continuait alors de raisonner sur l'ancienne liste de comptes. */
+  }, [transactions, accounts, months, incomeGrouped, expenseGrouped, overridesMap, checkingBalance, pilotage, currentYear, currentMonth]);
   /** Largeur totale du tableau (libellés + colonnes de mois) — entête et mode bureau. */
   const tableWidth = labelWidth + planData.months.length * colWidth;
 
@@ -928,16 +1002,8 @@ function TreasuryPlanBody() {
     router.push(url as any);
   };
 
-  const openEditModal = (monthKey: string, categoryId: string | null, value: number) => {
-    if (!categoryId) return;
-    const [year, month] = monthKey.split('-').map(Number);
-    
-    const txList = planData?.txByMonthCategory?.[categoryId]?.[monthKey] ?? [];
-    const recurring = txList.filter((t) => t.is_recurring && t.recurrence_rule);
-    
-    if (recurring.length === 0) return;
-    
-    const tx = recurring[0];
+  /** Ouvre l'édition d'UNE échéance récurrente précise. */
+  const openEditModalFor = (tx: TransactionWithDetails, categoryId: string | null, year: number, month: number) => {
     const category = categories.find((c) => c.id === categoryId);
     setEditModalState({
       visible: true,
@@ -950,11 +1016,48 @@ function TreasuryPlanBody() {
          devise de référence pour le tableau — le proposer à l'édition ferait enregistrer un montant
          en euros sur un compte en francs. `currentOverrideAmount` est déjà stocké en natif. */
       originalAmount: Math.abs(Number((tx as any)._nativeAmount ?? tx.amount)),
+      // Signe de l'opération : l'échéance modifiée est enregistrée avec LUI. Sans ça, corriger une
+      // dépense l'enregistrait en positif et le mois la lisait comme une recette.
+      signHint: Number((tx as any)._nativeAmount ?? tx.amount) < 0 ? -1 : 1,
       currency: (tx as any)._nativeCurrency ?? refCode,
       currentOverrideAmount: overrides.find(
         (o) => o.transaction_id === tx.id && o.year === year && o.month === month
       )?.override_amount ?? undefined,
     });
+  };
+
+  const openEditModal = (monthKey: string, categoryId: string | null, value: number) => {
+    if (!categoryId) return;
+    const [year, month] = monthKey.split('-').map(Number);
+
+    const txList = planData?.txByMonthCategory?.[categoryId]?.[monthKey] ?? [];
+    const recurring = txList.filter((t) => t.is_recurring && t.recurrence_rule);
+
+    /* Rien à retoucher : « Modifier montant » ne modifie QUE des échéances récurrentes — c'est ce
+       que le stockage sait faire (une échéance modifiée est attachée à un modèle récurrent, pour un
+       mois donné). Le bouton ne faisait alors strictement RIEN, sans un mot : on l'explique et on
+       propose la seule action utile, voir les opérations du mois. */
+    if (recurring.length === 0) {
+      Alert.alert(
+        'Rien à modifier ici',
+        "Ce montant ne vient pas d'une échéance récurrente : il n'y a donc pas d'échéance à retoucher pour ce mois. Ouvre les opérations pour les modifier une par une.",
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Voir les opérations', onPress: () => goToTransactions(monthKey, categoryId) },
+        ],
+      );
+      return;
+    }
+
+    /* Plusieurs échéances dans la même case (deux abonnements sous « Abonnements », par exemple) :
+       on DEMANDE laquelle. Avant, la première de la liste était retenue en silence — l'utilisateur
+       croyait corriger le montant qu'il voyait, et en modifiait un autre. */
+    if (recurring.length > 1) {
+      setEditChoiceModal({ visible: true, monthKey, categoryId, year, month, candidates: recurring });
+      return;
+    }
+
+    openEditModalFor(recurring[0], categoryId, year, month);
   };
 
   const showCellMenu = (monthKey: string, categoryId: string | null, value: number) => {
@@ -988,11 +1091,19 @@ function TreasuryPlanBody() {
     return `${native.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} ${symbol}`;
   };
 
+  /* Lecture d'un montant saisi. `parseFloat(x.replace(',', '.'))` ne remplaçait que le PREMIER
+     séparateur : le champ est désormais normalisé à la frappe (cf. TreasuryDraftModal), et cette
+     lecture-ci en est le pendant. Rend `null` quand il n'y a rien d'exploitable. */
+  const readDraftAmount = (raw: string): number | null => {
+    const n = parseAmountInput(raw);
+    return n != null && Number.isFinite(n) && n !== 0 ? n : null;
+  };
+
   const handleCreateDraft = async () => {
     if (readOnly.blocked()) return;
     if (!draftModal || !user) return;
-    const num = parseFloat(draftAmount.replace(',', '.'));
-    if (Number.isNaN(num) || num === 0) {
+    const num = readDraftAmount(draftAmount);
+    if (num == null) {
       Alert.alert('Montant invalide', 'Saisis un montant.');
       return;
     }
@@ -1000,6 +1111,11 @@ function TreasuryPlanBody() {
       Alert.alert('Compte requis', 'Aucun compte courant trouvé.');
       return;
     }
+    /* VERROU SYNCHRONE. Créer un brouillon n'est PAS idempotent : deux taps rapprochés créaient
+       deux transactions prévisionnelles identiques, qui se cumulaient dans la colonne du mois et
+       faussaient le solde anticipé. `disabled={submitting}` ne suffit pas — il ne prend effet
+       qu'au rendu SUIVANT, donc après le second tap. */
+    if (!draftLock.acquire()) return;
     const finalAmount = draftModal.rowType === 'expense' ? -Math.abs(num) : Math.abs(num);
     const [y, mo] = draftModal.monthKey.split('-').map(Number);
     const dateISO = `${y}-${String(mo).padStart(2, '0')}-01`;
@@ -1016,15 +1132,23 @@ function TreasuryPlanBody() {
         recurrence_end_date: null,
       });
       setDraftModal(null);
+      setDraftAmount('');
+      setDraftNote('');
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de créer le brouillon.');
+    } finally {
+      // Relâché dans TOUS les cas : après un échec l'utilisateur doit pouvoir réessayer.
+      draftLock.release();
     }
   };
 
   const handleCreateVirementDraft = async () => {
+    // Manquait ici alors qu'il gardait déjà l'autre formulaire : en consultation admin, ce bouton
+    // écrivait un virement sur le compte de la personne visitée.
+    if (readOnly.blocked()) return;
     if (!virementDraftModal || !user) return;
-    const num = parseFloat(virementAmount.replace(',', '.'));
-    if (Number.isNaN(num) || num === 0) {
+    const num = readDraftAmount(virementAmount);
+    if (num == null) {
       Alert.alert('Montant invalide', 'Saisis un montant.');
       return;
     }
@@ -1037,6 +1161,7 @@ function TreasuryPlanBody() {
       Alert.alert('Compte courant introuvable', 'Aucun compte courant trouvé.');
       return;
     }
+    if (!virementLock.acquire()) return; // cf. `draftLock` — un virement n'est pas idempotent non plus
     const [y, mo] = virementDraftModal.monthKey.split('-').map(Number);
     const dateISO = `${y}-${String(mo).padStart(2, '0')}-01`;
     try {
@@ -1058,6 +1183,8 @@ function TreasuryPlanBody() {
       setVirementDestAccountId('');
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de créer le virement.');
+    } finally {
+      virementLock.release();
     }
   };
 
@@ -1117,14 +1244,26 @@ function TreasuryPlanBody() {
 
         <View style={styles.controls}>
           <View style={styles.navRow} ref={navRowRef}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mois précédent" style={styles.navArrow} onPress={() => setMonthOffset((o) => o - 1)}>
+            {/* Flèches bornées (cf. MONTH_OFFSET_MIN/MAX) : au-delà de l'horizon de projection, le
+                tableau n'aurait plus que des zéros, ce qui se lit à tort comme « rien de prévu ». */}
+            <TouchableOpacity
+              accessibilityRole="button" accessibilityLabel="Mois précédent"
+              accessibilityState={{ disabled: atPast }} disabled={atPast}
+              style={[styles.navArrow, atPast && { opacity: 0.3 }]}
+              onPress={() => setMonthOffset((o) => Math.max(MONTH_OFFSET_MIN, o - 1))}
+            >
               <Ionicons name="chevron-back" size={22} color="#94a3b8" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navLabel} onPress={() => setMonthOffset(-1)} accessibilityRole="button">
+            <TouchableOpacity style={styles.navLabel} onPress={() => setMonthOffset(MONTH_OFFSET_DEFAULT)} accessibilityRole="button">
               <Text style={styles.navLabelText}>{rangeLabel}</Text>
-              {monthOffset !== -1 && <Text style={styles.navLabelHint}>Appuyer pour revenir</Text>}
+              {monthOffset !== MONTH_OFFSET_DEFAULT && <Text style={styles.navLabelHint}>Appuyer pour revenir</Text>}
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mois suivant" style={styles.navArrow} onPress={() => setMonthOffset((o) => o + 1)}>
+            <TouchableOpacity
+              accessibilityRole="button" accessibilityLabel="Mois suivant"
+              accessibilityState={{ disabled: atFuture }} disabled={atFuture}
+              style={[styles.navArrow, atFuture && { opacity: 0.3 }]}
+              onPress={() => setMonthOffset((o) => Math.min(MONTH_OFFSET_MAX, o + 1))}
+            >
               <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
             </TouchableOpacity>
           </View>
@@ -1261,6 +1400,8 @@ function TreasuryPlanBody() {
                     styles.cell, styles.cellLabel, stickyLabel,
                     stickyLabel && { backgroundColor: opaqueRowBg(row) },
                     { width: labelWidth }, row.isChild && styles.cellLabelIndent,
+                    // Ligne de virement : le libellé et son « ! » vivent côte à côte.
+                    !!row.mouvementType && styles.cellLabelWithInfo,
                   ]}>
                     <Text
                       style={[
@@ -1276,11 +1417,27 @@ function TreasuryPlanBody() {
                         row.type === 'mouvement' && !row.isSectionHeader && styles.cellLabelMouvement,
                         row.isRegulRow && styles.cellLabelRegul,
                         row.isProjectRow && styles.cellLabelProject,
+                        /* Épargne / Investissements en ITALIQUE : ce ne sont pas des dépenses au
+                           même titre que les autres. L'argent n'est pas consommé, il change de
+                           poche — l'italique le signale au premier coup d'œil, le « ! » l'explique. */
+                        !!row.mouvementType && styles.cellLabelMouvementItalic,
                       ]}
                       numberOfLines={2}
                     >
                       {row.label}
                     </Text>
+                    {!!row.mouvementType && (
+                      <TouchableOpacity
+                        onPress={() => setMouvInfo(row.mouvementType!)}
+                        style={styles.cellLabelInfoBtn}
+                        // Zone de toucher élargie : l'icône fait 14 px, le doigt bien plus.
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`À quoi sert la ligne ${row.label} ?`}
+                      >
+                        <Ionicons name="alert-circle-outline" size={15} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                   {planData.months.map((m) => {
                     const val = row.values[m.key] ?? 0;
@@ -1370,7 +1527,12 @@ function TreasuryPlanBody() {
                           ]}
                           numberOfLines={1}
                         >
-                          {displayVal !== 0 ? displayVal.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) : '–'}
+                          {/* On décide « – » ou un montant SUR LA VALEUR ARRONDIE, celle qui sera
+                              réellement affichée. Sinon 0,40 € s'affichait « 0 » (un zéro qui n'en
+                              est pas un) et −0,40 € s'affichait « -0 ». */}
+                          {Math.round(displayVal) !== 0
+                            ? Math.round(displayVal).toLocaleString('fr-FR')
+                            : '–'}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -1459,9 +1621,65 @@ function TreasuryPlanBody() {
         month={editModalState.month || 0}
         originalAmount={editModalState.originalAmount || 0}
         currency={editModalState.currency}
+        signHint={editModalState.signHint}
         currentOverrideAmount={editModalState.currentOverrideAmount}
         profileId={user?.id}
       />
+
+      {/* Ce que veut dire une ligne de virement — ouvert par le « ! » à côté du libellé.
+          C'est la question que ces lignes posent naturellement : « pourquoi mon épargne est-elle
+          rangée avec mes dépenses ? ». La réponse tient en une idée : l'argent sort du compte
+          courant, donc il pèse sur le solde — mais il n'est pas dépensé pour autant. */}
+      <Modal visible={!!mouvInfo} transparent animationType="fade" onRequestClose={() => setMouvInfo(null)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMouvInfo(null)}>
+          <TouchableOpacity style={styles.mouvInfoCard} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>
+                {mouvInfo === 'epargne' ? 'Ligne « Épargne »' : 'Ligne « Investissements »'}
+              </Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setMouvInfo(null)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.mouvInfoText}>
+              Ce sont tes virements du compte courant vers{' '}
+              {mouvInfo === 'epargne' ? 'un compte d’épargne' : 'un compte d’investissement'}.
+            </Text>
+            <Text style={styles.mouvInfoText}>
+              <Text style={{ fontWeight: '700' }}>Cet argent n’est pas dépensé : il change de poche.</Text>{' '}
+              Mais il quitte bien ton compte courant — il est donc retranché du solde, comme n’importe
+              quelle sortie, et compté dans le total DÉPENSES. C’est ce qui fait que ton solde prévu
+              tombe juste.
+            </Text>
+            <Text style={styles.mouvInfoText}>
+              Un montant <Text style={{ fontWeight: '700' }}>négatif</Text> = le mouvement inverse :
+              de l’argent revenu {mouvInfo === 'epargne' ? 'de l’épargne' : 'de l’investissement'} vers
+              ton compte courant.
+            </Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Choix de l'échéance à retoucher — quand la case en contient plusieurs. */}
+      <TreasuryMenuModal
+        visible={!!editChoiceModal?.visible}
+        title="Quelle échéance modifier ?"
+        onClose={() => setEditChoiceModal(null)}
+        colors={COLORS}
+      >
+        {editChoiceModal?.candidates.map((tx) => (
+          <TreasuryMenuOption
+            key={tx.id}
+            icon="pencil" color={COLORS.green} colors={COLORS}
+            label={`${tx.note || 'Opération'} · ${draftLabelAmount(tx)}`}
+            onPress={() => {
+              const c = editChoiceModal;
+              setEditChoiceModal(null);
+              if (c) openEditModalFor(tx, c.categoryId, c.year, c.month);
+            }}
+          />
+        ))}
+      </TreasuryMenuModal>
 
       {/* Draft Choice Modal */}
       <TreasuryMenuModal
@@ -1733,6 +1951,15 @@ function makeStyles(c: any) {
   cellLabelSectionDepenses: { fontSize: 12, fontWeight: '800', color: c.danger, letterSpacing: 1 },
   cellLabelSectionMouvements: { fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 1 },
   cellLabelMouvement: { fontSize: 13, color: '#94a3b8' },
+  /* Ligne de virement : libellé + « ! » sur une même rangée. `flexShrink` sur le texte pour que le
+     point d'exclamation reste visible même sur un libellé long dans une colonne étroite. */
+  /* ⚠️ `justifyContent` est explicitement remis à `flex-start`. La cellule porte déjà
+     `justifyContent: 'center'`, qui centre VERTICALEMENT tant que la direction est colonne — en
+     passant en rangée, ce même réglage se met à centrer HORIZONTALEMENT et décollait le libellé
+     de la marge gauche, seul de toute la colonne. */
+  cellLabelWithInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 5 },
+  cellLabelMouvementItalic: { fontStyle: 'italic', flexShrink: 1 },
+  cellLabelInfoBtn: { paddingVertical: 2 },
   cellLabelRegul: { fontSize: 13, color: '#64748b', fontStyle: 'italic' },
   cellLabelProject: { fontSize: 13, color: '#60a5fa', fontStyle: 'italic' },
   cellLabelBalance: { fontWeight: '700', color: c.balance },
@@ -1760,6 +1987,21 @@ function makeStyles(c: any) {
     justifyContent: 'center',
     alignItems: 'center',
   },
+  /* Carte d'explication d'une ligne de virement. Plus large que le menu d'options (c'est du texte,
+     pas une liste de choix) et bornée en hauteur : sur un petit écran, quatre paragraphes doivent
+     pouvoir défiler plutôt que déborder. */
+  mouvInfoCard: {
+    backgroundColor: c.cardSolid,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    padding: 18,
+    gap: 10,
+  },
+  mouvInfoText: { fontSize: 13.5, color: c.text, lineHeight: 20 },
   menuContainer: {
     backgroundColor: c.cardSolid,
     borderRadius: 12,

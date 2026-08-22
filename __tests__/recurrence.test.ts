@@ -13,6 +13,16 @@ import type { RecurrenceRule } from '../types/database';
  * être importée : elle vivait dans un fichier `.tsx` qui tire react-native). Elle sert d'ORACLE, et
  * reste dans ce fichier après le regroupement : c'est elle qui garantit que la version partagée
  * n'a pas dérivé.
+ *
+ * ⚠️ ORACLE PARTIELLEMENT RETIRÉ — un défaut a été trouvé DANS l'oracle lui-même.
+ * L'ancienne version compare `new Date('2026-01-31')` (minuit UTC) à `new Date(2026, 1, 0)`
+ * (minuit LOCAL). En France, le premier tombe après le second : toute récurrente ancrée le DERNIER
+ * jour de son mois rendait 0 pour ce mois-là — un salaire du 31 valait 0 € en août, dans le Plan de
+ * trésorerie comme dans la liste des Transactions et le Pilotage.
+ * La version partagée s'appuie désormais sur `recurrenceOccurrencesInMonth` (comparaisons en
+ * chaînes ISO, sans fuseau). La matrice d'équivalence est donc conservée — elle protège toujours
+ * des milliers de combinaisons — mais elle EXCLUT les ancres de fin de mois, pour lesquelles c'est
+ * l'oracle qui a tort. Ces cas sont couverts explicitement plus bas.
  */
 function legacyTresorerie(
   year: number, month: number, amount: number, startDate: string,
@@ -52,6 +62,12 @@ function legacyTresorerie(
 const NOW = new Date(2026, 5, 15);
 const RULES: RecurrenceRule[] = ['monthly', 'quarterly', 'yearly', 'weekly'];
 
+/** Vrai si l'ancre tombe le DERNIER jour de son mois — les cas où l'ancien oracle se trompe. */
+const isLastDayOfMonth = (iso: string): boolean => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m, 0).getDate() === d;
+};
+
 describe('addRecurrenceToMonth — équivalence avec l\'ancienne version Trésorerie', () => {
   it('donne le même résultat sur toute la matrice mois × règle × date de départ', () => {
     const starts = ['2025-01-01', '2025-11-15', '2026-01-31', '2026-06-01', '2026-06-15', '2026-09-10'];
@@ -59,7 +75,15 @@ describe('addRecurrenceToMonth — équivalence avec l\'ancienne version Trésor
     let compared = 0;
 
     for (const rule of RULES) {
+      /* `weekly` sort de la comparaison : la boucle de l'oracle avance en objets `Date` partis d'un
+         minuit UTC, et sa condition d'arrêt les compare à un minuit LOCAL. Une occurrence tombant
+         le DERNIER jour du mois passe donc juste au-dessus de la borne et n'est pas comptée —
+         mars 2027 a bien 5 mercredis, l'oracle n'en voit que 4. Couvert explicitement plus bas. */
+      if (rule === 'weekly') continue;
       for (const start of starts) {
+        // Ancre de fin de mois : l'oracle rend 0 pour son propre mois (même bug de fuseau). Cas
+        // traités explicitement dans le describe suivant.
+        if (isLastDayOfMonth(start)) continue;
         for (const end of ends) {
           for (let m = 1; m <= 12; m++) {
             for (const year of [2025, 2026, 2027]) {
@@ -76,7 +100,59 @@ describe('addRecurrenceToMonth — équivalence avec l\'ancienne version Trésor
         }
       }
     }
-    expect(compared).toBeGreaterThan(3000); // la matrice a bien été parcourue
+    expect(compared).toBeGreaterThan(1000); // la matrice a bien été parcourue
+  });
+});
+
+describe('addRecurrenceToMonth — hebdomadaire', () => {
+  /* RÉGRESSION : l'occurrence tombant le DERNIER jour du mois n'était pas comptée. Mars 2027
+     compte 5 mercredis (3, 10, 17, 24, 31) — l'ancienne version n'en voyait que 4, soit une
+     dépense hebdomadaire sur cinq absente du plan, ce mois-là. */
+  it('compte TOUTES les occurrences, y compris celle du dernier jour du mois', () => {
+    expect(addRecurrenceToMonth(2027, 3, 10, '2025-01-01', 'weekly', null, new Date(2026, 5, 15))).toBe(50);
+  });
+
+  it('mois à 4 occurrences', () => {
+    // Juin 2027 : mercredis 2, 9, 16, 23, 30 → 5 ; février 2027 : 3, 10, 17, 24 → 4.
+    expect(addRecurrenceToMonth(2027, 2, 10, '2025-01-01', 'weekly', null, new Date(2026, 5, 15))).toBe(40);
+  });
+
+  it('rien avant l’ancre, rien après la fin de série', () => {
+    expect(addRecurrenceToMonth(2026, 5, 10, '2026-06-03', 'weekly', null, NOW)).toBe(0);
+    expect(addRecurrenceToMonth(2026, 7, 10, '2026-06-03', 'weekly', '2026-06-30', NOW)).toBe(0);
+  });
+});
+
+describe('addRecurrenceToMonth — récurrente ancrée le DERNIER jour du mois', () => {
+  /* RÉGRESSION : c'est le défaut trouvé dans l'oracle lui-même. Un salaire versé le 31 rendait 0 €
+     pour son propre mois — la ligne manquait au Plan de trésorerie, à la liste des Transactions et
+     au Pilotage, et le solde du mois était faux du montant entier. */
+  it('compte dans SON mois, et pas seulement les suivants', () => {
+    expect(addRecurrenceToMonth(2026, 8, 2500, '2026-08-31', 'monthly', null, NOW)).toBe(2500);
+    expect(addRecurrenceToMonth(2026, 9, 2500, '2026-08-31', 'monthly', null, NOW)).toBe(2500);
+  });
+
+  it('vaut pour le 30 d’un mois de 30 jours et le 28 de février', () => {
+    expect(addRecurrenceToMonth(2026, 4, -800, '2026-04-30', 'monthly', null, NOW)).toBe(-800);
+    expect(addRecurrenceToMonth(2026, 2, -800, '2026-02-28', 'monthly', null, NOW)).toBe(-800);
+  });
+
+  it('le jour reste borné à la longueur du mois (le 31 → 28 en février)', () => {
+    expect(addRecurrenceToMonth(2026, 2, -800, '2026-01-31', 'monthly', null, NOW)).toBe(-800);
+  });
+
+  it('toujours rien avant l’ancre', () => {
+    expect(addRecurrenceToMonth(2026, 7, 2500, '2026-08-31', 'monthly', null, NOW)).toBe(0);
+  });
+
+  it('série arrêtée EN COURS de mois : l’occurrence postérieure à la fin ne compte plus', () => {
+    // Loyer du 28, série arrêtée le 10 juillet → pas d'échéance en juillet, mais bien en juin.
+    expect(addRecurrenceToMonth(2026, 7, -800, '2026-01-28', 'monthly', '2026-07-10', NOW)).toBe(0);
+    expect(addRecurrenceToMonth(2026, 6, -800, '2026-01-28', 'monthly', '2026-07-10', NOW)).toBe(-800);
+  });
+
+  it('rend un vrai zéro, jamais −0 (il se propage et s’affiche « −0 € »)', () => {
+    expect(Object.is(addRecurrenceToMonth(2026, 7, -800, '2026-08-31', 'monthly', null, NOW), 0)).toBe(true);
   });
 });
 
