@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 /**
  * SocialAuthButtons — connexion/inscription via Google, Apple et Facebook.
  *
@@ -12,12 +12,14 @@ import { useMemo } from 'react';
  *    redirige vers son Site URL (page web) → le navigateur reste ouvert et ne revient
  *    jamais dans l'app (symptôme « bloqué sur Chrome »).
  */
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../../lib/platform/supabase';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
+import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
+import { describeAuthError } from '../../lib/auth/authErrors';
 
 // Permet à expo-web-browser de finaliser une session d'auth restée ouverte.
 WebBrowser.maybeCompleteAuthSession();
@@ -47,20 +49,36 @@ function paramFrom(str: string, key: string): string | null {
 export default function SocialAuthButtons({ mode }: { mode: 'login' | 'register' }) {
   const COLORS = useBrandColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  /* Un deuxième appui pendant l'ouverture du navigateur d'authentification lançait un SECOND
+     `openAuthSessionAsync` : Android/iOS refusent (« Another WebBrowser is already being
+     presented ») et ce refus technique, en anglais, remontait à l'utilisateur comme un échec de
+     connexion Google. Un seul départ à la fois, et l'attente est visible. */
+  const lock = useSubmitLock();
+  const [busy, setBusy] = useState<Provider | null>(null);
 
   async function go(provider: Provider) {
     if (!supabase) { showAlert('Indisponible', 'Backend non configuré.'); return; }
+    if (!lock.acquire()) return;
+    setBusy(provider);
+    // Web : après un départ RÉUSSI, la page est remplacée par celle du fournisseur — on garde le
+    // bouton occupé jusqu'au bout. En cas d'échec (réseau coupé), en revanche, il DOIT redevenir
+    // cliquable : rien ne va se produire, et un bouton grisé à vie condamnerait la connexion.
+    let leavingPage = false;
     try {
       // ── Web : redirection classique de la page ──
       if (Platform.OS === 'web') {
         const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
         const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
         if (error) throw error;
+        leavingPage = true;
         return;
       }
 
       // ── Natif : navigateur d'auth + retour via le scheme de l'app ──
-      const redirectTo = Linking.createURL('auth-callback'); // tresorerie://auth-callback
+      // relyka-app://auth-callback (app.json > expo.scheme). L'ancien commentaire annonçait encore
+      // `tresorerie://`, le schéma d'avant le renommage : de quoi chercher longtemps la mauvaise URL
+      // dans la console Supabase le jour où le retour de Google ne revient pas dans l'app.
+      const redirectTo = Linking.createURL('auth-callback');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo, skipBrowserRedirect: true },
@@ -93,25 +111,37 @@ export default function SocialAuthButtons({ mode }: { mode: 'login' | 'register'
       const errDesc = paramFrom(query, 'error_description') || paramFrom(hash, 'error_description');
       throw new Error(errDesc || "Réponse d'authentification invalide.");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Connexion impossible.';
+      // Messages traduits, comme sur la connexion par e-mail (lib/auth/authErrors) : une coupure
+      // réseau sortait ici en anglais (« Failed to fetch »).
+      const msg = describeAuthError(e).message;
       showAlert('Connexion impossible', `${provider.charAt(0).toUpperCase() + provider.slice(1)} : ${msg}`);
+    } finally {
+      if (!leavingPage) { setBusy(null); lock.release(); }
     }
   }
 
   return (
     <View style={styles.wrap}>
-      {PROVIDERS.map((p) => (
-        <TouchableOpacity
-          key={p.id}
-          style={[styles.btn, { backgroundColor: p.bg, borderColor: p.border ?? p.bg }]}
-          onPress={() => go(p.id)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-        >
-          <Ionicons name={p.icon} size={20} color={p.fg} />
-          <Text style={[styles.btnText, { color: p.fg }]}>{p.label}</Text>
-        </TouchableOpacity>
-      ))}
+      {PROVIDERS.map((p) => {
+        const isBusy = busy === p.id;
+        const disabled = busy !== null;
+        return (
+          <TouchableOpacity
+            key={p.id}
+            style={[styles.btn, { backgroundColor: p.bg, borderColor: p.border ?? p.bg }, disabled && !isBusy && styles.btnDimmed]}
+            onPress={() => go(p.id)}
+            disabled={disabled}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ disabled, busy: isBusy }}
+          >
+            {isBusy
+              ? <ActivityIndicator size="small" color={p.fg} />
+              : <Ionicons name={p.icon} size={20} color={p.fg} />}
+            <Text style={[styles.btnText, { color: p.fg }]}>{isBusy ? 'Connexion…' : p.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -124,6 +154,7 @@ function makeStyles(c: any) {
       borderRadius: 12, paddingVertical: 14, borderWidth: 1,
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
     },
+    btnDimmed: { opacity: 0.5 },
     btnText: { fontSize: 15, fontWeight: '700' },
   });
 }

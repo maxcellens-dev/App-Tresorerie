@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -15,19 +15,22 @@ import LandingPage from '../components/marketing/LandingPage';
 import PlayStoreBadge from '../components/marketing/PlayStoreBadge';
 import SocialLinks from '../components/marketing/SocialLinks';
 
-const { width } = Dimensions.get('window');
-
 /** Attente MAXIMALE avant de révéler l'accueil (police de marque + textes admin). Cf. `canReveal`. */
 const REVEAL_CAP_MS = 700;
 
 
 export default function WelcomeScreen() {
   const COLORS = useBrandColors();
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const appNameFontStyle = useAppNameFontStyle();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: winWidth } = useWindowDimensions();
+  /* Les deux halos décoratifs sont dimensionnés à 80 % de la largeur. Elle était lue UNE FOIS au
+     chargement du module (`Dimensions.get('window')`) : après une rotation d'écran, un passage en
+     écran partagé ou un simple redimensionnement de fenêtre sur navigateur, les halos gardaient la
+     taille de l'ancienne largeur — soit deux disques verts qui débordent, soit deux pastilles
+     perdues dans un coin. On suit la largeur RÉELLE. */
+  const styles = useMemo(() => makeStyles(COLORS, winWidth), [COLORS, winWidth]);
   const { data: landing } = useLandingConfig();
   const L = landing ?? DEFAULT_LANDING; // config admin (avec défauts) → rien en dur sur l'accueil mobile
   // Bas de page : badge store (web seulement) et réseaux sociaux — on ne pose la rangée que s'il
@@ -188,7 +191,7 @@ export default function WelcomeScreen() {
   );
 }
 
-function makeStyles(c: any) {
+function makeStyles(c: any, width: number) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   background: {

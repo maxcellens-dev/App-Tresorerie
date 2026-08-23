@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 
 function showAlert(title: string, message: string) {
   // Dialogue in-app global (§7) — plus de pop-up navigateur.
@@ -12,7 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/platform/supabase';
 import { useBrandColors } from '../hooks/theme/useBrandColors';
 import SocialAuthButtons from '../components/auth/SocialAuthButtons';
+import PasswordInput from '../components/auth/PasswordInput';
 import { useKeyboardAwareScroll } from '../hooks/platform/useKeyboardAwareScroll';
+import { useSubmitLock } from '../hooks/platform/useSubmitLock';
 import { useResponsive } from '../hooks/theme/useResponsive';
 import { authPage, authCard } from '../lib/ui/webLayout';
 import PasswordStrength from '../components/auth/PasswordStrength';
@@ -37,7 +39,32 @@ export default function RegisterScreen() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [existing, setExisting] = useState(false);
-  const [resent, setResent] = useState(false);
+  /* Renvoi de l'e-mail : COMPTE À REBOURS, pas un verrou définitif.
+     Le bouton restait grisé pour toujours après un seul renvoi ; quelqu'un dont l'e-mail se perd
+     vraiment (filtre, boîte pleine, faute de frappe côté serveur) n'avait plus AUCUN recours dans
+     l'écran — il fallait quitter et recommencer une inscription. On respecte la limite de débit de
+     Supabase (~60 s sur la même adresse) et on la rend visible plutôt que de la subir. */
+  const RESEND_COOLDOWN_S = 60;
+  const [resentAt, setResentAt] = useState<number | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+  /* Deux appuis rapprochés sur « S'inscrire » partaient tous les deux : le 2ᵉ se faisait répondre
+     « un compte existe déjà » (le 1ᵉʳ venait de le créer) ou « trop de demandes » — un message
+     alarmant et faux, affiché PAR-DESSUS l'écran « vérifie ta boîte mail ». Cf. useSubmitLock. */
+  const submit = useSubmitLock();
+
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/welcome'));
+
+  useEffect(() => {
+    if (resentAt === null) return;
+    const tick = () => {
+      const left = Math.max(0, RESEND_COOLDOWN_S - Math.floor((Date.now() - resentAt) / 1000));
+      setCooldown(left);
+      return left;
+    };
+    if (tick() === 0) return;
+    const id = setInterval(() => { if (tick() === 0) clearInterval(id); }, 1000);
+    return () => clearInterval(id);
+  }, [resentAt]);
 
   async function handleRegister() {
     setFormError(null);
@@ -51,6 +78,7 @@ export default function RegisterScreen() {
       setFormError(pwEval.firstError ?? 'Choisis un mot de passe plus robuste.');
       return;
     }
+    if (!submit.acquire()) return;
     setLoading(true);
     try {
       if (supabase) {
@@ -79,7 +107,7 @@ export default function RegisterScreen() {
         // et le guard dans _layout redirigera automatiquement vers home
       } else {
         showAlert('Inscription', 'Backend non configuré. Mode démo.');
-        router.back();
+        goBack();
       }
     } catch (e: unknown) {
       /* Message TRADUIT et actionnable (cf. lib/authErrors) : une inscription annulée par le
@@ -91,22 +119,26 @@ export default function RegisterScreen() {
       setFormError(info.message);
     } finally {
       setLoading(false);
+      submit.release();
     }
   }
 
   async function resendEmail() {
-    if (!supabase || !sentTo) return;
+    if (!supabase || !sentTo || cooldown > 0) return;
+    if (!submit.acquire()) return;
+    setFormError(null);
     setLoading(true);
     try {
       const { error } = await supabase.auth.resend({ type: 'signup', email: sentTo });
       if (error) throw error;
-      setResent(true);
+      setResentAt(Date.now());
     } catch (e: unknown) {
       // Le renvoi retombe sur la même limite de débit que l'inscription : on l'annonce en clair
       // (« attends N secondes ») plutôt que de laisser croire à une panne.
       setFormError(describeAuthError(e).message);
     } finally {
       setLoading(false);
+      submit.release();
     }
   }
 
@@ -114,8 +146,10 @@ export default function RegisterScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={styles.keyboard}>
-          <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}>
+        {/* Pas de KeyboardAvoidingView : elle DOUBLAIT le `keyboardPadding` de
+            useKeyboardAwareScroll (cf. app/login.tsx pour le détail). */}
+        <View style={styles.keyboard}>
+          <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
@@ -136,11 +170,19 @@ export default function RegisterScreen() {
                 arrive parfois là.
               </Text>
               {formError && <Text style={styles.errorText}>{formError}</Text>}
-              {resent && <Text style={styles.okText}>E-mail renvoyé.</Text>}
-              <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={resendEmail} disabled={loading || resent}>
-                <Text style={styles.btnLabel}>{loading ? 'Envoi…' : resent ? 'E-mail renvoyé' : 'Renvoyer l’e-mail'}</Text>
+              {resentAt !== null && <Text style={styles.okText}>E-mail renvoyé.</Text>}
+              <TouchableOpacity
+                style={[styles.btn, (loading || cooldown > 0) && styles.btnDisabled]}
+                onPress={resendEmail}
+                disabled={loading || cooldown > 0}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: loading || cooldown > 0, busy: loading }}
+              >
+                <Text style={styles.btnLabel}>
+                  {loading ? 'Envoi…' : cooldown > 0 ? `Renvoyer dans ${cooldown} s` : 'Renvoyer l’e-mail'}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')}>
+              <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')} accessibilityRole="button">
                 <Text style={styles.linkText}>Aller à la connexion</Text>
               </TouchableOpacity>
             </View>
@@ -162,7 +204,7 @@ export default function RegisterScreen() {
             <View style={styles.dividerLine} />
           </View>
           {!showEmail && (
-            <TouchableOpacity style={styles.emailBtn} onPress={() => setShowEmail(true)} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.emailBtn} onPress={() => setShowEmail(true)} activeOpacity={0.85} accessibilityRole="button">
               <Ionicons name="mail-outline" size={20} color={COLORS.text} />
               <Text style={styles.emailBtnLabel}>Continuer avec un e-mail</Text>
             </TouchableOpacity>
@@ -182,20 +224,26 @@ export default function RegisterScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
                   returnKeyType="next"
                   onSubmitEditing={() => passwordRef.current?.focus()}
                   blurOnSubmit={false}
                 />
                 <Text style={styles.label}>Mot de passe</Text>
-                <TextInput
+                {/* Œil « afficher » indispensable ici : la politique exige 12 caractères avec
+                    majuscule, minuscule, chiffre ET caractère spécial — impossible à saisir de
+                    façon fiable à l'aveugle sur un clavier de téléphone. */}
+                <PasswordInput
                   ref={passwordRef}
+                  variant="new"
+                  colors={COLORS}
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
                   onFocus={handleFocus}
                   placeholder="••••••••••••"
                   placeholderTextColor={COLORS.textSecondary}
-                  secureTextEntry
                   returnKeyType="go"
                   onSubmitEditing={handleRegister}
                 />
@@ -206,7 +254,7 @@ export default function RegisterScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.errorText}>{formError}</Text>
                       {existing && (
-                        <TouchableOpacity onPress={() => router.replace('/login')} style={{ marginTop: 6 }}>
+                        <TouchableOpacity onPress={() => router.replace('/login')} style={{ marginTop: 6 }} accessibilityRole="button">
                           <Text style={styles.linkText}>Se connecter avec cette adresse</Text>
                         </TouchableOpacity>
                       )}
@@ -217,6 +265,8 @@ export default function RegisterScreen() {
                   style={[styles.btn, loading && styles.btnDisabled]}
                   onPress={handleRegister}
                   disabled={loading}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: loading, busy: loading }}
                 >
                   <Text style={styles.btnLabel}>{loading ? 'Inscription…' : 'S’inscrire par e-mail'}</Text>
                 </TouchableOpacity>
@@ -226,7 +276,7 @@ export default function RegisterScreen() {
                 </Text>
               </>
             )}
-            <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')}>
+            <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')} accessibilityRole="button">
               <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
             </TouchableOpacity>
           </View>
@@ -234,7 +284,7 @@ export default function RegisterScreen() {
           )}
           </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     </View>
   );

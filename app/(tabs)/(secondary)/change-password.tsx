@@ -1,11 +1,17 @@
 /**
  * Changement de mot de passe (utilisateur connecté). Met à jour via supabase.auth.updateUser.
+ *
+ * ⚠️ MÊME POLITIQUE QUE PARTOUT AILLEURS (lib/auth/passwordPolicy). Cet écran exigeait « au moins
+ * 6 caractères », alors que l'inscription et la réinitialisation en demandent 12 avec majuscule,
+ * minuscule, chiffre et caractère spécial. Autrement dit : n'importe qui pouvait contourner toute la
+ * politique en s'inscrivant avec un mot de passe robuste, puis en le remplaçant ici par « aaaaaa ».
+ * Et si le serveur, lui, applique bien la règle (Supabase Auth → Policies), l'utilisateur recevait à
+ * la place un refus en anglais sans savoir ce qu'on attendait de lui. Un seul juge : evaluatePassword.
  */
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { supabase } from '../../../lib/platform/supabase';
@@ -13,7 +19,12 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import PasswordStrength from '../../../components/auth/PasswordStrength';
+import PasswordInput from '../../../components/auth/PasswordInput';
+import { evaluatePassword, PASSWORD_MIN_LENGTH } from '../../../lib/auth/passwordPolicy';
+import { describeAuthError } from '../../../lib/auth/authErrors';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)
@@ -23,25 +34,31 @@ export default function ChangePasswordScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
-  const router = useRouter();
   const goBack = useNavBack();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
+  const submit = useSubmitLock();
 
   async function save() {
-    if (password.length < 6) { showAlert('Mot de passe', 'Au moins 6 caractères.'); return; }
+    const pwEval = evaluatePassword(password);
+    if (!pwEval.valid) { showAlert('Mot de passe trop faible', pwEval.firstError ?? 'Choisis un mot de passe plus robuste.'); return; }
     if (password !== confirm) { showAlert('Confirmation', 'Les deux mots de passe ne correspondent pas.'); return; }
     if (!supabase) { showAlert('Indisponible', 'Backend non configuré.'); return; }
+    if (!submit.acquire()) return;
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       showAlert('Mot de passe modifié', 'Ton mot de passe a été mis à jour.');
-      router.back();
+      /* `router.back()` dépilait la pile imbriquée et pouvait atterrir n'importe où (cf. useNavBack,
+         utilisé par le bouton « Retour » juste au-dessus) : on repart par le même chemin. */
+      goBack();
     } catch (e: unknown) {
-      showAlert('Erreur', e instanceof Error ? e.message : 'Mise à jour impossible.');
-    } finally { setLoading(false); }
+      // Message traduit et partagé avec les autres écrans d'authentification (lib/auth/authErrors) :
+      // « New password should be different from the old password » ne disait rien à personne.
+      showAlert('Mise à jour impossible', describeAuthError(e).message);
+    } finally { setLoading(false); submit.release(); }
   }
 
   return (
@@ -49,7 +66,7 @@ export default function ChangePasswordScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
@@ -57,12 +74,21 @@ export default function ChangePasswordScreen() {
         <Text style={styles.title}>Changer de mot de passe</Text>
         <Text style={styles.sub}>Choisis un nouveau mot de passe pour ton compte.</Text>
 
-        <Text style={styles.label}>Nouveau mot de passe (min. 6 caractères)</Text>
-        <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry />
+        <Text style={styles.label}>Nouveau mot de passe (min. {PASSWORD_MIN_LENGTH} caractères)</Text>
+        <PasswordInput variant="new" colors={COLORS} style={styles.input} value={password} onChangeText={setPassword} placeholder="••••••••••••" placeholderTextColor={COLORS.textSecondary} />
+        {/* La check-list dit CE QUI MANQUE pendant la frappe : sans elle, la règle des 12 caractères
+            ne se découvrait qu'au moment du refus. */}
+        <PasswordStrength value={password} colors={COLORS} />
         <Text style={styles.label}>Confirmer</Text>
-        <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} placeholder="••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry onSubmitEditing={save} returnKeyType="go" />
+        <PasswordInput variant="new" colors={COLORS} style={styles.input} value={confirm} onChangeText={setConfirm} placeholder="••••••••••••" placeholderTextColor={COLORS.textSecondary} onSubmitEditing={save} returnKeyType="go" />
 
-        <TouchableOpacity style={[styles.btn, loading && { opacity: 0.6 }]} onPress={save} disabled={loading}>
+        <TouchableOpacity
+          style={[styles.btn, loading && { opacity: 0.6 }]}
+          onPress={save}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: loading, busy: loading }}
+        >
           <Text style={styles.btnLabel}>{loading ? 'Mise à jour…' : 'Mettre à jour'}</Text>
         </TouchableOpacity>
         </KeyboardAwareScrollView>

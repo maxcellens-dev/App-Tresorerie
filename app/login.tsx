@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 
 function showAlert(title: string, message: string) {
   // Dialogue in-app global (§7) — plus de pop-up navigateur.
@@ -12,7 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/platform/supabase';
 import { useBrandColors } from '../hooks/theme/useBrandColors';
 import SocialAuthButtons from '../components/auth/SocialAuthButtons';
+import PasswordInput from '../components/auth/PasswordInput';
 import { useKeyboardAwareScroll } from '../hooks/platform/useKeyboardAwareScroll';
+import { useSubmitLock } from '../hooks/platform/useSubmitLock';
 import { useResponsive } from '../hooks/theme/useResponsive';
 import { authPage, authCard } from '../lib/ui/webLayout';
 import { describeAuthError } from '../lib/auth/authErrors';
@@ -30,6 +32,14 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  /* `disabled={loading}` ne prend effet qu'au rendu SUIVANT : deux appuis rapprochés partaient tous
+     les deux, et le second se faisait refuser par la limite de débit de Supabase — on annonçait donc
+     « trop de tentatives » à quelqu'un qui n'en avait fait qu'une (cf. hooks/useSubmitLock). */
+  const submit = useSubmitLock();
+
+  // `router.back()` sans historique ne fait RIEN (arrivée directe par URL, lien profond) : le bouton
+  // paraissait cassé. Même repli que le bouton « Retour » de l'en-tête.
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/welcome'));
 
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -37,6 +47,7 @@ export default function LoginScreen() {
       showAlert('Champs requis', 'Renseigne ton e-mail et ton mot de passe.');
       return;
     }
+    if (!submit.acquire()) return;
     setLoading(true);
     try {
       if (supabase) {
@@ -45,7 +56,7 @@ export default function LoginScreen() {
         // onAuthStateChange met à jour le contexte → le guard dans _layout redirigera vers home
       } else {
         showAlert('Connexion', 'Backend non configuré. Utilise l\u2019app en mode démo.');
-        router.back();
+        goBack();
       }
     } catch (e: unknown) {
       // Messages traduits et partagés avec l'inscription (cf. lib/authErrors) : une adresse non
@@ -53,6 +64,7 @@ export default function LoginScreen() {
       showAlert('Connexion', describeAuthError(e).message);
     } finally {
       setLoading(false);
+      submit.release();
     }
   }
 
@@ -60,8 +72,14 @@ export default function LoginScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={styles.keyboard}>
-          <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}>
+        {/* PAS de KeyboardAvoidingView ici. Sur Android en edge-to-edge (targetSdk ≥ 35) la fenêtre
+            n'est jamais redimensionnée : la lib décale au jugé, et surtout son décalage S'AJOUTAIT au
+            `keyboardPadding` de useKeyboardAwareScroll — deux fois la hauteur du clavier de vide sous
+            le formulaire, et le champ visé remonté trop haut (le calcul de scroll suppose une vue non
+            redimensionnée). Un seul mécanisme, celui de la maison, comme sur /reset-password et
+            /change-password. Cf. hooks/useKeyboardHeight. */}
+        <View style={styles.keyboard}>
+          <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
@@ -93,20 +111,25 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              // Sans ces deux indices, ni le trousseau ni le navigateur ne proposaient de remplir
+              // l'identifiant — ni de l'enregistrer après une connexion réussie.
+              autoComplete="email"
+              textContentType="emailAddress"
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
               blurOnSubmit={false}
             />
             <Text style={styles.label}>Mot de passe</Text>
-            <TextInput
+            <PasswordInput
               ref={passwordRef}
+              variant="current"
+              colors={COLORS}
               style={styles.input}
               value={password}
               onChangeText={setPassword}
               onFocus={handleFocus}
               placeholder="••••••••"
               placeholderTextColor={COLORS.textSecondary}
-              secureTextEntry
               returnKeyType="go"
               onSubmitEditing={handleLogin}
             />
@@ -114,26 +137,34 @@ export default function LoginScreen() {
               style={[styles.btn, loading && styles.btnDisabled]}
               onPress={handleLogin}
               disabled={loading}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: loading, busy: loading }}
             >
               <Text style={styles.btnLabel}>{loading ? 'Connexion…' : 'Se connecter par e-mail'}</Text>
             </TouchableOpacity>
-            {/* L'ancienne mention « pas de récupération automatique, contacte un administrateur »
-                était vraie tant qu'aucun SMTP n'était branché. Avec Brevo, le lien de
-                réinitialisation part vraiment : la laisser aurait dissuadé de s'en servir. */}
+            {/* Note recentrée sur CE qui se passe ici. Elle annonçait « tu recevras un e-mail pour
+                confirmer ton adresse » — sur l'écran de CONNEXION : cet e-mail-là appartient à
+                l'inscription et n'arrivera jamais, on faisait donc attendre un message fantôme.
+                (L'ancienne mention « pas de récupération automatique, contacte un administrateur »
+                avait déjà sauté : avec Brevo, le lien de réinitialisation part vraiment.) */}
             <Text style={styles.emailNote}>
-              ℹ️ Tu recevras un e-mail pour confirmer ton adresse et pour réinitialiser ton mot de
-              passe si tu l'oublies.
+              ℹ️ Mot de passe oublié ? On t'envoie un lien pour en choisir un nouveau. Ton adresse
+              doit avoir été confirmée à l'inscription.
             </Text>
-            <TouchableOpacity style={styles.link} onPress={() => router.push('/reset-password')}>
+            {/* `accessibilityRole` n'est pas décoratif ici : sur navigateur d'ordinateur, la feuille
+                de style de public/index.html ne pose `cursor: pointer` que sur `[role="button"]`.
+                Sans lui, tous ces liens gardaient le curseur « texte » — ils ne paraissaient pas
+                cliquables sur la page la plus importante de l'app. */}
+            <TouchableOpacity style={styles.link} onPress={() => router.push('/reset-password')} accessibilityRole="button">
               <Text style={[styles.linkText, { color: COLORS.textSecondary }]}>Mot de passe oublié ?</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.link} onPress={() => router.replace('/register')}>
+            <TouchableOpacity style={styles.link} onPress={() => router.replace('/register')} accessibilityRole="button">
               <Text style={styles.linkText}>Pas de compte ? S’inscrire</Text>
             </TouchableOpacity>
           </View>
           </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     </View>
   );

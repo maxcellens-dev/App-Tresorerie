@@ -95,24 +95,30 @@ export const DEFAULT_LANDING: LandingConfig = {
   ctaPrimaryLabel: "S'inscrire",
   ctaSecondaryLabel: 'Se connecter',
   androidStoreUrl: '',
-  heroBadge: 'Votre trésorerie, enfin sereine',
-  heroTitle: 'Reprenez le contrôle de votre argent',
+  /* ── TUTOIEMENT ────────────────────────────────────────────────────────────────────────────────
+     Toute l'app tutoie (règle produit). Ces défauts vouvoyaient encore, et le mélange se voyait
+     À L'ŒIL NU sur la carte d'accueil mobile : l'accroche tutoyait (« Sache toujours combien tu peux
+     dépenser »), la carte juste en dessous vouvoyait (« Connectez-vous… »). Deux voix dans le même
+     écran, sur la toute première page vue par un nouvel utilisateur.
+     Ce ne sont que des DÉFAUTS : une configuration déjà enregistrée en admin reste prioritaire. */
+  heroBadge: 'Ta trésorerie, enfin sereine',
+  heroTitle: 'Reprends le contrôle de ton argent',
   heroSubtitle:
-    "Anticipez votre solde futur, suivez vos projets d'épargne et laissez-vous guider vers les meilleures décisions financières — au quotidien.",
+    "Anticipe ton solde futur, suis tes projets d'épargne et laisse-toi guider vers les meilleures décisions financières — au quotidien.",
   heroImage: '',
   heroBalanceLabel: 'Solde prévu fin de mois',
   heroBalanceValue: '4 280 €',
   heroTxLabel: 'Salaire',
   heroTxAmount: '+2 550 €',
-  featuresTitle: 'Tout pour piloter vos finances',
-  featuresSubtitle: 'Une application pensée pour vous faire gagner en clarté et en sérénité.',
+  featuresTitle: 'Tout pour piloter tes finances',
+  featuresSubtitle: 'Une application pensée pour te faire gagner en clarté et en sérénité.',
   features: [
-    { icon: 'trending-up', title: 'Anticipez', text: 'Visualisez votre solde futur et prenez les bonnes décisions avant qu’il ne soit trop tard.' },
-    { icon: 'wallet', title: 'Budget libre', text: 'Sachez en un coup d’œil ce que vous pouvez dépenser librement ce mois-ci.' },
-    { icon: 'rocket', title: 'Projets d’épargne', text: 'Définissez vos objectifs et suivez votre progression mois après mois.' },
-    { icon: 'bulb', title: 'Recommandations', text: 'Des conseils personnalisés selon votre profil pour épargner, investir ou conserver.' },
-    { icon: 'shield-checkmark', title: 'Sécurisé', text: 'Vos données sont chiffrées et protégées. Votre vie privée d’abord.' },
-    { icon: 'trophy', title: 'Motivant', text: 'Séries, succès et relyks : gardez le cap avec plaisir.' },
+    { icon: 'trending-up', title: 'Anticipe', text: 'Visualise ton solde futur et prends les bonnes décisions avant qu’il ne soit trop tard.' },
+    { icon: 'wallet', title: 'Budget libre', text: 'Sache en un coup d’œil ce que tu peux dépenser librement ce mois-ci.' },
+    { icon: 'rocket', title: 'Projets d’épargne', text: 'Définis tes objectifs et suis ta progression mois après mois.' },
+    { icon: 'bulb', title: 'Recommandations', text: 'Des conseils personnalisés selon ton profil pour épargner, investir ou conserver.' },
+    { icon: 'shield-checkmark', title: 'Sécurisé', text: 'Tes données sont chiffrées et protégées. Ta vie privée d’abord.' },
+    { icon: 'trophy', title: 'Motivant', text: 'Séries, succès et relyks : garde le cap avec plaisir.' },
   ],
   stats: [
     { value: '100%', label: 'Gratuit pour démarrer' },
@@ -120,7 +126,7 @@ export const DEFAULT_LANDING: LandingConfig = {
     { value: '24/7', label: 'Accessible partout' },
   ],
   finalTitle: 'Prêt à reprendre le contrôle ?',
-  finalSubtitle: 'Créez votre espace en quelques secondes. Aucune carte bancaire requise.',
+  finalSubtitle: 'Crée ton espace en quelques secondes. Aucune carte bancaire requise.',
   footerText: 'Relyka — Prévisions · Budget · Sérénité.',
   footerLinks: [
     { label: 'Confidentialité', anchor: 'confidentialite' },
@@ -132,7 +138,7 @@ export const DEFAULT_LANDING: LandingConfig = {
   mobileTagline: 'Sache toujours combien tu peux dépenser — sans tableur, sans stress.',
   mobileSubtag: 'Ton budget · Ta projection · Ta sérénité',
   mobileCtaTitle: 'Prêt à commencer ?',
-  mobileCtaText: 'Connectez-vous pour retrouver vos comptes ou créez votre espace en quelques secondes.',
+  mobileCtaText: 'Connecte-toi pour retrouver tes comptes, ou crée ton espace en quelques secondes.',
   mobileCtaPrimaryLabel: 'Se connecter',
   mobileCtaSecondaryLabel: 'Créer un compte',
   mobileFeatures: [
@@ -181,8 +187,20 @@ export function useSaveLandingConfig() {
   return useMutation({
     mutationFn: async (config: LandingConfig) => {
       if (!supabase) throw new Error('Supabase non configuré');
-      const { error } = await supabase.from('app_config').update({ landing: config, updated_at: new Date().toISOString() }).eq('id', 'default');
+      /* `.select('id')` n'est pas décoratif : une écriture REFUSÉE PAR LA RLS ne renvoie PAS d'erreur
+         — PostgREST rend simplement « 0 ligne modifiée ». Sans relecture, l'écran affichait donc
+         « Enregistré ✓ » alors que rien n'avait bougé, et la page d'accueil publique revenait à son
+         état précédent au rechargement suivant. Le cas est devenu réel avec la migration 204, qui
+         réserve l'écriture d'app_config aux administrateurs. */
+      const { data, error } = await supabase
+        .from('app_config')
+        .update({ landing: config, updated_at: new Date().toISOString() })
+        .eq('id', 'default')
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Enregistrement refusé : il faut un compte administrateur pour modifier la page d'accueil.");
+      }
       return config;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [KEY] }); },

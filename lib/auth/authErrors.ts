@@ -22,12 +22,43 @@ export interface AuthErrorInfo {
   alreadyExists?: boolean;
   /** Échec temporaire (débit, réseau) : réessayer plus tard a du sens. */
   retryable?: boolean;
+  /** La session de réinitialisation est absente ou périmée : il faut redemander un lien. */
+  recoveryExpired?: boolean;
 }
 
 /** Secondes d'attente annoncées par gotrue (« after 47 seconds »), si présentes. */
 function retryAfter(raw: string): number | null {
   const m = raw.match(/after (\d+) seconds?/i);
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * « Le serveur a-t-il VRAIMENT refusé, ou n'a-t-on simplement pas pu le joindre ? »
+ *
+ * Distinction vitale pour la survie d'une session (cf. contexts/AuthContext) : une coupure réseau ne
+ * doit JAMAIS déconnecter — l'app reste utilisable sur son cache — alors qu'un refus explicite
+ * (compte supprimé, jeton révoqué, mot de passe changé ailleurs) doit l'être, sans quoi l'app tourne
+ * avec un jeton mort et n'affiche plus que des écrans vides.
+ *
+ * ⚠️ LA RÈGLE EST ASYMÉTRIQUE, ET C'EST VOULU. On ne conclut « le serveur a refusé » que sur une
+ * PREUVE POSITIVE : un statut 4xx renvoyé par lui. Tout le reste — pas de statut, statut 0, 5xx,
+ * erreur illisible, objet vide — est un DOUTE, et un doute ne déconnecte pas. L'asymétrie n'est pas
+ * de la prudence gratuite : un utilisateur déconnecté à tort a perdu l'accès à ses données et ne
+ * peut rien y faire, alors qu'une session morte laissée en place se répare au prochain démarrage.
+ * (Première version : « pas de statut → on lit le message ». Un objet d'erreur vide passait alors
+ * pour un refus du serveur et déconnectait.)
+ *
+ * Deux 4xx font exception, parce qu'ils ne disent RIEN de la validité de la session :
+ *   • 408 Request Timeout  → la requête n'est pas arrivée ;
+ *   • 429 Too Many Requests → trop de rafraîchissements, à retenter plus tard.
+ */
+export function isUnreachableServerError(e: unknown): boolean {
+  const err = e as { name?: string; status?: number } | null;
+  if (!err) return true;
+  if (err.name === 'AuthRetryableFetchError') return true;
+  if (typeof err.status !== 'number') return true;
+  if (err.status === 408 || err.status === 429) return true;
+  return !(err.status >= 400 && err.status < 500);
 }
 
 export function describeAuthError(e: unknown): AuthErrorInfo {
@@ -74,7 +105,15 @@ export function describeAuthError(e: unknown): AuthErrorInfo {
   if (code === 'email_address_invalid' || /invalid format|unable to validate email/i.test(raw)) {
     return { message: "Cette adresse e-mail n'est pas valide.", notCreated: true };
   }
-  if (code === 'weak_password' || /password should be|weak password/i.test(raw)) {
+  /* ⚠️ AVANT `weak_password`. Le message de gotrue pour un mot de passe réutilisé est « New password
+     should be DIFFERENT from the old password » : il contient « password should be », donc la règle
+     « trop faible » ci-dessous l'avalait et répondait « rallonge-le et mélange lettres, chiffres et
+     symboles » à quelqu'un dont le mot de passe cochait déjà toutes les cases. Conseil impossible à
+     suivre, sur un écran dont on ne peut pas sortir sans réussir. */
+  if (code === 'same_password' || /different from the old password/i.test(raw)) {
+    return { message: 'Ce mot de passe est identique à l’ancien. Choisis-en un autre.' };
+  }
+  if (code === 'weak_password' || /password should be at least|weak password/i.test(raw)) {
     return { message: 'Mot de passe trop faible : rallonge-le et mélange lettres, chiffres et symboles.', notCreated: true };
   }
   if (code === 'invalid_credentials' || /invalid login credentials/i.test(raw)) {
@@ -82,6 +121,28 @@ export function describeAuthError(e: unknown): AuthErrorInfo {
   }
   if (code === 'email_not_confirmed' || /email not confirmed/i.test(raw)) {
     return { message: 'Ton adresse n’est pas encore confirmée. Ouvre le lien reçu par e-mail, puis reviens te connecter.' };
+  }
+
+  // ── Session absente / périmée ─────────────────────────────────────────────
+  // Cas typique : le lien de réinitialisation a plus d'une heure, ou il a déjà servi. L'écran doit
+  // proposer d'en redemander un, pas afficher « Auth session missing! ».
+  if (
+    code === 'session_not_found' || code === 'refresh_token_not_found' || err?.status === 401
+    || /auth session missing|session (from session_id )?not found|jwt expired|token has expired|invalid claim/i.test(raw)
+  ) {
+    return {
+      message: 'Ce lien de réinitialisation a expiré ou a déjà été utilisé. Demande-en un nouveau.',
+      recoveryExpired: true, retryable: true,
+    };
+  }
+
+  // ── Trop de tentatives (hors envoi d'e-mail) ──────────────────────────────
+  if (code === 'over_request_rate_limit' || err?.status === 429 || /too many requests/i.test(raw)) {
+    const s = retryAfter(raw);
+    return {
+      message: s ? `Trop de tentatives. Attends ${s} secondes et recommence.` : 'Trop de tentatives en peu de temps. Attends quelques minutes et recommence.',
+      retryable: true,
+    };
   }
 
   // ── Réseau ────────────────────────────────────────────────────────────────

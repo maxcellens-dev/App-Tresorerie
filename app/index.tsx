@@ -1,8 +1,8 @@
 import { Redirect } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/data/useProfile';
-import { getCachedUserTheme } from '../lib/platform/themeBoot';
+import { getCachedUserTheme, subscribeThemeCache, themeCacheVersion } from '../lib/platform/themeBoot';
 import WelcomeScreen from './welcome';
 import AppLoading from '../components/system/AppLoading';
 
@@ -44,7 +44,17 @@ export default function Index() {
      cas — dès la 2ᵉ ouverture, le thème est en cache et l'ouverture reste immédiate (le retour du
      profil n'est délibérément pas sur le chemin critique, cf. ci-dessus). Bornée à 1,2 s : un réseau
      poussif ne doit jamais retenir l'app plus longtemps qu'un clignement. */
-  const themeUnknown = useRef(!getCachedUserTheme()).current;
+  /* ⚠️ LU EN DIRECT, PAS FIGÉ AU PREMIER RENDU. Sur natif, le thème mémorisé vit dans AsyncStorage
+     et son cache mémoire est hydraté de façon ASYNCHRONE (hydrateThemeCache, app/_layout). Cette
+     valeur était capturée dans un `useRef` au tout premier rendu — c'est-à-dire systématiquement
+     AVANT la fin de l'hydratation. Résultat : « thème inconnu » était vrai à CHAQUE démarrage natif,
+     y compris au centième, et la porte d'entrée retenait l'app jusqu'à 1,2 s de plus avant de
+     rediriger vers le Pilotage — donc le splash restait affiché d'autant, puisque c'est le Pilotage
+     monté qui le lève. On s'abonne au cache : dès qu'il s'hydrate, la porte s'ouvre.
+     Le sens de lecture est sûr : l'hydratation ne peut qu'AJOUTER de la connaissance (inconnu →
+     connu), jamais l'inverse — pas de va-et-vient possible. */
+  useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
+  const themeUnknown = !getCachedUserTheme();
   const [themeWaitOver, setThemeWaitOver] = useState(false);
   useEffect(() => {
     if (!themeUnknown) return;

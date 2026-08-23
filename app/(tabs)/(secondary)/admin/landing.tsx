@@ -51,7 +51,12 @@ export default function AdminLanding() {
 
   const [cfg, setCfg] = useState<LandingConfig | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  /* Le retour d'action portait sa TONALITÉ dans son texte : la couleur se décidait par
+     `msg.includes('Erreur')`. Un refus de Supabase qui ne contient pas ce mot — « new row violates
+     row-level security policy », « Failed to fetch », et désormais tout refus lié aux droits
+     administrateur (migration 204) — s'affichait donc en VERT, comme un enregistrement réussi :
+     l'admin repartait convaincu d'avoir publié sa page d'accueil. On sépare le fond de la forme. */
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [tab, setTab] = useState<'bureau' | 'mobile'>('bureau');
   // Réseaux sociaux : section repliée par défaut, et un seul réseau ouvert à la fois — sinon le
   // bloc occupe toute la page alors qu'on n'y touche qu'une fois.
@@ -73,7 +78,7 @@ export default function AdminLanding() {
   /** Choisit un fichier et le téléverse dans le bucket public, puis renvoie son URL à `onDone`.
    *  Partagé par le visuel du héros et les icônes de réseaux (mêmes contraintes, même bucket). */
   function pickAndUpload(onDone: (url: string) => void, accept = 'image/png,image/jpeg,image/webp,image/svg+xml') {
-    if (Platform.OS !== 'web' || typeof document === 'undefined' || !supabase) { setMsg('Téléversement depuis la version web.'); return; }
+    if (Platform.OS !== 'web' || typeof document === 'undefined' || !supabase) { setMsg({ text: 'Téléversement possible depuis la version web uniquement.', ok: false }); return; }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
@@ -88,8 +93,8 @@ export default function AdminLanding() {
         if (error) throw error;
         const { data } = supabase!.storage.from('gamification').getPublicUrl(path);
         onDone(data.publicUrl);
-        setMsg('Image téléversée.');
-      } catch (e: unknown) { setMsg(e instanceof Error ? e.message : 'Échec.'); }
+        setMsg({ text: 'Image téléversée. Pense à enregistrer la page.', ok: true });
+      } catch (e: unknown) { setMsg({ text: e instanceof Error ? e.message : 'Téléversement impossible.', ok: false }); }
       finally { setUploading(false); }
     };
     input.click();
@@ -118,8 +123,8 @@ export default function AdminLanding() {
 
   async function persist() {
     setMsg(null);
-    try { await save.mutateAsync(cfg!); setMsg('Enregistré ✓'); }
-    catch (e: unknown) { setMsg(e instanceof Error ? e.message : 'Erreur'); }
+    try { await save.mutateAsync(cfg!); setMsg({ text: 'Enregistré ✓', ok: true }); }
+    catch (e: unknown) { setMsg({ text: e instanceof Error ? e.message : "L'enregistrement a échoué.", ok: false }); }
   }
 
   return (
@@ -478,7 +483,7 @@ export default function AdminLanding() {
           <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={persist} disabled={save.isPending}>
             {save.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveLabel}>Enregistrer la page d'accueil</Text>}
           </TouchableOpacity>
-          {msg && <Text style={[styles.msg, { color: msg.includes('Erreur') || msg.includes('Échec') ? COLORS.danger : COLORS.emerald }]}>{msg}</Text>}
+          {msg && <Text style={[styles.msg, { color: msg.ok ? COLORS.emerald : COLORS.danger }]}>{msg.text}</Text>}
         </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>

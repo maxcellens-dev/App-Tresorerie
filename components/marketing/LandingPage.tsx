@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useBrandFont';
-import { useLandingConfig } from '../../hooks/config/useLandingConfig';
+import { useLandingConfig, DEFAULT_LANDING } from '../../hooks/config/useLandingConfig';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
 import PlayStoreBadge from './PlayStoreBadge';
@@ -23,7 +23,14 @@ export default function LandingPage() {
   const appNameFontStyle = useAppNameFontStyle();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { data: cfg } = useLandingConfig();
+  /* REPLI OBLIGATOIRE sur les valeurs par défaut (comme l'accueil mobile, cf. app/welcome).
+     `useLandingConfig` LÈVE quand le réseau est coupé ou Supabase injoignable : `data` reste alors
+     indéfini pour toujours (react-query abandonne après ses tentatives). Cet écran rendait dans ce
+     cas un aplat vide — page blanche définitive sur navigateur d'ordinateur, sans logo, sans texte,
+     et surtout SANS BOUTON DE CONNEXION : l'app devenait inaccessible au lieu d'être simplement
+     hors-ligne. Le boot-loader HTML, lui, s'était déjà effacé (l'app « a peint »). */
+  const { data: loaded } = useLandingConfig();
+  const cfg = loaded ?? DEFAULT_LANDING;
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = Boolean(profile?.is_admin);
@@ -35,15 +42,16 @@ export default function LandingPage() {
   const slide = useRef(new Animated.Value(40)).current;
   const float = useRef(new Animated.Value(0)).current;
 
-  /* Apparition du héros — relancée À CHAQUE FOIS que le contenu est monté, jamais une seule fois.
+  /* Apparition du héros — lancée AU MONTAGE, sans condition.
      ⚠️ React Native ARRÊTE une animation dès que la vue qui la porte se démonte
      (AnimatedValue.__detach → stopAnimation). Or à la déconnexion, `queryClient.clear()` vide la
      config de l'accueil une fraction de seconde : le héros se démontait EN PLEINE apparition, la
-     valeur d'opacité restait figée à mi-course, et la page revenait « grisée » définitivement —
-     l'effet en `[]` ne pouvant plus rien relancer. On repart donc de zéro à chaque montage. */
-  const contentReady = !!cfg;
+     valeur d'opacité restait figée à mi-course, et la page revenait « grisée » définitivement.
+     Ce démontage venait du garde « pas de config → écran vide » qui vivait plus bas ; il a disparu
+     avec le repli sur DEFAULT_LANDING, donc plus rien ne démonte le héros et une seule passe suffit.
+     ⚠️ Ne PAS reconditionner cet effet à l'arrivée de la config : hors-ligne elle n'arrive jamais,
+     et l'opacité resterait à 0 — c'est-à-dire la page blanche qu'on vient justement de supprimer. */
   useEffect(() => {
-    if (!contentReady) return;
     fade.setValue(0);
     slide.setValue(40);
     const entry = Animated.parallel([
@@ -59,7 +67,7 @@ export default function LandingPage() {
     );
     loop.start();
     return () => { entry.stop(); loop.stop(); };
-  }, [contentReady, fade, slide, float]);
+  }, [fade, slide, float]);
 
   const floatY = float.interpolate({ inputRange: [-1, 0], outputRange: [-10, 0] });
 
@@ -73,8 +81,6 @@ export default function LandingPage() {
       document.getElementById(link.anchor)?.scrollIntoView({ behavior: 'smooth' });
     }
   };
-
-  if (!cfg) return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />;
 
   return (
     <View style={styles.root}>
