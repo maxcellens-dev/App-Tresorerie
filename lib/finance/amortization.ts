@@ -190,6 +190,63 @@ export function nextPaymentAtDate(
   return next ? next.payment + next.insurance : a.monthlyWithInsurance;
 }
 
+/** Récapitulatif d'un crédit à une date (les chiffres du bandeau de l'onglet Crédits). */
+export interface CreditRecap {
+  /** Capital restant dû à la date. */
+  crd: number;
+  /** Part d'intérêts des échéances à venir. */
+  interestLeft: number;
+  /** Assurance à venir (à ses PROPRES dates si elle est décalée). */
+  insuranceLeft: number;
+  /** Ce qui va réellement sortir du compte = crd + interestLeft + insuranceLeft. */
+  leftToPay: number;
+  /** Somme des seules ÉCHÉANCES à venir (assurance comprise), sans les remboursements anticipés planifiés. */
+  scheduleLeft: number;
+  /** Échéances déjà passées + remboursements anticipés déjà effectués. */
+  paid: number;
+}
+
+/**
+ * Récapitulatif d'un crédit À UNE DATE — le calcul PARTAGÉ par la ligne de la liste et par le
+ * bandeau de totaux, qui affichaient deux découpages maison légèrement différents.
+ *
+ * L'invariant, et c'est tout l'intérêt de le tenir ici une bonne fois :
+ *
+ *     leftToPay = crd + interestLeft + insuranceLeft
+ *
+ * Trois pièges qu'un simple parcours de `schedule` rate — et qui faisaient que les chiffres
+ * affichés refusaient de tomber juste :
+ *   • l'ASSURANCE peut avoir sa propre date de départ (`first_insurance_date`) : `schedule` la pose
+ *     aux dates de REMBOURSEMENT, seul `displaySchedule` la porte à sa vraie date. Le partage
+ *     passé/futur se trompait donc d'autant de mois d'assurance que le décalage ;
+ *   • un REMBOURSEMENT ANTICIPÉ PLANIFIÉ (événement daté dans le futur) fait chuter le capital sans
+ *     être une échéance : « reste à payer » perdait purement et simplement son montant ;
+ *   • le même remboursement, une fois PASSÉ, est de l'argent déjà sorti du compte : il appartient à
+ *     « déjà payé », qui l'ignorait aussi.
+ *
+ * `leftToPay` se déduit du capital plutôt que de la somme des échéances : c'est vrai même quand
+ * l'échéancier ne solde pas le prêt (remboursement anticipé planifié, restant dû forcé à la main
+ * sur un prêt in fine) — les cas, justement, où additionner les lignes donne un résultat faux.
+ */
+export function recapAtDate(
+  a: Pick<AmortResult, 'schedule' | 'displaySchedule' | 'crdAtDate'>,
+  isoDate: string,
+  p?: { events?: CreditEvent[] | null } | null,
+): CreditRecap {
+  let interestLeft = 0, insuranceLeft = 0, scheduleLeft = 0, paid = 0;
+  for (const r of a.displaySchedule) {
+    const due = r.payment + r.insurance;
+    if (r.date <= isoDate) paid += due;
+    else { scheduleLeft += due; interestLeft += r.interest; insuranceLeft += r.insurance; }
+  }
+  // Remboursement anticipé DÉJÀ effectué : il n'est dans aucune échéance, mais il est sorti du compte.
+  for (const ev of p?.events ?? []) {
+    if (ev.kind === 'early_repayment' && ev.date <= isoDate) paid += Math.abs(Number(ev.amount) || 0);
+  }
+  const crd = a.crdAtDate(isoDate);
+  return { crd, interestLeft, insuranceLeft, leftToPay: crd + interestLeft + insuranceLeft, scheduleLeft, paid };
+}
+
 /**
  * Taux annuel EN VIGUEUR à une date (%), en tenant compte des événements `rate_change`.
  *

@@ -20,13 +20,17 @@ import { useResponsive } from '../../hooks/theme/useResponsive';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCredits } from '../../hooks/data/useCredits';
 import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealtime } from '../../hooks/data/useSharedCredits';
-import { computeAmortization, nextPaymentAtDate } from '../../lib/finance/amortization';
+import { useAllCreditEvents } from '../../hooks/data/useCreditEvents';
+import { computeAmortization, nextPaymentAtDate, recapAtDate } from '../../lib/finance/amortization';
 import { todayISO } from '../../lib/dateUtils';
 import type { Credit } from '../../types/database';
 import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../lib/finance/currency';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { useAllAccounts } from '../../hooks/data/useAccounts';
 import { useProfile } from '../../hooks/data/useProfile';
+
+/** Une case du bandeau de totaux. `short` : libellé de repli quand la case est en 3 colonnes. */
+type RecapCell = { key: string; label: string; short: string; value: number; color: string; lead?: boolean };
 
 const TYPE_META: Record<string, { label: string; icon: string }> = {
   immobilier: { label: 'Immobilier', icon: 'home-outline' },
@@ -45,6 +49,13 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   const router = useRouter();
   const { isImpersonating } = useAuth();
   const { data: credits = [], isLoading } = useCredits(userId);
+  /* Les ÉVÉNEMENTS (remboursement anticipé, renégociation de taux) faisaient défaut ici : cet écran
+     appelait `computeAmortization(c)` tout court, là où la fiche du crédit, les flux de trésorerie et
+     la matérialisation des échéances passent tous `events`. Un remboursement anticipé enregistré
+     laissait donc la liste ET les totaux sur le plan d'origine — capital restant, reste à payer,
+     nombre d'échéances et mensualité tous faux, en contradiction avec la fiche du crédit juste à
+     côté (30 000 € remboursés = ~31 000 € d'écart de capital restant sur un 200 000 €). */
+  const { data: eventsByCredit = {} } = useAllCreditEvents(userId);
   const { data: invitations = [] } = useCreditInvitations(userId);
   const respond = useRespondCreditInvitation(userId);
   useSharedCreditsRealtime(userId);
@@ -91,102 +102,155 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   const perso = credits.filter((c) => !isReceived(c) && !c.is_shared);
   const shared = credits.filter((c) => isReceived(c) || c.is_shared);
 
-  /* Ce qui COMPTE dans le total « partagés ». Un crédit reçu que son propriétaire a marqué PERSO est
-     sa dette à lui : je ne fais que la consulter, elle n'engage rien chez moi et ne doit peser dans
-     aucun de mes totaux. Un crédit reçu marqué PARTAGÉ, lui, est bien une dette qu'on porte à deux. */
-  const sharedCounted = shared.filter((c) => !(isReceived(c) && !c.is_shared));
-  const excludedCount = shared.length - sharedCounted.length;
+  /* Ce qui COMPTE dans les totaux. Trois façons de rester affiché sans y entrer :
+       • un crédit REÇU que son propriétaire a marqué PERSO est sa dette à lui : je ne fais que la
+         consulter, elle n'engage rien chez moi (reçu + marqué PARTAGÉ, en revanche, compte bien) ;
+       • un crédit DÉSACTIVÉ (« retirer de la projection/tréso ») ;
+       • une SIMULATION.
+     Les deux derniers étaient exclus des totaux en silence, dont l'un — le désactivé — sans le
+     moindre marqueur sur sa ligne : la somme des lignes ne tombait pas, sans explication. */
+  const countsInTotal = (c: Credit) => !(isReceived(c) && !c.is_shared) && !!c.is_active && !c.is_simulation;
+  const persoCounted = perso.filter(countsInTotal);
+  const sharedCounted = shared.filter(countsInTotal);
+
+  /** Amortissement d'un crédit, ÉVÉNEMENTS COMPRIS (cf. `eventsByCredit`). */
+  const amortOf = (c: Credit) => computeAmortization({ ...c, events: eventsByCredit[c.id] ?? null });
 
   /* Tant qu'aucun crédit ne rejoint le groupe « partagés », il n'y a qu'UN récap et aucun intertitre :
      l'écran reste exactement celui d'avant pour qui ne s'en sert pas. */
   const splitView = perso.length > 0 && shared.length > 0;
 
-  /* Récap d'un ENSEMBLE de crédits actifs (hors simulation). Le seul « capital restant dû » ne
-     disait pas ce qu'il reste réellement à sortir du compte : on coupe donc chaque échéancier à
-     aujourd'hui. « Reste à payer » et « Déjà payé » sont des ÉCHÉANCES, assurance comprise (ce qui
-     quitte le compte) ; « Intérêts restants » est la part d'intérêts des échéances à venir.
+  /* Récap d'un ENSEMBLE de crédits (ceux qui comptent). Le seul « capital restant dû » ne disait pas
+     ce qu'il reste réellement à sortir du compte : `recapAtDate` (lib/finance/amortization) coupe
+     l'échéancier à aujourd'hui et tient l'invariant qui rend ce bandeau lisible —
+     reste à payer = capital restant + intérêts restants + assurance restante.
+     C'est le MÊME calcul que la ligne de chaque crédit, pour qu'ils ne puissent plus diverger.
 
      ⚠️ Un récap ne décrit QUE la liste qu'il surplombe : perso et partagés ont chacun le leur.
      Un total unique mélangeait des crédits dont l'utilisateur n'est pas le débiteur — et, quand il
      n'avait QUE des crédits partagés, aucun total ne s'affichait du tout. */
   const recapOf = (list: Credit[]) => {
-    let crd = 0, interestLeft = 0, leftToPay = 0, paid = 0;
+    let crd = 0, interestLeft = 0, insuranceLeft = 0, paid = 0;
     for (const c of list) {
-      if (!c.is_active || c.is_simulation) continue;
-      const a = computeAmortization(c);
+      if (!countsInTotal(c)) continue;
       // Chaque crédit est libellé dans la devise de son compte → converti avant d'entrer au total.
       const cur = curOf(c);
       const ref = (v: number) => toRef(v, cur);
-      crd += ref(a.crdAtDate(today));
-      for (const r of a.schedule) {
-        const due = ref(r.payment + r.insurance);
-        if (r.date <= today) paid += due;
-        else { leftToPay += due; interestLeft += ref(r.interest); }
-      }
+      const r = recapAtDate(amortOf(c), today, { events: eventsByCredit[c.id] ?? null });
+      crd += ref(r.crd);
+      interestLeft += ref(r.interestLeft);
+      insuranceLeft += ref(r.insuranceLeft);
+      paid += ref(r.paid);
     }
-    return { crd, interestLeft, leftToPay, paid };
+    return { crd, interestLeft, insuranceLeft, paid };
   };
 
-  /* Les 4 chiffres du récap, dans l'ordre de lecture. Montants ARRONDIS à l'euro : sur un total de
-     crédits, les centimes n'apportent rien et rendaient la grille illisible (le détail d'un crédit,
-     lui, garde ses centimes). Couleurs : ce qui coûte en orange, ce qui est acquis en vert. */
-  const cellsOf = (r: ReturnType<typeof recapOf>) => [
-    { label: 'Capital restant', value: r.crd, color: COLORS.text, lead: true },
-    { label: 'Intérêts restants', value: r.interestLeft, color: COLORS.orange },
-    { label: 'Reste à payer', value: r.leftToPay, color: COLORS.text, lead: true },
-    { label: 'Déjà payé', value: r.paid, color: COLORS.emerald },
-  ];
+  /* Les chiffres du récap, dans l'ordre de lecture : les trois COMPOSANTES du reste à payer, puis
+     les deux TOTAUX. Trois d'entre eux refusaient de s'additionner sous les yeux du lecteur, faute
+     d'afficher l'assurance : « reste à payer » la comprend (c'est ce qui quitte le compte), mais
+     elle n'apparaissait nulle part — l'écart passait pour une erreur de calcul.
 
-  /* `curByAccount`/`rates`/`refCode` DOIVENT être dans les deps : les comptes et les taux arrivent
-     APRÈS le premier rendu. Sans eux, le récap resterait figé sur son calcul initial — celui fait
-     alors que la table des devises était encore vide, donc sans aucune conversion. */
-  const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS, curByAccount, rates, refCode]);
-  const sharedCells = useMemo(() => cellsOf(recapOf(sharedCounted)), [credits, today, COLORS, curByAccount, rates, refCode]);
+     Montants ARRONDIS à l'euro : sur un total de crédits, les centimes n'apportent rien et rendaient
+     la grille illisible (le détail d'un crédit, lui, garde ses centimes). Le total est la somme des
+     composantes TELLES QU'AFFICHÉES : arrondir chacune dans son coin laissait un euro d'écart avec
+     l'addition que le lecteur fait de tête. Couleurs : ce qui coûte en orange, l'acquis en vert.
+     `short` = libellé de la ligne à 3 colonnes (téléphone), où le libellé complet serait tronqué. */
+  const cellsOf = (r: ReturnType<typeof recapOf>): RecapCell[] => {
+    const crd = Math.round(r.crd);
+    const interest = Math.round(r.interestLeft);
+    const insurance = Math.round(r.insuranceLeft);
+    return [
+      { key: 'crd', label: 'Capital restant', short: 'Capital', value: crd, color: COLORS.text },
+      { key: 'interest', label: 'Intérêts restants', short: 'Intérêts', value: interest, color: COLORS.orange },
+      // Sans assurance, la cellule n'a rien à dire : la grille reprend sa forme 2 × 2 d'avant.
+      ...(insurance > 0 ? [{ key: 'insurance', label: 'Assurance restante', short: 'Assurance', value: insurance, color: COLORS.orange }] : []),
+      { key: 'left', label: 'Reste à payer', short: 'Reste à payer', value: crd + interest + insurance, color: COLORS.text, lead: true },
+      { key: 'paid', label: 'Déjà payé', short: 'Déjà payé', value: Math.round(r.paid), color: COLORS.emerald, lead: true },
+    ];
+  };
+
+  /* `curByAccount`/`rates`/`refCode`/`eventsByCredit` DOIVENT être dans les deps : les comptes, les
+     taux et les événements arrivent APRÈS le premier rendu. Sans eux, le récap resterait figé sur
+     son calcul initial — celui fait alors que la table des devises était encore vide (donc sans
+     aucune conversion) et qu'aucun remboursement anticipé n'était connu. */
+  const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS, curByAccount, rates, refCode, eventsByCredit]);
+  const sharedCells = useMemo(() => cellsOf(recapOf(shared)), [credits, today, COLORS, curByAccount, rates, refCode, eventsByCredit]);
 
   /* Un total qui ne couvre pas toute la liste qu'il surplombe DOIT le dire, sinon il passe pour faux
-     (« pourquoi la somme des lignes ne tombe pas ? »). */
-  const ExcludedNote = () =>
-    excludedCount === 0 ? null : (
-      <Text style={styles.recapNote}>
-        {excludedCount === 1
-          ? "1 crédit appartient à un autre utilisateur : tu y as accès, il n'entre dans aucun total."
-          : `${excludedCount} crédits appartiennent à d'autres utilisateurs : tu y as accès, ils n'entrent dans aucun total.`}
-      </Text>
-    );
+     (« pourquoi la somme des lignes ne tombe pas ? »). Trois motifs de sortie, deux phrases : la
+     dette d'autrui, et le crédit qu'on a soi-même mis de côté (désactivé ou simulation). */
+  const OutOfTotalNote = ({ list }: { list: Credit[] }) => {
+    const others = list.filter((c) => isReceived(c) && !c.is_shared).length;
+    const off = list.filter((c) => !(isReceived(c) && !c.is_shared) && !countsInTotal(c)).length;
+    if (others + off === 0) return null;
+    const parts: string[] = [];
+    if (others > 0) parts.push(others === 1
+      ? "1 crédit appartient à un autre utilisateur : tu y as accès, il n'entre dans aucun total."
+      : `${others} crédits appartiennent à d'autres utilisateurs : tu y as accès, ils n'entrent dans aucun total.`);
+    if (off > 0) parts.push(off === 1
+      ? '1 crédit est désactivé ou en simulation : il reste affiché, hors total.'
+      : `${off} crédits sont désactivés ou en simulation : ils restent affichés, hors total.`);
+    return <Text style={styles.recapNote}>{parts.join(' ')}</Text>;
+  };
 
   /**
-   * Grille des 4 totaux. `adjustsFontSizeToFit` N'EXISTE PAS sur react-native-web (la prop est
-   * simplement ignorée) et reste peu fiable sur Android : s'y fier, c'est laisser un montant long
-   * se faire tronquer par `numberOfLines={1}` sans que rien ne le rattrape. On dimensionne donc la
-   * police NOUS-MÊMES, à partir de la longueur réelle du texte — même rendu sur toutes les plateformes.
+   * Bandeau de totaux. La grille se lit comme l'ADDITION qu'elle est : les composantes d'abord
+   * (capital + intérêts + assurance), les totaux en dessous, plus gros. Sur téléphone, ça tient
+   * dans les deux mêmes lignes qu'avant — 3 colonnes puis 2 — donc sans rien coûter en hauteur ;
+   * sur écran large, tout reste sur une seule ligne. Sans assurance, on retombe sur 2 × 2.
+   *
+   * `adjustsFontSizeToFit` N'EXISTE PAS sur react-native-web (la prop est simplement ignorée) et
+   * reste peu fiable sur Android : s'y fier, c'est laisser un montant long se faire tronquer par
+   * `numberOfLines={1}` sans que rien ne le rattrape. On dimensionne donc la police NOUS-MÊMES, à
+   * partir de la longueur réelle du texte — et plus tôt dans une colonne étroite.
    */
-  const SummaryGrid = ({ cells }: { cells: ReturnType<typeof cellsOf> }) => (
-    <View style={[styles.summary, !oneLine && styles.summaryWrap]}>
-      {cells.map((cell, i) => {
-        const text = money(cell.value);
-        const size = text.length > 13 ? 11 : text.length > 10 ? 12.5 : cell.lead ? 14 : 13;
-        return (
-          <View
-            key={cell.label}
-            style={[
-              styles.summaryCell,
-              oneLine ? styles.summaryCellFlex : styles.summaryCellHalf,
-              (oneLine ? i > 0 : i % 2 === 1) && styles.summaryCellSepLeft,
-              !oneLine && i >= 2 && styles.summaryCellSepTop,
-            ]}
-          >
-            <Text style={styles.summaryLabel} numberOfLines={1}>{cell.label}</Text>
-            <Text style={[styles.summaryValue, cell.lead && styles.summaryValueLead, { fontSize: size, color: cell.color }]} numberOfLines={1}>
-              {text}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
+  const SummaryGrid = ({ cells }: { cells: RecapCell[] }) => {
+    const rows: RecapCell[][] = oneLine
+      ? [cells]
+      : [cells.slice(0, cells.length - 2), cells.slice(cells.length - 2)];
+    return (
+      <View style={[styles.summary, !oneLine && styles.summaryWrap]}>
+        {rows.map((row, ri) =>
+          row.map((cell, ci) => {
+            // Colonne étroite (3 par ligne sur téléphone) : libellé court + police plus petite.
+            // Sur écran large les cinq cases sont sur une ligne, mais chacune reste assez large
+            // pour son libellé complet — d'où le `!oneLine`.
+            const narrow = !oneLine && row.length > 2;
+            const text = money(cell.value);
+            const size = narrow
+              ? (text.length > 11 ? 10.5 : text.length > 9 ? 11.5 : 12.5)
+              : (text.length > 13 ? 11 : text.length > 10 ? 12.5 : cell.lead ? 14 : 13);
+            return (
+              <View
+                key={cell.key}
+                style={[
+                  styles.summaryCell,
+                  narrow && styles.summaryCellNarrow,
+                  oneLine ? styles.summaryCellFlex : { width: row.length === 3 ? '33.33%' : '50%' },
+                  ci > 0 && styles.summaryCellSepLeft,
+                  ri > 0 && styles.summaryCellSepTop,
+                ]}
+              >
+                <Text style={styles.summaryLabel} numberOfLines={1} accessibilityLabel={cell.label}>
+                  {narrow ? cell.short : cell.label}
+                </Text>
+                <Text
+                  testID={`recap-${cell.key}`}
+                  style={[styles.summaryValue, cell.lead && styles.summaryValueLead, { fontSize: size, color: cell.color }]}
+                  numberOfLines={1}
+                >
+                  {text}
+                </Text>
+              </View>
+            );
+          }),
+        )}
+      </View>
+    );
+  };
 
   const row = (c: Credit, idx: number) => {
-    const a = computeAmortization(c);
+    const a = amortOf(c);
     const meta = TYPE_META[c.type] ?? TYPE_META.autre;
     /* Deux étiquettes, deux sens :
        - la pastille ROUGE = ACCÈS reçu : ce crédit est à quelqu'un d'autre, je ne fais que le
@@ -195,7 +259,8 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
        - la pastille bleue « Partagé » = RESPONSABILITÉ, affichée seulement quand aucun intertitre
          de section ne le dit déjà. */
     const received = isReceived(c);
-    const outOfTotal = received && !c.is_shared; // dette d'autrui : jamais dans mes totaux
+    // Hors total = dette d'autrui, crédit désactivé, ou simulation. La ligne le dit, toujours.
+    const outOfTotal = !countsInTotal(c);
     /* Dénominateur = le NOMBRE DE LIGNES de l'échéancier, pas `duration_months` : un différé ajoute
        des échéances en tête, que le compteur de gauche compte déjà. « 19/300 » avec 6 mois de
        différé annonçait donc un rapport entre deux choses différentes.
@@ -206,11 +271,10 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
     // Helper PARTAGÉ (lib/finance/amortization) : la fiche du crédit affiche exactement le même
     // chiffre, alors qu'elle montrait la mensualité nominale — deux montants pour la même ligne.
     const monthly = nextPaymentAtDate(a, today);
-    /* Chiffre de droite = RESTE À PAYER (échéances à venir, assurance comprise) et non le capital
-       restant dû. C'est ce qui va réellement sortir du compte : le capital seul sous-estime toujours
-       la charge — il ignore les intérêts et l'assurance encore à verser. Le récap garde les deux. */
-    let leftToPay = 0;
-    for (const r of a.schedule) if (r.date > today) leftToPay += r.payment + r.insurance;
+    /* Chiffre de droite = RESTE À PAYER (capital + intérêts + assurance encore à verser) et non le
+       capital restant dû : c'est ce qui va réellement sortir du compte, le capital seul sous-estime
+       toujours la charge. Même helper que le récap, donc la somme des lignes tombe forcément juste. */
+    const { leftToPay } = recapAtDate(a, today, { events: eventsByCredit[c.id] ?? null });
     return (
       <TouchableOpacity key={c.id} style={[styles.row, idx > 0 && styles.rowBorder]} activeOpacity={0.7} onPress={() => router.push(`/(tabs)/comptes/credit/${c.id}` as any)}>
         <View style={[styles.icon, { backgroundColor: COLORS.blue + '1A' }]}><Ionicons name={meta.icon as any} size={18} color={COLORS.blue} /></View>
@@ -225,6 +289,13 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
             {c.is_shared && !splitView && (
               <View style={styles.dotTag} accessibilityLabel="Dette partagée">
                 <Ionicons name="people" size={11} color={COLORS.blue} />
+              </View>
+            )}
+            {/* Désactivé : la ligne restait strictement identique à un crédit actif alors qu'elle ne
+                pesait dans aucun total — la simulation, elle, avait sa pastille. */}
+            {!c.is_active && (
+              <View style={styles.dotTagMuted} accessibilityLabel="Crédit désactivé — hors des totaux">
+                <Ionicons name="pause" size={11} color={COLORS.textSecondary} />
               </View>
             )}
             {received && (
@@ -251,22 +322,26 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
 
   return (
     <View style={styles.wrap}>
-      {/* Écran large (web bureau / tablette) : les 4 chiffres tiennent sur UNE ligne, séparés par
-          des filets. Téléphone : la grille se replie en 2 × 2 sans changer de code (flexWrap).
-          Un seul groupe → un seul récap, sans intertitre (cas de la très grande majorité). */}
+      {/* Écran large (web bureau / tablette) : les chiffres tiennent sur UNE ligne, séparés par des
+          filets. Téléphone : composantes puis totaux, sur deux lignes.
+          Un seul groupe → un seul récap, sans intertitre (cas de la très grande majorité).
+          Le récap ne sort que s'il reste quelque chose à totaliser : n'avoir que des crédits
+          d'autrui (ou désactivés) ne doit pas afficher une grille de zéros — la note explique. */}
       {splitView ? (
         <>
           <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Mes crédits</Text>
-          <SummaryGrid cells={persoCells} />
+          {persoCounted.length > 0 && <SummaryGrid cells={persoCells} />}
+          <OutOfTotalNote list={perso} />
         </>
       ) : credits.length === 0 ? null : perso.length > 0 ? (
-        <SummaryGrid cells={persoCells} />
+        <>
+          {persoCounted.length > 0 && <SummaryGrid cells={persoCells} />}
+          <OutOfTotalNote list={perso} />
+        </>
       ) : (
-        // Groupe « partagés » seul : le récap ne sort que s'il reste quelque chose à totaliser —
-        // n'avoir que des crédits d'autrui ne doit pas afficher une grille de zéros.
         <>
           {sharedCounted.length > 0 && <SummaryGrid cells={sharedCells} />}
-          <ExcludedNote />
+          <OutOfTotalNote list={shared} />
         </>
       )}
 
@@ -308,7 +383,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
                 <>
                   <Text style={styles.sectionLabel}>Crédits partagés</Text>
                   {sharedCounted.length > 0 && <SummaryGrid cells={sharedCells} />}
-                  <ExcludedNote />
+                  <OutOfTotalNote list={shared} />
                 </>
               )}
               <View style={styles.list}>{shared.map((c, i) => row(c, i))}</View>
@@ -350,8 +425,9 @@ function makeStyles(c: any) {
     summary: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, marginBottom: 12 },
     summaryWrap: { flexWrap: 'wrap' },
     summaryCell: { paddingVertical: 7, paddingHorizontal: 11 },
+    // 3 colonnes sur un écran de téléphone : on rend au montant les marges qu'on lui prend ailleurs.
+    summaryCellNarrow: { paddingHorizontal: 7 },
     summaryCellFlex: { flex: 1 },
-    summaryCellHalf: { width: '50%' },
     summaryCellSepLeft: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.cardBorder },
     summaryCellSepTop: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.cardBorder },
     summaryLabel: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600', letterSpacing: 0.2 },
@@ -383,6 +459,12 @@ function makeStyles(c: any) {
       width: 18, height: 18, borderRadius: 9, flexShrink: 0,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.danger + '1A', borderWidth: 1, borderColor: c.danger + '55',
+    },
+    // Crédit DÉSACTIVÉ : en sourdine, comme ce qu'il est — mis de côté, hors des totaux.
+    dotTagMuted: {
+      width: 18, height: 18, borderRadius: 9, flexShrink: 0,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.textSecondary + '1A', borderWidth: 1, borderColor: c.textSecondary + '44',
     },
     // Mention sous un récap qui ne couvre pas toute la liste (crédits d'autrui exclus).
     recapNote: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic', lineHeight: 15, marginTop: -6, marginBottom: 12, paddingHorizontal: 4 },

@@ -22,6 +22,7 @@ import { usePilotageData } from '../pilotage/usePilotageData';
 import { useTransactionMonthOverrides } from './useTransactionMonthOverrides';
 import { useCategories } from './useCategories';
 import { useCredits } from './useCredits';
+import { useAllCreditEvents } from './useCreditEvents';
 import { useAllAccounts } from './useAccounts';
 import { MONTHLY_FACTOR_BY_RULE } from '../../lib/finance/recurrence';
 import { useProjects } from './useProjects';
@@ -78,6 +79,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   const { data: monthOverrides } = useTransactionMonthOverrides(userId);
   const { data: categories } = useCategories(userId);
   const { data: credits } = useCredits(userId);
+  const { data: creditEventsByCredit = {} } = useAllCreditEvents(userId);
   const { data: allAccounts } = useAllAccounts(userId);
   const { data: projects } = useProjects(userId);
   // Mode des comptes partagés (« tracked » = quotidien / « contribution » = hors quotidien) — le
@@ -523,7 +525,9 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
     const acctById: Record<string, any> = {};
     for (const a of allAccounts ?? []) acctById[a.id] = a;
     return (credits ?? []).filter((cr) => cr.is_active && !cr.is_simulation).map((cr) => {
-      const a = computeAmortization({ ...cr });
+      // Événements compris (remboursement anticipé, renégociation) : sans eux, le snapshot envoyé au
+      // conseil IA décrivait le plan d'origine — un capital restant dû périmé, donc un conseil faux.
+      const a = computeAmortization({ ...cr, events: creditEventsByCredit[cr.id] ?? null });
       const last = a.schedule[a.schedule.length - 1];
       const acc = cr.account_id ? acctById[cr.account_id] : null;
       const impactPct = acc && acc._impact_pct != null ? acc._impact_pct : 100;
@@ -534,7 +538,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
         impactPct, monthly: a.monthlyWithInsurance * (impactPct / 100),
       };
     });
-  }, [credits, allAccounts]);
+  }, [credits, creditEventsByCredit, allAccounts]);
 
   const projectsSummary = useMemo(() => {
     const byId: Record<string, any> = {};

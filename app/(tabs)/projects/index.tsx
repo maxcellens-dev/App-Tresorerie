@@ -36,6 +36,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
 import { useCredits } from '../../../hooks/data/useCredits';
+import { useAllCreditEvents } from '../../../hooks/data/useCreditEvents';
 import { computeAmortization } from '../../../lib/finance/amortization';
 import { projectMode, type ProjectMode } from '../../../lib/finance/projectTx';
 import { todayISO } from '../../../lib/dateUtils';
@@ -116,15 +117,19 @@ function ProjectsScreen() {
   const { data: projects = [], isLoading, refetch } = projectsQuery;
   // C4 — crédits liés à un projet : map projectId → [{ label, crd }].
   const { data: creditsList = [] } = useCredits(user?.id);
+  // Sans les ÉVÉNEMENTS, le capital restant dû reste celui du plan d'origine : un remboursement
+  // anticipé enregistré ne se voyait pas ici, alors que la fiche du crédit et la tréso le comptaient.
+  const { data: creditEventsByCredit = {} } = useAllCreditEvents(user?.id);
   const today = todayISO();
   const creditsByProject = useMemo(() => {
     const m: Record<string, { label: string; crd: number }[]> = {};
     for (const c of creditsList) {
       if (!c.project_id) continue;
-      (m[c.project_id] ??= []).push({ label: c.label, crd: computeAmortization(c).crdAtDate(today) });
+      const amort = computeAmortization({ ...c, events: creditEventsByCredit[c.id] ?? null });
+      (m[c.project_id] ??= []).push({ label: c.label, crd: amort.crdAtDate(today) });
     }
     return m;
-  }, [creditsList, today]);
+  }, [creditsList, creditEventsByCredit, today]);
   const deleteFullMutation = useDeleteProjectFull(user?.id || '');
   const archiveMutation = useArchiveProject(user?.id || '');
   const deleteFromDateMutation = useDeleteProjectFromDate(user?.id || '');
