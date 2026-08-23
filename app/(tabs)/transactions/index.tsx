@@ -92,8 +92,9 @@ function formatMonthHeader(year: number, month: number) {
 // Élément de la liste APLATIE (FlatList) — un type par « brique » visuelle.
 type TxListItem =
   | { t: 'ad'; placement: string; k: string }
-  | { t: 'monthHeader'; year: number; month: number; gap: boolean; k: string }
-  | { t: 'futureToggle'; count: number; k: string }
+  /* `future` : nb de transactions à venir du mois en cours. La bascule « À venir » vit SUR la ligne
+     du libellé du mois (et non plus sur sa propre ligne) — une hauteur de moins à faire défiler. */
+  | { t: 'monthHeader'; year: number; month: number; gap: boolean; future: number; k: string }
   | { t: 'row'; item: any; group: 'future' | 'past'; pos: number; groupCount: number; k: string }
   | { t: 'emptyPast'; k: string };
 
@@ -503,8 +504,9 @@ function TransactionsListBody() {
   }, [filtered]);
 
   // ── Liste APLATIE (typée) pour la FlatList : virtualisation au niveau LIGNE (seules les lignes
-  // visibles sont rendues). On reproduit fidèlement la structure : en-tête de mois, section « À venir »
-  // repliable, cartes de lignes (rayons haut/bas par groupe), pub inter-mois, placeholders. ──
+  // visibles sont rendues). On reproduit fidèlement la structure : en-tête de mois (porteur de la
+  // bascule « À venir » repliable), cartes de lignes (rayons haut/bas par groupe), pub inter-mois,
+  // placeholders. ──
   const listData = useMemo(() => {
     const out: TxListItem[] = [];
     byMonth.forEach(({ key, year, month, items }, monthIndex) => {
@@ -512,13 +514,10 @@ function TransactionsListBody() {
       const pastItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) <= todayStr) : items;
       const futureItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) > todayStr) : [];
       if (monthIndex === 1) out.push({ t: 'ad', placement: 'transactions_mois', k: 'ad-mois' });
-      out.push({ t: 'monthHeader', year, month, gap: monthIndex > 0, k: `mh-${key}` });
-      if (isCurrentMonth && futureItems.length > 0) {
-        out.push({ t: 'futureToggle', count: futureItems.length, k: `ft-${key}` });
-        if (showFutureThisMonth) {
-          futureItems.forEach((item, i) =>
-            out.push({ t: 'row', item, group: 'future', pos: i, groupCount: futureItems.length, k: `f-${item.id}-${(item as any).displayDate || ''}` }));
-        }
+      out.push({ t: 'monthHeader', year, month, gap: monthIndex > 0, future: futureItems.length, k: `mh-${key}` });
+      if (isCurrentMonth && futureItems.length > 0 && showFutureThisMonth) {
+        futureItems.forEach((item, i) =>
+          out.push({ t: 'row', item, group: 'future', pos: i, groupCount: futureItems.length, k: `f-${item.id}-${(item as any).displayDate || ''}` }));
       }
       if (pastItems.length > 0) {
         pastItems.forEach((item, i) =>
@@ -849,7 +848,7 @@ function TransactionsListBody() {
     );
   };
 
-  // renderItem de la FlatList : chaque « brique » (pub, en-tête de mois, bascule « À venir », ligne, vide).
+  // renderItem de la FlatList : chaque « brique » (pub, en-tête de mois + bascule « À venir », ligne, vide).
   const renderListItem = ({ item: li }: { item: TxListItem }) => {
     switch (li.t) {
       case 'ad':
@@ -858,14 +857,13 @@ function TransactionsListBody() {
         return (
           <View style={[styles.monthHeader, li.gap && { marginTop: 16 }]}>
             <Text style={styles.monthHeaderText}>{formatMonthHeader(li.year, li.month)}</Text>
+            {li.future > 0 && (
+              <TouchableOpacity style={styles.futureToggle} onPress={() => setShowFutureThisMonth((v) => !v)} activeOpacity={0.7} accessibilityRole="button">
+                <Text style={styles.futureToggleText}>À venir ({li.future})</Text>
+                <Ionicons name={showFutureThisMonth ? 'chevron-up' : 'chevron-down'} size={14} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
-        );
-      case 'futureToggle':
-        return (
-          <TouchableOpacity style={styles.futureToggle} onPress={() => setShowFutureThisMonth((v) => !v)} activeOpacity={0.7} accessibilityRole="button">
-            <Ionicons name={showFutureThisMonth ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
-            <Text style={styles.futureToggleText}>À venir ce mois ({li.count})</Text>
-          </TouchableOpacity>
         );
       case 'row': {
         const first = li.pos === 0;
@@ -1340,7 +1338,8 @@ function makeStyles(c: any) {
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
   monthBlock: { marginBottom: 20 },
-  monthHeader: { paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4 },
+  // Libellé du mois à gauche, bascule « À venir » à droite : les deux partagent la même ligne.
+  monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4 },
   monthHeaderText: {
     fontSize: 12,
     fontWeight: '700',
@@ -1429,7 +1428,8 @@ function makeStyles(c: any) {
     fontWeight: '600',
   },
   empty: { padding: 24, color: c.textSecondary, textAlign: 'center' },
-  futureToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8, paddingVertical: 9, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
+  // Zone tactile élargie sans hauteur ajoutée : le padding déborde sur celui de l'en-tête.
+  futureToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   futureToggleText: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   futureCard: { marginBottom: 8 },
   hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
