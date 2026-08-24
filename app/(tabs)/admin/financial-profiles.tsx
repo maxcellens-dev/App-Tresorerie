@@ -25,6 +25,7 @@ import {
 import {
   PROFILE_INFO, FINANCIAL_PROFILE_IDS, PROFILE_TRANSITION_KEYS,
   computeProfileFromData, thresholdsFromMatrix,
+  type ProfileDataInputs,
 } from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
@@ -114,7 +115,8 @@ function SimulationSection({ userId }: { userId: string }) {
     <View style={styles.sectionContent}>
       <Text style={styles.matrixInfo}>
         Force ton profil vers la cible choisie et affiche immédiatement la pop-up correspondante.
-        Ignore les critères, le gel des 6 mois et la date de déclenchement. Le changement est réel.
+        Ignore les critères de l'échelle. Le changement est RÉEL — et il ne tiendra que jusqu'à la
+        prochaine synchronisation : le profil est recalculé dès que tes données bougent.
       </Text>
 
       {/* Profil actuel */}
@@ -508,7 +510,18 @@ function ProfileDistribution() {
 
   return (
     <View style={styles.matrixCard}>
-      <Text style={styles.matrixLabel}>Répartition de la base ({data.total} profils)</Text>
+      <Text style={styles.matrixLabel}>
+        Répartition de la base ({data.total} profils{data.truncated ? ' au moins' : ''})
+      </Text>
+      {/* Un total TRONQUÉ présenté comme exact est pire que pas de total : on calibre des seuils
+          dessus. Le cas ne se produit que sur le repli client (fonction d'agrégation pas encore
+          déployée, cf. migration 211). */}
+      {data.truncated && (
+        <Text style={[styles.matrixSummaryText, { color: COLORS.orange }]}>
+          Décompte plafonné : la fonction d’agrégation n’est pas encore déployée sur cette base.
+          Les proportions restent indicatives, le total ne l’est pas.
+        </Text>
+      )}
       {ALL_PROFILES.map((p) => {
         const n = data.counts[p] ?? 0;
         const pct = Math.round((n / data.total) * 100);
@@ -545,7 +558,7 @@ function LadderSimulator({ configs }: { configs: any[] }) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [v, setV] = useState({
-    income: '2500', expenses: '1600', savings: '6000', invested: '0', wealth: '',
+    income: '2500', expenses: '1600', savings: '6000', invested: '0',
   });
   const num = (s: string) => {
     const n = parseFloat(String(s).replace(',', '.'));
@@ -555,13 +568,14 @@ function LadderSimulator({ configs }: { configs: any[] }) {
   const thresholds = useMemo(() => thresholdsFromMatrix(configs as any[]), [configs]);
   const savings = num(v.savings);
   const invested = num(v.invested);
-  const inputs = {
+  /* Typé explicitement : sans ça, une propriété qui n'existe plus dans le moteur (le patrimoine
+     saisi à la main, retiré des entrées) passait inaperçue — TypeScript ne contrôle les propriétés
+     en trop que sur un littéral passé DIRECTEMENT. */
+  const inputs: ProfileDataInputs = {
     availableSavings: savings,
     avgMonthlyIncome: num(v.income),
     monthlyEssentialExpenses: num(v.expenses),
     totalInvested: invested,
-    totalLiquidWealth: v.wealth.trim() === '' ? undefined : num(v.wealth),
-    hasSavingsAccount: true,
     hasRecurringExpenses: num(v.expenses) > 0,
   };
   const profile = computeProfileFromData(inputs, thresholds, 'up');
@@ -574,7 +588,6 @@ function LadderSimulator({ configs }: { configs: any[] }) {
     { key: 'expenses', label: 'Dépenses essentielles / mois (€)' },
     { key: 'savings',  label: 'Épargne disponible (€)' },
     { key: 'invested', label: 'Total réellement placé (€)' },
-    { key: 'wealth',   label: 'Patrimoine bancaire (€, vide = épargne + placements)' },
   ];
 
   return (
@@ -598,7 +611,10 @@ function LadderSimulator({ configs }: { configs: any[] }) {
         </Text>
         <Text style={styles.matrixSummaryText}>
           Matelas : {months == null ? '—' : `${months.toFixed(1)} mois`} ·
-          Patrimoine : {(inputs.totalLiquidWealth ?? savings + invested).toLocaleString('fr-FR')} €
+          {/* Le patrimoine se DÉDUIT (épargne + placements) : il ne se saisit plus. Le champ libre
+              qui existait ici permettait de simuler un patrimoine incohérent avec les deux montants
+              du dessus — et il portait encore le solde courant, que l'échelle a cessé de compter. */}
+          Patrimoine : {(savings + invested).toLocaleString('fr-FR')} €
         </Text>
         {/* Les deux lectures : c'est la bande d'hystérésis rendue visible. */}
         <Text style={styles.matrixSummaryText}>
@@ -652,6 +668,30 @@ function MatrixSection({ userId }: { userId: string }) {
   }
 
   async function handleSave(transition: string) {
+    /* ── UNE BANDE INVERSÉE CASSE L'ÉCHELLE POUR TOUT LE MONDE ─────────────────────────────────
+       Le seuil de descente doit rester SOUS celui de montée : c'est cet écart qui EST l'hystérésis.
+       À l'envers (descente > montée), il faudrait plus de réserve pour se maintenir que pour entrer
+       — un utilisateur pile entre les deux monterait et redescendrait à chaque saisie, avec une
+       notification à chaque fois. Rien ne l'empêchait : l'écran affichait bien un « écart tampon »
+       négatif, mais l'enregistrement passait quand même, et le réglage partait en base pour tous. */
+    const check = (upKey: string, downKey: string, unit: string): string | null => {
+      const up = parseFloat(String(editValues[upKey]).replace(',', '.'));
+      const down = parseFloat(String(editValues[downKey]).replace(',', '.'));
+      if (!Number.isFinite(up) || !Number.isFinite(down)) return null; // vide = repli du moteur
+      return down > up
+        ? `Le seuil de descente (${down} ${unit}) doit rester sous celui de montée (${up} ${unit}) : sans cet écart, le profil bascule d'avant en arrière à chaque saisie.`
+        : null;
+    };
+    const problem = transition === 'P1_P2'
+      /* Sur la ligne de la viabilité, la colonne de descente porte la sortie de la DISPENSE : c'est
+         à `viability_grace_months` qu'elle doit rester inférieure, pas à un seuil de matelas que
+         cette ligne ne porte pas. */
+      ? check('viability_grace_months', 'downgrade_months_threshold', 'mois')
+        ?? check('viability_enter_ratio', 'viability_exit_ratio', '× revenu')
+      : check('upgrade_months_threshold', 'downgrade_months_threshold', 'mois')
+        ?? check('upgrade_wealth_threshold', 'downgrade_wealth_threshold', '€');
+    if (problem) { Alert.alert('Réglage impossible', problem); return; }
+
     try {
       await updateConfig.mutateAsync({
         transition,
@@ -723,12 +763,23 @@ function MatrixSection({ userId }: { userId: string }) {
                   {
                     field: 'upgrade_months_threshold',
                     label: WEALTH_TRANSITIONS.has(transition)
-                      ? 'Réserve minimale exigée (mois de dépenses)'
+                      ? 'Réserve minimale exigée pour ENTRER (mois)'
                       : 'Montée — mois de DÉPENSES couverts ≥',
                   },
-                  ...(WEALTH_TRANSITIONS.has(transition) ? [] : [
-                    { field: 'downgrade_months_threshold', label: 'Descente — mois de DÉPENSES couverts <' },
-                  ]),
+                  /* La réserve de SORTIE se règle aussi sur les paliers de patrimoine. Le champ y
+                     était masqué : la colonne restait donc vide et le moteur réutilisait le seuil
+                     d'entrée pour décider de la descente — même valeur dans les deux sens, donc
+                     aucune bande, donc un profil qui basculait P6 ⇄ P7 à chaque saisie. */
+                  {
+                    field: 'downgrade_months_threshold',
+                    label: WEALTH_TRANSITIONS.has(transition)
+                      ? 'Réserve sous laquelle on QUITTE ce palier (mois)'
+                      /* Sur la ligne de la VIABILITÉ, cette colonne porte l'autre moitié de la
+                         dispense de P1 : les seuils de matelas, eux, commencent à P2_P3. */
+                      : transition === 'P1_P2'
+                        ? 'Réserve sous laquelle la dispense de P1 CESSE (mois)'
+                        : 'Descente — mois de DÉPENSES couverts <',
+                  },
 
                   /* PALIERS DE PATRIMOINE : ne concernent que P6→P7, P7→P8, P8→P9. Sur ces trois
                      transitions, la RÉSERVE minimale s'ajoute au montant — le patrimoine seul
@@ -758,14 +809,14 @@ function MatrixSection({ userId }: { userId: string }) {
                     />
                   </View>
                 ))}
-                {!WEALTH_TRANSITIONS.has(transition) && (
-                  <View style={styles.bufferRow}>
-                    <Text style={styles.bufferLabel}>Écart tampon (calculé)</Text>
-                    <Text style={styles.bufferValue}>
-                      {(parseFloat(editValues.upgrade_months_threshold) - parseFloat(editValues.downgrade_months_threshold)).toFixed(1)} mois
-                    </Text>
-                  </View>
-                )}
+                {/* L'écart tampon vaut pour TOUTES les transitions, patrimoine compris : c'est lui
+                    qui empêche le profil de clignoter, quel que soit le palier. */}
+                <View style={styles.bufferRow}>
+                  <Text style={styles.bufferLabel}>Écart tampon (calculé)</Text>
+                  <Text style={styles.bufferValue}>
+                    {(parseFloat(editValues.upgrade_months_threshold) - parseFloat(editValues.downgrade_months_threshold)).toFixed(1)} mois
+                  </Text>
+                </View>
                 <TouchableOpacity
                   style={[styles.saveBtn, updateConfig.isPending && { opacity: 0.6 }]}
                   onPress={() => handleSave(transition)}
@@ -785,7 +836,8 @@ function MatrixSection({ userId }: { userId: string }) {
                       sortie &lt; {(cfg as any).downgrade_wealth_threshold ?? '—'} €
                     </Text>
                     <Text style={styles.matrixSummaryText}>
-                      Réserve exigée en plus : ≥ {cfg.upgrade_months_threshold} mois · placements obligatoires
+                      Réserve exigée en plus : ≥ {cfg.upgrade_months_threshold} mois pour entrer ·
+                      sortie &lt; {cfg.downgrade_months_threshold ?? '5 (défaut)'} mois · placements obligatoires
                     </Text>
                   </>
                 ) : (

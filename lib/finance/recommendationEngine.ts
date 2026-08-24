@@ -15,7 +15,7 @@ import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
 import type { FinancialProfile, FinancialProfileId } from '../../types/database';
 import { PROFILE_ALLOCATIONS, PROFILE_TO_TIER, resolveProfileId } from './financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from './securityCushion';
-import { computeFinancialPriority, applyPriorityBounds } from './financialPriorities';
+import { computeFinancialPriority, applyPriorityBounds, situationFromPilotage } from './financialPriorities';
 import { floorToTen, CURRENCY_SYMBOL } from './currency';
 
 /* ── Types ───────────────────────────────────────────────── */
@@ -304,22 +304,10 @@ export function deriveRecoAllocations(
        personnes en même priorité. Le PALIER, lui, ne sert plus qu'au vocabulaire des conseils. */
     // Identifiant venu de la base : ramené sur le référentiel de CE bundle (cf. resolveProfileId).
     const pid = resolveProfileId(opts.financialProfileId);
-    const priority = computeFinancialPriority({
-      monthsOfReserve: computeSecurityCushion({
-        availableSavings: data.current_savings,
-        monthlyEssentialExpenses: data.monthly_essential_expenses,
-        // Charges inconnues → base « dépenses » écartée (cf. lib/securityCushion) : la même règle
-        // partout, sinon deux écrans annoncent deux matelas.
-        recurringExpensesKnown: !!data.has_recurring_expenses,
-        avgMonthlyIncome: data.avg_monthly_income,
-      }).months,
-      monthlySurplus: data.safe_to_spend ?? 0,
-      avgMonthlyIncome: data.avg_monthly_income ?? 0,
-      monthlyEssentialExpenses: data.monthly_essential_expenses ?? 0,
-      checkingBalance: data.current_checking_balance ?? 0,
-      savingsBalance: data.current_savings ?? 0,
-      investedBalance: data.total_invested ?? 0,
-    });
+    /* La situation du mois est assemblée par la fonction PARTAGÉE (lib/financialPriorities) — la
+       même que les quatre écrans qui affichent ces pourcentages. Elle était recopiée ici, sans le
+       découvert chronique : la priorité « Sortir du rouge » ne se déclenchait donc jamais. */
+    const priority = computeFinancialPriority(situationFromPilotage(data)!);
     /* La base est celle du palier — SAUF si l'utilisateur a réglé ses propres pourcentages. Le
        reste du chemin est rigoureusement le même : c'est ce qui permet de dire honnêtement que le
        mode manuel « revient à se donner un profil sur mesure ». */

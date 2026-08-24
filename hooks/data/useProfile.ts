@@ -164,8 +164,8 @@ export function useUpdateProfile(profileId: string | undefined) {
         }
       }
 
-      /* Synchro du questionnaire — copies DÉNORMALISÉES (q8 = la marge, q9 = le budget variable
-         hebdomadaire), en chaîne. Elles ne conditionnent rien à l'écran : `profiles` fait foi, et
+      /* Synchro du questionnaire — UNE seule copie dénormalisée : q9, le budget variable
+         hebdomadaire, en chaîne. Elle ne conditionne rien à l'écran : `profiles` fait foi, et
          le moteur ne lit q9 QU'EN REPLI, quand `weekly_variable_budget` est absent. On ne fait donc
          pas attendre l'utilisateur dessus — un aller-retour de moins sur le chemin critique.
 
@@ -174,8 +174,12 @@ export function useUpdateProfile(profileId: string | undefined) {
          donc q9 périmé. Deux écrans, un même réglage, deux comportements — et un repli qui pouvait
          ressusciter une vieille estimation le jour où l'utilisateur efface son budget variable.
          Toute écriture de `weekly_variable_budget` passe par ce hook : c'est le bon endroit. */
+      /* q8 (la marge de sécurité) N'EST PLUS RECOPIÉ. Plus aucun calcul ne le lisait depuis le
+         retrait du questionnaire — `profiles.safety_margin_amount` fait foi partout — et on écrivait
+         donc dans une colonne que personne n'ouvre à chaque réglage de marge.
+         q9 RESTE : c'est un vrai repli, pour les comptes créés avant que `weekly_variable_budget`
+         n'existe. Il est encore lu par le moteur du Pilotage quand la colonne moderne est vide. */
       const syncAnswers: Record<string, string> = {};
-      if (safetyAmount !== undefined) syncAnswers.q8 = String(safetyAmount);
       if (payload.weekly_variable_budget !== undefined) {
         // `null` (budget effacé) → chaîne vide, et non « null » : c'est ce que lit `weeklyVariableFromQ9`.
         syncAnswers.q9 = payload.weekly_variable_budget ? String(payload.weekly_variable_budget) : '';

@@ -2,6 +2,7 @@ import {
   computeFinancialPriority,
   applyPriorityBounds,
   resolveMonthlyAllocation,
+  situationFromPilotage,
   normalize,
   type SituationInputs,
 } from '../lib/finance/financialPriorities';
@@ -31,18 +32,15 @@ describe('computeFinancialPriority — l’ordre des priorités', () => {
     expect(p.bounds.invest?.max).toBe(0);
   });
 
-  it('découvert chronique → DÉSENDETTER, même avec une réserve confortable', () => {
-    const p = computeFinancialPriority({ ...base, monthsOfReserve: 8, checkingBalance: -300, consecutiveOverdraftMonths: 2 });
+
+  /* La branche « dette coûteuse » a été RETIRÉE : aucun appelant n'a jamais renseigné le capital
+     restant dû, et « coûteux » n'était défini nulle part. « Sortir du rouge » ne repose donc plus
+     que sur le découvert chronique — qui, lui, est mesuré et transmis. */
+  it('découvert chronique → SORTIR DU ROUGE, même avec une réserve confortable', () => {
+    const p = computeFinancialPriority({ ...base, monthsOfReserve: 10, consecutiveOverdraftMonths: 3 });
     expect(p.id).toBe('debt');
     expect(p.bounds.invest?.max).toBe(0);
-  });
-
-  it('dette coûteuse → DÉSENDETTER : rembourser bat tout placement', () => {
-    const p = computeFinancialPriority({ ...base, monthsOfReserve: 10, costlyDebt: 4200 });
-    expect(p.id).toBe('debt');
-    // Montant formaté comme partout ailleurs : séparateur de milliers + symbole de la devise de
-    // référence (l'espace insécable varie selon la version d'ICU, d'où le `\s?`).
-    expect(p.reason).toMatch(/4\s?200\s?€/);
+    expect(p.reason).toContain('3 mois');
   });
 
   it('moins d’1 mois de réserve → URGENCE, investissement à 0 %', () => {
@@ -58,12 +56,11 @@ describe('computeFinancialPriority — l’ordre des priorités', () => {
     expect(p.bounds.invest?.max).toBe(5);
   });
 
-  /* Un besoin à moins d'un an ne se place pas en Bourse. Mais il passe APRÈS la réserve : on ne
-     finance pas un projet sans filet. */
-  it('projet proche à financer → passe avant l’investissement, mais après la réserve', () => {
-    const withProject = { ...base, shortTermProjectsNeed: 3000 };
-    expect(computeFinancialPriority(withProject).id).toBe('fund_project');
-    expect(computeFinancialPriority({ ...withProject, monthsOfReserve: 0.5 }).id).toBe('emergency');
+  /* La priorité « Financer ton projet » a été RETIRÉE : aucun appelant n'a jamais renseigné le
+     besoin de financement, elle ne pouvait donc pas se déclencher. Une priorité qui ne se déclenche
+     jamais n'est pas une règle. La réserve reste ce qui gouverne cette zone de l'échelle. */
+  it('3 à 6 mois de réserve → ÉQUILIBRER, quoi qu’il y ait par ailleurs', () => {
+    expect(computeFinancialPriority({ ...base, monthsOfReserve: 4 }).id).toBe('balanced');
   });
 
   it('3 à 6 mois → ÉQUILIBRER', () => {
@@ -173,5 +170,74 @@ describe('resolveMonthlyAllocation — même profil, situations opposées', () =
         expect(alloc.save + alloc.invest + alloc.enjoy + alloc.keep).toBe(100);
       }
     }
+  });
+});
+
+/* ── LA SITUATION DU MOIS, ASSEMBLÉE UNE SEULE FOIS ──────────────────────────────────────────────
+   Elle était reconstruite à la main dans cinq fichiers, avec des champs différents d'un endroit à
+   l'autre. Le plus coûteux des oublis : PERSONNE ne transmettait le découvert chronique, si bien
+   que la priorité « Sortir du rouge » — la deuxième de la liste, documentée comme non négociable —
+   ne s'est jamais déclenchée pour personne. L'app pouvait recommander d'investir 15 à 40 % à
+   quelqu'un dont le compte finit dans le rouge tous les mois. */
+describe('situationFromPilotage — le pont entre le tableau de bord et la priorité du mois', () => {
+  const pilotage: any = {
+    current_savings: 9000,
+    total_invested: 2000,
+    current_checking_balance: -250,
+    avg_monthly_income: 3000,
+    monthly_essential_expenses: 1500,
+    has_recurring_expenses: true,
+    consecutive_overdraft_months: 3,
+    safe_to_spend: 400,
+  };
+
+  it('transmet le découvert chronique — et « Sortir du rouge » se déclenche enfin', () => {
+    const s = situationFromPilotage(pilotage)!;
+    expect(s.consecutiveOverdraftMonths).toBe(3);
+    expect(computeFinancialPriority(s).id).toBe('debt');
+  });
+
+  it('sans découvert, la priorité redevient celle du matelas', () => {
+    const s = situationFromPilotage({ ...pilotage, consecutive_overdraft_months: 0, current_checking_balance: 800 })!;
+    expect(computeFinancialPriority(s).id).toBe('invest'); // 9 000 ÷ 1 500 = 6 mois
+  });
+
+  it('le matelas est mesuré avec la garde sur les charges connues', () => {
+    // Sans charge récurrente saisie, le dénominateur « dépenses » est amputé du loyer : on retombe
+    // sur le revenu (prudent), sinon la réserve gonfle et la priorité saute d'un cran.
+    const sansCharges = situationFromPilotage({ ...pilotage, has_recurring_expenses: false })!;
+    expect(sansCharges.monthsOfReserve).toBeCloseTo(9000 / 3000, 5);
+    const avecCharges = situationFromPilotage(pilotage)!;
+    expect(avecCharges.monthsOfReserve).toBeCloseTo(9000 / 1500, 5);
+  });
+
+  it('sans données de pilotage, aucune situation inventée', () => {
+    expect(situationFromPilotage(null)).toBeNull();
+  });
+
+  it('des champs absents ne produisent pas de NaN', () => {
+    const s = situationFromPilotage({} as any)!;
+    for (const v of [s.monthlySurplus, s.avgMonthlyIncome, s.monthlyEssentialExpenses,
+      s.checkingBalance, s.savingsBalance, s.investedBalance, s.consecutiveOverdraftMonths]) {
+      expect(Number.isNaN(v)).toBe(false);
+    }
+    expect(s.monthsOfReserve).toBeNull();
+  });
+});
+
+/* Le seuil de viabilité est RÉGLABLE pour le classement du profil (`viability_enter_ratio`). Il
+   était réécrit en dur ici (1,02) : déplacer le curseur faisait sortir quelqu'un du palier
+   « Fragile » pendant que la priorité du mois continuait de lui répondre « rééquilibre ton mois ». */
+describe('viabilité — un seul seuil pour une seule question', () => {
+  const serré = {
+    ...base, monthsOfReserve: 4, avgMonthlyIncome: 2000, monthlyEssentialExpenses: 2100,
+  };
+
+  it('au réglage par défaut, la situation est jugée déficitaire', () => {
+    expect(computeFinancialPriority(serré).id).toBe('stabilize');
+  });
+
+  it('un seuil de viabilité plus large est respecté', () => {
+    expect(computeFinancialPriority({ ...serré, viabilityEnterRatio: 1.2 }).id).not.toBe('stabilize');
   });
 });

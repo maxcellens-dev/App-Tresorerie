@@ -6,7 +6,6 @@ import {
   FINANCIAL_PROFILE_IDS,
   RANKED_PROFILE_IDS,
   PROFILE_TRANSITION_KEYS,
-  isMillionaire,
   resolveProfileId,
   resolveLiveProfile,
   DEFAULT_PROFILE_THRESHOLDS,
@@ -170,23 +169,33 @@ describe('questions 3 et 4 — placements, puis taille du patrimoine', () => {
     expect(computeProfileFromData(withMonths(6, { totalInvested: 5000 }))).toBe('P6');
   });
 
+  /* Le patrimoine se DÉDUIT : épargne + placements, et rien d'autre. Le solde courant en est exclu —
+     c'est la trésorerie du mois, pas un patrimoine. L'inclure faisait entrer en « Patrimoine en
+     construction » quelqu'un qui venait d'être payé, et l'en faisait ressortir trois semaines plus
+     tard. (Ici : 6 mois de réserve × 1 000 € de dépenses = 6 000 € d'épargne, + les placements.) */
   it('30 000 € → P7, 100 000 € → P8, 300 000 € → P9', () => {
-    expect(computeProfileFromData(withMonths(6, { totalInvested: 12000, totalLiquidWealth: 34000 }))).toBe('P7');
-    expect(computeProfileFromData(withMonths(6, { totalInvested: 80000, totalLiquidWealth: 125000 }))).toBe('P8');
-    expect(computeProfileFromData(withMonths(6, { totalInvested: 300000, totalLiquidWealth: 380000 }))).toBe('P9');
+    expect(computeProfileFromData(withMonths(6, { totalInvested: 26000 }))).toBe('P7');
+    expect(computeProfileFromData(withMonths(6, { totalInvested: 96000 }))).toBe('P8');
+    expect(computeProfileFromData(withMonths(6, { totalInvested: 296000 }))).toBe('P9');
   });
 
-  it('le million est NOMMÉ, il n’ouvre pas un onzième palier', () => {
-    expect(isMillionaire(1_200_000)).toBe(true);
-    expect(isMillionaire(940_000)).toBe(false);
-    expect(computeProfileFromData(withMonths(6, { totalInvested: 900000, totalLiquidWealth: 1_500_000 }))).toBe('P9');
+  it('un gros solde COURANT n’ouvre aucun palier de patrimoine', () => {
+    // 60 000 € sur le compte courant, réserve pleine, placements modestes : ce n'est pas un
+    // patrimoine, c'est de la trésorerie. On reste sur l'échelle du matelas.
+    expect(computeProfileFromData(withMonths(6, { totalInvested: 2000, checkingBalance: 60000 }))).toBe('P6');
+  });
+
+  /* Le million n'ouvre pas de onzième palier : il n'est qu'un mot dans la description de P9.
+     (`isMillionaire` a été retiré — une fonction appelée par un seul test et par aucun écran.) */
+  it('au-delà du million, on reste en P9', () => {
+    expect(computeProfileFromData(withMonths(6, { totalInvested: 900000 }))).toBe('P9');
   });
 
   /* MONOTONIE DE L'ÉCHELLE. P7 exigeait trois mois de réserve quand P5 et P6 en demandent six : on
      pouvait donc atteindre un palier « supérieur » en étant MOINS couvert que deux paliers plus bas,
      et redescendre de P7 à P3 sans qu'aucune donnée n'ait bougé. */
   it('un patrimoine important n’ouvre rien tant que la réserve n’est pas pleine', () => {
-    const riche = { totalInvested: 200000, totalLiquidWealth: 240000 };
+    const riche = { totalInvested: 200000 };
     expect(computeProfileFromData(withMonths(4, riche))).toBe('P4');   // 4 mois : pas encore
     expect(computeProfileFromData(withMonths(6, riche))).toBe('P8');   // 6 mois : le palier s'ouvre
   });
@@ -194,13 +203,13 @@ describe('questions 3 et 4 — placements, puis taille du patrimoine', () => {
   it('un capital qui DORT n’est pas un patrimoine piloté', () => {
     // 400 000 € sur un livret, rien de placé : on reste sur l'échelle du matelas.
     expect(computeProfileFromData({
-      ...base, availableSavings: 400000, totalInvested: 0, totalLiquidWealth: 400000,
+      ...base, availableSavings: 400000, totalInvested: 0,
     })).toBe('P5');
   });
 
   it('patrimoine élevé mais AUCUNE liquidité → l’échelle du matelas reprend la main', () => {
     expect(computeProfileFromData({
-      ...base, availableSavings: 0, totalInvested: 400000, totalLiquidWealth: 400000,
+      ...base, availableSavings: 0, totalInvested: 400000,
     })).toBe('P2');
   });
 });
@@ -504,5 +513,114 @@ describe('allocationsFromRows — l’administration règle, le code garde le fi
       const a = t[id];
       expect(`${id}:${a.save + a.invest + a.enjoy + a.keep}`).toBe(`${id}:100`);
     }
+  });
+});
+
+/* ── LE DERNIER SEUIL SANS HYSTÉRÉSIS ────────────────────────────────────────────────────────────
+   La RÉSERVE exigée par les paliers de patrimoine (`wealthMinMonths`) servait à la fois à monter et
+   à descendre : une même valeur, dans les deux sens. Chez quelqu'un dont le matelas frôle six mois —
+   et il bouge à chaque saisie, puisque l'enveloppe de dépenses variables entre dans son
+   dénominateur — le profil basculait P6 ⇄ P7 d'une opération à l'autre, avec une fenêtre « ton
+   profil a changé » à chaque passage. C'est précisément ce contre quoi la bande existe. */
+describe('paliers de patrimoine — la réserve exigée a sa bande, comme le reste', () => {
+  /** Patrimoine confortable, placements en place : seul le matelas bouge. */
+  const rich = (months: number): ProfileDataInputs => ({
+    availableSavings: months * 1000,
+    avgMonthlyIncome: 3000,
+    monthlyEssentialExpenses: 1000,
+    hasRecurringExpenses: true,
+    checkingBalance: 2000,
+    consecutiveOverdraftMonths: 0,
+    totalInvested: 40000,
+  });
+
+  it('on monte en P7 à six mois de réserve', () => {
+    expect(computeProfileFromData(rich(6.1), DEFAULT_PROFILE_THRESHOLDS, 'up')).toBe('P7');
+  });
+
+  it('on NE redescend PAS de P7 pour un dixième de mois en moins', () => {
+    const live = resolveLiveProfile('P7', rich(5.9), DEFAULT_PROFILE_THRESHOLDS);
+    expect(live.profileId).toBe('P7');
+    expect(live.changed).toBe(false);
+  });
+
+  it('un aller-retour autour de six mois ne produit AUCUN changement', () => {
+    let current: FinancialProfileId = 'P7';
+    for (const months of [5.95, 6.05, 5.9, 6.02, 5.98]) {
+      const live = resolveLiveProfile(current, rich(months), DEFAULT_PROFILE_THRESHOLDS);
+      expect(live.changed).toBe(false);
+      current = live.profileId;
+    }
+    expect(current).toBe('P7');
+  });
+
+  it('une vraie rechute de réserve fait bien redescendre', () => {
+    const live = resolveLiveProfile('P7', rich(4), DEFAULT_PROFILE_THRESHOLDS);
+    expect(live.changed).toBe(true);
+    expect(live.direction).toBe('down');
+  });
+
+  it('la bande de sortie est lue dans la configuration (colonne de descente)', () => {
+    const cfg = thresholdsFromMatrix([
+      { transition: 'P6_P7', upgrade_months_threshold: 6, downgrade_months_threshold: 3 },
+    ] as any);
+    expect(cfg.wealthMinMonths.P7).toBe(6);
+    expect(cfg.wealthMinMonthsDown.P7).toBe(3);
+  });
+
+  it('colonne de descente vide → repli sur la bande par défaut, jamais sur le seuil de montée', () => {
+    const cfg = thresholdsFromMatrix([{ transition: 'P6_P7', upgrade_months_threshold: 8 }] as any);
+    expect(cfg.wealthMinMonths.P7).toBe(8);
+    expect(cfg.wealthMinMonthsDown.P7).toBe(DEFAULT_PROFILE_THRESHOLDS.wealthMinMonthsDown.P7);
+  });
+});
+
+/* ── LA DISPENSE DE « FRAGILE » A SA BANDE, ELLE AUSSI ───────────────────────────────────────────
+   Quelqu'un en déficit qui vit sur son épargne voit son matelas bouger à chaque saisie : l'enveloppe
+   de dépenses variables est à son dénominateur. Avec un seuil unique, il basculait « Fragile » ⇄
+   « Sécurité acquise » à 5,95 puis 6,05 mois — quatre paliers d'un coup, dans les deux sens, avec
+   une fenêtre à chaque passage. C'est le diagnostic le plus dur de l'app : il ne peut pas clignoter. */
+describe('dispense de viabilité — bande d’hystérésis', () => {
+  /** Déficit structurel (charges > revenu), matelas piloté par le test. */
+  const burning = (months: number): ProfileDataInputs => ({
+    availableSavings: months * 2000,
+    avgMonthlyIncome: 1500,
+    monthlyEssentialExpenses: 2000,   // 2 000 > 1 500 × 1,02 → déficit dans les deux lectures
+    hasRecurringExpenses: true,
+    checkingBalance: 500,
+    consecutiveOverdraftMonths: 0,
+    totalInvested: 0,
+  });
+
+  it('sous la dispense, la non-viabilité domine → Fragile', () => {
+    expect(computeProfileFromData(burning(3), DEFAULT_PROFILE_THRESHOLDS, 'up')).toBe('P1');
+  });
+
+  it('une réserve profonde dispense de Fragile', () => {
+    expect(computeProfileFromData(burning(8), DEFAULT_PROFILE_THRESHOLDS, 'up')).toBe('P5');
+  });
+
+  it('un aller-retour autour de six mois ne fait plus clignoter « Fragile »', () => {
+    let current: FinancialProfileId = 'P5';
+    for (const months of [5.95, 6.05, 5.9, 6.02]) {
+      const live = resolveLiveProfile(current, burning(months), DEFAULT_PROFILE_THRESHOLDS);
+      expect(live.changed).toBe(false);
+      current = live.profileId;
+    }
+    expect(current).toBe('P5');
+  });
+
+  it('une vraie fonte de la réserve fait bien basculer en Fragile', () => {
+    const live = resolveLiveProfile('P5', burning(4), DEFAULT_PROFILE_THRESHOLDS);
+    expect(live.changed).toBe(true);
+    expect(live.profileId).toBe('P1');
+  });
+
+  it('la bande de sortie est lue dans la configuration (ligne P1_P2)', () => {
+    const cfg = thresholdsFromMatrix([
+      { transition: 'P1_P2', viability_grace_months: 6, downgrade_months_threshold: 2 },
+    ] as any);
+    expect(cfg.viabilityGraceMonths).toBe(6);
+    expect(cfg.viabilityGraceMonthsDown).toBe(2);
   });
 });

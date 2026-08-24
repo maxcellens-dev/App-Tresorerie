@@ -17,7 +17,6 @@ function inputs(over: Partial<PulseInputs> = {}): PulseInputs {
     spendingSoFar: 280,
     savingsBalance: 6000,
     avgMonthlyIncome: 2000,
-    questionnaireQ3: null,
     totalWealth: 12000,
     wealth3mAgo: 11000,
     monthsWithoutOverdraft: 3,
@@ -34,12 +33,10 @@ describe('securityCushion — base RECETTES, uniforme dans toute l’app', () =>
     expect(c.months).toBe(3);
   });
 
-  it('sans revenu constaté, se replie sur la tranche du questionnaire', () => {
-    const c = computeSecurityCushion({
-      availableSavings: 3600, avgMonthlyIncome: 0, questionnaireQ3: 'De 1 500 € à 2 500 €',
-    });
-    expect(c.base).toBe('questionnaire');
-    expect(c.months).toBe(2); // 3600 / 1800 (borne basse prudente)
+  it('sans revenu ni dépenses connues, aucune conclusion', () => {
+    const c = computeSecurityCushion({ availableSavings: 3600, avgMonthlyIncome: 0 });
+    expect(c.base).toBeNull();
+    expect(c.months).toBeNull();
   });
 
   it('sans revenu ni questionnaire, ne renvoie PAS 0 mois mais « inconnu » (rien d’affiché)', () => {

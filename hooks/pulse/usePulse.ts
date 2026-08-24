@@ -12,7 +12,7 @@ import { useAllAccounts } from '../data/useAccounts';
 import { useProjects } from '../data/useProjects';
 import { usePreSavings } from '../data/usePreSavings';
 import { useReservations } from '../data/useReservations';
-import { useFinancialProfile, useQuestionnaireAnswers } from '../pilotage/useFinancialProfile';
+import { useFinancialProfile } from '../pilotage/useFinancialProfile';
 import { usePulseConfig } from './usePulseConfig';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useReliability';
 import { usePulseSnapshots } from './usePulseState';
@@ -128,7 +128,6 @@ type PulseDeps = {
   preSavings: QueryData<typeof usePreSavings>;
   reservations: NonNullable<QueryData<typeof useReservations>>;
   financialProfile: QueryData<typeof useFinancialProfile>;
-  answers: QueryData<typeof useQuestionnaireAnswers>;
   config: QueryData<typeof usePulseConfig>;
   relCfg: QueryData<typeof useReliabilityConfig>;
   snapshots: NonNullable<QueryData<typeof usePulseSnapshots>>;
@@ -154,7 +153,7 @@ function sameDeps(a: PulseDeps, b: PulseDeps): boolean {
   return a.pilotage === b.pilotage && a.transactions === b.transactions
     && a.accounts === b.accounts && a.projects === b.projects && a.preSavings === b.preSavings
     && a.reservations === b.reservations && a.financialProfile === b.financialProfile
-    && a.answers === b.answers && a.config === b.config && a.relCfg === b.relCfg
+    && a.config === b.config && a.relCfg === b.relCfg
     && a.snapshots === b.snapshots && a.userId === b.userId;
 }
 
@@ -175,7 +174,6 @@ export function usePulse(): PulseData | null {
   const { data: preSavings } = usePreSavings(user?.id);
   const { data: reservations = [] } = useReservations(user?.id);
   const { data: financialProfile } = useFinancialProfile(user?.id);
-  const { data: answers } = useQuestionnaireAnswers(user?.id);
   const { data: config } = usePulseConfig();
   const { data: relCfg } = useReliabilityConfig();
   const { data: snapshots = [] } = usePulseSnapshots(user?.id);
@@ -183,11 +181,11 @@ export function usePulse(): PulseData | null {
   return useMemo<PulseData | null>(
     () => sharedPulse({
       pilotage, transactions, accounts, projects, preSavings, reservations,
-      financialProfile, answers, config, relCfg, snapshots, userId: user?.id,
+      financialProfile, config, relCfg, snapshots, userId: user?.id,
     }),
     [
       pilotage, transactions, accounts, projects, preSavings, reservations,
-      financialProfile, answers, config, relCfg, snapshots, user?.id,
+      financialProfile, config, relCfg, snapshots, user?.id,
     ],
   );
 }
@@ -195,7 +193,7 @@ export function usePulse(): PulseData | null {
 function buildPulse(deps: PulseDeps): PulseData | null {
   const {
     pilotage, transactions, accounts, projects, preSavings, reservations,
-    financialProfile, answers, config, relCfg, snapshots, userId,
+    financialProfile, config, relCfg, snapshots, userId,
   } = deps;
 
   if (!pilotage || !config?.enabled) return null;
@@ -326,7 +324,6 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
     // Même garde que le moteur de profil : sans charge saisie, on mesure le matelas sur le revenu.
     recurringExpensesKnown: !!pilotage.has_recurring_expenses,
-    questionnaireQ3: (answers as any)?.q3 ?? null,
     totalWealth: wealth,
     wealth3mAgo,
     monthsWithoutOverdraft,

@@ -26,14 +26,24 @@
  * découvert, on ne construit pas un portefeuille quand on n'a pas trois mois devant soi.
  *
  *   1. STABILISER   — les dépenses dépassent les revenus. Rien d'autre ne compte.
- *   2. DÉSENDETTER  — découvert chronique ou dette coûteuse : chaque euro remboursé rapporte
+ *   2. SORTIR DU ROUGE — découvert chronique : chaque euro qui comble le découvert rapporte
  *                     davantage, et plus sûrement, que n'importe quel placement.
  *   3. URGENCE      — moins d'1 mois de réserve : investissement à 0 %, sans exception.
  *   4. CONSTRUIRE   — 1 à 3 mois : l'épargne prime, l'investissement reste symbolique (≤ 5 %).
- *   5. FINANCER     — un projet à moins d'un an à couvrir : il passe avant le long terme.
- *   6. ÉQUILIBRER   — 3 à 6 mois : épargne et investissement à parts comparables.
- *   7. INVESTIR     — au-delà de 6 mois : le liquide qui dort coûte, l'investissement prend la main.
- *   8. OPTIMISER    — patrimoine constitué : diversification, l'épargne de précaution est pleine.
+ *   5. ÉQUILIBRER   — 3 à 6 mois : épargne et investissement à parts comparables.
+ *   6. INVESTIR     — au-delà de 6 mois : le liquide qui dort coûte, l'investissement prend la main.
+ *   7. OPTIMISER    — patrimoine constitué : diversification, l'épargne de précaution est pleine.
+ *
+ * ⚠️ TROIS CRITÈRES ONT ÉTÉ RETIRÉS, parce qu'aucun appelant ne les a jamais renseignés :
+ *   • la DETTE COÛTEUSE — elle exigeait de décider ce que « coûteux » veut dire (un taux ? un type
+ *     de crédit ?). Tant que ce n'est pas arbitré, brancher tous les crédits conso et auto aurait
+ *     bloqué l'investissement pour la plupart des gens. La priorité « Sortir du rouge » reste, sur
+ *     le seul découvert chronique — qui, lui, est mesuré.
+ *   • le PROJET À COURT TERME — la priorité « Financer ton projet » n'a jamais pu se déclencher.
+ *   • les REVENUS IRRÉGULIERS — la donnée existe en base mais plus rien ne l'écrit depuis le retrait
+ *     du questionnaire, et aucune décision ne la lisait.
+ * Une priorité qui ne se déclenche jamais n'est pas une règle : c'est une promesse dans un
+ * commentaire. On préfère six priorités qui fonctionnent à huit dont deux sont décoratives.
  *
  * ── CE QUE LA PRIORITÉ FAIT AUX POURCENTAGES ────────────────────────────────────────────────────
  * Elle ne les remplace pas systématiquement. Elle pose des BORNES (« investissement ≤ 5 % »,
@@ -43,7 +53,8 @@
  */
 
 import type { FinancialProfileId } from '../../types/database';
-import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
+import { PROFILE_ALLOCATIONS, DEFAULT_PROFILE_THRESHOLDS } from './financialProfileEngine';
+import { computeSecurityCushion } from './securityCushion';
 import { CURRENCY_SYMBOL } from './currency';
 
 /** Montant arrondi dans la devise de référence (jamais un « € » en dur — cf. lib/finance/currency). */
@@ -57,7 +68,6 @@ export type PriorityId =
   | 'debt'        // découvert chronique / dette coûteuse
   | 'emergency'   // réserve < 1 mois
   | 'build'       // réserve 1–3 mois
-  | 'fund_project'// projet court terme à financer
   | 'balanced'    // réserve 3–6 mois
   | 'invest'      // réserve > 6 mois
   | 'optimize';   // patrimoine constitué
@@ -75,16 +85,16 @@ export interface SituationInputs {
   checkingBalance: number;
   /** Mois consécutifs terminés dans le rouge (0 = aucun). ≥ 2 → découvert CHRONIQUE. */
   consecutiveOverdraftMonths?: number;
-  /** Capital restant dû des crédits COÛTEUX (conso, revolving) — hors immobilier. */
-  costlyDebt?: number;
   /** Épargne disponible. */
   savingsBalance: number;
   /** Total réellement placé. */
   investedBalance: number;
-  /** Ce qu'il reste à financer sur les projets à moins d'un an. */
-  shortTermProjectsNeed?: number;
-  /** Revenus irréguliers (freelance, dividendes) → on exige une réserve plus épaisse. */
-  irregularIncome?: boolean;
+  /**
+   * Seuil de VIABILITÉ (part du revenu au-delà de laquelle les charges rendent le mois déficitaire),
+   * tel qu'il est réglé en administration. Absent → valeur de repli du moteur de profil : les deux
+   * lectures de « la situation est-elle viable ? » ne peuvent alors pas diverger.
+   */
+  viabilityEnterRatio?: number;
 }
 
 export interface PriorityResult {
@@ -98,25 +108,83 @@ export interface PriorityResult {
 }
 
 /**
- * Réserve VISÉE, en mois. Trois mois pour un revenu régulier ; six quand il ne l'est pas — un
- * freelance qui encaisse en dents de scie n'a pas la même exposition qu'un salarié.
+ * Le mois est-il structurellement déficitaire ? (dépenses essentielles au-dessus du revenu)
+ *
+ * ⚠️ LE SEUIL N'EST PLUS ÉCRIT ICI. Il valait 1,02 en dur, alors que la MÊME question — « la
+ * situation est-elle viable ? » — se règle en administration pour le classement du profil
+ * (`viabilityEnterRatio`, ligne P1_P2 de `profile_matrix_config`). Deux réponses possibles à une
+ * seule question : en déplaçant le curseur, on faisait sortir quelqu'un du palier « Fragile » pendant
+ * que la priorité du mois continuait de lui répondre « rééquilibre ton mois ». On lit donc le même
+ * réglage, avec la même valeur de repli.
  */
-export function targetReserveMonths(irregularIncome?: boolean): number {
-  return irregularIncome ? 6 : 3;
-}
-
-/** Le mois est-il structurellement déficitaire ? (dépenses essentielles au-dessus du revenu) */
 function isStructuralDeficit(i: SituationInputs): boolean {
+  const ratio = i.viabilityEnterRatio ?? DEFAULT_PROFILE_THRESHOLDS.viabilityEnterRatio;
   return i.avgMonthlyIncome > 0
     && i.monthlyEssentialExpenses > 0
-    && i.monthlyEssentialExpenses > i.avgMonthlyIncome * 1.02; // 2 % de tolérance : bruit de mesure
+    && i.monthlyEssentialExpenses > i.avgMonthlyIncome * ratio;
+}
+
+/** Les champs du Pilotage que la situation du mois consomme (décrits ici : aucun import de hook). */
+export interface PrioritySituationSource {
+  current_savings?: number | null;
+  total_invested?: number | null;
+  current_checking_balance?: number | null;
+  avg_monthly_income?: number | null;
+  monthly_essential_expenses?: number | null;
+  has_recurring_expenses?: boolean | null;
+  consecutive_overdraft_months?: number | null;
+  safe_to_spend?: number | null;
+}
+
+/**
+ * ── LA SITUATION DU MOIS, ASSEMBLÉE UNE SEULE FOIS ──────────────────────────────────────────────
+ *
+ * Elle était reconstruite À LA MAIN dans CINQ fichiers : la page « Profil financier », la conclusion
+ * du parcours de démarrage, la modale de répartition, la fenêtre de changement de profil et le
+ * moteur de recommandations. Cinq assemblages du même objet, et donc cinq occasions de diverger —
+ * ce qui était déjà le cas : deux d'entre eux oubliaient un champ, un autre prenait un agrégat
+ * différent pour le surplus. Or c'est CET objet qui décide de la priorité du mois, donc des
+ * pourcentages affichés : deux écrans pouvaient annoncer deux répartitions pour la même situation.
+ *
+ * ⚠️ `consecutive_overdraft_months` entre ENFIN dans la situation. Aucun appelant ne le fournissait,
+ * si bien que la priorité « Sortir du rouge » — la deuxième de la liste, documentée comme non
+ * négociable — ne s'est jamais déclenchée : l'app pouvait recommander d'investir 15 à 40 % à
+ * quelqu'un dont le compte finit dans le rouge tous les mois.
+ */
+export function situationFromPilotage(
+  p: PrioritySituationSource | null | undefined,
+  extra: {
+    /** Seuil de viabilité réglé en administration (cf. `SituationInputs.viabilityEnterRatio`). */
+    viabilityEnterRatio?: number;
+  } = {},
+): SituationInputs | null {
+  if (!p) return null;
+  const avgMonthlyIncome = Number(p.avg_monthly_income) || 0;
+  const monthlyEssentialExpenses = Number(p.monthly_essential_expenses) || 0;
+  return {
+    /* Le matelas se mesure avec LA fonction du matelas (lib/securityCushion), garde sur les charges
+       connues comprise : sans elle, le dénominateur amputé du loyer gonfle la réserve et fait
+       basculer la priorité d'« urgence » à « équilibrer ». */
+    monthsOfReserve: computeSecurityCushion({
+      availableSavings: Number(p.current_savings) || 0,
+      monthlyEssentialExpenses,
+      recurringExpensesKnown: !!p.has_recurring_expenses,
+      avgMonthlyIncome,
+    }).months,
+    monthlySurplus: Number(p.safe_to_spend) || 0,
+    avgMonthlyIncome,
+    monthlyEssentialExpenses,
+    checkingBalance: Number(p.current_checking_balance) || 0,
+    consecutiveOverdraftMonths: Number(p.consecutive_overdraft_months) || 0,
+    savingsBalance: Number(p.current_savings) || 0,
+    investedBalance: Number(p.total_invested) || 0,
+    viabilityEnterRatio: extra.viabilityEnterRatio,
+  };
 }
 
 export function computeFinancialPriority(i: SituationInputs): PriorityResult {
   const months = i.monthsOfReserve;
   const overdraftMonths = i.consecutiveOverdraftMonths ?? 0;
-  const costlyDebt = Math.max(0, i.costlyDebt ?? 0);
-  const projectNeed = Math.max(0, i.shortTermProjectsNeed ?? 0);
   const wealth = Math.max(0, i.savingsBalance) + Math.max(0, i.investedBalance);
 
   // 1. STABILISER — ce qui sort dépasse ce qui rentre. Aucun conseil d'allocation n'a de sens
@@ -132,14 +200,11 @@ export function computeFinancialPriority(i: SituationInputs): PriorityResult {
 
   // 2. DÉSENDETTER — un découvert coûte plus cher, et plus sûrement, que ce que rapporte un
   //    placement. Rembourser EST le meilleur rendement disponible.
-  if (overdraftMonths >= 2 || (i.checkingBalance < 0 && overdraftMonths >= 1) || costlyDebt > 0) {
-    const why = costlyDebt > 0
-      ? `Il te reste ${eur(costlyDebt)} de crédit coûteux : rembourser rapporte plus, et sans risque, que n'importe quel placement.`
-      : `Ton compte finit dans le rouge depuis ${overdraftMonths} mois : sortir du découvert passe avant tout le reste.`;
+  if (overdraftMonths >= 2 || (i.checkingBalance < 0 && overdraftMonths >= 1)) {
     return {
       id: 'debt',
       label: 'Sortir du rouge',
-      reason: why,
+      reason: `Ton compte finit dans le rouge depuis ${overdraftMonths} mois : sortir du découvert passe avant tout le reste.`,
       bounds: { invest: { max: 0 }, enjoy: { max: 10 }, keep: { min: 35 } },
     };
   }
@@ -163,18 +228,6 @@ export function computeFinancialPriority(i: SituationInputs): PriorityResult {
       label: 'Renforcer ta réserve',
       reason: `Tu as ${months.toFixed(1).replace('.', ',')} mois de dépenses de côté. L’objectif du moment est d’atteindre trois mois — après, l’investissement aura du sens.`,
       bounds: { invest: { max: 5 }, save: { min: 40 } },
-    };
-  }
-
-  /* 5. FINANCER UN PROJET PROCHE — un besoin à moins d'un an se prépare en épargne, pas en
-        placement : on ne met pas en Bourse de l'argent dont on a besoin dans huit mois. Passe
-        APRÈS la réserve (on ne finance pas un projet sans filet) mais AVANT l'investissement. */
-  if (projectNeed > 0 && months != null && months >= 3 && projectNeed > i.monthlySurplus * 3) {
-    return {
-      id: 'fund_project',
-      label: 'Financer ton projet',
-      reason: `Il te reste ${eur(projectNeed)} à réunir sur un projet proche : cet argent-là se prépare en épargne, pas en placement.`,
-      bounds: { invest: { max: 15 }, save: { min: 35 } },
     };
   }
 

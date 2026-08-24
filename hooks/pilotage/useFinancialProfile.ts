@@ -10,9 +10,6 @@ import {
   PROFILE_ALLOCATIONS,
   PROFILE_LADDER_VERSION,
 } from '../../lib/finance/financialProfileEngine';
-import { computeReferenceMonthlyIncome } from '../../lib/finance/incomeAverage';
-import { isoDay } from '../../lib/dateUtils';
-import { countConsecutiveOverdraftMonths } from '../../lib/finance/balanceAt';
 import type {
   UserFinancialProfile,
   UserQuestionnaireAnswers,
@@ -22,7 +19,6 @@ import type {
   FinancialProfileId,
   ChangeReason,
 } from '../../types/database';
-import type { QuestionnaireAnswers } from '../../lib/finance/financialProfileEngine';
 
 /**
  * Rang d'un palier sur l'échelle — sert à journaliser le SENS RÉEL d'un changement.
@@ -250,18 +246,47 @@ export function useUpdateProfileAllocation(userId: string | undefined) {
  * conseil à tout le monde en ayant l'air de personnaliser. Ce décompte est donc l'instrument de
  * calibrage — on ne recalibre pas des seuils qui pilotent des milliers de recommandations à l'aveugle.
  *
- * ⚠️ On ne lit QUE `profile_id` et `ladder_version` : aucune donnée personnelle ne transite, et la
- * requête reste légère même à grande échelle. Le décompte se fait côté client, faute de vue agrégée.
+ * ⚠️ LE DÉCOMPTE SE FAIT EN BASE (migration 211). Il se faisait côté client, sur au plus 5 000
+ * lignes téléchargées : passé ce cap, l'administrateur lisait une répartition TRONQUÉE sans que
+ * rien ne le signale — et calibrait des seuils dessus. La fonction rend dix lignes, quel que soit
+ * le nombre d'inscrits, et aucune donnée personnelle ne transite.
+ *
+ * Le chemin historique reste en REPLI : une OTA arrive avant une migration, et l'écran doit
+ * continuer de fonctionner entre les deux. Il porte alors sa limite, signalée par `truncated`.
  */
+const DISTRIBUTION_CLIENT_LIMIT = 5000;
+
 export function useProfileDistribution(enabled = true) {
   return useQuery({
     queryKey: ['profile_distribution'],
-    queryFn: async (): Promise<{ counts: Record<string, number>; total: number; pending: number }> => {
-      if (!supabase) return { counts: {}, total: 0, pending: 0 };
+    queryFn: async (): Promise<{
+      counts: Record<string, number>; total: number; pending: number; truncated: boolean;
+    }> => {
+      if (!supabase) return { counts: {}, total: 0, pending: 0, truncated: false };
+
+      const agg = await supabase.rpc('admin_profile_distribution', {
+        p_ladder_version: PROFILE_LADDER_VERSION,
+      });
+      if (!agg.error && Array.isArray(agg.data)) {
+        const counts: Record<string, number> = {};
+        let total = 0;
+        let pending = 0;
+        for (const row of agg.data as any[]) {
+          const id = resolveProfileId(row.profile_id);
+          const n = Number(row.users) || 0;
+          counts[id] = (counts[id] ?? 0) + n;
+          total += n;
+          pending += Number(row.pending) || 0;
+        }
+        return { counts, total, pending, truncated: false };
+      }
+
+      /* Repli : fonction pas encore déployée. On compte côté client, mais on DIT que le décompte
+         peut être incomplet — un total tronqué présenté comme exact est pire que pas de total. */
       const { data, error } = await supabase
         .from('user_financial_profile')
         .select('profile_id, ladder_version')
-        .limit(5000);
+        .limit(DISTRIBUTION_CLIENT_LIMIT);
       if (error) throw error;
       const counts: Record<string, number> = {};
       let pending = 0;
@@ -271,7 +296,8 @@ export function useProfileDistribution(enabled = true) {
         // Encore sur les anciennes règles : sera reclassé en silence à la prochaine ouverture.
         if (Number(row.ladder_version ?? 0) < PROFILE_LADDER_VERSION) pending++;
       }
-      return { counts, total: (data ?? []).length, pending };
+      const total = (data ?? []).length;
+      return { counts, total, pending, truncated: total >= DISTRIBUTION_CLIENT_LIMIT };
     },
     enabled,
     staleTime: 1000 * 60 * 5,
@@ -305,7 +331,7 @@ export function useProfileMatrixConfig() {
    profil, avec ses propres règles, prêt à contredire la cascade au premier rebranchement.
    Ce que ce hook écrivait encore et qui compte vraiment — la marge de sécurité et le budget
    variable — passe par `useUpdateProfile` (hooks/data/useProfile), qui synchronise déjà les copies
-   q8/q9 pour tous les écrans. */
+   la copie q9 pour tous les écrans. */
 
 // ── Marquer la notification comme vue ────────────────────────
 
@@ -336,22 +362,19 @@ export function useMarkNotificationShown(userId: string | undefined) {
 
 // ── Métriques réelles (partagées : profil vivant + évaluation mensuelle) ─────
 
-interface RealMetricsResult {
-  savingsBalance: number;
-  checkingBalance: number;
-  investedBalance: number;
-  /** Mois RÉVOLUS consécutifs terminés dans le rouge (0 = aucun). ≥ seuil ⇒ découvert chronique. */
-  consecutiveOverdraftMonths: number;
-}
-
 /**
  * Ce que le PILOTAGE mesure, et que le profil ne doit surtout pas recalculer de son côté.
  *
- * ⚠️ LE REVENU EST DANS CETTE LISTE, et c'est le correctif le plus important de cette évolution.
- * Il était recalculé ici sur des comptes lus avec `is_joint = false` : quelqu'un dont le salaire
- * tombe sur un compte joint n'avait donc, pour le moteur de profil, AUCUN revenu constaté — donc
- * P0 « Découverte » à vie — pendant que le tableau de bord affichait son revenu et son Relyka.
- * Deux périmètres, deux vérités, et l'utilisateur au milieu.
+ * ⚠️ TOUTES LES MESURES VIENNENT DE LÀ, et c'est le correctif décisif de ce module.
+ *
+ * Le profil relisait ses propres comptes en base, avec `is_joint = false` et `profile_id = moi` —
+ * un périmètre plus étroit que celui de TOUT le reste de l'app, qui compte les comptes partagés et
+ * joints pondérés au % d'impact. Conséquence, visible sur une seule et même page « Profil
+ * financier » : la ligne « Ton matelas de sécurité » annonçait « 4,2 mois » (épargne du tableau de
+ * bord, compte joint compris) juste sous un palier « Premiers repères — moins d'un mois de dépenses
+ * de côté » (classement calculé sans lui). Deux mesures du même matelas, contradictoires, à trois
+ * lignes d'écart. Le revenu avait déjà été rapatrié ici pour exactement cette raison ; les SOLDES
+ * suivent le même chemin.
  *
  * Ces valeurs sont passées EN ARGUMENT plutôt que lues dans le cache au moment du calcul : lues,
  * elles pouvaient être périmées (le Pilotage se recalcule après l'écriture d'une transaction) — le
@@ -362,65 +385,17 @@ export interface LiveProfileMeasures {
   avgMonthlyIncome: number;
   monthlyEssentialExpenses: number | undefined;
   hasRecurringExpenses: boolean;
-}
-
-/**
- * Charge ce que le Pilotage n'expose pas : les soldes par type et le découvert chronique.
- *
- * ⚠️ ELLE NE CALCULE PLUS LE REVENU. Il vient désormais du Pilotage (cf. `LiveProfileMeasures`) :
- * recalculé ici, il l'était sur des comptes lus `is_joint = false`, si bien qu'un salaire versé sur
- * un compte joint n'existait pas pour le moteur de profil — P0 « Découverte » définitif, pendant que
- * le tableau de bord affichait le même revenu sans difficulté.
- */
-async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null> {
-  if (!supabase) return null;
-  const today = new Date();
-  // Heure LOCALE (`isoDay`) : `toISOString` bascule en UTC et rendait le 31 du mois précédent pour
-  // un 1er construit en local — la fenêtre de 6 mois démarrait un jour trop tôt.
-  const sixMonthsAgo = isoDay(new Date(today.getFullYear(), today.getMonth() - 6, 1));
-
-  const [{ data: txns, error: txErr }, { data: accounts, error: accErr }] = await Promise.all([
-    supabase.from('transactions')
-      /* `regul_target`, `regul_covered` et `created_at` : indispensables au modèle d'ANCRES
-         (cf. lib/balanceAt). Sans eux, reconstituer un solde de fin de mois retombe sur une
-         soustraction naïve qui ignore les régularisations — et le décompte des mois dans le rouge
-         serait faux précisément chez ceux qui corrigent leurs soldes. */
-      .select('id, amount, date, account_id, linked_account_id, is_draft, is_reserved, regul_target, regul_covered, created_at')
-      .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
-    supabase.from('accounts')
-      .select('id, type, balance')
-      .eq('profile_id', userId).eq('is_active', true).eq('is_joint', false),
-  ]);
-
-  /* ⚠️ ON NE CONCLUT PAS SUR UNE LECTURE EN ÉCHEC. Ces deux erreurs n'étaient pas lues : une
-     lecture ratée rendait `undefined`, donc « aucune transaction », donc des revenus et des
-     dépenses à zéro — et ces métriques SERVENT À ÉCRIRE le profil financier de l'utilisateur
-     (cf. useAutoProfileEvaluation). Un incident réseau pouvait ainsi le faire rétrograder tout
-     seul. `null` remonte à l'appelant, qui n'évalue rien du tout. */
-  if (txErr || accErr) return null;
-
-  let savingsBalance = 0;
-  let checkingBalance = 0;
-  let investedBalance = 0;
-  (accounts ?? []).forEach((a: any) => {
-    if (a.type === 'savings') savingsBalance += Number(a.balance);
-    if (a.type === 'checking') checkingBalance += Number(a.balance);
-    if (a.type === 'investment') investedBalance += Number(a.balance);
-  });
-
-  /* DÉCOUVERT CHRONIQUE — mesuré, enfin. Le moteur l'attendait (`consecutiveOverdraftMonths`) mais
-     personne ne le calculait : « chroniquement déficitaire » se décidait donc sur le solde du jour.
-     On compte les mois RÉVOLUS terminés dans le rouge, tous comptes courants confondus, via le
-     modèle d'ancres (cf. lib/balanceAt) — pas une soustraction naïve qui ignorerait les
-     régularisations. */
-  const checkingAccounts = (accounts ?? [])
-    .filter((a: any) => a.type === 'checking')
-    .map((a: any) => ({ id: a.id, balance: Number(a.balance) }));
-  const consecutiveOverdraftMonths = countConsecutiveOverdraftMonths(
-    (txns ?? []) as any[], checkingAccounts, today,
-  );
-
-  return { savingsBalance, checkingBalance, investedBalance, consecutiveOverdraftMonths };
+  /** Soldes du PÉRIMÈTRE, exactement ceux qu'affiche le tableau de bord. */
+  savingsBalance: number;
+  checkingBalance: number;
+  investedBalance: number;
+  /**
+   * Mois RÉVOLUS consécutifs terminés dans le rouge. Mesuré par le moteur du Pilotage
+   * (`consecutive_overdraft_months`) : il l'était ici aussi, sur une seconde lecture de six mois de
+   * transactions à chaque synchronisation — deux fois le même calcul, deux fois le coût réseau, et
+   * deux occasions de diverger.
+   */
+  consecutiveOverdraftMonths: number;
 }
 
 // ── PROFIL VIVANT — recalculé sur les SEULES DONNÉES RÉELLES ─────────────────────────────────
@@ -449,6 +424,15 @@ export function useLiveProfileSync(userId: string | undefined) {
   const { isImpersonating } = useAuth();
 
   return useMutation({
+    /* ── UNE SYNCHRONISATION À LA FOIS ─────────────────────────────────────────────────────────
+       Cette mutation LIT le profil courant, décide, puis écrit. Deux exécutions simultanées lisent
+       donc le MÊME profil de départ, concluent la même chose, et journalisent deux fois la même
+       transition — ce qui arrive pendant le démarrage, où plusieurs comptes sont créés coup sur
+       coup et où chaque écriture relance l'observateur. Le journal alimente les statistiques
+       d'administration : des doublons y comptent des transitions qui n'ont eu lieu qu'une fois.
+       `scope` sérialise : la seconde attend la première, relit un profil à jour, et n'a plus rien
+       à écrire. */
+    scope: { id: `live-profile-sync:${userId ?? 'anon'}` },
     mutationFn: async (measures: LiveProfileMeasures): Promise<FinancialProfileId | null> => {
       if (isImpersonating) return null;          // consultation admin : jamais d'écriture
       if (!supabase || !userId) return null;
@@ -471,14 +455,14 @@ export function useLiveProfileSync(userId: string | undefined) {
       const storedLadder = Number((fp as any)?.ladder_version ?? 0);
       const isReclassification = !!fp && storedLadder < PROFILE_LADDER_VERSION;
 
-      const real = await loadRealMetrics(userId);
-      if (!real) return null;
-
-      /* MESURES DU PILOTAGE — revenu, dépenses essentielles, charges connues. Elles arrivent EN
-         ARGUMENT, fraîches (cf. `LiveProfileMeasures` et components/system/LiveProfileSync) : lues
-         dans le cache au moment du calcul, elles pouvaient dater d'avant la saisie qui vient
-         justement de déclencher ce recalcul. */
-      const { avgMonthlyIncome, monthlyEssentialExpenses: essentials, hasRecurringExpenses } = measures;
+      /* MESURES DU PILOTAGE — revenu, dépenses essentielles, charges connues, SOLDES et découvert
+         chronique. Elles arrivent EN ARGUMENT, fraîches (cf. `LiveProfileMeasures` et
+         components/system/LiveProfileSync) : lues dans le cache au moment du calcul, elles
+         pouvaient dater d'avant la saisie qui vient justement de déclencher ce recalcul. */
+      const {
+        avgMonthlyIncome, monthlyEssentialExpenses: essentials, hasRecurringExpenses,
+        savingsBalance, checkingBalance, investedBalance, consecutiveOverdraftMonths,
+      } = measures;
 
       /* SEUILS DE L'ÉCHELLE : lus dans `profile_matrix_config` (écran d'administration), jamais
          codés en dur. Une lecture en échec retombe champ par champ sur les valeurs de repli — le
@@ -498,23 +482,24 @@ export function useLiveProfileSync(userId: string | undefined) {
          Données incomplètes → P0 « Découverte » : on dit qu'on ne sait pas encore, au lieu de
          classer d'office en « épargne critique » quelqu'un qui vient d'arriver. */
       const inputs = {
-        availableSavings: real.savingsBalance,
+        /* LE MÊME matelas que celui affiché sur la page « Profil financier », au centime près : il
+           vient du Pilotage, comptes partagés et joints compris. Relu ici sur les seuls comptes
+           personnels, il classait « sans filet » quelqu'un dont l'épargne est sur un compte joint —
+           pendant que la ligne juste au-dessus lui annonçait plusieurs mois de réserve. */
+        availableSavings: savingsBalance,
         monthlyEssentialExpenses: essentials,
         /* Le solde courant ne sert QU'EN APPOINT : un découvert ne devient un diagnostic que s'il
            n'y a plus rien pour le combler, ou si les charges dépassent le revenu (cf.
            `hasStructuralDeficit`). Un rouge passager avant la paie n'est pas une situation. */
-        checkingBalance: real.checkingBalance,
+        checkingBalance,
         // Ce qui transforme un découvert en DIAGNOSTIC : sa répétition, pas sa présence.
-        consecutiveOverdraftMonths: real.consecutiveOverdraftMonths,
-        /* Patrimoine BANCAIRE (le seul que l'app connaisse) : il gouverne les paliers hauts, où le
-           nombre de mois de réserve ne distingue plus rien. */
-        totalLiquidWealth: real.checkingBalance + real.savingsBalance + real.investedBalance,
+        consecutiveOverdraftMonths,
         /* LE MÊME revenu que le tableau de bord, au chiffre près — il vient de lui (cf.
            `LiveProfileMeasures`). Recalculé ici, il ignorait les comptes joints : un salaire versé
            sur un compte joint n'existait pas pour le classement, et l'utilisateur restait en
            « Découverte » en voyant son revenu affiché juste à côté. */
         avgMonthlyIncome,
-        totalInvested: real.investedBalance,
+        totalInvested: investedBalance,
         /* Décide du DÉNOMINATEUR du matelas, jamais du droit d'être classé : sans charge connue, on
            divise par le revenu (prudent) plutôt que par un total amputé du loyer. */
         hasRecurringExpenses,
@@ -700,6 +685,7 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
  */
 export function useSimulateProfileChange(userId: string | undefined) {
   const client = useQueryClient();
+  const { isImpersonating } = useAuth();
   return useMutation({
     mutationFn: async ({
       target,
@@ -708,6 +694,15 @@ export function useSimulateProfileChange(userId: string | undefined) {
       target: FinancialProfileId;
       reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop' | 'monthly_recap';
     }) => {
+      /* ── JAMAIS SUR LE COMPTE DE QUELQU'UN D'AUTRE ─────────────────────────────────────────────
+         Cet écran prend `user.id`, c'est-à-dire — en consultation « connecté en tant que » — celui
+         de l'utilisateur VISITÉ. Un administrateur en train de regarder un compte pouvait donc lui
+         forcer un palier et lui envoyer une vraie notification de changement de profil, sur des
+         données qui n'ont pas bougé. Les deux autres écritures du module posent déjà cette garde
+         (profil vivant, bilan mensuel) ; celle-ci l'avait oubliée. */
+      if (isImpersonating) {
+        throw new Error("Tu es connecté en tant qu'un autre utilisateur : la simulation modifierait SON profil.");
+      }
       if (!supabase || !userId) throw new Error('Non connecté');
       const now = new Date().toISOString();
 
@@ -727,12 +722,20 @@ export function useSimulateProfileChange(userId: string | undefined) {
           profile_id: target,
           profile_source: 'automatic',
           assigned_at: now,
+          /* Sans ce tampon, la ligne forcée passe pour « classée par une échelle périmée » : la
+             synchronisation suivante la traite en RECLASSEMENT et la réécrit aussitôt, ce qui
+             annule la simulation sous les yeux de l'administrateur. */
+          ladder_version: PROFILE_LADDER_VERSION,
           updated_at: now,
         }, { onConflict: 'user_id' });
       if (pErr) throw pErr;
 
-      // Aligne les allocations sur le nouveau profil (comme le vrai moteur).
-      const alloc = PROFILE_ALLOCATIONS[target];
+      /* Aligne les allocations sur le nouveau profil — avec la table de l'ADMINISTRATION, comme le
+         vrai moteur (migration 207). Lire la table du CODE ici écrivait dans `profiles` des
+         pourcentages que personne n'applique : l'export de données et le contexte envoyé aux
+         conseils IA annonçaient alors une répartition inventée. */
+      const { data: allocRows } = await supabase.from('profile_allocations').select('*');
+      const alloc = allocationsFromRows(allocRows as any[])[target] ?? PROFILE_ALLOCATIONS[target];
       await supabase.from('profiles').update({
         allocation_save_percent: alloc.save,
         allocation_invest_percent: alloc.invest,

@@ -29,7 +29,6 @@ import { useSharedContribution } from '../../hooks/data/useSharedContribution';
 import { useCreditFlows } from '../../hooks/data/useCreditFlows';
 import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMonthOverrides';
 import { useAccounts } from '../../hooks/data/useAccounts';
-import { useQuestionnaireAnswers } from '../../hooks/pilotage/useFinancialProfile';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useResponsive } from '../../hooks/theme/useResponsive';
 import { pageColumn, MAX_W, GUTTER } from '../../lib/ui/webLayout';
@@ -38,7 +37,7 @@ import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../.
 import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/pilotage/useProjectionAssumptions';
 import {
   projectInvestment, sumProjections, projectSavings, investCurve,
-  estimateMonthlySavings, incomeFromQ3, savingsRateFromQ6,
+  estimateMonthlySavings,
   type InvestYearRow,
 } from '../../lib/finance/projectionEngine';
 
@@ -153,7 +152,6 @@ function ProjectionBody() {
   const { data: pilotage } = usePilotageData(user?.id);
   const { data: rawTransactionsPerso = [] } = useTransactions(user?.id);
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(user?.id);
-  const { data: answers } = useQuestionnaireAnswers(user?.id);
   const { data: rawAccountsPerso = [] } = useAccounts(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
   // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
@@ -382,7 +380,9 @@ function ProjectionBody() {
     // Épargne « personnalisé » : on restaure la saisie de l'utilisateur (§P5).
     if (saved?.savingsMonthlyPerso != null) setSavingsMonthlyPerso(String(saved.savingsMonthlyPerso));
     if (saved?.savingsInitial != null) { setSavingsInitial(String(saved.savingsInitial)); setSavSynced(true); }
-    if (saved?.savingsSource) setPickedSource(saved.savingsSource);
+    /* Une valeur ENREGISTRÉE peut encore dire « questionnaire » : la source n'existe plus, on
+       repasse alors en automatique plutôt que de restaurer un choix devenu incalculable. */
+    if (saved?.savingsSource === 'reel' || saved?.savingsSource === 'perso') setPickedSource(saved.savingsSource);
     setSelectedAccId(investAccounts[0].id);
     setLoaded(true);
     // assumptionsQuery.isFetched/.data DOIVENT être dans les deps : sinon, si les comptes et les
@@ -529,12 +529,17 @@ function ProjectionBody() {
     }));
     return Math.round(estimateMonthlySavings(txs));
   }, [transactions]);
-  const questionnaireMonthlySavings = useMemo(() => Math.round(incomeFromQ3(answers?.q3) * savingsRateFromQ6(answers?.q6)), [answers]);
-
-  // Source choisie manuellement (null = automatique : Réel si actif, sinon Questionnaire, sinon Perso)
-  const [pickedSource, setPickedSource] = useState<'reel' | 'questionnaire' | 'perso' | null>(null);
-  const savingsSource: 'reel' | 'questionnaire' | 'perso' =
-    pickedSource ?? (realMonthlySavings > 0 ? 'reel' : (questionnaireMonthlySavings > 0 ? 'questionnaire' : 'perso'));
+  /* ── LA SOURCE « QUESTIONNAIRE » A ÉTÉ RETIRÉE ────────────────────────────────────────────────
+     Elle estimait un rythme d'épargne en croisant deux réponses du questionnaire d'accueil : la
+     tranche de revenu (q3) et la part déclarée mise de côté (q6). Ce questionnaire n'existe plus —
+     pour tout compte créé depuis, les deux réponses sont vides, la source valait 0 € et s'affichait
+     grisée : une troisième option, impossible à choisir, qui renvoyait à un questionnaire que
+     l'utilisateur n'a jamais vu. Restent les deux sources qui reposent sur du réel : ce qu'il
+     épargne effectivement, ou ce qu'il décide lui-même. */
+  // Source choisie manuellement (null = automatique : Réel si actif, sinon Perso).
+  const [pickedSource, setPickedSource] = useState<'reel' | 'perso' | null>(null);
+  const savingsSource: 'reel' | 'perso' =
+    pickedSource ?? (realMonthlySavings > 0 ? 'reel' : 'perso');
   const setSavingsSource = setPickedSource;
   const [savingsInitial, setSavingsInitial] = useState('0');
   const [savingsMonthlyPerso, setSavingsMonthlyPerso] = useState('150');
@@ -576,7 +581,6 @@ function ProjectionBody() {
 
   const savingsMonthly =
     savingsSource === 'reel' ? realMonthlySavings :
-    savingsSource === 'questionnaire' ? questionnaireMonthlySavings :
     num(savingsMonthlyPerso);
   const savingsHorizons = useMemo(
     () => projectSavings(num(savingsInitial), savingsMonthly, [1, 3, 5, 10], SAVINGS_ANNUAL_RATE_PCT),
@@ -996,7 +1000,6 @@ function ProjectionBody() {
           <View style={styles.sourceRow}>
             {([
               { id: 'reel', label: 'Réel', val: realMonthlySavings, empty: realMonthlySavings <= 0 },
-              { id: 'questionnaire', label: 'Questionnaire', val: questionnaireMonthlySavings, empty: questionnaireMonthlySavings <= 0 },
               { id: 'perso', label: 'Personnalisé', val: num(savingsMonthlyPerso), empty: false },
             ] as const).map((s) => {
               const active = savingsSource === s.id;
@@ -1064,9 +1067,7 @@ function ProjectionBody() {
               <Text style={styles.warnText}>
                 {savingsSource === 'reel'
                   ? "Aucun virement vers l'épargne détecté sur les 12 derniers mois : la projection n'ajoute rien chaque mois."
-                  : savingsSource === 'questionnaire'
-                    ? "Tes réponses au questionnaire n'indiquent aucune épargne mensuelle."
-                    : "Renseigne un montant mensuel pour voir ton épargne progresser."}
+                  : "Renseigne un montant mensuel pour voir ton épargne progresser."}
                 {savingsSource !== 'perso' ? ' Choisis « Personnalisé » pour saisir ton rythme.' : ''}
               </Text>
             </View>
@@ -1077,9 +1078,6 @@ function ProjectionBody() {
               des initialisations de compte) — l'utilisateur cherchait donc un écart inexistant. */}
           {savingsSource === 'reel' && realMonthlySavings > 0 && (
             <Text style={styles.realHint}>💡 Moyenne lissée sur 12 mois de tes virements depuis un compte courant vers l'épargne, hors initialisation de compte.</Text>
-          )}
-          {savingsSource === 'questionnaire' && questionnaireMonthlySavings > 0 && (
-            <Text style={styles.realHint}>💡 Estimé depuis tes réponses au questionnaire ({fmt(questionnaireMonthlySavings)}/mois).</Text>
           )}
 
           <View style={styles.horizonGrid}>

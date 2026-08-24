@@ -26,7 +26,8 @@ import { computeSecurityCushion } from './securityCushion';
 // LES DEUX AXES
 // ─────────────
 //   1. le MATELAS DE SÉCURITÉ (épargne disponible ÷ DÉPENSES essentielles) — il gouverne P1 à P6 ;
-//   2. le PATRIMOINE BANCAIRE (courant + épargne + investissement) — il gouverne P7 à P9.
+//   2. le PATRIMOINE BANCAIRE (épargne + investissement) — il gouverne P7 à P9. Le solde COURANT en
+//      est exclu : c'est la trésorerie du mois, pas un patrimoine.
 // L'app ne connaît ni l'immobilier, ni l'assurance-vie hors app, ni les parts d'entreprise : on ne
 // parle donc jamais de « patrimoine » tout court, mais de ce qui est sur les comptes suivis.
 //
@@ -38,7 +39,7 @@ import { computeSecurityCushion } from './securityCushion';
 //   1. la situation est-elle VIABLE ?          revenu vs dépenses essentielles      → sinon P1
 //   2. combien de temps tient-il ?             épargne ÷ dépenses essentielles      → P2 … P5
 //   3. investit-il RÉELLEMENT ?                oui / non                            → P6
-//   4. quelle est la taille du patrimoine ?    30k / 100k / 300k                    → P7 … P9
+//   4. quelle est la taille du patrimoine ?    30k / 100k / 300k (hors courant)     → P7 … P9
 //
 // Le TAUX D'ÉPARGNE a été retiré du calcul, et c'est un correctif, pas une simplification. Il
 // mesurait un MÉRITE là où le profil décrit un ÉTAT : la règle « 1 mois de réserve + 20 % mis de
@@ -71,8 +72,12 @@ import { computeSecurityCushion } from './securityCushion';
  * recalibrage de seuils (celui-là est un vrai changement de situation, il doit se voir).
  *   1 → échelle à dix paliers avec taux d'épargne (migrations 182/194)
  *   2 → cascade viabilité → matelas → placements → patrimoine, sans taux d'épargne
+ *   3 → le patrimoine EXCLUT le solde courant (c'est de la trésorerie, pas un patrimoine), et les
+ *       seuils de réserve des paliers hauts et de la dispense de viabilité gagnent leur bande
+ *       d'hystérésis. Les deux déplacent réellement des gens : sans ce numéro, chacun d'eux
+ *       recevrait « ton profil a changé » pour une décision qu'il n'a pas prise.
  */
-export const PROFILE_LADDER_VERSION = 2;
+export const PROFILE_LADDER_VERSION = 3;
 
 /** Ordre canonique. Toute liste de profils dans l'app doit partir d'ici, jamais d'un littéral. */
 export const FINANCIAL_PROFILE_IDS: FinancialProfileId[] = [
@@ -274,90 +279,42 @@ export const PROFILE_TO_TIER: Record<FinancialProfileId, 'critical' | 'below_opt
   P9: 'comfortable',
 };
 
-// ── Questionnaire — options ───────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   LE VOCABULAIRE DU QUESTIONNAIRE A ÉTÉ RETIRÉ D'ICI
+   ══════════════════════════════════════════════════════════════════════════════════════════════
 
-export const Q1_OPTIONS = [
-  'Salaire fixe (Mensuel)',
-  'Revenu Freelance / Indépendant (Aléatoire)',
-  'Retraite (Mensuel)',
-  'Loyers et Revenus immobiliers (Mensuel)',
-  'Dividendes (Annuel / Ponctuel)',
-  'Chômage et Allocations (Mensuel / Temporaire)',
-] as const;
+   Il ne reste plus rien du questionnaire d'accueil : ni l'écran, ni le moteur qui en tirait un
+   profil. Sont donc partis avec lui les sept listes d'options (Q1 à Q7), les jeux de réponses qui
+   les interprétaient (Q4_INVEST, Q6_HIGH…), `detectIrregularIncome`, `NEUTRAL_ANSWERS`,
+   `estimateWeeklyVariable`, `q3FromMonthlyIncome` et `safetyMarginFromQ8` — plus aucun appelant,
+   aucun test, aucun écran.
 
-export const Q2_OPTIONS = [
-  'Tous les mois à date fixe (+/- 5 jours)',
-  'Tous les mois à des dates variables',
-  'Une ou plusieurs fois par an de manière ponctuelle',
-  'De manière totalement imprévisible',
-] as const;
+   Ce n'était pas seulement du code mort. C'était le VOCABULAIRE d'un second système de classement,
+   avec ses propres tranches de revenu et ses propres seuils, à côté d'une cascade qui se déduit
+   désormais des seules données mesurées. Ce genre de vestige finit toujours par être rebranché « vu
+   qu'il est déjà là », et l'app se retrouve avec deux réponses à la question « quel est mon
+   profil ? ».
 
-export const Q3_OPTIONS = [
-  'Moins de 1 500 €',
-  'De 1 500 € à 2 500 €',
-  'De 2 500 € à 4 000 €',
-  'Plus de 4 000 €',
-] as const;
+   CE QUI SURVIT, ET POURQUOI :
+     • `weeklyVariableFromQ9` + `WEEKS_PER_MONTH` — l'estimation de dépenses variables est toujours
+       saisie (page Profil, guide de démarrage) et stockée dans la colonne `q9` ;
+   Le repli du matelas sur la tranche de revenu DÉCLARÉE (q3) est parti lui aussi : il ne servait
+   que quand aucun revenu n'est constaté — c'est-à-dire le seul cas où le classement, lui, refuse de
+   conclure et rend « Découverte ». Deux réponses à la même question, dont une tirée d'une case
+   cochée il y a deux ans (cf. lib/finance/securityCushion).
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
 
-export const Q4_OPTIONS = [
-  'Rien, je finis souvent le mois à découvert',
-  "J'ai de quoi vivre sans trop me priver, mais je n'épargne pas",
-  'Une somme que je mets volontairement de côté chaque mois',
-  "Une somme que j'épargne et j'investis équitablement ou occasionnellement",
-  "Un montant suffisant que j'investis en priorité",
-] as const;
-
-export const Q5_OPTIONS = [
-  "Moins d'un mois",
-  '1 à 3 mois',
-  '3 à 6 mois',
-  'Plus de 6 mois',
-] as const;
-
-export const Q6_OPTIONS = [
-  '0 %',
-  'Moins de 10 %',
-  'Entre 10 % et 20 %',
-  'Entre 20 % et 30 %',
-  'Plus de 30 %',
-  "Je n'ai plus besoin d'augmenter mon épargne actuellement",
-  'Je ne sais pas',
-] as const;
-
-export const Q7_OPTIONS = [
-  'Stabiliser mon budget',
-  'Mettre de côté',
-  'Financer un projet précis à court ou moyen terme',
-  'Commencer à investir',
-  'Savoir combien épargner et/ou investir',
-  'Connaître mon budget plaisir disponible sans culpabiliser',
-  'Suivre simplement mes finances',
-] as const;
-
+/**
+ * La SEULE réponse encore lue quelque part. Les autres colonnes existent toujours en base — l'export
+ * de données les restitue, l'utilisateur a le droit de voir ce qu'on détient — mais plus aucun calcul
+ * ne s'en sert.
+ */
 export interface QuestionnaireAnswers {
-  q1: string;
-  q2: string;
-  q3: string;
-  q4: string;
-  q5: string;
-  q6: string;
-  /** @deprecated Aucun calcul ne lit cette réponse — conservée pour les comptes existants. */
-  q7: string;
-  /** Montant minimum conservé sur les comptes courants. Chaîne numérique ou '' pour "je ne sais pas" (→ 0). */
-  q8: string;
   /** Estimation hebdomadaire des dépenses variables (€/semaine). Chaîne numérique ou '' (→ 0). */
   q9: string;
 }
 
-/** Convertit la réponse Q8 en montant numérique. '' ou "je ne sais pas" → 0. */
-export function safetyMarginFromQ8(q8: string): number {
-  if (!q8 || q8.toLowerCase().includes('sais pas')) return 0;
-  const v = parseFloat(q8.replace(',', '.'));
-  return isNaN(v) || v < 0 ? 0 : v;
-}
-
-/** Montant hebdomadaire variable (€/semaine) → € net numérique. '' → 0.
- *  Question 4 du questionnaire (« Dépenses variables hebdo »), stockée en base dans le champ `q9`. */
+/** Montant hebdomadaire variable (€/semaine) → nombre. '' → 0. Alimente l'enveloppe variable. */
 export function weeklyVariableFromQ9(q9: string): number {
   if (!q9) return 0;
   const v = parseFloat(q9.replace(',', '.'));
@@ -367,123 +324,20 @@ export function weeklyVariableFromQ9(q9: string): number {
 /** Facteur de conversion hebdomadaire → mensuel (52 semaines / 12 mois). */
 export const WEEKS_PER_MONTH = 4.33;
 
-/** Revenu mensuel REPRÉSENTATIF d'une tranche Q3 (borne basse prudente de la tranche). */
-function representativeIncome(q3: string): number {
-  const i = Q3_OPTIONS.indexOf(q3 as any);
-  // Bornes basses (prudentes) : <1500→1200, 1500-2500→1800, 2500-4000→2800, >4000→4200.
-  return [1200, 1800, 2800, 4200][i] ?? 1800;
-}
-
-/**
- * Estimation AUTOMATIQUE des dépenses variables hebdomadaires (€/semaine) quand l'utilisateur
- * ne la renseigne pas (ex. questionnaire passé). On prend ~35 % du revenu mensuel en variable
- * (courses + loisirs), ce qui donne un profil PRUDENT (on ne suppose pas 0 € de dépenses).
- */
-export function estimateWeeklyVariable(q3: string): number {
-  const monthlyVariable = representativeIncome(q3) * 0.35;
-  return Math.round(monthlyVariable / WEEKS_PER_MONTH);
-}
-
-/** Estimation mensuelle des dépenses variables à partir de la réponse hebdo Q9. */
-export function monthlyVariableFromQ9(q9: string): number {
-  return weeklyVariableFromQ9(q9) * WEEKS_PER_MONTH;
-}
-
-/* `q5FromSecurityMonths` et `deriveQ5` ont été retirées : elles traduisaient le matelas mesuré en
-   tranche déclarative Q5 (« moins d'un mois », « 3 à 6 mois »…) pour alimenter l'ancien moteur de
-   profil. Ce moteur est parti, et le questionnaire de démarrage n'existe plus : le profil se déduit
-   directement des données. Leur `deriveQ5` mesurait en outre le matelas sur le REVENU — c'était le
-   dernier endroit du dépôt à le faire. */
-
-/** Tranche Q3 (revenu) correspondant à un montant mensuel net saisi. */
-export function q3FromMonthlyIncome(amount: number): string {
-  if (!Number.isFinite(amount) || amount <= 0) return Q3_OPTIONS[0];
-  if (amount < 1500) return Q3_OPTIONS[0];
-  if (amount < 2500) return Q3_OPTIONS[1];
-  if (amount < 4000) return Q3_OPTIONS[2];
-  return Q3_OPTIONS[3];
-}
-
-/**
- * RÉPONSES NEUTRES pour les questions pas encore posées (profil provisoire).
- *
- * ⚠️ Surtout PAS « la première option de chaque question », qui était l'ancien repli du bouton
- * « Passer le questionnaire » : la 1ʳᵉ option de q4 est « je finis souvent à découvert », qui
- * déclenche un `return 'P1'` immédiat. Tout utilisateur ayant sauté le questionnaire se retrouvait
- * donc classé « Épargne critique », investissement à 0 %, quelles que soient ses autres réponses.
- * Neutre = le cas médian, qui laisse q5 (mesurée) décider du niveau.
- */
-export const NEUTRAL_ANSWERS: Readonly<Pick<QuestionnaireAnswers, 'q4' | 'q6'>> = {
-  q4: Q4_OPTIONS[1],   // « J'ai de quoi vivre sans trop me priver, mais je n'épargne pas »
-  q6: Q6_OPTIONS[6],   // « Je ne sais pas »
-};
-
-// ── Détection revenu irrégulier ───────────────────────────────
-
-const IRREGULAR_INCOME_TYPES = new Set([
-  'Revenu Freelance / Indépendant (Aléatoire)',
-  'Dividendes (Annuel / Ponctuel)',
-]);
-
-/**
- * Irrégulier seulement si TOUS les types de revenus sélectionnés sont irréguliers
- * (logique "meilleure réponse" : si le profil a aussi un salaire fixe, il bénéficie
- * de la régularité de ce revenu pour la détermination du profil).
- */
-export function detectIrregularIncome(q1: string, q2: string): boolean {
-  const q1Values = q1.split('|').filter(Boolean);
-  const allIrregular = q1Values.length > 0 && q1Values.every((v) => IRREGULAR_INCOME_TYPES.has(v));
-  return allIrregular || q2 === 'De manière totalement imprévisible';
-}
-
-// ── Jeux de valeurs pour la matrice ──────────────────────────
-
-const Q6_HIGH = new Set([
-  'Entre 20 % et 30 %',
-  'Plus de 30 %',
-  "Je n'ai plus besoin d'augmenter mon épargne actuellement",
-]);
-
-const Q6_MID = new Set([
-  'Entre 10 % et 20 %',
-  'Entre 20 % et 30 %',
-  'Plus de 30 %',
-  "Je n'ai plus besoin d'augmenter mon épargne actuellement",
-]);
-
-const Q4_INVEST = new Set([
-  "Une somme que j'épargne et j'investis équitablement ou occasionnellement",
-  "Un montant suffisant que j'investis en priorité",
-]);
-
-const Q4_SAVING = new Set([
-  'Une somme que je mets volontairement de côté chaque mois',
-  "Une somme que j'épargne et j'investis équitablement ou occasionnellement",
-  "Un montant suffisant que j'investis en priorité",
-]);
-
-const Q4_MINIMAL = new Set([
-  "J'ai de quoi vivre sans trop me priver, mais je n'épargne pas",
-]);
-
 // ── Calcul du profil initial ──────────────────────────────────
 
-/**
- * Retourne le profil P1-P6 selon la matrice du questionnaire (repli historique).
- * Évaluation du plus élevé (P5) au plus bas (P1).
- */
 /* ── LE PROFIL, À PARTIR DES SEULES DONNÉES RÉELLES ────────────────────────────────────────────
  *
  * Plus aucune réponse déclarée n'entre dans le calcul : ni questionnaire d'accueil, ni « micro-
- * questions ». Trois mesures suffisent, toutes issues de ce que l'utilisateur a réellement saisi.
- * Conséquence directe : dès qu'il renseigne la dernière donnée manquante (son revenu), son profil
- * apparaît — et tant qu'il manque quelque chose, il reste P1, le profil le plus prudent.
+ * questions ». Tout vient de ce que l'utilisateur a réellement saisi — comptes, revenus, charges.
+ * Tant qu'il manque le revenu, le palier est P0 « Découverte » : on dit qu'on ne sait pas, on ne
+ * classe pas d'office.
  *
- * La matrice reprend EXACTEMENT les paliers de l'ancienne (mois de sécurité × taux d'épargne ×
- * comportement d'investissement), en remplaçant chaque réponse par sa mesure :
- *   q5 « combien de temps tiendrais-tu ? »  → mois de sécurité (épargne ÷ dépenses essentielles)
- *   q6 « quelle part mets-tu de côté ? »    → taux d'épargne constaté (mis de côté ÷ revenu)
- *   q4 « que fais-tu de ce qui reste ? »    → épargne-t-il / investit-il vraiment ?
+ * ⚠️ Ce bloc décrivait encore l'ANCIENNE matrice (« mois de sécurité × taux d'épargne ×
+ * comportement d'investissement », traduite question par question depuis q4/q5/q6) et annonçait un
+ * repli en P1. Les trois sont faux depuis la refonte : le taux d'épargne est sorti du classement,
+ * le questionnaire n'existe plus, et le repli est P0. Une description périmée d'un calcul financier
+ * est plus dangereuse qu'une absence de description : on finit par coder d'après elle.
  */
 export interface ProfileDataInputs {
   /**
@@ -526,13 +380,14 @@ export interface ProfileDataInputs {
    * suppose rien.
    */
   consecutiveOverdraftMonths?: number;
-  /**
-   * Patrimoine BANCAIRE total (courant + épargne + investissement). Il gouverne les paliers hauts :
-   * au-delà d'un certain montant, le nombre de mois de réserve ne dit plus rien d'utile (quelqu'un
-   * avec 400 000 € a « 200 mois de réserve », ce qui ne le distingue pas de quelqu'un avec 80 000 €
-   * et un petit revenu). À défaut, reconstitué depuis l'épargne et l'investissement.
-   */
-  totalLiquidWealth?: number;
+  /* ⚠️ `totalLiquidWealth` A ÉTÉ RETIRÉ DES ENTRÉES. Le patrimoine se DÉDUIT désormais, toujours de
+     la même façon : épargne + placements, et rien d'autre.
+     Il incluait le solde COURANT — c'est-à-dire l'argent du mois en cours, celui qui va servir au
+     loyer et aux courses. Compté comme patrimoine, il faisait entrer en « Patrimoine en
+     construction » quelqu'un qui venait simplement d'être payé, et l'en faisait ressortir trois
+     semaines plus tard. Un solde courant n'est pas un patrimoine : c'est de la trésorerie.
+     C'est aussi la définition qu'employait déjà la priorité du mois (« Faire travailler ton
+     patrimoine ») : les deux seuils de 100 000 € comptaient deux choses différentes. */
   /**
    * Dépenses ESSENTIELLES mensuelles (charges récurrentes + enveloppe variable). C'est la base du
    * matelas de sécurité : « combien de temps je tiens » se mesure sur ce qui SORT, pas sur ce qui
@@ -541,22 +396,13 @@ export interface ProfileDataInputs {
   monthlyEssentialExpenses?: number;
 }
 
-/**
- * Seuils de PATRIMOINE BANCAIRE des paliers hauts (€ sur les comptes suivis par l'app).
- *
- * Calés sur la réalité de la distribution du patrimoine financier des ménages : au-delà de
- * 30 000 € de placements bancaires on quitte déjà la moitié inférieure, 100 000 € correspond
- * grossièrement au dernier quart, et 300 000 € aux quelques pour cent du haut — le million étant
- * une fraction de pour cent. Volontairement ronds : ce sont des repères, pas des mesures.
- *
- * ⚠️ VALEURS DE REPLI uniquement (cf. `DEFAULT_PROFILE_THRESHOLDS`) : la configuration réelle vient
- * de `profile_matrix_config`. Conservées exportées, l'administration s'en sert comme repères
- * d'affichage.
- */
-export const WEALTH_THRESHOLDS = { P7: 30_000, P8: 100_000, P9: 300_000 } as const;
-
-/** Au-delà, on le NOMME : c'est le seul palier où le mot a un sens. */
-export const MILLIONAIRE_THRESHOLD = 1_000_000;
+/* ⚠️ `WEALTH_THRESHOLDS` et `MILLIONAIRE_THRESHOLD` ONT ÉTÉ RETIRÉS. Le premier se disait
+   « conservé exporté, l'administration s'en sert comme repères d'affichage » — elle ne l'a jamais
+   lu, et les vraies valeurs vivent dans `DEFAULT_PROFILE_THRESHOLDS` (elles-mêmes remplaçables par
+   `profile_matrix_config`). Deux tables de seuils dont une seule décide, c'est la garantie qu'on
+   recalibrera un jour celle qui ne sert à rien. Le second n'alimentait que `isMillionaire`, appelée
+   par un test et par personne d'autre : le million reste une phrase dans la description de P9, pas
+   un calcul. */
 
 /** Mois de réserve exigés pour prétendre à un palier de patrimoine (P7+) — valeur de repli. */
 const WEALTH_MIN_MONTHS = 6;
@@ -587,8 +433,17 @@ export interface ProfileThresholds {
   /** Patrimoine bancaire à atteindre pour les paliers hauts, et seuil de sortie. */
   wealthUp: { P7: number; P8: number; P9: number };
   wealthDown: { P7: number; P8: number; P9: number };
-  /** Réserve minimale exigée EN PLUS du montant, pour chaque palier de patrimoine. */
+  /** Réserve minimale exigée EN PLUS du montant, pour chaque palier de patrimoine (MONTÉE). */
   wealthMinMonths: { P7: number; P8: number; P9: number };
+  /**
+   * Réserve sous laquelle on QUITTE un palier de patrimoine. C'était le dernier seuil de l'échelle
+   * sans bande d'hystérésis : la même valeur servait à monter et à descendre, si bien qu'un
+   * patrimoine constitué dont la réserve oscille autour de six mois — l'enveloppe de dépenses
+   * variables bouge à chaque saisie — basculait P6 ⇄ P7 d'une opération à l'autre, avec une
+   * notification « ton profil a changé » à chaque passage. Exactement ce que l'hystérésis existe
+   * pour empêcher, sur le seul palier qui en était privé.
+   */
+  wealthMinMonthsDown: { P7: number; P8: number; P9: number };
   /** Mois consécutifs dans le rouge à partir desquels le découvert est CHRONIQUE. */
   chronicOverdraftMonths: number;
   /**
@@ -614,6 +469,16 @@ export interface ProfileThresholds {
    * la non-viabilité domine. À 0, la viabilité l'emporte toujours.
    */
   viabilityGraceMonths: number;
+  /**
+   * Réserve sous laquelle la dispense CESSE — l'autre moitié de la bande.
+   *
+   * C'était le dernier seuil de l'échelle à n'avoir qu'une seule valeur, et le pire endroit où le
+   * laisser : quelqu'un en déficit qui vit sur son épargne voit son matelas bouger à chaque saisie
+   * (l'enveloppe de dépenses variables est au dénominateur). À 5,95 puis 6,05 mois, il basculait
+   * « Fragile » ⇄ « Sécurité acquise » — quatre paliers d'un coup, dans les deux sens, avec une
+   * fenêtre à chaque passage. C'est le diagnostic le plus dur de l'app : il ne peut pas clignoter.
+   */
+  viabilityGraceMonthsDown: number;
 }
 
 /**
@@ -644,12 +509,19 @@ export const DEFAULT_PROFILE_THRESHOLDS: ProfileThresholds = {
      phrase, et c'est ce qui garantit qu'un utilisateur ne peut pas être « en avance » sur un axe et
      « en retard » sur un autre dans le même palier. */
   wealthMinMonths: { P7: WEALTH_MIN_MONTHS, P8: WEALTH_MIN_MONTHS, P9: WEALTH_MIN_MONTHS },
+  /* Même bande que P5/P6 (6 pour monter, 5 pour redescendre) : la chaîne des paliers reste
+     cohérente de bout en bout, et un mois de dépenses variables un peu plus lourd ne fait plus
+     changer de palier quelqu'un dont le patrimoine n'a pas bougé d'un euro. */
+  wealthMinMonthsDown: { P7: 5, P8: 5, P9: 5 },
   chronicOverdraftMonths: CHRONIC_OVERDRAFT_MONTHS,
   /* 95 % / 102 % : il faut une vraie marge pour être déclaré viable, un vrai écart pour ne plus
      l'être. Entre les deux — la zone où le revenu et les charges se frôlent — personne ne bouge. */
   viabilityExitRatio: 0.95,
   viabilityEnterRatio: 1.02,
   viabilityGraceMonths: 6,
+  /* Même bande que partout ailleurs (6 pour bénéficier de la dispense, 5 pour la perdre) : un mois
+     de dépenses un peu plus lourd ne fait plus basculer quelqu'un en « Fragile ». */
+  viabilityGraceMonthsDown: 5,
 };
 
 /** Une ligne de `profile_matrix_config`, telle qu'elle arrive de la base. */
@@ -716,6 +588,15 @@ export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): Prof
       P8: up('P7_P8', D.wealthMinMonths.P8),
       P9: up('P8_P9', D.wealthMinMonths.P9),
     },
+    /* La colonne existait déjà (`downgrade_months_threshold`) mais n'était lue que pour les paliers
+       de matelas : les trois lignes de patrimoine la laissaient vide, et le moteur réutilisait le
+       seuil de MONTÉE pour redescendre — d'où le clignotement P6 ⇄ P7. Vide → repli sur la bande
+       par défaut, jamais sur le seuil de montée. */
+    wealthMinMonthsDown: {
+      P7: down('P6_P7', D.wealthMinMonthsDown.P7),
+      P8: down('P7_P8', D.wealthMinMonthsDown.P8),
+      P9: down('P8_P9', D.wealthMinMonthsDown.P9),
+    },
     chronicOverdraftMonths: num(
       by.get('P1_P2')?.chronic_overdraft_months, D.chronicOverdraftMonths,
     ),
@@ -724,6 +605,9 @@ export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): Prof
     viabilityExitRatio: num(by.get('P1_P2')?.viability_exit_ratio, D.viabilityExitRatio),
     viabilityEnterRatio: num(by.get('P1_P2')?.viability_enter_ratio, D.viabilityEnterRatio),
     viabilityGraceMonths: num(by.get('P1_P2')?.viability_grace_months, D.viabilityGraceMonths),
+    /* Portée par la colonne de DESCENTE de la ligne P1_P2 : ses colonnes « mois » n'étaient lues par
+       personne (l'échelle du matelas commence à P2_P3), et c'est bien la ligne de la viabilité. */
+    viabilityGraceMonthsDown: down('P1_P2', D.viabilityGraceMonthsDown),
   };
 }
 
@@ -810,8 +694,10 @@ export function computeProfileFromData(
 
   // « Investit » = il a réellement placé de l'argent sur un compte d'investissement.
   const invests = i.totalInvested > 0;
-  const wealth = i.totalLiquidWealth
-    ?? (Math.max(0, i.availableSavings) + Math.max(0, i.totalInvested));
+  /* PATRIMOINE = épargne + placements. Le solde COURANT en est exclu : c'est la trésorerie du mois,
+     pas un patrimoine. L'inclure faisait entrer en « Patrimoine en construction » quelqu'un qui
+     venait d'être payé, et l'en faisait ressortir trois semaines plus tard. */
+  const wealth = Math.max(0, i.availableSavings) + Math.max(0, i.totalInvested);
 
   /* ── QUESTION 1 : LA SITUATION EST-ELLE VIABLE ? ─────────────────────────────────────────────
      Elle passe AVANT tout le reste : tant que ce qui sort dépasse ce qui rentre, aucun palier de
@@ -821,7 +707,11 @@ export function computeProfileFromData(
      Quelqu'un qui consomme volontairement deux ans d'épargne — sabbatique, transition, création
      d'entreprise, retraite anticipée — n'est pas « fragile » ce mois-ci. Sans cette dispense, l'app
      servirait son diagnostic le plus dur à des gens qui maîtrisent parfaitement leur trajectoire. */
-  if (months < cfg.viabilityGraceMonths && hasStructuralDeficit(i, cfg, bounds)) return 'P1';
+  /* La DISPENSE suit le sens du trajet, comme tous les autres seuils : il faut plus de réserve pour
+     l'obtenir que pour la garder. Sans cette bande, « Fragile » ⇄ « Sécurité acquise » clignotait à
+     chaque saisie chez quelqu'un qui vit sur son épargne — quatre paliers, dans les deux sens. */
+  const grace = bounds === 'up' ? cfg.viabilityGraceMonths : cfg.viabilityGraceMonthsDown;
+  if (months < grace && hasStructuralDeficit(i, cfg, bounds)) return 'P1';
 
   /* ── QUESTIONS 3 ET 4 : PLACEMENTS, PUIS TAILLE DU PATRIMOINE (P7 → P9) ──────────────────────
      LE MONTANT SEUL NE SUFFIT PAS, et c'est délibéré. Un capital hérité, posé sur un livret, chez
@@ -834,10 +724,15 @@ export function computeProfileFromData(
          capital qui dort.
      À défaut, on redescend sur l'échelle du matelas — exactement le conseil dont cette personne a
      besoin. Le patrimoine reste donc un indicateur, jamais un laissez-passer. */
+  /* La RÉSERVE exigée suit le sens du trajet, comme le montant : `wealthMinMonths` pour monter,
+     `wealthMinMonthsDown` pour se maintenir. C'était le seul seuil de l'échelle sans bande — la
+     même valeur dans les deux sens faisait basculer P6 ⇄ P7 à chaque saisie chez quelqu'un dont la
+     réserve frôle six mois, avec une notification de changement de profil à chaque aller-retour. */
+  const WM = bounds === 'up' ? cfg.wealthMinMonths : cfg.wealthMinMonthsDown;
   if (invests) {
-    if (months >= cfg.wealthMinMonths.P9 && wealth >= W.P9) return 'P9';
-    if (months >= cfg.wealthMinMonths.P8 && wealth >= W.P8) return 'P8';
-    if (months >= cfg.wealthMinMonths.P7 && wealth >= W.P7) return 'P7';
+    if (months >= WM.P9 && wealth >= W.P9) return 'P9';
+    if (months >= WM.P8 && wealth >= W.P8) return 'P8';
+    if (months >= WM.P7 && wealth >= W.P7) return 'P7';
   }
 
   /* ── QUESTION 2 : COMBIEN DE TEMPS TIENT-IL ? (P2 → P6) ──────────────────────────────────────
@@ -863,8 +758,12 @@ export function computeProfileFromData(
  * l'évaluation (c'est ce que faisait la cadence mensuelle, au prix de la justesse) mais par une
  * HYSTÉRÉSIS : le seuil n'est pas au même endroit selon le sens du trajet.
  *
- *   • pour MONTER, la réserve doit dépasser le seuil d'une marge (on évalue à 85 % de sa valeur) ;
- *   • pour DESCENDRE, elle doit passer sous le seuil d'autant (on évalue à 115 %).
+ *   • pour MONTER, on lit les seuils de MONTÉE (exigeants) ;
+ *   • pour DESCENDRE, ceux de DESCENTE (indulgents), réglés palier par palier en administration.
+ *
+ * (Ce n'est plus un pourcentage unique appliqué au matelas — cf. `ProfileThresholds` : on peut
+ *  vouloir qu'on monte difficilement en P5 et qu'on en redescende très difficilement, ce qu'un
+ *  ratio global ne permet pas d'exprimer.)
  *
  * Entre les deux, on ne bouge pas. Un aller-retour autour d'un seuil ne produit donc aucun
  * changement, alors qu'une vraie évolution en produit un immédiatement.
@@ -920,11 +819,6 @@ export function resolveLiveProfile(
     return { profileId: withDown, changed: true, direction: 'down', steps: rankOf(from) - rankOf(withDown) };
   }
   return { profileId: from, changed: false, direction: null, steps: 0 };
-}
-
-/** L'utilisateur dépasse-t-il le million sur ses comptes suivis ? (pour le NOMMER, cf. P9) */
-export function isMillionaire(totalLiquidWealth: number): boolean {
-  return totalLiquidWealth >= MILLIONAIRE_THRESHOLD;
 }
 
 /* ── CE QUI A ÉTÉ RETIRÉ ICI, ET POURQUOI ────────────────────────────────────────────────────────

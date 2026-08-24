@@ -168,8 +168,6 @@ export interface PulseInputs {
    * bilan dirait alors « ta réserve couvre 7 mois » à quelqu'un dont l'app ignore le loyer.
    */
   recurringExpensesKnown?: boolean;
-  /** Tranche de revenu du questionnaire (repli du matelas tant qu'aucune recette n'est constatée). */
-  questionnaireQ3?: string | null;
 
   // Patrimoine
   totalWealth: number;
@@ -297,7 +295,6 @@ function buildCushion(i: PulseInputs): PulseSignal {
     monthlyEssentialExpenses: i.monthlyEssentialExpenses,
     recurringExpensesKnown: i.recurringExpensesKnown,
     avgMonthlyIncome: i.avgMonthlyIncome,
-    questionnaireQ3: i.questionnaireQ3,
   });
 
   // Aucune base exploitable : on montre le montant épargné, sans le convertir en « mois ».

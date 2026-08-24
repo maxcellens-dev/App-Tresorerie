@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
-import { PROFILE_INFO, PROFILE_ALLOCATIONS } from '../../lib/finance/financialProfileEngine';
+import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,8 +12,7 @@ import { useGuide } from '../../contexts/GuideContext';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { sheetWidth } from '../../lib/ui/appLayout';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
-import { resolveMonthlyAllocation, type Allocation } from '../../lib/finance/financialPriorities';
-import { computeSecurityCushion } from '../../lib/finance/securityCushion';
+import { resolveMonthlyAllocation, situationFromPilotage, type Allocation } from '../../lib/finance/financialPriorities';
 import { resolveRecoMode } from '../../lib/finance/recoMode';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
@@ -83,6 +82,21 @@ const GENERIC_BY_DIRECTION: Record<string, string> = {
   upgrade: 'Ta situation s’est renforcée : Relyka en tient compte dans ce qu’il te recommande.',
   downgrade: 'Ta situation s’est resserrée : Relyka redevient plus prudent, le temps que ça remonte.',
   exceptional: 'Relyka s’adapte à ce que disent tes derniers mois.',
+  /* ⚠️ Le MAINTIEN n'avait aucun repli, et c'était visible en production.
+     Les libellés « same » n'existent en base que pour P1 à P5 : l'échelle est passée à dix paliers,
+     les messages de maintien ne les ont jamais suivis. Le bilan mensuel d'un P6 à P9 (ou d'un P0)
+     ne trouvait donc ni ligne en base, ni repli dans le code — il s'affichait avec un corps VIDE,
+     sous un titre « Ton profil a changé » alors que, par définition, rien n'avait changé. Tous les
+     mois. */
+  same: 'Ton profil ne bouge pas ce mois-ci : Relyka continue de répartir ton Relyka de la même façon.',
+};
+
+/**
+ * Titre de repli, par sens. Un bilan de MAINTIEN ne peut pas s'annoncer « ton profil a changé » :
+ * c'est exactement le contraire de ce qu'il vient constater.
+ */
+const GENERIC_TITLE_BY_DIRECTION: Record<string, string> = {
+  same: 'Tu conserves ton profil',
 };
 
 /** Message des SAUTS (2 paliers et plus), qu'aucun libellé par paire ne couvre. */
@@ -183,7 +197,8 @@ export default function ProfileChangeModal({ userId }: Props) {
     pendingChange.change_reason,
   );
 
-  let title = 'Ton profil a changé';
+  // Le titre par défaut suit le SENS : un bilan de maintien n'annonce pas un changement.
+  let title = (key && GENERIC_TITLE_BY_DIRECTION[key.direction]) || 'Ton profil a changé';
   let body = '';
 
   if (key) {
@@ -205,7 +220,11 @@ export default function ProfileChangeModal({ userId }: Props) {
     }
   }
 
-  const newProfileId = pendingChange.new_profile as FinancialProfileId;
+  /* Ramené sur le référentiel de CE bundle : un identifiant venu d'une migration plus récente que
+     l'application installée laissait la table des profils sans réponse, et la fenêtre s'ouvrait sans
+     nom, sans emblème et sans répartition — un « ton profil a changé » qui ne dit pas en quoi.
+     Le reste de l'app clampe déjà partout (cf. resolveProfileId). */
+  const newProfileId = resolveProfileId(pendingChange.new_profile);
   const profileInfo = PROFILE_INFO[newProfileId];
 
   const isUpgrade = key?.direction === 'upgrade';
@@ -227,25 +246,14 @@ export default function ProfileChangeModal({ userId }: Props) {
      le mois ne se boucle pas, c'est se contredire à une seconde d'intervalle.
      La comparaison avant/après reste faite à priorité ÉGALE — c'est bien l'effet du CHANGEMENT DE
      PALIER qu'on montre, pas celui de la situation du mois, qui n'a pas bougé entre les deux. */
-  const situation = pilotage ? {
-    monthsOfReserve: computeSecurityCushion({
-      availableSavings: pilotage.current_savings ?? 0,
-      monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
-      // Même garde que le moteur : sans charge saisie, le dénominateur est amputé (cf. securityCushion).
-      recurringExpensesKnown: !!pilotage.has_recurring_expenses,
-      avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
-    }).months,
-    monthlySurplus: pilotage.projected_surplus ?? 0,
-    avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
-    monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
-    checkingBalance: pilotage.current_checking_balance ?? 0,
-    savingsBalance: pilotage.current_savings ?? 0,
-    investedBalance: pilotage.total_invested ?? 0,
-  } : null;
+  /* Situation du mois : fonction PARTAGÉE (lib/financialPriorities). Recopiée ici, elle OMETTAIT
+     le découvert chronique — cette fenêtre pouvait donc annoncer une répartition que le tableau de
+     bord, lui, bornait autrement. */
+  const situation = situationFromPilotage(pilotage);
   const applied = (id: FinancialProfileId, base?: Allocation | null) =>
     (situation ? resolveMonthlyAllocation(id, situation, base, allocTable).alloc : (base ?? allocTable[id]));
 
-  const prevProfileId = pendingChange.previous_profile as FinancialProfileId | null;
+  const prevProfileId = pendingChange.previous_profile ? resolveProfileId(pendingChange.previous_profile) : null;
   /* En mode manuel, la répartition affichée est CELLE QUI S'APPLIQUERA après ce que l'utilisateur
      vient de décider dans cette fenêtre : ses pourcentages tant que la coche est vide, ceux du
      nouveau profil dès qu'il la coche. Elle bouge donc sous ses yeux au moment où il coche — c'est

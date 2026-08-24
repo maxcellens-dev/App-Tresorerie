@@ -25,23 +25,15 @@
  * ── LES REPLIS, DANS L'ORDRE ────────────────────────────────────────────────────────────────────
  *   1. dépenses essentielles mensuelles (la vraie mesure) ;
  *   2. à défaut, le revenu mensuel constaté — approximation prudente, mieux que rien ;
- *   3. à défaut, l'estimation de revenu du questionnaire (tranche Q3) ;
- *   4. rien d'exploitable → `null`, et les écrans MASQUENT la mention (jamais « 0 mois »).
+ *   3. rien d'exploitable → `null`, et les écrans MASQUENT la mention (jamais « 0 mois »).
+ *
+ * ⚠️ UN TROISIÈME REPLI A ÉTÉ RETIRÉ : la tranche de revenu DÉCLARÉE au questionnaire d'accueil
+ * (Q3). Ce questionnaire n'existe plus — pour tout compte créé depuis, la réponse est vide, donc le
+ * repli ne servait qu'aux comptes anciens. Et il ne s'activait que dans le seul cas où AUCUN revenu
+ * n'est constaté… c'est-à-dire précisément celui où le classement, lui, refuse de conclure et rend
+ * « Découverte ». L'app annonçait alors « ≈ 3,3 mois de sécurité » sous un profil qui dit ne rien
+ * savoir : deux réponses à la même question, dont une tirée d'une case cochée il y a deux ans.
  */
-
-/** Bornes basses (prudentes) des tranches de revenu du questionnaire (Q3). */
-const Q3_LOWER_BOUNDS: Record<string, number> = {
-  'Moins de 1 500 €': 1200,
-  'De 1 500 € à 2 500 €': 1800,
-  'De 2 500 € à 4 000 €': 2800,
-  'Plus de 4 000 €': 4200,
-};
-
-/** Revenu mensuel représentatif d'une tranche Q3 (borne basse prudente), ou 0 si inconnue. */
-export function incomeFromQ3(q3: string | null | undefined): number {
-  if (!q3) return 0;
-  return Q3_LOWER_BOUNDS[q3] ?? 0;
-}
 
 export interface SecurityCushionInputs {
   /** Épargne disponible (épargne + éventuellement le courant, selon l'appelant). */
@@ -66,14 +58,12 @@ export interface SecurityCushionInputs {
    * comportement.
    */
   recurringExpensesKnown?: boolean;
-  /** Revenu mensuel moyen constaté (0 = non détecté). Repli quand les dépenses sont inconnues. */
+  /** Revenu mensuel moyen constaté (0 = non détecté). Dernier repli quand les dépenses sont inconnues. */
   avgMonthlyIncome: number;
-  /** Tranche de revenu du questionnaire (dernier repli, quand tout le reste est vide). */
-  questionnaireQ3?: string | null;
 }
 
 /** D'où vient le diviseur — sert à nommer la mesure honnêtement à l'écran. */
-export type SecurityCushionBase = 'expenses' | 'income' | 'questionnaire';
+export type SecurityCushionBase = 'expenses' | 'income';
 
 export interface SecurityCushion {
   /** Nombre de mois couverts, ou null si aucune base exploitable (→ ne rien afficher). */
@@ -104,11 +94,6 @@ export function computeSecurityCushion(i: SecurityCushionInputs): SecurityCushio
     return { months: savings / i.avgMonthlyIncome, reference: i.avgMonthlyIncome, base: 'income' };
   }
 
-  const fromQuestionnaire = incomeFromQ3(i.questionnaireQ3);
-  if (fromQuestionnaire > 0) {
-    return { months: savings / fromQuestionnaire, reference: fromQuestionnaire, base: 'questionnaire' };
-  }
-
   return { months: null, reference: 0, base: null };
 }
 
@@ -116,7 +101,6 @@ export function computeSecurityCushion(i: SecurityCushionInputs): SecurityCushio
 export function securityBaseLabel(base: SecurityCushionBase | null): string {
   if (base === 'expenses') return 'épargne ÷ tes dépenses mensuelles (charges + variables)';
   if (base === 'income') return 'épargne ÷ ton revenu mensuel, en attendant tes charges';
-  if (base === 'questionnaire') return 'épargne ÷ ton revenu estimé';
   return '';
 }
 

@@ -13,7 +13,6 @@ import {
   computeSecurityCushion,
   securityBaseLabel,
   securityMonthsLabel,
-  incomeFromQ3,
 } from '../lib/finance/securityCushion';
 
 describe('computeSecurityCushion — l’ordre des bases', () => {
@@ -42,10 +41,13 @@ describe('computeSecurityCushion — l’ordre des bases', () => {
     expect(computeSecurityCushion({ availableSavings: 6000, monthlyEssentialExpenses: -50, avgMonthlyIncome: 3000 }).base).toBe('income');
   });
 
-  it('dernier repli : la tranche de revenu déclarée', () => {
-    const c = computeSecurityCushion({ availableSavings: 4000, avgMonthlyIncome: 0, questionnaireQ3: 'Entre 2 000 € et 3 000 €' });
-    // La tranche vaut ce que vaut sa borne BASSE : on ne surestime pas un revenu déclaré.
-    expect(c.base).toBe(incomeFromQ3('Entre 2 000 € et 3 000 €') > 0 ? 'questionnaire' : null);
+  /* Le repli sur la tranche de revenu DÉCLARÉE (questionnaire d'accueil) a été retiré : ce
+     questionnaire n'existe plus, et il ne s'activait que quand aucun revenu n'est constaté —
+     c'est-à-dire précisément le cas où le classement, lui, refuse de conclure. */
+  it('sans revenu constaté, on ne conclut plus rien', () => {
+    const c = computeSecurityCushion({ availableSavings: 4000, avgMonthlyIncome: 0 });
+    expect(c.months).toBeNull();
+    expect(c.base).toBeNull();
   });
 
   /* `null` et non `0` : zéro mois est une AFFIRMATION (« tu ne tiens pas un jour »), alors qu'on ne
@@ -66,7 +68,6 @@ describe('libellés — on dit toujours ce qu’on divise', () => {
   it('chaque base a une phrase de provenance, et l’absence de base n’en a aucune', () => {
     expect(securityBaseLabel('expenses')).toContain('dépenses');
     expect(securityBaseLabel('income')).toContain('revenu');
-    expect(securityBaseLabel('questionnaire')).toContain('estimé');
     expect(securityBaseLabel(null)).toBe('');
   });
 

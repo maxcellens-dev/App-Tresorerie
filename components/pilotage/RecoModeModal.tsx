@@ -30,8 +30,7 @@ import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { PROFILE_ALLOCATIONS, PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
-import { resolveMonthlyAllocation, type Allocation, type RecoKey } from '../../lib/finance/financialPriorities';
-import { computeSecurityCushion } from '../../lib/finance/securityCushion';
+import { resolveMonthlyAllocation, situationFromPilotage, type Allocation, type RecoKey } from '../../lib/finance/financialPriorities';
 import { RECO_KEYS, RECO_KEY_LABEL, allocationTotal, readManualAllocation, resolveRecoMode, type RecoMode } from '../../lib/finance/recoMode';
 
 interface Props {
@@ -95,22 +94,9 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
      La priorité du mois borne la répartition, quelle que soit son origine. L'annoncer ici évite le
      « j'ai demandé 60 % d'investissement et j'en vois 5 » : l'écart se voit AVANT d'enregistrer,
      avec sa raison. */
-  const situation = pilotage ? {
-    monthsOfReserve: computeSecurityCushion({
-      availableSavings: pilotage.current_savings ?? 0,
-      monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
-      // Même garde que le moteur : sans charge saisie, le dénominateur est amputé (cf. securityCushion).
-      recurringExpensesKnown: !!pilotage.has_recurring_expenses,
-      avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
-    }).months,
-    monthlySurplus: pilotage.projected_surplus ?? 0,
-    avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
-    monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
-    checkingBalance: pilotage.current_checking_balance ?? 0,
-    savingsBalance: pilotage.current_savings ?? 0,
-    investedBalance: pilotage.total_invested ?? 0,
-    irregularIncome: Boolean((fp as any)?.is_irregular_income),
-  } : null;
+  /* Situation du mois : fonction PARTAGÉE (lib/financialPriorities) — la même que le moteur de
+     recommandations, sinon cette modale annonce des bornes que le tableau de bord n'applique pas. */
+  const situation = situationFromPilotage(pilotage);
 
   const resolvedDraft = situation
     ? resolveMonthlyAllocation(profileId, situation, mode === 'manual' ? draft : null, allocTable)

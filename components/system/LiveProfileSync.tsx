@@ -66,7 +66,17 @@ export default function LiveProfileSync() {
     const income = Math.round(pilotage.avg_monthly_income ?? 0);
     const essentials = Math.round(pilotage.monthly_essential_expenses ?? 0);
     const charges = pilotage.has_recurring_expenses ? 1 : 0;
-    const sig = `${balances}#${txCount}#${txSum.toFixed(2)}#${income}#${essentials}#${charges}`;
+    /* Les TOTAUX DU PÉRIMÈTRE entrent dans la signature, et pas seulement les comptes personnels :
+       `useAccounts` n'expose pas les comptes joints, si bien qu'un virement d'épargne vers un compte
+       joint ne changeait rien à la signature — le profil ne se recalculait donc jamais dessus, alors
+       qu'il compte désormais dans le matelas. */
+    const perimeter = [
+      Math.round(pilotage.total_savings ?? 0),
+      Math.round(pilotage.total_checking ?? 0),
+      Math.round(pilotage.total_invested ?? 0),
+      pilotage.consecutive_overdraft_months ?? 0,
+    ].join(':');
+    const sig = `${balances}#${txCount}#${txSum.toFixed(2)}#${income}#${essentials}#${charges}#${perimeter}`;
 
     if (lastSig.current === sig) return;
     // Première signature connue : on synchronise aussi (le profil peut n'avoir jamais été calculé).
@@ -75,6 +85,14 @@ export default function LiveProfileSync() {
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
       monthlyEssentialExpenses: Number(pilotage.monthly_essential_expenses) || undefined,
       hasRecurringExpenses: !!pilotage.has_recurring_expenses,
+      /* Les SOLDES viennent du Pilotage, comptes partagés et joints pondérés compris — le même
+         périmètre que le matelas affiché sur la page « Profil financier ». Relus côté profil sur les
+         seuls comptes personnels, ils classaient « sans filet » quelqu'un dont l'épargne est sur un
+         compte joint, sous une ligne annonçant plusieurs mois de réserve. */
+      savingsBalance: pilotage.total_savings ?? 0,
+      checkingBalance: pilotage.total_checking ?? 0,
+      investedBalance: pilotage.total_invested ?? 0,
+      consecutiveOverdraftMonths: pilotage.consecutive_overdraft_months ?? 0,
     }), SETTLE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

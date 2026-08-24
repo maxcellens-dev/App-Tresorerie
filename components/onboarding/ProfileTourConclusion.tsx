@@ -29,7 +29,7 @@ import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { useProfile } from '../../hooks/data/useProfile';
 import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
-import { resolveMonthlyAllocation } from '../../lib/finance/financialPriorities';
+import { resolveMonthlyAllocation, situationFromPilotage } from '../../lib/finance/financialPriorities';
 import { computeSecurityCushion, securityMonthsLabel } from '../../lib/finance/securityCushion';
 import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
 import type { FinancialProfileId } from '../../types/database';
@@ -143,17 +143,12 @@ export default function ProfileTourConclusion() {
      ajustée par la priorité du mois (cf. resolveMonthlyAllocation). Cet écran conclut le
      parcours — présenter une répartition que le tableau de bord contredit dès la seconde
      suivante serait la pire des premières impressions. */
-  const alloc = pilotage
-    ? resolveMonthlyAllocation(profileId, {
-        monthsOfReserve: cushionMonths,
-        monthlySurplus: pilotage.projected_surplus ?? 0,
-        avgMonthlyIncome: income,
-        monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
-        checkingBalance: pilotage.current_checking_balance ?? 0,
-        savingsBalance: savings,
-        investedBalance: pilotage.total_invested ?? 0,
-        irregularIncome: Boolean((fp as any)?.is_irregular_income),
-      }, null, allocTable).alloc
+  /* Situation du mois : fonction PARTAGÉE (lib/financialPriorities). Elle était assemblée à la
+     main ici et dans quatre autres fichiers — donc avec des champs différents d'un écran à l'autre,
+     et des pourcentages qui pouvaient se contredire d'une seconde à l'autre. */
+  const tourSituation = situationFromPilotage(pilotage);
+  const alloc = tourSituation
+    ? resolveMonthlyAllocation(profileId, tourSituation, null, allocTable).alloc
     : (allocTable?.[profileId] ?? PROFILE_ALLOCATIONS[profileId]);
   if (!alloc) return null;
 

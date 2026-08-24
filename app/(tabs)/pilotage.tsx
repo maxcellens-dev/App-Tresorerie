@@ -946,7 +946,7 @@ function PilotageScreen() {
           if (blockedByImpersonation()) { setShowVariableModal(false); return; }
           const weekly = parseFloat(weeklyVariableInput.replace(',', '.')) || 0;
           try {
-            /* La copie dénormalisée q9 est synchronisée PAR LE HOOK (useUpdateProfile), avec q8.
+            /* La copie dénormalisée q9 est synchronisée PAR LE HOOK (useUpdateProfile).
                Elle était recopiée ici, si bien que le même réglage fait depuis « Profil financier »
                ne la mettait pas à jour. Un seul endroit, les deux écrans alignés. */
             await updateProfileVar.mutateAsync({ weekly_variable_budget: weekly > 0 ? weekly : null });

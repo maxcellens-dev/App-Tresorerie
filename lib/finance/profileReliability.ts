@@ -22,10 +22,13 @@
  *   🟡 estimé     — rien ne manque vraiment, mais quelque chose est deviné ou trop récent ;
  *   🔴 incomplet  — une donnée STRUCTURANTE manque : le palier affiché peut être franchement faux.
  *
- * La seule conséquence mécanique d'un profil « incomplet » vit ailleurs : le moteur de
- * recommandations refuse de pousser à l'investissement sur des données qu'il ne tient pas
- * (cf. lib/finance/recommendationEngine). Ce n'est pas la fiabilité qui décide du palier, c'est la
- * prudence qui décide du conseil.
+ * ⚠️ ET AUCUNE CONSÉQUENCE MÉCANIQUE, NULLE PART. Cet en-tête affirmait que le moteur de
+ * recommandations plafonnait l'investissement quand le profil repose sur des données incomplètes.
+ * Ce n'est plus vrai : ce plafond (`applyReliabilityBounds`) a été retiré, précisément pour que la
+ * fiabilité ne devienne pas un second moteur de décision invisible depuis l'échelle
+ * (cf. lib/finance/financialPriorities, qui le documente). Laisser la promesse dans ce fichier,
+ * c'était décrire un garde-fou qui n'existe plus — le genre de commentaire qu'on finit par croire.
+ * Ce que l'app ne sait pas se DIT, avec le geste qui le comble. Rien d'autre.
  */
 
 export type ProfileReliabilityLevel = 'reliable' | 'estimated' | 'incomplete';

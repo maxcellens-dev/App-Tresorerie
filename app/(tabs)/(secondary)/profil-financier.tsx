@@ -24,7 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useFinancialProfile, useQuestionnaireAnswers, useProfileAllocations } from '../../../hooks/pilotage/useFinancialProfile';
+import { useFinancialProfile, useProfileAllocations } from '../../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import {
@@ -32,8 +32,7 @@ import {
   WEEKS_PER_MONTH,
 } from '../../../lib/finance/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '../../../lib/finance/securityCushion';
-import type { QuestionnaireAnswers } from '../../../lib/finance/financialProfileEngine';
-import { resolveMonthlyAllocation } from '../../../lib/finance/financialPriorities';
+import { resolveMonthlyAllocation, situationFromPilotage } from '../../../lib/finance/financialPriorities';
 import { resolveRecoMode } from '../../../lib/finance/recoMode';
 import { useProfileReliability } from '../../../hooks/pilotage/useProfileReliability';
 import type { ProfileReliabilityTone } from '../../../lib/finance/profileReliability';
@@ -55,14 +54,19 @@ function ProfilFinancierScreen() {
   const router = useRouter();
   const symbol = useCurrencySymbol();
   const goBack = useNavBack();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
 
   const { data: fp, isLoading: fpLoading } = useFinancialProfile(user?.id);
-  const { data: saved, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
+  /* Les anciennes réponses du questionnaire ne sont PLUS lues ici. Cet écran s'en servait pour un
+     seul usage : donner au matelas un dernier repli sur la tranche de revenu déclarée (q3), quand
+     aucun revenu n'est constaté. Or dans ce cas précis le classement, lui, refuse de conclure
+     (P0 « Découverte ») — la page affichait donc « ≈ 3,3 mois de sécurité » sous un profil qui dit
+     ne rien savoir. Deux mesures du même matelas sur la même page, dont une que le moteur n'utilise
+     pas. On lit désormais exactement ce que le moteur lit, et rien d'autre. */
   const { data: pilotage } = usePilotageData(user?.id);
   /* ⚠️ La marge de sécurité et l'enveloppe variable vivent dans `profiles` — c'est là que tout le
      reste de l'app les écrit et les lit (le guide de démarrage, le Pilotage, le moteur du Relyka).
-     Cet écran allait les chercher dans les anciennes réponses q8/q9 du questionnaire : DEUX
+     Cet écran allait les chercher dans les anciennes réponses du questionnaire : DEUX
      stockages différents, d'où des cases vides ici alors que l'utilisateur venait de les saisir
      pendant le tour, et un doublon avec la ligne mesurée juste au-dessus. Une seule source. */
   const { data: userProfile } = useProfile(user?.id);
@@ -77,14 +81,20 @@ function ProfilFinancierScreen() {
   /* (Le recalcul du profil n'est pas déclenché ici : un observateur global surveille les comptes et
      les transactions et le relance dès qu'ils bougent — cf. components/LiveProfileSync.) */
 
-  /** Panneau d'édition ouvert (une seule ligne à la fois). */
-  const [editing, setEditing] = useState<null | 'q8' | 'q9'>(null);
+  /* Panneau d'édition ouvert (une seule ligne à la fois).
+     ⚠️ Les clés s'appelaient 'q8' et 'q9' — les numéros des questions du questionnaire d'accueil.
+     Elles ne désignent plus rien : ces deux montants vivent dans `profiles`, et le questionnaire
+     n'existe plus. Un identifiant qui porte le nom d'un système disparu finit par faire croire
+     qu'on édite ce système. */
+  const [editing, setEditing] = useState<null | 'margin' | 'variable'>(null);
   /** Réglage de la répartition (profil ↔ pourcentages choisis) — même modale que le tableau de bord. */
   const [showRecoMode, setShowRecoMode] = useState(false);
   /** Détail de la fiabilité : le niveau reste sur la carte, le pourquoi s'ouvre à la demande. */
   const [showReliability, setShowReliability] = useState(false);
   const [amountDraft, setAmountDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  /** Verrou SYNCHRONE contre la double soumission (cf. persistAmount). */
+  const savingRef = useRef(false);
 
   /* FOCUS SANS SAUT DE DÉFILEMENT (cf. le commentaire de `amountPanel`).
      `preventScroll` est une option du DOM : sur le web, `.focus({ preventScroll: true })` empêche
@@ -105,13 +115,14 @@ function ProfilFinancierScreen() {
   const params = useLocalSearchParams<{ edit?: string }>();
   const autoOpened = useRef(false);
   useEffect(() => {
-    if (params.edit && saved && !autoOpened.current) {
+    if (params.edit && !autoOpened.current) {
       autoOpened.current = true;
-      setEditing(params.edit === 'q9' ? 'q9' : 'q8');
+      // On accepte encore les anciens noms au cas où un lien traînerait quelque part.
+      setEditing(params.edit === 'variable' || params.edit === 'q9' ? 'variable' : 'margin');
     }
-  }, [params.edit, saved]);
+  }, [params.edit]);
 
-  if (fpLoading || answersLoading) {
+  if (fpLoading) {
     return (
       <View style={[styles.root, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.emerald} />
@@ -123,9 +134,8 @@ function ProfilFinancierScreen() {
   // renvoyait l'utilisateur sur l'écran « ton profil se calcule tout seul », profil à l'appui.
   const profileId = fp?.profile_id ? resolveProfileId(fp.profile_id) : undefined;
   const info = profileId ? PROFILE_INFO[profileId] : null;
-  const a = (saved ?? {}) as Partial<QuestionnaireAnswers>;
 
-  /** Matelas MESURÉ sur les données réelles — c'est lui qui remplace l'ancienne question q5. */
+  /** Matelas MESURÉ sur les données réelles : épargne ÷ dépenses essentielles (cf. securityCushion). */
   const cushion = computeSecurityCushion({
     availableSavings: pilotage?.current_savings ?? 0,
     monthlyEssentialExpenses: pilotage?.monthly_essential_expenses ?? 0,
@@ -135,7 +145,6 @@ function ProfilFinancierScreen() {
        lui, aurait refusé d'utiliser. */
     recurringExpensesKnown: !!pilotage?.has_recurring_expenses,
     avgMonthlyIncome: pilotage?.avg_monthly_income ?? 0,
-    questionnaireQ3: a.q3 ?? null,
   });
 
   /* ── LES POURCENTAGES AFFICHÉS SONT CEUX QUI SONT APPLIQUÉS ────────────────────────────────
@@ -146,16 +155,10 @@ function ProfilFinancierScreen() {
      même chose, sur deux écrans — exactement ce que le profil est censé expliquer.
      `resolveMonthlyAllocation` est le point d'entrée unique prévu pour ça ; il n'était appelé
      nulle part. Sans données de Pilotage, on retombe sur la table du palier. */
-  const situation = pilotage ? {
-    monthsOfReserve: cushion.months,
-    monthlySurplus: pilotage.projected_surplus ?? 0,
-    avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
-    monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
-    checkingBalance: pilotage.current_checking_balance ?? 0,
-    savingsBalance: pilotage.current_savings ?? 0,
-    investedBalance: pilotage.total_invested ?? 0,
-    irregularIncome: Boolean((fp as any)?.is_irregular_income),
-  } : null;
+  /* La situation du mois vient de la fonction PARTAGÉE (lib/financialPriorities) : elle était
+     assemblée à la main ici et dans quatre autres fichiers, avec des champs différents d'un endroit
+     à l'autre — donc des pourcentages qui pouvaient diverger entre cette page et le tableau de bord. */
+  const situation = situationFromPilotage(pilotage);
   /* ── QUI DÉCIDE DE LA RÉPARTITION : le profil, ou l'utilisateur ? ──────────────────────────────
      Le mode manuel remplace la table du palier par les pourcentages choisis — et rien d'autre : la
      priorité du mois les borne de la même façon (cf. resolveMonthlyAllocation). Les pourcentages
@@ -174,6 +177,23 @@ function ProfilFinancierScreen() {
 
   /** Enregistre une valeur LÀ OÙ TOUTE L'APP la lit (profiles), puis laisse le profil se recalculer. */
   async function persistAmount(key: 'margin' | 'weekly', raw: string) {
+    /* ── CONSULTATION SEULE ────────────────────────────────────────────────────────────────────
+       Cette page porte les deux MÊMES réglages que le tableau de bord — la marge de sécurité et le
+       budget variable — et ils déplacent tous deux le Relyka. Le Pilotage refuse déjà de les écrire
+       en « connecté en tant que » ; cet écran-ci le faisait sans rien demander, sur le compte de la
+       personne visitée. La règle vaut pour tous les points d'écriture, pas pour un seul. */
+    if (isImpersonating) {
+      Alert.alert(
+        'Consultation seule',
+        "Tu es connecté en tant qu'un autre utilisateur : cet écran est en lecture seule. Rien n'est modifié sur son compte.",
+      );
+      setEditing(null);
+      return;
+    }
+    /* VERROU SYNCHRONE : `disabled={saving}` est un état React, il ne bloque qu'au rendu SUIVANT —
+       deux appuis rapprochés passent tous les deux (cf. hooks/useSubmitLock). */
+    if (savingRef.current) return;
+    savingRef.current = true;
     const n = Math.max(0, Math.round(parseFloat(String(raw).replace(',', '.')) || 0));
     setSaving(true);
     try {
@@ -184,6 +204,7 @@ function ProfilFinancierScreen() {
     } catch (e: unknown) {
       Alert.alert('Un souci', (e as any)?.message ?? 'Impossible d’enregistrer.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -250,7 +271,7 @@ function ProfilFinancierScreen() {
 
   /** Ligne modifiable : ouvre son panneau de choix / de saisie. */
   const editableRow = (
-    key: 'q8' | 'q9',
+    key: 'margin' | 'variable',
     label: string,
     value: string,
     term?: any,
@@ -260,7 +281,7 @@ function ProfilFinancierScreen() {
       style={styles.row}
       activeOpacity={0.7}
       onPress={() => {
-        setAmountDraft(key === 'q8' ? (margin > 0 ? String(margin) : '') : key === 'q9' ? (weekly > 0 ? String(weekly) : '') : '');
+        setAmountDraft(key === 'margin' ? (margin > 0 ? String(margin) : '') : (weekly > 0 ? String(weekly) : ''));
         setEditing(editing === key ? null : key);
       }}
     >
@@ -466,22 +487,22 @@ function ProfilFinancierScreen() {
             </Text>
 
             {editableRow(
-              'q8', 'Ta marge de sécurité',
+              'margin', 'Ta marge de sécurité',
               margin > 0 ? `${margin.toLocaleString('fr-FR')} ${symbol}` : 'aucune',
               'marge_securite',
             )}
-            {editing === 'q8' && amountPanel(
+            {editing === 'margin' && amountPanel(
               symbol,
               'Le montant que tu veux avoir au minimum sur tes comptes courants en fin de mois. Il reste sur ton compte : on te dit juste ce que tu peux utiliser avant d’y toucher.',
               (v) => persistAmount('margin', v),
             )}
 
             {editableRow(
-              'q9', 'Ton estimation de dépenses variables',
+              'variable', 'Ton estimation de dépenses variables',
               weekly > 0 ? `${weekly.toLocaleString('fr-FR')} ${symbol} / sem.` : 'estimée pour toi',
               'enveloppe_variable',
             )}
-            {editing === 'q9' && amountPanel(
+            {editing === 'variable' && amountPanel(
               `${symbol} / semaine`,
               `Courses, sorties, imprévus. ${amountDraft ? `Soit environ ${Math.round((parseFloat(amountDraft.replace(',', '.')) || 0) * WEEKS_PER_MONTH).toLocaleString('fr-FR')} ${symbol} par mois. ` : ''}Sert tant que tu n’as pas 2 mois d’historique réel.`,
               (v) => persistAmount('weekly', v),
@@ -506,14 +527,10 @@ function ProfilFinancierScreen() {
                 </Text>
               </View>
             )}
-            {(fp?.is_irregular_income ?? false) && (
-              <View style={styles.note}>
-                <Ionicons name="pulse-outline" size={14} color={COLORS.teal} />
-                <Text style={styles.noteText}>
-                  Revenus irréguliers : les baisses de revenus seront repérées plus tôt.
-                </Text>
-              </View>
-            )}
+            {/* La note « revenus irréguliers » a été retirée : elle promettait que « les baisses de
+                revenus seront repérées plus tôt », ce qu'aucun calcul ne fait — et elle reposait sur
+                un drapeau que plus rien n'écrit depuis le retrait du questionnaire. Elle ne pouvait
+                donc ni s'afficher, ni tenir sa promesse. */}
           </View>
 
           <View style={{ height: 40 }} />

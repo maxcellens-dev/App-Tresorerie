@@ -25,6 +25,7 @@ import { computeReferenceMonthlyIncome } from './incomeAverage';
 import { variablePacePercentage } from './spendingPace';
 import { resolveRecoMode } from './recoMode';
 import { addRecurrenceToMonth, recurrencePastInMonth, recurrenceOccurrencesBetween, monthlyEquivalent } from './recurrence';
+import { countConsecutiveOverdraftMonths } from './balanceAt';
 import { isoDay, dayOfMonthISO } from '../dateUtils';
 import type { DriftCalibration } from './confidenceEngine';
 import type { Account, FinancialProfile, Project, Profile, RecurrenceRule, TransactionWithDetails } from '../../types/database';
@@ -193,6 +194,19 @@ export interface PilotageData {
   joint_share_in_checking: number;
   /** Écart-type mensuel des dépenses variables (mois fiables). 0 si historique insuffisant. */
   variable_sigma: number;
+  /**
+   * Mois RÉVOLUS consécutifs terminés dans le rouge sur les comptes courants (0 = aucun).
+   *
+   * C'est ce qui transforme un découvert en DIAGNOSTIC : sa répétition, pas sa présence. La mesure
+   * existait déjà, mais UNIQUEMENT à l'intérieur du moteur de profil (hooks/useFinancialProfile), qui
+   * la relisait pour son propre compte. Résultat : la PRIORITÉ DU MOIS, qui l'attend explicitement
+   * (`consecutiveOverdraftMonths`), ne la recevait de personne — et la priorité « Sortir du rouge »,
+   * pourtant documentée comme la deuxième plus impérieuse, ne s'est jamais déclenchée pour
+   * personne : quelqu'un en découvert chronique se voyait recommander d'investir.
+   * Elle est donc mesurée ICI, une fois, avec les mêmes comptes et les mêmes transactions que tout
+   * le reste du tableau de bord.
+   */
+  consecutive_overdraft_months: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
   confidence_inputs: { lastVerifiedAt: string | null; lastActivityAt: string | null; calibration: DriftCalibration | null; floorBase: number; variableBase: number };
   /** Soldes courants projetés en fin de mois sur 6 mois (index 0 = mois courant) — même trajectoire
@@ -380,6 +394,16 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   const safety_threshold_optimal = profile?.safety_threshold_optimal ?? 10000;
   const safety_threshold_comfort = profile?.safety_threshold_comfort ?? 20000;
   const current_savings = total_savings;
+
+  /* DÉCOUVERT CHRONIQUE — mesuré ici, une seule fois, pour tout le monde.
+     Les comptes courants du PÉRIMÈTRE (les mêmes que le solde affiché) sont rejoués mois par mois
+     via le modèle d'ancres (lib/balanceAt), qui tient compte des régularisations — une soustraction
+     naïve compterait dans le rouge précisément ceux qui corrigent leurs soldes. */
+  const consecutive_overdraft_months = countConsecutiveOverdraftMonths(
+    transactions as any[],
+    accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, balance: Number(a.balance) })),
+    now,
+  );
 
   // =====================================================================
   // STEP 1: Safe to Spend
@@ -1266,6 +1290,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     joint_share_outside_perimeter,
     joint_share_in_checking,
     variable_sigma,
+    consecutive_overdraft_months,
     confidence_inputs: {
       lastVerifiedAt, lastActivityAt, calibration: reliability_calib,
       floorBase: confidence_floor_base,

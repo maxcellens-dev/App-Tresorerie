@@ -273,28 +273,16 @@ export function estimateMonthlySavings(transactions: SavedTx[], _accountCreatedA
   return windowTotal / 12;
 }
 
-// ── Estimation depuis le questionnaire ────────────────────────
+/* ── ESTIMATION DEPUIS LE QUESTIONNAIRE : RETIRÉE ────────────────────────────────────────────────
+   `incomeFromQ3` et `savingsRateFromQ6` traduisaient deux réponses du questionnaire d'accueil (la
+   tranche de revenu, la part déclarée mise de côté) en un rythme d'épargne mensuel. C'était la
+   source « Questionnaire » de l'écran Projection.
 
-/** Revenu net mensuel moyen estimé depuis la réponse Q3. */
-export function incomeFromQ3(q3?: string): number {
-  switch (q3) {
-    case 'Moins de 1 500 €': return 1200;
-    case 'De 1 500 € à 2 500 €': return 2000;
-    case 'De 2 500 € à 4 000 €': return 3250;
-    case 'Plus de 4 000 €': return 5000;
-    default: return 0;
-  }
-}
+   Ce questionnaire n'existe plus : pour tout compte créé depuis, les deux réponses sont vides, le
+   produit valait 0 € et la source s'affichait grisée — une option impossible à choisir, qui
+   renvoyait à un questionnaire jamais vu. Il restait en outre une TROISIÈME table de tranches de
+   revenu (celle-ci employait les bornes MÉDIANES, là où le matelas prenait les bornes basses) :
+   deux estimations du même revenu déclaré, avec deux résultats.
 
-/** Taux d'épargne mensuel (fraction) estimé depuis la réponse Q6. */
-export function savingsRateFromQ6(q6?: string): number {
-  switch (q6) {
-    case '0 %': return 0;
-    case 'Moins de 10 %': return 0.05;
-    case 'Entre 10 % et 20 %': return 0.15;
-    case 'Entre 20 % et 30 %': return 0.25;
-    case 'Plus de 30 %': return 0.35;
-    case "Je n'ai plus besoin d'augmenter mon épargne actuellement": return 0.1;
-    default: return 0;
-  }
-}
+   Restent les deux sources adossées au réel : ce que l'utilisateur épargne effectivement
+   (`estimateMonthlySavings`), ou ce qu'il décide lui-même. */
