@@ -50,6 +50,20 @@ describe('montant actionnable — filet anti-zéro', () => {
     expect(r.save.description).toContain('au moins 240 €');
   });
 
+  /* `amountPhrase` préfixe « au moins », mais « Confort » enchâsse le montant dans un groupe
+     nominal : la phrase unique donnait « Fais ce que tu veux des au moins 240 € restants », qui ne
+     se lit pas. C'est le seul texte de reco dans ce cas. */
+  it('« Confort » reste lisible en fourchette (pas de « des au moins … restants »)', () => {
+    const enFourchette = byType(computeRecommendations(base, {
+      actionAmountFor: (amount: number) => ({ value: Math.round(amount * 0.6), isRange: true }),
+    }));
+    expect(enFourchette.enjoy.description).not.toContain('des au moins');
+    expect(enFourchette.enjoy.description).toContain("d'au moins 120 €");
+
+    const sansFourchette = byType(computeRecommendations(base));
+    expect(sansFourchette.enjoy.description).toContain('des 200 € restants');
+  });
+
   it('le type est transmis → « Conserver » peut être servi au montant plein (doute directionnel)', () => {
     const seen: RecoType[] = [];
     const r = byType(computeRecommendations(base, {

@@ -69,6 +69,15 @@ export interface SnapshotInput {
   dayOfMonth: number;
   daysInMonth: number;
   pilotage: PilotageData;
+  /**
+   * LE RELYKA, c'est-à-dire LE chiffre que l'utilisateur a sous les yeux sur son tableau de bord
+   * (cf. lib/finance/relyka). Il n'était pas transmis : l'IA ne connaissait que `safe_to_spend`,
+   * l'ANCIEN modèle de budget, qui ne déduit ni l'enveloppe de dépenses variables, ni les virements
+   * prévus, ni les réservations — donc plusieurs centaines d'euros au-dessus. Elle annonçait ainsi
+   * « tu as 1 800 € réellement disponibles » à quelqu'un dont l'app affiche 240 €.
+   * Absent → la ligne n'est pas écrite (on n'invente pas un montant).
+   */
+  relyka?: number | null;
   /** Dépenses du mois par grande catégorie (déjà agrégées, triées desc). */
   expensesByCategory: Array<{ name: string; amount: number }>;
   credits?: SnapshotCredit[];
@@ -146,7 +155,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     recurringExpenses = [], recurringIncomes = [], recurringTransfers = [], topOneOff = [], forecast = [],
     variableDetail = [], sharedAccounts = [], incomeRef, firstMonthPartial = false,
     upcoming, savingsInvestForecast, jointContributionMonthly = 0, investContributed = null,
-    incomeByMonth = [], evolution = null,
+    incomeByMonth = [], evolution = null, relyka = null,
   } = input;
   // Revenu récurrent « réel » : moyenne des prochains mois (overrides inclus) plutôt que l'override
   // d'un seul mois multiplié — sinon des revenus qui varient chaque mois affichent un faux « /mois ».
@@ -309,7 +318,14 @@ export function buildSnapshot(input: SnapshotInput): string {
   }
 
   L.push('\nTRÉSORERIE');
-  L.push(`- Reste à vivre estimé (« safe to spend ») : ${m(p.safe_to_spend)} — déjà NET de la marge de sécurité ci-dessous : ce montant est réellement disponible (ce n'est PAS un signe de tension).`);
+  /* Le Relyka EN PREMIER : c'est le seul de ces deux montants que l'utilisateur voit. Sans lui,
+     l'IA raisonnait sur « safe to spend » et lui annonçait un budget bien plus large que celui
+     affiché sur son tableau de bord — deux chiffres pour la même question, à deux endroits de la
+     même app. On donne les deux, en disant lequel fait foi devant l'utilisateur. */
+  if (relyka != null && Number.isFinite(relyka)) {
+    L.push(`- ⭐ RELYKA (le budget libre AFFICHÉ à l'utilisateur, celui auquel il se réfère) : ${m(relyka)} — point bas de trésorerie MOINS les virements d'épargne/investissement prévus, les sommes réservées, l'enveloppe de dépenses variables restante et la marge de sécurité. Si tu cites un « budget libre » ou « ce qu'il te reste », c'est CE montant, pas celui de la ligne suivante.`);
+  }
+  L.push(`- Reste à vivre estimé (« safe to spend », indicateur INTERNE, plus large que le Relyka car il ne déduit ni l'enveloppe variable ni les sommes réservées — ne le cite pas tel quel à l'utilisateur) : ${m(p.safe_to_spend)} — déjà NET de la marge de sécurité ci-dessous (ce n'est PAS un signe de tension).`);
   L.push(`- Marge de sécurité conservée EN PLUS (Somme qu'on souhaite avoir au minimum sur ses comptes courants, non comprise dans le reste à vivre) : ${m(p.safety_margin_amount)}`);
   L.push(`- Point bas projeté sur quelques mois : ${m(p.projection_min_buffer)}${p.projection_in_danger ? ' (⚠ tension de trésorerie)' : ''}`);
   if (p.expected_monthly_income > 0) {

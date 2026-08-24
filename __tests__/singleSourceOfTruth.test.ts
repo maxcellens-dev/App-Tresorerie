@@ -170,6 +170,35 @@ describe('mise en page — l’encoche n’est comptée qu’une fois', () => {
  * l'euro, l'app se contredisait d'un écran à l'autre — « 1 234 € » ici, « 1 234 $ » là, pour les
  * mêmes euros. Le genre de détail qui fait douter de tout le reste.
  */
+/* ── LE RELYKA ───────────────────────────────────────────────────────────────────────────────────
+   La SOUSTRACTION était déjà partagée (`relykaGross`), mais la LISTE D'ENTRÉES ne l'était pas : elle
+   était réécrite dans la carte du Pilotage, le moteur de recommandations, le Pouls, le bandeau
+   « prochain geste » et l'instantané envoyé aux conseils IA. Six copies d'un même assemblage à huit
+   termes, donc six occasions d'en oublier un — et deux écrans qui annoncent alors deux budgets
+   libres différents pour le même mois, sans que rien ne le signale. */
+describe('le Relyka — une seule façon d’assembler ses huit termes', () => {
+  it('personne ne réécrit la liste d’entrées à la main', () => {
+    /* Signature d'un assemblage manuel : `reservePlanned:` n'apparaît que dans l'objet
+       `RelykaInputs` — donc uniquement là où on le FABRIQUE (lib/relyka) ou là où on le recopiait. */
+    expect(filesMatching(/reservePlanned\s*:/, ['lib/finance/relyka.ts'])).toEqual([]);
+  });
+
+  it('le point bas ne se relit pas ailleurs pour reconstituer le budget', () => {
+    /* `cashflow_trough` (le montant, pas sa date) ne se lit que là où la trajectoire elle-même est
+       en jeu : le moteur qui le produit, la fabrique des entrées, le détail du calcul, la popup
+       d'explication et la mise à jour optimiste après une saisie. Partout ailleurs, on passe par
+       `relykaInputsFrom` — sinon on refait la soustraction dans son coin. */
+    const allowed = [
+      'lib/finance/relyka.ts',
+      'lib/finance/pilotageEngine.ts',
+      'lib/finance/pilotagePatch.ts',
+      'components/pilotage/detail/RelykaDetail.tsx',
+      'app/(tabs)/pilotage.tsx',
+    ];
+    expect(filesMatching(/cashflow_trough(?!_)/, allowed)).toEqual([]);
+  });
+});
+
 describe('devise — jamais de symbole en dur', () => {
   it('aucun écran ne concatène « € » à un montant', () => {
     const rogue = FILES

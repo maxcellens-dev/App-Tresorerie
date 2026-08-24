@@ -51,7 +51,14 @@ export interface PilotageSimpleProps {
   relykaAmount: number;
   relykaColor: string;
   confidenceLevel: 'high' | 'medium' | 'low';
-  daysSinceVerification: number;
+  /**
+   * Ancienneté RÉELLE de la dernière vérification (`rawDaysSinceVerification`), pas celle du calcul
+   * — cette dernière est plafonnée (21 j par défaut) et faisait dire « vérifié il y a un moment » à
+   * quelqu'un qui n'avait rien vérifié depuis huit mois.
+   */
+  daysSinceVerification: number | null;
+  /** Aucune vérification connue : on ne peut alors PAS écrire « Vérifié … ». */
+  neverVerified?: boolean;
   /** Recommandations visibles du mois (le moteur en produit 0 à 4). */
   recommendations: SmartRecommendation[];
   /** La répartition est-elle réglée à la main ? (cf. lib/recoMode — le mode RÉELLEMENT appliqué). */
@@ -178,12 +185,21 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
               accessibilityRole="button"
               accessibilityLabel="Mettre à jour mon solde"
             >
-              <Text style={[styles.badgeText, { color: p.confidenceLevel === 'low' ? COLORS.orange : COLORS.textSecondary }]}>
-                {p.confidenceLevel === 'low' ? 'Estimation' : `Vérifié ${verifiedAgoPhrase(p.daysSinceVerification)}`}
+              {/* « Vérifié … » est une AFFIRMATION : on ne la sert qu'à qui a réellement vérifié
+                  (une régularisation, ou le solde recopié à la création d'un compte courant).
+                  Sans ce garde-fou, un compte sans aucune vérification lisait « Vérifié il y a un
+                  moment » — l'app affirmait un contrôle qui n'avait jamais eu lieu. */}
+              <Text
+                style={[styles.badgeText, { color: p.confidenceLevel === 'low' ? COLORS.orange : COLORS.textSecondary }]}
+                numberOfLines={1}
+              >
+                {p.confidenceLevel === 'low' ? 'Estimation'
+                  : p.neverVerified || p.daysSinceVerification == null ? 'Solde à vérifier'
+                  : `Vérifié ${verifiedAgoPhrase(p.daysSinceVerification)}`}
               </Text>
               <View style={[styles.badgeSep, { backgroundColor: (p.confidenceLevel === 'low' ? COLORS.orange : COLORS.textSecondary) + '55' }]} />
               <Ionicons name="refresh" size={11} color={COLORS.emerald} />
-              <Text style={[styles.badgeText, { color: COLORS.emerald }]}>Mettre à jour</Text>
+              <Text style={[styles.badgeText, { color: COLORS.emerald }]} numberOfLines={1}>Mettre à jour</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -218,7 +234,13 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             2 300 € » annonçait un nombre que son propre détail contredit, et supérieur à ce dont
             l'utilisateur dispose. Même vocabulaire que la légende de RelykaColumns
             (« minimum sûr » / « si tout est à jour »), pour ne pas inventer un troisième mot. */}
-        {p.relykaRange?.isRange && (
+        {/* La fourchette est purement DESCENDANTE : son plafond est le Relyka lui-même (le chiffre
+            au-dessus), et l'information utile est le PLANCHER — jusqu'où ça peut descendre si des
+            dépenses n'ont pas été saisies.
+            Plancher à 0 (le doute dépasse le Relyka) → on masque la ligne entière : « minimum sûr
+            0 € · jusqu'à 1 020 € » sous un « 1 020 € » n'apprend rien et alarme pour rien. Le badge
+            « Estimation » et le message « À vérifier » disent déjà ce qu'il y a à dire. */}
+        {p.relykaRange?.isRange && p.relykaRange.low > 0 && (
           <View style={styles.rangeRow}>
             <Text style={styles.rangeText}>
               minimum sûr <Text style={styles.rangeStrong}>{fmt(p.relykaRange.low)}</Text>
@@ -304,7 +326,17 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
           <View style={styles.grid}>
             {visible.map((reco) => {
               const color = colorOf[reco.type];
-              const action = ACTION_LABEL[reco.type];
+              /* ── LE BOUTON DIT CE QU'IL VA FAIRE ──────────────────────────────────────────────
+                 En confiance moyenne/basse, le geste est pré-rempli avec la BORNE BASSE (on ne
+                 pousse pas à sortir du compte de l'argent dont on n'est pas sûr) : la tuile
+                 annonçait « Épargner 400 € » et le virement s'ouvrait à 240 €, sans que rien ne
+                 l'explique — et le message juste en dessous parlait, lui, des 240 €. Deux chiffres
+                 contradictoires sur le même écran. Le montant proposé passe donc SUR le bouton,
+                 seulement quand il diffère du montant affiché. */
+              const preFilled = Math.round(reco.actionAmount ?? reco.amount);
+              const actionDiffers = preFilled > 0 && preFilled !== Math.round(reco.amount);
+              const baseAction = ACTION_LABEL[reco.type];
+              const action = baseAction && actionDiffers ? `${baseAction} ${fmt(preFilled)}` : baseAction;
               const onPress =
                 reco.type === 'save' ? () => p.onEpargner(reco)
                 : reco.type === 'invest' ? () => p.onInvestir(reco)
@@ -493,7 +525,11 @@ function makeStyles(c: any) {
       backgroundColor: c.card, borderRadius: 22, borderWidth: 1, borderColor: c.cardBorder,
       paddingHorizontal: 18, paddingVertical: 18, gap: 6, alignItems: 'center',
     },
-    heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    /* `flexWrap` : sur un écran étroit (320 pt), « TON RELYKA » + « Vérifié il y a longtemps ·
+       Mettre à jour » dépasse la largeur de la carte — le texte du badge se coupait alors en deux
+       lignes À L'INTÉRIEUR de la pastille, qui devenait un pavé. Il passe désormais dessous, entier
+       et centré. Sans effet dès qu'il y a la place. */
+    heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, maxWidth: '100%' },
     heroLabel: {
       fontSize: 11.5, fontWeight: '800', color: c.textSecondary,
       textTransform: 'uppercase', letterSpacing: 0.9,
@@ -502,6 +538,7 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', gap: 4,
       borderRadius: 999, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2,
     },
+    // `numberOfLines={1}` côté rendu + pas de retour à la ligne ici : la pastille reste une pastille.
     badgeText: { fontSize: 10.5, fontWeight: '800' },
     badgeSep: { width: 1, height: 10, opacity: 0.6, marginHorizontal: 1 },
     heroAmountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 2 },
@@ -552,7 +589,9 @@ function makeStyles(c: any) {
     decisionTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: c.text },
     decisionAmount: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
     decisionAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    decisionActionText: { fontSize: 11.5, fontWeight: '700' },
+    // `flexShrink` : le libellé porte parfois un montant (« Virer 1 240 € ») dans une tuile de
+    // demi-largeur — sans lui, c'est la FLÈCHE qui sortait du cadre sur les petits écrans.
+    decisionActionText: { fontSize: 11.5, fontWeight: '700', flexShrink: 1 },
     decisionFree: { fontSize: 11.5, color: c.textSecondary },
 
     line: {

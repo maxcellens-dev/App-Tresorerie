@@ -27,6 +27,12 @@ import { useAllAccounts } from './useAccounts';
 import { MONTHLY_FACTOR_BY_RULE } from '../../lib/finance/recurrence';
 import { useProjects } from './useProjects';
 import { useSharedContribution } from './useSharedContribution';
+/* Le Relyka tel qu'il est AFFICHÉ à l'utilisateur : même fonction et mêmes entrées que la carte du
+   Pilotage (lib/relyka + lib/pilotageView), pour que les conseils IA parlent du même chiffre. */
+import { relykaFrom } from '../../lib/finance/relyka';
+import { monthReservationsTotal } from '../../lib/finance/pilotageView';
+import { useReservations } from './useReservations';
+import { usePreSavings } from './usePreSavings';
 import { computeAmortization, addMonthsISO } from '../../lib/finance/amortization';
 import { projectMode } from '../../lib/finance/projectTx';
 import { isRegul } from '../../lib/finance/regul';
@@ -86,6 +92,10 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   // Mode des comptes partagés (« tracked » = quotidien / « contribution » = hors quotidien) — le
   // traitement des flux qui y transitent en dépend totalement.
   const { data: sharedContrib } = useSharedContribution(userId);
+  // Réservations et cumuls : ils sont DÉDUITS du Relyka affiché — sans eux, le montant transmis à
+  // l'IA ne serait pas celui que l'utilisateur a sous les yeux.
+  const { data: reservations = [] } = useReservations(userId);
+  const { data: preSavings } = usePreSavings(userId);
   // Dernier bilan global persisté → section ÉVOLUTION (« je vais dans le bon sens ? »).
   const { data: previousBilan } = usePreviousBilanMetrics(userId);
   // Profil financier P0-P9 : cadre les conseils (pas d'invest à un P1, etc.).
@@ -626,6 +636,13 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       dayOfMonth: now.getDate(),
       daysInMonth: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
       pilotage: pilotage!,
+      // LE chiffre du tableau de bord (même fabrique d'entrées et même soustraction que la carte,
+      // le Pouls, le bandeau et le moteur de recos — cf. lib/relyka).
+      relyka: relykaFrom(pilotage, {
+        reservationsTotal: monthReservationsTotal(reservations as any[], now),
+        preEpargneTotal: preSavings?.epargne.total_cumule ?? 0,
+        preInvestTotal: preSavings?.invest.total_cumule ?? 0,
+      }),
       expensesByCategory,
       credits: creditsSummary,
       projects: projectsSummary,
@@ -658,7 +675,9 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics, realMonthlyIncome, snapshotProfile, snapshotReliability],
+    // `reservations` / `preSavings` : ils entrent dans le Relyka transmis — sans eux en dépendance,
+    // le texte gardait le montant d'avant la libération d'une réservation.
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics, realMonthlyIncome, snapshotProfile, snapshotReliability, reservations, preSavings],
   );
   return { text, ready: !!pilotage, build, currentBilanMetrics };
 }

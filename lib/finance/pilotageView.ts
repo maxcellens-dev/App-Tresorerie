@@ -13,7 +13,7 @@
  */
 import { CURRENCY_SYMBOL, floorToTen, convertAmount, type RatesMap } from './currency';
 import { buildMaterializedIndex, recurrenceForMonth } from './recurrenceMonth';
-import { relykaGross } from './relyka';
+import { relykaGross, relykaInputsFrom } from './relyka';
 import { isRegul } from './regul';
 import { isProjectSpendTx } from './projectTx';
 import type { PilotageData } from './pilotageEngine';
@@ -44,6 +44,39 @@ export function monthReservationsTotal(
   return reservations
     .filter((r) => monthKeyOfCreatedAt(r.created_at) === monthKey)
     .reduce((s, r) => s + (Number.isFinite(Number(r.montant)) ? Number(r.montant) : 0), 0);
+}
+
+/**
+ * ── RÉSERVATIONS OUBLIÉES : CELLES QU'ON PEUT LIBÉRER SANS RISQUE ───────────────────────────────
+ *
+ * Le « Réservé » se remet à zéro chaque mois : seules les réservations du mois COURANT sont
+ * déduites du Relyka. Mais la ligne, elle, restait en base indéfiniment — on accumulait une
+ * réservation morte par mois où l'utilisateur en avait posé une.
+ *
+ * On les libère donc pour de bon, mais PAS au passage du mois : une réservation posée le 28 juillet
+ * ne doit pas disparaître le 1ᵉʳ août, le temps qu'on la retrouve et qu'on comprenne ce qu'elle
+ * était. On garde un mois entier de battement — au 1ᵉʳ septembre, celles de juillet et avant s'en
+ * vont. `keepMonths` = nombre de mois d'écart à partir duquel on libère (2 = M-2).
+ *
+ * PUR : la décision est ici, l'écriture ailleurs (hooks/data/useReservations). Une règle de
+ * suppression de données mérite d'être lisible et testable sans réseau.
+ */
+export function staleReservationIds(
+  reservations: Array<{ id?: string | null; created_at?: string | null; libere_at?: string | null }>,
+  now: Date = new Date(),
+  keepMonths = 2,
+): string[] {
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - keepMonths, 1);
+  const cutoffKey = monthKeyOf(cutoff);
+  const out: string[] = [];
+  for (const r of reservations) {
+    if (!r?.id || r.libere_at) continue;
+    const key = monthKeyOfCreatedAt(r.created_at);
+    // Date illisible → on ne touche à RIEN : on ne supprime pas sur une donnée qu'on ne sait pas lire.
+    if (!key) continue;
+    if (key <= cutoffKey) out.push(r.id);
+  }
+  return out;
 }
 
 /**
@@ -110,15 +143,17 @@ export function computeRelykaBreakdown(
      `lib/relyka`, qui porte la soustraction elle-même — cf. le commentaire qui l'accompagne). */
   const n = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
 
-  const cumulsTotal = n(ctx.preEpargneTotal) + n(ctx.preInvestTotal);
-  const safetyMarginDisplay = n(pilotageData?.safety_margin_amount);
-  const variableEnvelopeRemaining = n(pilotageData?.variable_envelope_remaining);
-  const savingsRemaining = n(pilotageData?.month_savings_future);
-  const investRemaining = n(pilotageData?.month_invest_future);
+  /* Les huit termes viennent de la fabrique PARTAGÉE (lib/relyka) : la liste d'entrées était
+     recopiée dans six fichiers, et un terme ajouté ici ne l'était pas ailleurs. */
+  const inputs = relykaInputsFrom(pilotageData, ctx);
+  const cumulsTotal = inputs.cumulsTotal;
+  const safetyMarginDisplay = n(inputs.safetyMargin);
+  const variableEnvelopeRemaining = n(inputs.variableEnvelopeRemaining);
+  const savingsRemaining = n(inputs.savingsFuture);
+  const investRemaining = n(inputs.investFuture);
   // Les dépenses déjà passées sont déjà dans le solde courant → affichées en info uniquement.
   const monthExpensesPast = n(pilotageData?.month_expenses_past);
-  // `??` reste nécessaire ici : c'est le REPLI métier (pas de point bas → solde du jour).
-  const cashflowTrough = n(pilotageData?.cashflow_trough ?? pilotageData?.current_checking_balance);
+  const cashflowTrough = n(inputs.cashflowTrough);
 
   /* Les cumuls manuels (pré-épargne / pré-invest) sont de l'argent « réservé mentalement » en
      attente de virement → on les retire aussi du budget libre tant qu'ils ne sont pas libérés ou
@@ -127,16 +162,7 @@ export function computeRelykaBreakdown(
      ou par manque d'argent — les deux méritent des messages opposés.
      La soustraction elle-même vit dans `lib/relyka` (source unique, partagée avec le moteur de
      recos, le Pouls et le bandeau « prochaine action ») : elle n'est plus recopiée ici. */
-  const resteDisponibleBrut = relykaGross({
-    cashflowTrough,
-    savingsFuture: savingsRemaining,
-    investFuture: investRemaining,
-    reservePlanned: n(pilotageData?.monthly_reserve_planned),
-    reservationsTotal: n(ctx.reservationsTotal),
-    cumulsTotal,
-    variableEnvelopeRemaining,
-    safetyMargin: safetyMarginDisplay,
-  });
+  const resteDisponibleBrut = relykaGross(inputs);
   const resteDisponible = Math.max(0, resteDisponibleBrut);
   /* Montant Relyka tel qu'AFFICHÉ (dizaine inférieure). C'est LUI qui décide de la couleur et du
      message, jamais le montant brut : entre 1 € et 9 €, la carte affichait « 0 € » tout en servant

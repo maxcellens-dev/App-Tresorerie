@@ -212,17 +212,6 @@ function SettingsScreen() {
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Paramètres</Text>
 
-          {/* Clôture mensuelle (si activée) */}
-          {closureEnabled && (
-            <View style={styles.card}>
-              <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/cloture')}>
-                <Ionicons name="lock-closed-outline" size={20} color="#60a5fa" />
-                <Text style={styles.rowLabel}>Clôture mensuelle</Text>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* ── Gestion ── */}
           <Text style={styles.sectionTitle}>Gestion</Text>
           <View style={styles.card}>
@@ -231,6 +220,17 @@ function SettingsScreen() {
               <Text style={styles.rowLabel}>Mon profil financier</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
+
+            {/* Clôture mensuelle (si activée) — elle occupait une carte isolée tout en haut de la
+                page, avant même le titre « Gestion », alors que c'est exactement de la gestion :
+                elle fige un mois passé pour fiabiliser les moyennes du profil juste au-dessus. */}
+            {closureEnabled && (
+              <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/cloture')}>
+                <Ionicons name="lock-closed-outline" size={20} color="#60a5fa" />
+                <Text style={styles.rowLabel}>Clôture mensuelle</Text>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
 
             {/* Marge de sécurité : réglage MASQUÉ ici — il se définit dans le Pilotage (une seule
                 place pour un même réglage). Code conservé (SHOW_SAFETY_MARGIN pour le rétablir). */}

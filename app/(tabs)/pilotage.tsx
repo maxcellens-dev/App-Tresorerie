@@ -38,7 +38,7 @@ import { useAccounts, useAllAccounts } from '../../hooks/data/useAccounts';
 import { useSharedContribution } from '../../hooks/data/useSharedContribution';
 import { useCreditPilotTemplates } from '../../hooks/data/useCreditFlows';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../../hooks/data/usePreSavings';
-import { useReservations, useSetMonthlyReservation } from '../../hooks/data/useReservations';
+import { useReservations, useSetMonthlyReservation, useReleaseStaleReservations } from '../../hooks/data/useReservations';
 import { useReleaseReservedByProject } from '../../hooks/data/useTransactions';
 import { useRecoThresholds } from '../../hooks/pilotage/useRecoThresholds';
 import ConseilsBanner from '../../components/ai/ConseilsBanner';
@@ -68,7 +68,7 @@ import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } 
 /* Calculs dérivés du tableau de bord : purs dans lib/pilotageView, câblés par ce hook
    (cf. docs/PLAN_REFACTOR_TESTS.md, phase C2). L'écran ne fait plus que du rendu. */
 import { usePilotageViewModel } from '../../hooks/pilotage/usePilotageViewModel';
-import { shortDay, eur, computeRelykaBreakdown } from '../../lib/finance/pilotageView';
+import { shortDay, eur, computeRelykaBreakdown, staleReservationIds } from '../../lib/finance/pilotageView';
 
 
 /**
@@ -204,6 +204,7 @@ function PilotageScreen() {
   const resetPreSaving = useResetPreSaving(user?.id);
   const setPreSavingStatus = useSetPreSavingStatus(user?.id);
   const setMonthlyReservation = useSetMonthlyReservation(user?.id);
+  const releaseStale = useReleaseStaleReservations(user?.id);
 
   // Modale pré-épargne/pré-invest + panneau cumuls
   const [preModal, setPreModal] = useState<PreSavingType | null>(null);
@@ -399,7 +400,7 @@ function PilotageScreen() {
   const {
     preEpargneTotal, preInvestTotal, reservationsTotal, mainCheckingId,
     cumulsTotal, monthExpensesPast,
-    resteDisponible, relykaAffiche, troughDate, troughExplain, nextIncomeDate, nextIncomeAmount,
+    resteDisponible, resteDisponibleBrut, relykaAffiche, troughDate, troughExplain, nextIncomeDate, nextIncomeAmount,
     baseADepenser, enDepassement,
     setupIncomplete, setupHint, firstName, welcomeStep, welcomeRoute,
     relConf, recoList, recoMessages, relykaMessages, suiviDetail, recurUpcoming, relykaColor,
@@ -447,6 +448,21 @@ function PilotageScreen() {
     setShowVariableModal(true);
   };
 
+
+  /* ── MÉNAGE DES RÉSERVATIONS OUBLIÉES ─────────────────────────────────────────────────────────
+     Le « Réservé » se remet à zéro chaque mois, mais la ligne restait en base pour toujours : une
+     réservation morte s'accumulait à chaque mois où l'utilisateur en avait posé une. On les libère
+     à M-2 — pas au changement de mois, pour laisser un mois entier de battement au cas où.
+     Déclenché ICI parce que c'est le seul écran monté à coup sûr à l'ouverture, et UNIQUEMENT s'il
+     y en a à libérer : sans ce test, ce serait une écriture à chaque démarrage pour rien.
+     `stale.join()` en dépendance : la liste change d'identité à chaque rendu, pas son contenu. */
+  const stale = React.useMemo(() => staleReservationIds(reservations as any[]), [reservations]);
+  React.useEffect(() => {
+    // Consultation admin : cet écran est en LECTURE SEULE, ménage compris.
+    if (isImpersonating || stale.length === 0) return;
+    releaseStale.mutate(stale);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stale.join(','), isImpersonating]);
 
   // Synchroniser le statut des cumuls (actif / en_depassement)
   React.useEffect(() => {
@@ -647,6 +663,9 @@ function PilotageScreen() {
               transactions={txForConseils}
               projects={projectsForConseils}
               accounts={accounts}
+              // Le conseil « budget libre » doit annoncer LE MÊME chiffre que la carte juste en
+              // dessous : on lui passe le Relyka brut (signé), pas l'ancien agrégat safe_to_spend.
+              relykaBrut={resteDisponibleBrut}
             />
           ) : null}
 
@@ -656,7 +675,10 @@ function PilotageScreen() {
               // branche « rouge » qui ne pouvait jamais se déclencher.
               relykaColor={relykaColor}
               confidenceLevel={relConf?.result.level ?? 'high'}
-              daysSinceVerification={relConf?.result.daysSinceVerification ?? 0}
+              // Ancienneté RÉELLE (non plafonnée) : le chiffre du calcul sature à 21 j et faisait
+              // dire « vérifié il y a un moment » à qui n'a rien vérifié depuis des mois.
+              daysSinceVerification={relConf?.result.rawDaysSinceVerification ?? null}
+              neverVerified={relConf?.result.neverVerified ?? false}
               recommendations={recoList}
               // Qui décide de la répartition : le profil, ou les pourcentages posés par l'utilisateur.
               // `recoMode.mode` est le mode RÉELLEMENT appliqué (cf. lib/recoMode) — une répartition
@@ -843,6 +865,14 @@ function PilotageScreen() {
         cumulsTotal={cumulsTotal}
         resteDisponible={resteDisponible}
         relykaAffiche={relykaAffiche}
+        // Le détail montre le calcul EXACT : sans ce rappel, il contredit la fourchette de la carte.
+        relykaRange={relConf?.relykaRange}
+        // …et il DIT POURQUOI : combien d'euros sont mis en doute, et depuis quelle vérification.
+        // Sans ça, « estimation » est une affirmation sans preuve, impossible à vérifier soi-même.
+        relykaDoubt={relConf ? {
+          uncertaintyEur: relConf.result.uncertaintyEur,
+          lastVerifiedAt: pilotageData.confidence_inputs?.lastVerifiedAt ?? null,
+        } : null}
         troughDate={troughDate}
         troughExplain={troughExplain}
         varMode={varMode}

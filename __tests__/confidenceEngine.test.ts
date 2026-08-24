@@ -146,47 +146,92 @@ describe('computeConfidence — amortisseur d’activité (saisies du mois coura
 });
 
 describe('toRange', () => {
-  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, dailyDrift: 0, coldStart: false, activityDamped: false };
-  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, dailyDrift: 22, coldStart: false, activityDamped: false };
+  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, rawDaysSinceVerification: 1, neverVerified: false, dailyDrift: 0, coldStart: false, activityDamped: false };
+  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false, dailyDrift: 22, coldStart: false, activityDamped: false };
 
   it('confiance haute = pas de fourchette', () => {
     expect(toRange(2000, highConf, cfg)).toEqual({ low: 2000, high: 2000, isRange: false });
   });
 
-  it('confiance moyenne = fourchette arrondie à la centaine, biais bas', () => {
+  it('confiance moyenne = fourchette descendante, borne basse arrondie à la centaine', () => {
     const r = toRange(2200, medConf, cfg);
     expect(r.isRange).toBe(true);
-    expect(r.low).toBe(2000); // 2200 - 220 = 1980 → 2000
-    expect(r.high).toBe(2300); // 2200 + 220*0.3 = 2266 → 2300
+    expect(r.low).toBe(1900);  // 2 200 − 220 = 1 980 → 1 900 (arrondi vers le bas)
+    expect(r.high).toBe(2200); // le haut, c'est le Relyka
     expect(r.low).toBeLessThan(r.high);
   });
 
   it('niveau « moyen » mais doute sous highMax (saisie récente) = PAS de fourchette (évite « 750–750 »)', () => {
     // Doute fortement réduit par l'amortisseur d'activité : ratio < highMax → un seul chiffre,
     // même si le niveau reste « medium » (« À jour » réservé à une vraie vérif).
-    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, dailyDrift: 2.5, coldStart: false, activityDamped: true };
+    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, rawDaysSinceVerification: 8, neverVerified: false, dailyDrift: 2.5, coldStart: false, activityDamped: true };
     expect(toRange(750, damped, cfg)).toEqual({ low: 750, high: 750, isRange: false });
   });
 
   it('borne basse jamais négative (doute plus large que le montant)', () => {
-    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, dailyDrift: 57, coldStart: true, activityDamped: false };
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false };
     const r = toRange(154, huge, cfg);
     expect(r.isRange).toBe(true);
     expect(r.low).toBe(0);
-    expect(r.high).toBeGreaterThan(0);
+    expect(r.high).toBe(154); // le plafond reste le Relyka
   });
 
   /* Le Relyka est planché à 0 : en dessous, sa vraie valeur est NÉGATIVE. Fourcher autour de ce 0
      fabriquait une borne haute à partir de rien — « minimum sûr 0 € · jusqu'à 100 € si tout est à
      jour » s'affichait sous un « 0 € » rouge accompagné d'un message de budget dépassé. */
   it('aucune fourchette à zéro : l’incertitude ne rend pas de l’argent qui n’existe pas', () => {
-    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, dailyDrift: 57, coldStart: true, activityDamped: false };
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false };
     expect(toRange(0, huge, cfg)).toEqual({ low: 0, high: 0, isRange: false });
+  });
+
+  /* ── LA FOURCHETTE PROTÈGE, ELLE NE FAIT PAS ESPÉRER ───────────────────────────────────────────
+     Elle valait auparavant [montant − doute ; montant + doute × ouverture] : la carte annonçait
+     « 1 020 € » en grand et, juste dessous, « jusqu'à 1 200 € si tout est à jour » — un plafond
+     SUPÉRIEUR au chiffre affiché, alors que le doute vient de ce qui n'est PAS saisi, c'est-à-dire
+     de ce qui fait baisser le solde. Le haut de la fourchette est désormais le Relyka lui-même. */
+  /* Une fourchette PROTÈGE, elle ne fait pas espérer : son plafond est le Relyka lui-même. Elle
+     annonçait auparavant `net + doute × upBias` — donc plus que le chiffre affiché, et jusqu'à
+     plusieurs fois sa valeur quand le doute est mesuré sur un revenu bien plus gros. */
+  it('la borne haute EST le montant affiché — jamais au-dessus', () => {
+    const r = toRange(1020, { ...medConf, doubtRatio: 0.2, uncertaintyEur: 620 }, cfg);
+    expect(r.isRange).toBe(true);
+    expect(r.high).toBe(1020);
+    expect(r.low).toBe(400);
+  });
+
+  it('même avec un doute énorme, la fourchette ne promet rien de plus', () => {
+    const r = toRange(150, { ...medConf, doubtRatio: 0.9, uncertaintyEur: 2000 }, cfg);
+    expect(r.high).toBe(150);
+    expect(r.low).toBe(0);
+  });
+
+  /* Balayage : l'invariant « bas ≤ montant = haut » doit tenir pour TOUS les montants, pas
+     seulement celui qui a révélé le défaut. Sans le balayage, un changement d'arrondi (réglable en
+     administration) pourrait le recasser sur une autre plage sans qu'aucun test ne bronche. */
+  it('invariant : bas < montant = haut, sur toute la plage et quel que soit le pas', () => {
+    for (const step of [10, 50, 100, 200, 500]) {
+      for (let net = 20; net <= 5000; net += 10) {
+        const uncertaintyEur = Math.max(10, net * 0.12);
+        const c = { ...medConf, doubtRatio: 0.12, uncertaintyEur };
+        const r = toRange(net, c, { ...cfg, roundStep: step });
+        if (!r.isRange) continue;
+        expect(r.high).toBe(net);
+        expect(r.low).toBeLessThan(net);
+        expect(r.low).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  /* La borne basse s'arrondit vers le BAS : la remonter reviendrait à annoncer un « minimum sûr »
+     supérieur au minimum réellement calculé — le seul sens dans lequel il ne faut pas se tromper. */
+  it('la borne basse est arrondie vers le bas, jamais vers le haut', () => {
+    // 1 000 − 120 = 880 → 800 (et non 900, comme le ferait un arrondi au plus proche).
+    expect(toRange(1000, { ...medConf, doubtRatio: 0.12, uncertaintyEur: 120 }, cfg).low).toBe(800);
   });
 
   it('garde-fou d’arrondi : bornes égales après arrondi → un seul chiffre (quel que soit le pas)', () => {
     // Doute au-dessus de highMax mais faible en €, gros pas d'arrondi → les bornes se rejoignent.
-    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, dailyDrift: 1.7, coldStart: false, activityDamped: false };
+    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, rawDaysSinceVerification: 6, neverVerified: false, dailyDrift: 1.7, coldStart: false, activityDamped: false };
     const r = toRange(720, smallEur, cfg); // roundStep 100 : 710→700 et 723→700
     expect(r.isRange).toBe(false);
     expect(r.low).toBe(720);
@@ -196,7 +241,8 @@ describe('toRange', () => {
 describe('makeSubRanges — fourchettes des recos & montants proposés', () => {
   const conf = (uncertaintyEur: number) => ({
     level: 'medium' as const, doubtRatio: 0.2, uncertaintyEur,
-    daysSinceVerification: 10, dailyDrift: 1, coldStart: false, activityDamped: false,
+    daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false,
+    dailyDrift: 1, coldStart: false, activityDamped: false,
   });
 
   it('confiance haute (pas de fourchette du Relyka) → sous-montants nets', () => {
@@ -207,10 +253,10 @@ describe('makeSubRanges — fourchettes des recos & montants proposés', () => {
     expect(actionable(400)).toEqual({ low: 400, high: 400, isRange: false });
   });
 
-  it('fourchette : bornes proportionnelles à celle du Relyka', () => {
-    // Doute 200 sur un Relyka de 1 000 → borne basse à 80 %, haute à +6 % (upBias 0,3).
-    const { proportional } = makeSubRanges(1000, { low: 800, high: 1100, isRange: true }, conf(200), cfg);
-    expect(proportional(400)).toEqual({ low: 320, high: 424, isRange: true });
+  it('fourchette : borne basse proportionnelle, plafond = le montant recommandé', () => {
+    // Doute 200 sur un Relyka de 1 000 → borne basse à 80 % du montant, plafond = le montant.
+    const { proportional } = makeSubRanges(1000, { low: 800, high: 1000, isRange: true }, conf(200), cfg);
+    expect(proportional(400)).toEqual({ low: 320, high: 400, isRange: true });
   });
 
   it('LE CAS DU BUG : doute plus large que le Relyka → borne basse à 0 en affichage…', () => {
@@ -243,6 +289,54 @@ describe('resolveReliabilityConfig', () => {
   it('fusionne les réglages admin', () => {
     expect(resolveReliabilityConfig({ lowMin: 0.3 }).lowMin).toBe(0.3);
     expect(resolveReliabilityConfig(null).lowMin).toBe(RELIABILITY_DEFAULTS.lowMin);
+  });
+
+  /* La colonne est un JSON libre : une clé à `null` ou une chaîne restée telle quelle écrasait le
+     défaut, et le « NaN » se propageait jusqu'au chiffre affiché (« NaN € »). */
+  it('ignore tout ce qui n’est pas un nombre fini (null, texte, NaN)', () => {
+    const c = resolveReliabilityConfig({
+      lowMin: null, minActionRatio: '0,3', roundStep: NaN, highMax: 0.08,
+    } as any);
+    expect(c.lowMin).toBe(RELIABILITY_DEFAULTS.lowMin);
+    expect(c.minActionRatio).toBe(RELIABILITY_DEFAULTS.minActionRatio);
+    expect(c.roundStep).toBe(RELIABILITY_DEFAULTS.roundStep);
+    expect(c.highMax).toBe(0.08); // le réglage valable, lui, passe
+  });
+
+  it('une clé inconnue n’entre pas dans la config', () => {
+    expect((resolveReliabilityConfig({ nimporteQuoi: 42 } as any) as any).nimporteQuoi).toBeUndefined();
+  });
+});
+
+describe('ancienneté de vérification — chiffre du calcul ≠ chiffre de la phrase', () => {
+  const calib: DriftCalibration = { medianAbsGap: 60, medianDaysBetween: 30, sampleCount: 3 };
+
+  it('le calcul plafonne, l’affichage dit la vérité', () => {
+    const r = computeConfidence({
+      today: TODAY, lastVerifiedAt: iso('2025-11-15'), calibration: calib, // ~242 jours
+      relyka: 2000, floorBase: 2000, config: cfg,
+    });
+    expect(r.daysSinceVerification).toBe(cfg.coldStartDays); // le doute sature
+    expect(r.rawDaysSinceVerification).toBeGreaterThan(200); // la phrase, elle, sait
+    expect(r.neverVerified).toBe(false);
+  });
+
+  it('jamais vérifié → on ne prétend pas l’inverse', () => {
+    const r = computeConfidence({
+      today: TODAY, lastVerifiedAt: null, calibration: calib,
+      relyka: 2000, floorBase: 2000, config: cfg,
+    });
+    expect(r.neverVerified).toBe(true);
+    expect(r.rawDaysSinceVerification).toBeNull();
+  });
+
+  it('date illisible → traitée comme une absence de vérification', () => {
+    const r = computeConfidence({
+      today: TODAY, lastVerifiedAt: 'pas-une-date', calibration: calib,
+      relyka: 2000, floorBase: 2000, config: cfg,
+    });
+    expect(r.neverVerified).toBe(true);
+    expect(r.daysSinceVerification).toBe(cfg.coldStartDays);
   });
 });
 

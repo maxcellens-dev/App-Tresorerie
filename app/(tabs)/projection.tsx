@@ -43,7 +43,7 @@ import {
 } from '../../lib/finance/projectionEngine';
 
 import { semanticText } from '../../theme/palette';
-import { computeConfidence, resolveReliabilityConfig } from '../../lib/finance/confidenceEngine';
+import { useRelykaConfidence } from '../../hooks/pilotage/useReliability';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
 import KeyboardAwareScrollView from '../../components/layout/KeyboardAwareScrollView';
 import { sanitizeAmountInput, sanitizeRateInput } from '../../lib/ui/amountInput';
@@ -1402,17 +1402,18 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
     return real > 0 ? real : 0.25 * (pilotage?.variable_envelope_initial ?? 0);
   }, [pilotage?.variable_sigma, pilotage?.variable_envelope_initial]);
 
-  // Facteur d'élargissement du cône selon le niveau de doute (fonction de doute UNIQUE de l'app).
-  const confidenceFactor = useMemo(() => {
-    const ci = pilotage?.confidence_inputs;
-    if (!ci) return 1;
-    const conf = computeConfidence({
-      today: new Date(), lastVerifiedAt: ci.lastVerifiedAt ?? null, lastActivityAt: ci.lastActivityAt ?? null,
-      calibration: ci.calibration ?? null,
-      relyka: pilotage?.safe_to_spend ?? 0, floorBase: ci.floorBase ?? 0, config: resolveReliabilityConfig(null),
-    });
-    return conf.level === 'high' ? 1 : conf.level === 'medium' ? 1.6 : 2.2;
-  }, [pilotage?.confidence_inputs, pilotage?.safe_to_spend]);
+  /* Facteur d'élargissement du cône selon le niveau de doute — LA fonction de doute de l'app, avec
+     LES MÊMES ENTRÉES que la carte « Ton Relyka » (cf. useRelykaConfidence).
+     Ce calcul était refait ici à la main, et il divergeait sur trois points : il prenait
+     `safe_to_spend` (un autre agrégat) pour le Relyka, il oubliait l'enveloppe variable (base du
+     doute de départ) et il ignorait purement et simplement les réglages de l'administration —
+     changer les seuils de confiance n'avait donc aucun effet sur le cône. Résultat possible : un
+     cône « confiance basse » au-dessus d'un tableau de bord affichant des chiffres nets. */
+  const { user: confUser } = useAuth();
+  const relConf = useRelykaConfidence(confUser?.id);
+  const confidenceFactor = relConf?.result.level === 'medium' ? 1.6
+    : relConf?.result.level === 'low' ? 2.2
+    : 1;
 
   return (
     <View>

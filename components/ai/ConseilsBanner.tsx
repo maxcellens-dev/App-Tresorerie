@@ -19,11 +19,16 @@ interface Props {
   transactions?: any[];
   projects?: any[];
   accounts?: any[];
+  /**
+   * Relyka BRUT (signé) tel qu'affiché juste en dessous — les conseils qui parlent du « budget
+   * libre » doivent parler du MÊME chiffre que la carte, pas de l'ancien agrégat `safe_to_spend`.
+   */
+  relykaBrut?: number | null;
 }
 
 interface Slide { id: string; label: string; icon: string; iconColor: string; text: string }
 
-export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [], accounts = [] }: Props) {
+export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [], accounts = [], relykaBrut }: Props) {
   const COLORS = useAppColors();
   const router = useRouter();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -31,7 +36,7 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
   // Vitesse de rotation réglable en admin (secondes → ms). Bornée pour éviter les valeurs absurdes.
   const rotationMs = Math.max(2, Math.min(60, flags?.conseils_rotation_seconds ?? 8)) * 1000;
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(userId);
-  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides);
+  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides, relykaBrut);
 
   // Liste ordonnée : « Pour toi » (contextuel) puis général.
   // ⚠️ TUTOIEMENT : l'app tutoie partout, ce libellé était le dernier « vous » de l'interface.

@@ -1078,20 +1078,63 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   // ── Confiance : signaux bruts. Le niveau/fourchette sont calculés par confidenceEngine côté écrans
   // avec le VRAI Relyka (resteDisponible), pour n'avoir qu'UNE seule fonction de doute partout.
   // lastVerifiedAt = date de la dernière régularisation dans le périmètre (= dernière « vérification »).
-  let lastVerifiedAt: string | null = null;
+  // Une régularisation DATÉE DANS LE FUTUR ne vérifie rien : elle affirmerait que les chiffres
+  // d'aujourd'hui ont déjà été contrôlés. Même borne que l'ancre de création juste en dessous.
+  let lastRegulAt: string | null = null;
   for (const t of transactions) {
-    if (isRegul(t)) {
-      const d = String((t as any).date ?? '').slice(0, 10);
-      if (d && (!lastVerifiedAt || d > lastVerifiedAt)) lastVerifiedAt = d;
-    }
+    if (!isRegul(t)) continue;
+    const d = String((t as any).date ?? '').slice(0, 10);
+    if (d && d <= todayStr && (!lastRegulAt || d > lastRegulAt)) lastRegulAt = d;
   }
-  // La création d'un compte courant est une « vérification n° 0 » : le solde initial est recopié
-  // depuis la banque, l'écart est nul ce jour-là (init_date si constaté à une autre date).
+  /* ── ANCRE « VÉRIFICATION N° 0 » : LE PLUS ANCIEN COMPTE QUI VIT ENCORE ───────────────────────
+     La création d'un compte courant est une vérification : le solde initial est recopié depuis la
+     banque, l'écart est nul ce jour-là (init_date si constaté à une autre date).
+
+     Deux écueils à éviter, en sens inverse :
+
+      • prendre l'ancre la plus RÉCENTE — ouvrir un deuxième compte courant faisait repasser toute
+        l'app en « À jour », y compris pour un compte principal que personne n'avait vérifié depuis
+        des mois. Or la vérification du solde porte sur TOUS les comptes à la fois (cf. l'écran
+        « Mettre à jour mon solde ») : elle ne peut pas être plus fraîche que le compte le moins
+        bien couvert ;
+
+      • prendre l'ancre la plus ANCIENNE sans distinction — un vieux compte qui ne BOUGE PAS
+        maintiendrait éternellement l'app en « estimation », alors qu'un compte sans mouvement ne
+        peut pas dériver : le doute vient des opérations non saisies, pas du temps qui passe.
+
+     On ne retient donc que les comptes qui ont eu au moins une opération depuis leur ancre — eux
+     seuls ont pu s'écarter de la réalité — et parmi eux le plus ancien. Si AUCUN ne bouge, on garde
+     l'ancre la plus récente : zéro opération enregistrée sur un compte courant pendant des mois veut
+     plutôt dire que l'app est aveugle, pas que le compte dort — mieux vaut alors laisser le doute
+     s'installer que d'afficher un « À jour » qui ne repose sur rien. */
+  const anchorByChecking = new Map<string, string>();
   for (const a of accounts) {
     if (a.type !== 'checking') continue;
     const d = String((a as any).init_date ?? (a as any).created_at ?? '').slice(0, 10);
-    if (d && d <= todayStr && (!lastVerifiedAt || d > lastVerifiedAt)) lastVerifiedAt = d;
+    if (!d || d > todayStr) continue;
+    anchorByChecking.set(a.id, d);
   }
+  const movedSinceAnchor = new Set<string>();
+  for (const t of transactions as any[]) {
+    if (t.is_draft) continue;
+    const anchor = anchorByChecking.get(t.account_id);
+    if (!anchor) continue;
+    const d = String(t.date ?? '').slice(0, 10);
+    // Une opération FUTURE ne prouve rien sur ce qui s'est déjà passé sur le compte.
+    if (d && d > anchor && d <= todayStr) movedSinceAnchor.add(t.account_id);
+  }
+  let oldestAnchor: string | null = null;
+  for (const [id, d] of anchorByChecking) {
+    if (!movedSinceAnchor.has(id)) continue;
+    if (!oldestAnchor || d < oldestAnchor) oldestAnchor = d;
+  }
+  if (!oldestAnchor) {
+    for (const d of anchorByChecking.values()) if (!oldestAnchor || d > oldestAnchor) oldestAnchor = d;
+  }
+  // Une régul postérieure à l'ancre remet bien tout le monde à jour (elle couvre tous les comptes).
+  const lastVerifiedAt: string | null =
+    lastRegulAt && oldestAnchor ? (lastRegulAt > oldestAnchor ? lastRegulAt : oldestAnchor)
+    : (lastRegulAt ?? oldestAnchor);
   const reliability_calib = ((profile as any)?.reliability_calib ?? null) as DriftCalibration | null;
   const confidence_floor_base = Math.max(avgMonthlyIncome, variable_envelope_initial, 0);
   // lastActivityAt = dernière SAISIE MANUELLE d'une transaction du mois courant (date de saisie

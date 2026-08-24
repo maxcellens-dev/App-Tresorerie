@@ -17,7 +17,7 @@ import { usePulseConfig } from './usePulseConfig';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useReliability';
 import { usePulseSnapshots } from './usePulseState';
 import { computePulse, monthKey, type PulseInputs, type PulseResult } from '../../lib/pulse/pulseEngine';
-import { computeRelyka } from '../../lib/finance/relyka';
+import { computeRelyka, relykaInputsFrom } from '../../lib/finance/relyka';
 import { monthReservationsTotal } from '../../lib/finance/pilotageView';
 import { resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
@@ -215,16 +215,15 @@ function buildPulse(deps: PulseDeps): PulseData | null {
   const reservationsTotal = monthReservationsTotal(reservations as any[], today);
   const cumulsTotal = (preSavings?.epargne.total_cumule ?? 0) + (preSavings?.invest.total_cumule ?? 0);
   const safetyMargin = pilotage.safety_margin_amount ?? 0;
-  const relykaInputs = {
-    cashflowTrough: pilotage.cashflow_trough ?? pilotage.current_checking_balance ?? 0,
-    savingsFuture: pilotage.month_savings_future ?? 0,
-    investFuture: pilotage.month_invest_future ?? 0,
-    reservePlanned: pilotage.monthly_reserve_planned ?? 0,
+  /* Les huit termes viennent de la fabrique PARTAGÉE (lib/relyka) : ils étaient rassemblés à la
+     main ici, dans le bandeau « prochain geste », dans l'instantané IA et dans le Pilotage — quatre
+     copies du même assemblage, donc quatre occasions d'oublier un terme et d'annoncer un Relyka
+     différent de celui du tableau de bord. */
+  const relykaInputs = relykaInputsFrom(pilotage, {
     reservationsTotal,
-    cumulsTotal,
-    variableEnvelopeRemaining: pilotage.variable_envelope_remaining ?? 0,
-    safetyMargin,
-  };
+    preEpargneTotal: preSavings?.epargne.total_cumule ?? 0,
+    preInvestTotal: preSavings?.invest.total_cumule ?? 0,
+  });
   const relyka = computeRelyka(relykaInputs);
 
   // ── « Fin de mois » = ce qui devrait RESTER SUR LE COMPTE courant au 1er du mois prochain :

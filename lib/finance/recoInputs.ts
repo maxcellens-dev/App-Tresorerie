@@ -12,7 +12,7 @@ import {
   type ComputeRecoOptions,
 } from './recommendationEngine';
 import { floorToTen } from './currency';
-import { computeRelyka } from './relyka';
+import { computeRelyka, relykaInputsFrom } from './relyka';
 import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
 import type { FinancialProfileId, RecommendationSettings } from '../../types/database';
 
@@ -90,41 +90,42 @@ export function daysLeftInPeriod(data: PilotageData, today: Date): number | null
   return days;
 }
 
+/* Même normalisation que `lib/relyka` : ce qui n'est pas un nombre fini vaut 0. `?? 0` ne rattrape
+   pas un `NaN`, et il suffit d'UN terme illisible pour que le budget devienne `NaN` — les quatre
+   recommandations disparaissaient alors en silence (leur `amount > 0` est faux), sous un Relyka qui,
+   lui, s'affichait normalement puisqu'il porte déjà ce garde-fou. */
+const n = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
+
 export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): ComputeRecoOptions {
-  const cumulsTotal = x.preEpargneTotal + x.preInvestTotal;
   // Avancement de la PÉRIODE (pas du mois civil) : à l'approche de la prochaine rentrée d'argent, la
   // part « Confort » bascule vers « Conserver ». Calculé ICI → le Pilotage et le Pouls raisonnent
   // sur la même date.
   const now = x.today ?? new Date();
   const daysLeft = daysLeftInPeriod(data, now);
-  const margin = data.safety_margin_amount ?? 0;
-  const varRemaining = data.variable_envelope_remaining ?? 0;
-  const trough = data.cashflow_trough ?? (data.current_checking_balance ?? 0);
-  const savingsRemaining = data.month_savings_future ?? 0;
-  const investRemaining = data.month_invest_future ?? 0;
-  const savingsExecuted = Math.max(0, (data.month_savings_total ?? 0) - savingsRemaining);
-  const investExecuted = Math.max(0, (data.month_invest_total ?? 0) - investRemaining);
+  /* Les huit termes du Relyka viennent de la fabrique PARTAGÉE (lib/relyka) — la même que la carte
+     du Pilotage, le Pouls, le bandeau et l'instantané IA. Ils étaient rassemblés ici à la main :
+     ajouter un terme au Relyka faisait diverger les montants recommandés de leur propre total. */
+  const relykaInputs = relykaInputsFrom(data, {
+    reservationsTotal: x.reservationsTotal,
+    preEpargneTotal: x.preEpargneTotal,
+    preInvestTotal: x.preInvestTotal,
+  });
+  const margin = n(relykaInputs.safetyMargin);
+  const varRemaining = n(relykaInputs.variableEnvelopeRemaining);
+  const trough = n(relykaInputs.cashflowTrough);
+  const savingsRemaining = n(relykaInputs.savingsFuture);
+  const investRemaining = n(relykaInputs.investFuture);
+  const savingsExecuted = Math.max(0, n(data.month_savings_total) - savingsRemaining);
+  const investExecuted = Math.max(0, n(data.month_invest_total) - investRemaining);
   /* Dépassement de l'enveloppe : ce qui a été dépensé au-delà de ce qui était prévu pour le mois.
      Les dépenses variables DÉJÀ SAISIES pour les jours à venir font partie du prévu — elles sont
      déduites de l'enveloppe restante, pas un dépassement. */
   const variableOverspend = Math.max(
     0,
-    (data.variable_envelope_spent ?? 0) + (data.variable_envelope_planned ?? 0) - (data.variable_envelope_initial ?? 0),
+    n(data.variable_envelope_spent) + n(data.variable_envelope_planned) - n(data.variable_envelope_initial),
   );
   const recoGrossBudget = Math.max(0, trough - varRemaining - margin);
-  /* Relyka (reste disponible) — la MÊME fonction que la carte du Pilotage, le Pouls et le bandeau
-     « prochaine action » (lib/relyka). Cette soustraction à huit termes était recopiée ici : le jour
-     où un terme change, les montants proposés cessent de faire exactement le Relyka. */
-  const resteDisponible = computeRelyka({
-    cashflowTrough: trough,
-    savingsFuture: savingsRemaining,
-    investFuture: investRemaining,
-    reservePlanned: data.monthly_reserve_planned ?? 0,
-    reservationsTotal: x.reservationsTotal,
-    cumulsTotal,
-    variableEnvelopeRemaining: varRemaining,
-    safetyMargin: margin,
-  });
+  const resteDisponible = computeRelyka(relykaInputs);
 
   return {
     customTierAllocations: x.customTierAllocations,
@@ -141,10 +142,10 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
     thresholds: x.thresholds ?? undefined,
     alreadyAllocated: {
       // Épargne / invest : EXÉCUTÉ ce mois + virements prévus (non exécutés) + cumuls fléchés.
-      save: savingsExecuted + savingsRemaining + x.preEpargneTotal,
-      invest: investExecuted + investRemaining + x.preInvestTotal,
+      save: savingsExecuted + savingsRemaining + n(x.preEpargneTotal),
+      invest: investExecuted + investRemaining + n(x.preInvestTotal),
       // Conserver : réservations (manuelles ou via reco) + réservé projets du mois.
-      keep: x.reservationsTotal + (data.monthly_reserve_planned ?? 0),
+      keep: n(x.reservationsTotal) + n(data.monthly_reserve_planned),
     },
     overspend: variableOverspend,
     consumptionOrder: getConsumptionOrder(

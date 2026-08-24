@@ -2,6 +2,7 @@
    qui ne s'exécute pas dans une suite Node. C'est exactement ce couplage que la phase C2 a rompu. */
 import {
   monthReservationsTotal,
+  staleReservationIds,
   computeRelykaBreakdown,
   buildRelykaBaseMessage,
   computeSuiviDetail,
@@ -82,6 +83,47 @@ describe('monthReservationsTotal', () => {
 
   it('accepte les montants en chaîne (Supabase renvoie du numeric en texte)', () => {
     expect(monthReservationsTotal([{ created_at: iso(2026, 6, 3), montant: '42.5' as any }], NOW)).toBe(42.5);
+  });
+});
+
+/* Les réservations d'un mois passé ne grèvent plus le Relyka, mais leur LIGNE restait en base pour
+   toujours : une réservation morte s'accumulait à chaque mois où l'utilisateur en avait posé une.
+   On les libère — avec un mois entier de battement, parce qu'effacer de l'argent mis de côté le
+   lendemain du changement de mois serait brutal. */
+describe('staleReservationIds — le ménage des réservations oubliées', () => {
+  const res = (id: string, y: number, m: number, d: number, extra: any = {}) =>
+    ({ id, created_at: `${iso(y, m, d)}T10:00:00`, ...extra });
+
+  it('libère à M-2, jamais au simple changement de mois', () => {
+    // On est en JUIN. Mai est encore protégé (battement d'un mois), avril et avant partent.
+    const ids = staleReservationIds([
+      res('juin', 2026, 6, 2),
+      res('mai', 2026, 5, 28),
+      res('avril', 2026, 4, 30),
+      res('mars', 2026, 3, 1),
+    ], NOW);
+    expect(ids).toEqual(['avril', 'mars']);
+  });
+
+  it('ne retouche pas une réservation déjà libérée', () => {
+    expect(staleReservationIds([
+      res('vieille', 2026, 2, 1, { libere_at: '2026-03-01T00:00:00Z' }),
+    ], NOW)).toEqual([]);
+  });
+
+  it('date illisible ou identifiant manquant → on ne touche à rien', () => {
+    expect(staleReservationIds([
+      { id: 'x', created_at: 'pas-une-date' },
+      { id: 'y', created_at: null },
+      { id: null as any, created_at: `${iso(2026, 1, 1)}T10:00:00` },
+    ], NOW)).toEqual([]);
+  });
+
+  /* Frontière lue en heure LOCALE : une réservation posée le 1ᵉʳ mai à 00 h 30 à Paris est stockée
+     au 30 avril en UTC. Découpée à la main, elle serait libérée un mois trop tôt. */
+  it('la frontière de mois se lit en heure locale, pas en UTC', () => {
+    const juste = new Date(2026, 4, 1, 0, 30).toISOString(); // 1ᵉʳ mai 00 h 30 locale
+    expect(staleReservationIds([{ id: 'mai', created_at: juste }], NOW)).toEqual([]);
   });
 });
 

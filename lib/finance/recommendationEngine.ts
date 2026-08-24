@@ -1013,7 +1013,14 @@ function getInvestDescription(tier: SavingsTier, action: ActionAmount, _data: Pi
 function getEnjoyDescription(action: ActionAmount, _data: PilotageData): string {
   // « Confort » = la marge totalement libre, une fois tes dépenses variables habituelles couvertes.
   // C'est elle qui est entamée en premier si tu dépenses au-delà de ton budget variable.
-  return `Fais ce que tu veux des ${amountPhrase(action)} restants : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
+  //
+  // ⚠️ Deux tournures, parce que `amountPhrase` préfixe « au moins » en fourchette : la phrase
+  // unique donnait « Fais ce que tu veux des au moins 240 € restants », qui ne se lit pas. C'est le
+  // seul texte de reco où le montant est enchâssé dans un groupe nominal.
+  const somme = action.isRange
+    ? `d'au moins ${action.value.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`
+    : `des ${action.value.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} restants`;
+  return `Fais ce que tu veux ${somme} : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
 function getKeepDescription(action: ActionAmount, data: PilotageData, periodEnd = false): string {

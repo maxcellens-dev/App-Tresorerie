@@ -27,8 +27,10 @@ const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; p
   { key: 'coldStartWeeklyFraction', label: 'Méfiance de départ / semaine', help: '③ avant la 1ʳᵉ régularisation : part supposée « perdue de vue » chaque semaine — appliquée à l’enveloppe de dépenses VARIABLES du mois (ce qui peut réellement échapper à la saisie), ou à la base globale si l’enveloppe est inconnue', pct: true },
   { key: 'highMax', label: 'Chiffres nets si doute sous…', help: '④ doute inférieur à cette part de la base → montants précis, sans fourchette', pct: true },
   { key: 'lowMin', label: 'Alerte si doute au-delà de…', help: '⑤ doute au-delà de cette part → fourchette large + invitation à vérifier son solde', pct: true },
-  { key: 'upBias', label: 'Ouverture vers le haut', help: '⑥ une dépense oubliée fait plutôt baisser le solde : la fourchette descend à fond, mais ne monte que de X × le doute' },
-  { key: 'minActionRatio', label: 'Plancher des montants proposés', help: '⑥ bis · un virement/une réservation pré-remplis ne descendent jamais sous cette part du montant recommandé, même si la fourchette descend à 0 (le doute se mesure sur la base, pas sur le Relyka : sans plancher, un petit Relyka faisait proposer 0 €) · 1 = plancher désactivé (montant plein)', pct: true },
+  /* « Ouverture vers le haut » (upBias) a été RETIRÉE : la fourchette ne monte plus jamais au-dessus
+     du Relyka affiché. Un réglage qui promettait davantage que le chiffre montré n'était pas un
+     garde-fou. Le haut de la fourchette EST le Relyka. */
+  { key: 'minActionRatio', label: 'Plancher des montants proposés', help: '⑥ un virement/une réservation pré-remplis ne descendent jamais sous cette part du montant recommandé, même si la fourchette descend à 0 (le doute se mesure sur la base, pas sur le Relyka : sans plancher, un petit Relyka faisait proposer 0 €) · 1 = plancher désactivé (montant plein)', pct: true },
   { key: 'roundStep', label: 'Arrondi des fourchettes (€)', help: '⑦ bornes arrondies à ce pas (100 = à la centaine)' },
   { key: 'activityDampening', label: 'Amortisseur d’activité', help: '⑧ saisie manuelle du jour (mois courant) → le doute est multiplié par ce facteur (0,5 = moitié), puis revient à 1 sur la fenêtre · resserre la fourchette, peut remonter bas → moyen, jamais → haut (« À jour » = vraie vérif) · 1 = désactivé' },
   { key: 'activityWindowDays', label: 'Fenêtre d’activité (jours)', help: '⑨ au-delà de X jours sans saisie manuelle, l’amortisseur ne s’applique plus' },
@@ -103,7 +105,7 @@ export default function AdminReliability() {
                 <Text style={styles.calcSub}>(avant la 1ʳᵉ régul : enveloppe variable du mois × méfiance de départ ÷ 7 — à défaut, la base)</Text>
                 <Text style={styles.calcLine}>2 · doute (€) = dérive/jour × jours depuis la dernière vérif (plafonnés au « Plafond d’ancienneté » ; la création du compte compte comme vérif n° 0)</Text>
                 <Text style={styles.calcLine}>3 · ratio = doute ÷ base → sous le 1ᵉʳ seuil : chiffres nets · entre les deux : fourchette · au-delà du 2ᵉ : fourchette large + alerte</Text>
-                <Text style={styles.calcLine}>4 · fourchette = [montant − doute ; montant + doute × ouverture vers le haut], arrondie au pas choisi (borne basse jamais négative ; à 0 elle s’affiche « jusqu’à … »)</Text>
+                <Text style={styles.calcLine}>4 · fourchette = [montant − doute ; MONTANT]. Elle ne monte JAMAIS au-dessus du chiffre affiché : ce qui n’est pas saisi fait baisser le solde, pas monter. La borne basse est arrondie vers le bas (jamais négative ; à 0 on n’affiche que « jusqu’à … »).</Text>
                 <Text style={styles.calcLine}>5 · montants PROPOSÉS aux actions (virement, réservation) = borne basse, mais jamais sous le « plancher des montants proposés ». « Conserver » fait exception : garder de l’argent ne le sort pas du compte, donc le doute ne doit pas faire conserver MOINS → montant plein.</Text>
 
                 <Text style={[styles.calcTitle, { marginTop: 12 }]}>Exemple : Léa, 2 500 € de revenu/mois (= sa base)</Text>

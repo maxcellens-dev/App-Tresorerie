@@ -12,7 +12,7 @@ import { useOnboarding } from './useOnboarding';
 import { useAppLockPrompt } from '../platform/useAppLockPrompt';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useReliability';
 import { monthlyEquivalent } from '../../lib/finance/recurrence';
-import { computeRelyka } from '../../lib/finance/relyka';
+import { computeRelyka, relykaInputsFrom } from '../../lib/finance/relyka';
 import { monthReservationsTotal } from '../../lib/finance/pilotageView';
 import { isRegul } from '../../lib/finance/regul';
 import { getCurrentAction, type AppAction } from '../../lib/engagement/appStateEngine';
@@ -49,18 +49,11 @@ export function useAppState(): AppAction | null {
        découlaient — un terme ajouté au Relyka manquait dans le bandeau, et une réservation posée
        dans les premières heures d'un mois n'y était pas comptée. Le bandeau annonçait alors un
        montant que le tableau de bord, juste en dessous, contredisait. */
-    const reservationsTotal = monthReservationsTotal(reservations as any[]);
-    const cumulsTotal = (preSavings?.epargne.total_cumule ?? 0) + (preSavings?.invest.total_cumule ?? 0);
-    const relyka = computeRelyka({
-      cashflowTrough: pilotage.cashflow_trough ?? pilotage.current_checking_balance ?? 0,
-      savingsFuture: pilotage.month_savings_future ?? 0,
-      investFuture: pilotage.month_invest_future ?? 0,
-      reservePlanned: pilotage.monthly_reserve_planned ?? 0,
-      reservationsTotal,
-      cumulsTotal,
-      variableEnvelopeRemaining: pilotage.variable_envelope_remaining ?? 0,
-      safetyMargin: pilotage.safety_margin_amount ?? 0,
-    });
+    const relyka = computeRelyka(relykaInputsFrom(pilotage, {
+      reservationsTotal: monthReservationsTotal(reservations as any[]),
+      preEpargneTotal: preSavings?.epargne.total_cumule ?? 0,
+      preInvestTotal: preSavings?.invest.total_cumule ?? 0,
+    }));
     const conf = relCfg ? deriveRelykaConfidence(pilotage, relyka, relCfg) : null;
 
     const txs = transactions as any[];
@@ -113,7 +106,10 @@ export function useAppState(): AppAction | null {
       // Overlay « Vérifie ton solde » : confiance BASSE uniquement (en moyenne, le bandeau ambre de
       // la carte Relyka suffit — pas de doublon de messages).
       confidenceLow: conf?.result.level === 'low',
-      daysSinceVerification: conf?.result.daysSinceVerification ?? 0,
+      /* Ancienneté RÉELLE : `daysSinceVerification` est PLAFONNÉ pour le calcul du doute (21 j par
+         défaut) — le bandeau écrivait donc « non vérifié depuis quelques jours » à quelqu'un qui
+         n'avait rien vérifié depuis des mois. Repli sur la valeur plafonnée si aucune date connue. */
+      daysSinceVerification: conf?.result.rawDaysSinceVerification ?? conf?.result.daysSinceVerification ?? 0,
       jointLow,
       // Même arrondi que la carte (dizaine inférieure) → le bandeau annonce le même chiffre.
       relykaText: `${floorToTen(relyka).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`,

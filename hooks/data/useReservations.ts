@@ -111,3 +111,43 @@ export function useReleaseReservation(profileId: string | undefined) {
     },
   });
 }
+
+/**
+ * ── MÉNAGE : les réservations d'il y a deux mois et plus ─────────────────────────────────────────
+ *
+ * Le « Réservé » se remet à zéro chaque mois (seules celles du mois courant sont déduites du
+ * Relyka), mais la LIGNE restait en base pour toujours : une réservation morte s'accumulait à chaque
+ * mois où l'utilisateur en avait posé une. Elles ne faussaient aucun chiffre — personne ne les
+ * lisait — mais elles n'avaient plus aucune raison d'exister.
+ *
+ * On les marque libérées plutôt que de les supprimer : la trace de ce qui a été mis de côté reste
+ * lisible, et une donnée d'argent ne s'efface pas pour faire de la place.
+ *
+ * ⚠️ Le SEUIL est à M-2, pas au changement de mois : une réservation posée le 28 juillet ne doit pas
+ * disparaître le 1ᵉʳ août. La règle elle-même vit dans `staleReservationIds` (lib/pilotageView),
+ * testée sans réseau — on ne décide pas d'effacer des données au milieu d'un appel Supabase.
+ *
+ * Effet de bord discret : un échec ne change rien pour l'utilisateur (les lignes restent, elles ne
+ * gênent personne) et ne mérite pas de l'interrompre. Opt-out explicite du backstop d'écriture.
+ */
+export function useReleaseStaleReservations(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { silentError: true },
+    mutationFn: async (ids: string[]) => {
+      if (!supabase || !profileId || ids.length === 0) return;
+      const { error } = await supabase
+        .from('reservations')
+        .update({ libere_at: new Date().toISOString() })
+        .in('id', ids)
+        // Ceinture ET bretelles : la RLS filtre déjà, mais une mise à jour de masse par identifiants
+        // ne doit jamais pouvoir sortir du périmètre de son propriétaire.
+        .eq('profile_id', profileId)
+        .is('libere_at', null);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+    },
+  });
+}

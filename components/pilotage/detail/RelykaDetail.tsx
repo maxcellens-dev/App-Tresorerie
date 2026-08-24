@@ -25,6 +25,18 @@ interface Props {
   resteDisponible: number;
   /** Relyka tel qu'affiché sur la carte (dizaine inférieure). */
   relykaAffiche: number;
+  /**
+   * Fourchette de la carte quand la confiance n'est pas haute. Le détail montre le CALCUL, donc un
+   * chiffre exact — mais l'annoncer sans un mot revenait à contredire la carte, qui vient de dire
+   * que ce montant est une estimation. On rappelle ici d'où vient l'écart.
+   */
+  relykaRange?: { low: number; high: number; isRange: boolean } | null;
+  /**
+   * D'OÙ VIENT LA FOURCHETTE, en clair. Sans ça, « estimation » est une affirmation sans preuve :
+   * on lit une fourchette large en étant convaincu que tout est à jour, et rien ne dit ni depuis
+   * quand l'app attend une vérification, ni combien d'euros elle met en doute.
+   */
+  relykaDoubt?: { uncertaintyEur: number; lastVerifiedAt: string | null } | null;
   troughDate: string | null;
   troughExplain: string;
   onShowTroughInfo: () => void;
@@ -36,7 +48,8 @@ interface Props {
 
 export default function RelykaDetail({
   pilotageData, recurringTotal, varSpentMonth, reservationsTotal, cumulsTotal, resteDisponible,
-  relykaAffiche, troughDate, troughExplain, onShowTroughInfo, onSetMargin, colors, styles,
+  relykaAffiche, relykaRange, relykaDoubt, troughDate, troughExplain, onShowTroughInfo, onSetMargin,
+  colors, styles,
 }: Props) {
   const sFut = pilotageData.month_savings_future ?? 0;
   const iFut = pilotageData.month_invest_future ?? 0;
@@ -122,6 +135,25 @@ export default function RelykaDetail({
       {relykaAffiche !== Math.round(resteDisponible) && (
         <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 4 }]}>
           {`Arrondi à ${fmtAmount(relykaAffiche)} sur le tableau de bord (dizaine inférieure).`}
+        </Text>
+      )}
+      {/* Le détail donne un chiffre EXACT — alors que la carte vient d'annoncer une fourchette.
+          Sans ce rappel, l'écran se contredit : « estimation » d'un côté, montant au centime de
+          l'autre. On dit d'où vient l'écart, et ce qui le referme. */}
+      {relykaRange?.isRange && (
+        <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 4, lineHeight: 17 }]}>
+          {`Ce calcul suppose que TOUTES tes dépenses sont saisies. Tant que ton solde n'est pas vérifié, le tableau de bord annonce ${
+            relykaRange.low > 0
+              ? `un minimum sûr de ${fmtAmount(relykaRange.low)}`
+              : `ce montant comme un maximum`
+          }.`}
+          {relykaDoubt
+            ? ` Relyka met ${fmtAmount(relykaDoubt.uncertaintyEur)} en doute${
+                relykaDoubt.lastVerifiedAt
+                  ? `, faute de solde vérifié depuis le ${shortDay(relykaDoubt.lastVerifiedAt)}`
+                  : ', faute de solde jamais vérifié'
+              }.`
+            : ''}
         </Text>
       )}
     </View>

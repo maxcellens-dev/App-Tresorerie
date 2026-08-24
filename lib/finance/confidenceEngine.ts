@@ -29,8 +29,11 @@ export interface ReliabilityConfig {
   coldStartDays: number;
   /** Plancher absolu de la base (évite division par ~0). */
   absoluteFloor: number;
-  /** Pondération de la borne HAUTE d'une fourchette (le non-saisi tire surtout vers le bas). */
-  upBias: number;
+  /* ⚠️ `upBias` (pondération de la borne HAUTE) A ÉTÉ RETIRÉ. La fourchette est désormais purement
+     DESCENDANTE : son haut est le Relyka lui-même. Un réglage qui ouvrait la fourchette VERS LE HAUT
+     annonçait un montant supérieur au chiffre affiché — l'inverse d'un garde-fou. Une valeur restée
+     en base est simplement ignorée (cf. resolveReliabilityConfig, qui ne recopie que les clés
+     connues). */
   /**
    * PLANCHER de la borne basse quand elle sert de montant ACTIONNABLE (part du montant proposé).
    * Le doute est calculé sur la BASE (revenu / enveloppe), pas sur le Relyka : dès qu'une fourchette
@@ -60,16 +63,29 @@ export const RELIABILITY_DEFAULTS: ReliabilityConfig = {
   coldStartWeeklyFraction: 0.10,
   coldStartDays: 21,
   absoluteFloor: 100,
-  upBias: 0.3,
   minActionRatio: 0.4,
   roundStep: 100,
   activityDampening: 0.5,
   activityWindowDays: 7,
 };
 
-/** Fusionne les réglages admin (app_config.reliability) avec les défauts. */
+/**
+ * Fusionne les réglages admin (app_config.reliability) avec les défauts.
+ *
+ * ⚠️ ON NE RECOPIE QUE DES NOMBRES FINIS. La colonne est un JSON libre : une clé posée à `null` en
+ * SQL, une chaîne restée telle quelle, ou un `NaN` sérialisé écrasait le défaut — et le doute se
+ * propageait ensuite dans toute la chaîne (`net - NaN`, `roundTo(v, NaN)`), jusqu'à afficher
+ * « NaN € » à la place du chiffre le plus important de l'app. Un réglage illisible vaut mieux
+ * ignoré : on garde le défaut, l'écran reste juste.
+ */
 export function resolveReliabilityConfig(admin?: Partial<ReliabilityConfig> | null): ReliabilityConfig {
-  return { ...RELIABILITY_DEFAULTS, ...(admin ?? {}) };
+  const out: ReliabilityConfig = { ...RELIABILITY_DEFAULTS };
+  if (!admin || typeof admin !== 'object') return out;
+  for (const key of Object.keys(RELIABILITY_DEFAULTS) as (keyof ReliabilityConfig)[]) {
+    const v = (admin as any)[key];
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v;
+  }
+  return out;
 }
 
 /** Calibration de dérive, persistée sur profiles.reliability_calib. */
@@ -111,7 +127,25 @@ export interface ConfidenceResult {
   doubtRatio: number;
   /** Doute exprimé en euros (largeur d'incertitude). */
   uncertaintyEur: number;
+  /**
+   * Jours retenus pour le CALCUL — plafonnés à `coldStartDays` (le doute sature au lieu d'exploser).
+   * ⚠️ À ne pas utiliser pour PARLER de l'ancienneté : plafonné à 21 j par défaut, il fait dire
+   * « vérifié il y a un moment » à quelqu'un qui n'a rien vérifié depuis huit mois. Pour une phrase,
+   * c'est `rawDaysSinceVerification` (l'ancienneté réelle) qu'il faut lire.
+   */
   daysSinceVerification: number;
+  /**
+   * Ancienneté RÉELLE de la dernière vérification, sans plafond — `null` si aucune vérification n'a
+   * jamais eu lieu. Sert aux formulations affichées, jamais au calcul.
+   */
+  rawDaysSinceVerification: number | null;
+  /**
+   * Aucune vérification connue (ni régularisation, ni solde de départ d'un compte courant). À
+   * distinguer de `coldStart`, vrai aussi pour un utilisateur qui vient de vérifier mais n'a pas
+   * encore de calibration : afficher « Vérifié il y a un moment » à quelqu'un qui n'a JAMAIS vérifié
+   * est une affirmation fausse.
+   */
+  neverVerified: boolean;
   /** Dérive journalière retenue (calibrée ou cold start). */
   dailyDrift: number;
   /** true si le doute repose sur le cold start (pas encore de vérif réelle). */
@@ -143,16 +177,24 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   const base = Math.max(Math.abs(relyka), Math.abs(floorBase), config.absoluteFloor);
 
   let daysSinceVerification: number;
+  let rawDaysSinceVerification: number | null = null;
   let coldStart = false;
+  let neverVerified = false;
   if (lastVerifiedAt) {
     const d = new Date(lastVerifiedAt.slice(0, 10) + 'T00:00:00');
-    // Plafonné : au-delà de coldStartDays sans vérif, le doute sature au lieu de croître sans fin.
-    daysSinceVerification = Number.isNaN(d.getTime())
-      ? config.coldStartDays
-      : Math.min(daysBetween(today, d), config.coldStartDays);
+    if (Number.isNaN(d.getTime())) {
+      // Date illisible : on ne peut RIEN affirmer sur l'ancienneté → même traitement qu'une absence.
+      daysSinceVerification = config.coldStartDays;
+      neverVerified = true;
+    } else {
+      rawDaysSinceVerification = daysBetween(today, d);
+      // Plafonné : au-delà de coldStartDays sans vérif, le doute sature au lieu de croître sans fin.
+      daysSinceVerification = Math.min(rawDaysSinceVerification, config.coldStartDays);
+    }
   } else {
     daysSinceVerification = config.coldStartDays;
     coldStart = true;
+    neverVerified = true;
   }
 
   let dailyDrift: number;
@@ -203,7 +245,8 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   if (level === 'high' && activityDamp < 1 && rawRatio >= config.highMax) level = 'medium';
 
   return {
-    level, doubtRatio, uncertaintyEur, daysSinceVerification, dailyDrift, coldStart,
+    level, doubtRatio, uncertaintyEur, daysSinceVerification, rawDaysSinceVerification,
+    neverVerified, dailyDrift, coldStart,
     activityDamped: activityDamp < 1,
   };
 }
@@ -230,15 +273,23 @@ export function verifiedAgoPhrase(days: number): string {
 
 /**
  * Transforme un montant net en fourchette selon le doute courant.
- * Doute sous le seuil « chiffres nets » (highMax) → un seul chiffre. Sinon [net − doute ;
- * net + doute×upBias], arrondi. Le non-saisi tire surtout le Relyka vers le BAS → borne basse
- * pleine, borne haute atténuée.
  *
- * La décision fourchette/chiffre unique repose sur le RATIO de doute (pas sur le niveau ni sur
- * l'arrondi) : quand une saisie récente réduit fortement le doute, le NIVEAU peut rester « moyen »
- * (« À jour » réservé à une vraie vérif) mais on ne veut surtout pas d'une fausse fourchette
- * « 750–750 ». Deuxième garde-fou : si le pas d'arrondi écrase l'écart (bornes égales), un seul
- * chiffre aussi — quel que soit l'arrondi choisi par l'admin.
+ * ── LA FOURCHETTE NE MONTE JAMAIS AU-DESSUS DU RELYKA ───────────────────────────────────────────
+ * Une fourchette sert à PROTÉGER, pas à faire espérer. Le doute vient de ce qui n'a pas été saisi,
+ * et ce qui n'est pas saisi fait presque toujours BAISSER le solde. La fourchette est donc purement
+ * descendante : [net − doute ; net]. Le haut de la fourchette, c'est le Relyka lui-même — « voilà
+ * ce que tu as si tout est bien à jour », et rien de plus.
+ *
+ * Avant, la borne haute valait `net + doute × upBias` : elle annonçait un montant SUPÉRIEUR au
+ * chiffre affiché (jusqu'à plusieurs fois sa valeur quand le doute est mesuré sur un revenu bien
+ * plus gros que le Relyka du moment) — exactement l'inverse du but recherché. `upBias` n'a donc plus
+ * de raison d'être et a été retiré des réglages.
+ *
+ * Doute sous le seuil « chiffres nets » (highMax) → un seul chiffre. Cette décision repose sur le
+ * RATIO de doute (pas sur le niveau ni sur l'arrondi) : quand une saisie récente réduit fortement le
+ * doute, le NIVEAU peut rester « moyen » (« À jour » réservé à une vraie vérif) mais on ne veut
+ * surtout pas d'une fausse fourchette « 750–750 ». Deuxième garde-fou : si le pas d'arrondi écrase
+ * l'écart, un seul chiffre aussi — quel que soit l'arrondi choisi par l'admin.
  */
 export function toRange(net: number, conf: ConfidenceResult, config: ReliabilityConfig): Range {
   if (conf.doubtRatio < config.highMax || conf.uncertaintyEur <= 0) {
@@ -252,10 +303,21 @@ export function toRange(net: number, conf: ConfidenceResult, config: Reliability
   if (net <= 0) {
     return { low: net, high: net, isRange: false };
   }
-  // Borne basse jamais négative : le Relyka est déjà planché à 0 (on ne « doit » rien à personne),
-  // et une borne basse négative n'était de toute façon clampée qu'à l'affichage.
-  const low = Math.max(0, roundTo(net - conf.uncertaintyEur, config.roundStep));
-  const high = roundTo(net + conf.uncertaintyEur * config.upBias, config.roundStep);
+  const step = config.roundStep > 0 ? config.roundStep : 1;
+  /* DOUTE INVISIBLE À L'ÉCHELLE CHOISIE → un seul chiffre. Sous un demi-pas d'arrondi, montrer une
+     fourchette reviendrait à afficher une incertitude fabriquée par l'arrondi lui-même : avec un pas
+     de 100 €, un doute de 10 € donnerait « 700 € – 720 € », soit 20 € d'écart annoncé pour 10 € de
+     doute réel. */
+  if (conf.uncertaintyEur < step / 2) {
+    return { low: net, high: net, isRange: false };
+  }
+  /* Borne basse : arrondie vers le BAS, jamais vers le haut. Un « minimum sûr » remonté par
+     l'arrondi annoncerait une garantie qu'on n'a pas — c'est le seul sens dans lequel il ne faut
+     pas se tromper sur un montant de sécurité. Et jamais négative : le Relyka est déjà planché à 0. */
+  const low = Math.max(0, Math.floor((net - conf.uncertaintyEur) / step) * step);
+  // Le haut de la fourchette EST le Relyka : on ne promet jamais plus que le chiffre affiché.
+  const high = net;
+  // Doute écrasé par l'arrondi (les deux bornes se rejoignent) → un seul chiffre.
   if (low >= high) {
     return { low: net, high: net, isRange: false };
   }
@@ -278,16 +340,19 @@ export function makeSubRanges(
   conf: ConfidenceResult,
   config: ReliabilityConfig,
 ): { proportional: (amount: number) => Range; actionable: (amount: number) => Range } {
-  // Ratios calculés sur les bornes BRUTES (doute non arrondi) — pas sur relykaRange, arrondi au
-  // roundStep : sinon l'erreur d'arrondi du Relyka se propage ×ratio à toutes les sous-fourchettes.
+  /* Ratio calculé sur la borne BRUTE (doute non arrondi) — pas sur relykaRange, arrondi au
+     roundStep : sinon l'erreur d'arrondi du Relyka se propage ×ratio à toutes les sous-fourchettes.
+     Comme celle du Relyka, une sous-fourchette est purement DESCENDANTE : son haut est le montant
+     recommandé lui-même, jamais davantage. */
   const lowRatio = relyka > 0 ? Math.max(0, relyka - conf.uncertaintyEur) / relyka : 1;
-  const highRatio = relyka > 0 ? (relyka + conf.uncertaintyEur * config.upBias) / relyka : 1;
 
   const proportional = (amount: number): Range => {
     if (!relykaRange.isRange) return { low: amount, high: amount, isRange: false };
     const low = Math.round(amount * lowRatio);
-    const high = Math.round(amount * highRatio);
-    return { low: Math.min(low, high), high: Math.max(low, high), isRange: true };
+    // Bornes confondues (montant nul, ou doute négligeable devant lui) → un seul chiffre. Une
+    // « fourchette » 300–300 fait afficher une légende d'incertitude qui ne recouvre rien.
+    if (low >= amount) return { low: amount, high: amount, isRange: false };
+    return { low, high: amount, isRange: true };
   };
 
   const actionable = (amount: number): Range => {

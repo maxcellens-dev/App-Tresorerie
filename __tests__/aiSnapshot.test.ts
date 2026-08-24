@@ -196,3 +196,28 @@ describe('buildSnapshot — revenu de référence & garde-fous', () => {
   });
 });
 
+
+/* ── LE CHIFFRE DONT L'IA PARLE DOIT ÊTRE CELUI QUE L'UTILISATEUR VOIT ────────────────────────────
+   L'instantané ne transmettait que `safe_to_spend`, l'ANCIEN modèle de budget : il ne déduit ni
+   l'enveloppe de dépenses variables, ni les virements prévus, ni les réservations, et vaut donc
+   plusieurs centaines d'euros de plus que le Relyka affiché. L'IA annonçait « tu as X € réellement
+   disponibles » à quelqu'un dont le tableau de bord affichait bien moins. */
+describe('buildSnapshot — le Relyka (le chiffre affiché à l’utilisateur)', () => {
+  it('transmet le Relyka et le désigne comme le montant de référence', () => {
+    const txt = build(base({ relyka: 240 }));
+    expect(txt).toContain('RELYKA');
+    expect(txt).toContain('240 €');
+    expect(txt).toContain("AFFICHÉ à l'utilisateur");
+  });
+
+  it('requalifie « safe to spend » en indicateur interne, à ne pas citer tel quel', () => {
+    const txt = build(base({ relyka: 240 }));
+    expect(txt).toContain('indicateur INTERNE');
+    expect(txt).not.toContain('ce montant est réellement disponible');
+  });
+
+  it('sans Relyka calculable, aucune ligne inventée', () => {
+    const txt = build(base());
+    expect(txt).not.toContain('RELYKA (le budget libre');
+  });
+});

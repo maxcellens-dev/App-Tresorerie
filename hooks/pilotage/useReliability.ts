@@ -1,5 +1,6 @@
 // Réglages ADMIN de fiabilité (app_config.reliability) + dérivation de la confiance côté écran.
 // La confiance est calculée AVEC le vrai Relyka pour n'avoir qu'UNE seule fonction de doute partout.
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import {
@@ -7,7 +8,12 @@ import {
   type ReliabilityConfig, type ConfidenceResult, type Range,
 } from '../../lib/finance/confidenceEngine';
 import { recomputeReliabilityCalibration } from '../../lib/finance/reliabilityCalib';
-import type { PilotageData } from './usePilotageData';
+import { computeRelyka, relykaInputsFrom } from '../../lib/finance/relyka';
+import { floorToTen } from '../../lib/finance/currency';
+import { monthReservationsTotal } from '../../lib/finance/pilotageView';
+import { usePilotageData, type PilotageData } from './usePilotageData';
+import { useReservations } from '../data/useReservations';
+import { usePreSavings } from '../data/usePreSavings';
 import type { SystemNotificationsConfig } from '../../lib/platform/systemNotifications';
 
 export function useReliabilityConfig() {
@@ -142,9 +148,49 @@ export function deriveRelykaConfidence(
     variableBase: inputs?.variableBase ?? 0,
     config,
   });
-  const relykaRange = toRange(relyka, result, config);
+  /* ── PAS DE FOURCHETTE SOUS UN CHIFFRE À ZÉRO ──────────────────────────────────────────────────
+     `toRange` refuse déjà de fourcher un Relyka nul. Mais le tableau de bord AFFICHE la dizaine
+     inférieure : entre 1 € et 9 €, il montre « 0 € » — et la fourchette, calculée sur le montant
+     exact, restait active. On lisait alors « 0 € » en orange, « Pas de marge » et « jusqu'à 100 €
+     si tout est à jour » sur trois lignes qui se suivent. On applique donc la même règle au chiffre
+     tel qu'il est MONTRÉ, et pas seulement à sa valeur interne. */
+  const relykaRange = floorToTen(relyka) > 0
+    ? toRange(relyka, result, config)
+    : { low: relyka, high: relyka, isRange: false };
   // Sous-fourchettes (recos) : logique PURE et testée dans lib/confidenceEngine (makeSubRanges).
   // L'arrondi des sous-montants n'intervient qu'à l'affichage (dizaine inférieure).
   const { proportional, actionable } = makeSubRanges(relyka, relykaRange, result, config);
   return { result, relyka, relykaRange, config, proportional, actionable };
+}
+
+/**
+ * LA confiance du jour, branchée aux données — pour les écrans qui n'ont pas déjà le Relyka sous la
+ * main (Projection). Elle rassemble exactement les mêmes entrées que le tableau de bord : même
+ * Relyka (lib/relyka), même réglage admin, mêmes signaux.
+ *
+ * ⚠️ POURQUOI CE HOOK EXISTE. La Projection recalculait son propre doute avec `safe_to_spend`
+ * (un tout autre agrégat), SANS l'enveloppe variable, et surtout avec les réglages PAR DÉFAUT au
+ * lieu de ceux de l'administration : régler les seuils n'avait aucun effet sur la largeur du cône,
+ * et un compte neuf pouvait voir un cône « confiance basse » pendant que sa carte Relyka affichait
+ * des chiffres nets. « Une seule fonction de doute » ne suffit pas si on ne lui donne pas les mêmes
+ * entrées — c'est ce que ce hook garantit.
+ *
+ * Les requêtes sont celles du tableau de bord (mêmes clés de cache) : aucun aller-retour en plus
+ * quand il a déjà été affiché, ce qui est le cas dès l'ouverture de l'app.
+ */
+export function useRelykaConfidence(profileId: string | undefined): RelykaConfidence | null {
+  const { data: pilotage } = usePilotageData(profileId);
+  const { data: config } = useReliabilityConfig();
+  const { data: reservations = [] } = useReservations(profileId);
+  const { data: preSavings } = usePreSavings(profileId);
+
+  return useMemo(() => {
+    if (!pilotage || !config) return null;
+    const relyka = computeRelyka(relykaInputsFrom(pilotage, {
+      reservationsTotal: monthReservationsTotal(reservations as any[]),
+      preEpargneTotal: preSavings?.epargne.total_cumule ?? 0,
+      preInvestTotal: preSavings?.invest.total_cumule ?? 0,
+    }));
+    return deriveRelykaConfidence(pilotage, relyka, config);
+  }, [pilotage, config, reservations, preSavings]);
 }

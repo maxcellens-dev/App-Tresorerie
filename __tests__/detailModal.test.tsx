@@ -296,6 +296,29 @@ describe('DetailModal — vue « Ton Relyka » (le détail du calcul)', () => {
     show({ detailKey: 'relyka' });
     expect(screen.queryByText(/marge de sécurité à 0\s?€/)).toBeNull();
   });
+
+  /* La carte annonce une FOURCHETTE (« estimation »), le détail un chiffre au centime : sans un mot
+     d'explication, l'écran se contredit lui-même dès qu'on l'ouvre. Et « estimation » sans preuve
+     n'est qu'une affirmation : on dit COMBIEN est mis en doute, et DEPUIS QUAND. */
+  it('rappelle la fourchette de la carte quand le solde n\'est pas vérifié', () => {
+    show({ detailKey: 'relyka', relykaRange: { low: 500, high: 615, isRange: true } });
+    expect(screen.getByText(/minimum sûr de 500\s?€/)).toBeOnTheScreen();
+  });
+
+  it('dit combien est mis en doute, et depuis quelle vérification', () => {
+    show({
+      detailKey: 'relyka',
+      relykaRange: { low: 500, high: 615, isRange: true },
+      relykaDoubt: { uncertaintyEur: 260, lastVerifiedAt: '2026-05-12' },
+    });
+    expect(screen.getByText(/260\s?€ en doute/)).toBeOnTheScreen();
+    expect(screen.getByText(/12 mai/)).toBeOnTheScreen();
+  });
+
+  it('n\'en parle pas quand les chiffres sont nets', () => {
+    show({ detailKey: 'relyka', relykaRange: { low: 615, high: 615, isRange: false } });
+    expect(screen.queryByText(/toutes tes dépenses sont saisies/i)).toBeNull();
+  });
 });
 
 describe('DetailModal — les filtres ne survivent pas au changement de vue', () => {

@@ -98,3 +98,57 @@ export function relykaGross(i: RelykaInputs): number {
 export function computeRelyka(i: RelykaInputs): number {
   return Math.max(0, relykaGross(i));
 }
+
+/**
+ * ── UNE SEULE FAÇON DE RASSEMBLER LES HUIT TERMES ───────────────────────────────────────────────
+ *
+ * La soustraction était déjà partagée (`relykaGross`), mais la LISTE D'ENTRÉES, elle, était recopiée
+ * dans six fichiers : la carte du Pilotage, le moteur de recommandations, le Pouls, le bandeau
+ * « prochain geste », l'instantané envoyé aux conseils IA et le cône de la Projection. Six copies
+ * d'un même assemblage, c'est six occasions d'oublier un terme — et deux écrans qui annoncent alors
+ * deux budgets libres différents pour le même mois, sans que rien ne le signale.
+ *
+ * Ce fichier ne dépend d'aucun hook : les champs attendus sont décrits ici, structurellement, pour
+ * que le moteur reste testable sans React ni réseau.
+ */
+export interface RelykaPilotageFields {
+  cashflow_trough?: number | null;
+  current_checking_balance?: number | null;
+  month_savings_future?: number | null;
+  month_invest_future?: number | null;
+  monthly_reserve_planned?: number | null;
+  variable_envelope_remaining?: number | null;
+  safety_margin_amount?: number | null;
+}
+
+/** Ce que le Pilotage ne sait pas tout seul : réservations du mois et cumuls fléchés. */
+export interface RelykaExtras {
+  /** Réservations « Conserver pour plus tard » DU MOIS COURANT (cf. monthReservationsTotal). */
+  reservationsTotal: number;
+  preEpargneTotal: number;
+  preInvestTotal: number;
+}
+
+/** Les huit termes du Relyka, assemblés une bonne fois pour toutes. */
+export function relykaInputsFrom(
+  p: RelykaPilotageFields | null | undefined,
+  x: RelykaExtras,
+): RelykaInputs {
+  return {
+    // `??` = REPLI MÉTIER (pas de point bas connu → solde du jour), pas une normalisation :
+    // celle-ci est faite par `relykaGross`, qui neutralise aussi les NaN.
+    cashflowTrough: p?.cashflow_trough ?? p?.current_checking_balance ?? 0,
+    savingsFuture: p?.month_savings_future ?? 0,
+    investFuture: p?.month_invest_future ?? 0,
+    reservePlanned: p?.monthly_reserve_planned ?? 0,
+    reservationsTotal: x.reservationsTotal,
+    cumulsTotal: n(x.preEpargneTotal) + n(x.preInvestTotal),
+    variableEnvelopeRemaining: p?.variable_envelope_remaining ?? 0,
+    safetyMargin: p?.safety_margin_amount ?? 0,
+  };
+}
+
+/** Raccourci : les entrées → le Relyka net (planché à 0). */
+export function relykaFrom(p: RelykaPilotageFields | null | undefined, x: RelykaExtras): number {
+  return computeRelyka(relykaInputsFrom(p, x));
+}

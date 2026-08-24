@@ -253,9 +253,15 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
         ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
         : 'Relyka n\'a pas encore repéré ta rentrée d\'argent : enregistre-la en récurrente pour qu\'il cesse de calculer sans elle.',
     guardMessage: composeGuardMessage(recoList.filter((r) => r.amount > 0)),
-    unverifiedMessage: relConf?.result.level === 'low'
-      ? `Solde non vérifié ${unverifiedSincePhrase(relConf.result.daysSinceVerification)} — fais une régul ou saisis tes dépenses pour l'actualiser.`
-      : null,
+    /* Ancienneté RÉELLE (`rawDays…`) et non celle du calcul, plafonnée à 21 jours : elle faisait
+       écrire « non vérifié depuis quelques jours » à quelqu'un qui n'avait rien vérifié depuis huit
+       mois. Et « jamais vérifié » a sa propre phrase : on n'invente pas une ancienneté qui n'existe
+       pas. Le geste nommé est celui du bouton juste au-dessus (« Mettre à jour »), pas le jargon. */
+    unverifiedMessage:
+      relConf?.result.level !== 'low' ? null
+      : relConf.result.neverVerified || relConf.result.rawDaysSinceVerification == null
+        ? 'Ton solde n\'a jamais été vérifié — mets-le à jour pour que tes montants cessent d\'être des estimations.'
+        : `Solde non vérifié ${unverifiedSincePhrase(relConf.result.rawDaysSinceVerification)} — mets ton solde à jour ou saisis tes dépenses pour l'actualiser.`,
     relykaColor,
     warnColor: colors.orange,
   }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, relConf, relykaColor, colors]);

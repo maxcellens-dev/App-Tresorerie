@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import type { PilotageData } from './usePilotageData';
 import { computeMonthlyForecast } from '../../lib/finance/forecast';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
 export interface Conseil {
   id: string;
@@ -24,9 +25,17 @@ export interface ConsilDuJour {
   contextuel: Conseil | null;
 }
 
-/** Remplace les variables {accolades} par des vraies valeurs. */
+/**
+ * Remplace les variables {accolades} par des vraies valeurs.
+ *
+ * `{devise}` est fournie ICI, jamais par les appelants : les messages portaient un « € » écrit en
+ * dur (« {budgetlibre}€ restent chaque mois… »), affiché tel quel à côté de montants libellés en
+ * CHF, $ ou £. La migration 208 l'a remplacé par `{devise}` dans le contenu ; le brancher au seul
+ * endroit où l'interpolation se fait garantit qu'aucun conseil ne peut le rater.
+ */
 export function interpolate(msg: string, vars: Record<string, string | number>): string {
-  return msg.replace(/\{([^}]+)\}/g, (_, key) => String(vars[key] ?? `{${key}}`));
+  const all: Record<string, string | number> = { devise: CURRENCY_SYMBOL, ...vars };
+  return msg.replace(/\{([^}]+)\}/g, (_, key: string) => String(all[key] ?? `{${key}}`));
 }
 
 /* Redéfinition locale supprimée : elle calculait « aujourd'hui » en UTC et rendait donc la VEILLE
@@ -36,7 +45,16 @@ import { todayISO } from '../../lib/dateUtils';
 
 // ── Évaluation des critères contextuels ──────────────────────────────────────
 
-export function evalCriteres(pilotage: PilotageData, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = []): {
+/**
+ * @param relykaBrut Relyka BRUT (signé, non planché) tel que l'affiche le tableau de bord —
+ *   cf. `computeRelykaBreakdown.resteDisponibleBrut`. Il alimente les deux conseils qui parlent du
+ *   « budget libre » : ils lisaient `safe_to_spend`, l'ANCIEN modèle de budget, qui ne déduit ni
+ *   l'enveloppe variable, ni les virements prévus, ni les réservations. Le bandeau annonçait donc
+ *   « 1 800 € restent chaque mois sans destination » juste au-dessus d'une carte affichant 240 €.
+ *   Absent → ces deux conseils ne se déclenchent pas (mieux vaut se taire qu'annoncer un faux
+ *   montant).
+ */
+export function evalCriteres(pilotage: PilotageData, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = [], relykaBrut?: number | null): {
   key: string;
   vars: Record<string, string | number>;
 }[] {
@@ -95,15 +113,21 @@ export function evalCriteres(pilotage: PilotageData, transactions: any[], projec
     }
   }
 
-  // budget_libre_inexploite : budget libre > 400 ET aucun virement récurrent vers épargne
+  /* ── Les deux conseils qui parlent du « budget libre » parlent bien du RELYKA ─────────────────
+     Ils lisaient `safe_to_spend`, l'ancien modèle de budget : un agrégat qui ne déduit ni
+     l'enveloppe variable, ni les virements prévus, ni les réservations — donc plusieurs centaines
+     d'euros au-dessus du Relyka. Le bandeau contredisait la carte affichée juste en dessous.
+     Et `budget_negatif` ne pouvait de toute façon JAMAIS se déclencher : `safe_to_spend` est planché
+     à 0 par le moteur (`Math.max(0, …)`), donc « tu as déjà dépassé ton budget » n'est jamais
+     apparu à personne. C'est le Relyka BRUT qui porte le signe. */
   const hasRecurringSavings = transactions.some((t: any) => t.is_recurring && t.amount > 0 && t.linked_account?.type === 'savings');
-  if (pilotage.safe_to_spend > 400 && !hasRecurringSavings) {
-    active.push({ key: 'budget_libre_inexploite', vars: { budgetlibre: fmt(pilotage.safe_to_spend) } });
-  }
-
-  // budget_negatif : budget libre < 0
-  if (pilotage.safe_to_spend < 0) {
-    active.push({ key: 'budget_negatif', vars: {} });
+  if (relykaBrut != null && Number.isFinite(relykaBrut)) {
+    if (relykaBrut > 400 && !hasRecurringSavings) {
+      active.push({ key: 'budget_libre_inexploite', vars: { budgetlibre: fmt(relykaBrut) } });
+    }
+    if (relykaBrut < 0) {
+      active.push({ key: 'budget_negatif', vars: {} });
+    }
   }
 
   // investissement_depasse_epargne
@@ -216,7 +240,7 @@ export function useMarkConseilSeen(userId: string | undefined) {
 }
 
 /** Hook principal : renvoie le conseil du jour (général + contextuel) + actions. */
-export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = []): {
+export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = [], relykaBrut?: number | null): {
   general: (Conseil & { vars: Record<string, string | number> }) | null;
   contextuel: (Conseil & { vars: Record<string, string | number> }) | null;
   dismiss: (id: string) => void;
@@ -246,7 +270,7 @@ export function useConseilDuJour(userId: string | undefined, pilotage: PilotageD
   // ne le remplace pas par un autre — il disparaît jusqu'au lendemain.
   let contextuel: (Conseil & { vars: Record<string, string | number> }) | null = null;
   if (pilotage) {
-    const activeCriteres = evalCriteres(pilotage, transactions, projects, accounts, monthOverrides);
+    const activeCriteres = evalCriteres(pilotage, transactions, projects, accounts, monthOverrides, relykaBrut);
     const contextuelsAll = all.filter((c) => c.type === 'contextuel');
     for (const { key, vars } of activeCriteres) {
       const match = contextuelsAll.find((c) => c.critere_key === key);

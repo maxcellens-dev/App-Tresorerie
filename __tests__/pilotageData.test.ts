@@ -202,6 +202,69 @@ describe('computePilotageData — régularisations', () => {
     const r = run({ accounts: [account({ id: 'a1', balance: 1000, init_date: iso(2026, 4, 2) })] });
     expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 4, 2));
   });
+
+  /* ── Ouvrir un 2ᵉ compte ne vérifie pas le 1ᵉʳ ────────────────────────────────────────────────
+     La vérification du solde porte sur TOUS les comptes courants à la fois. En retenant l'ancre la
+     plus RÉCENTE, créer un nouveau compte courant faisait repasser toute l'app en « À jour » —
+     alors que le compte principal, lui, vivait sans avoir été vérifié depuis des mois. */
+  it('un compte courant créé aujourd\'hui ne « vérifie » pas un compte ancien QUI VIT', () => {
+    const r = run({
+      accounts: [
+        account({ id: 'a1', balance: 1000, init_date: iso(2026, 1, 5), created_at: iso(2026, 1, 5) }),
+        account({ id: 'a2', balance: 300, init_date: iso(2026, 6, 15), created_at: iso(2026, 6, 15) }),
+      ],
+      transactions: [tx({ account_id: 'a1', amount: -60, date: iso(2026, 6, 3) })],
+    });
+    expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 1, 5));
+  });
+
+  /* … mais un compte qui NE BOUGE PAS ne peut pas dériver : le doute vient des opérations non
+     saisies, pas du temps qui passe. Il ne doit donc pas maintenir toute l'app en « estimation ». */
+  it('un vieux compte SANS aucune opération ne pénalise pas les comptes actifs', () => {
+    const r = run({
+      accounts: [
+        account({ id: 'dormant', balance: 50, init_date: iso(2026, 1, 5), created_at: iso(2026, 1, 5) }),
+        account({ id: 'actif', balance: 300, init_date: iso(2026, 6, 15), created_at: iso(2026, 6, 15) }),
+      ],
+      transactions: [tx({ account_id: 'actif', amount: -60, date: iso(2026, 6, 15) })],
+    });
+    expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 6, 15));
+  });
+
+  it('aucun compte ne bouge → on garde l\'ancre la plus récente (l\'app est aveugle, pas rassurée)', () => {
+    const r = run({
+      accounts: [
+        account({ id: 'a1', balance: 1000, init_date: iso(2026, 1, 5), created_at: iso(2026, 1, 5) }),
+        account({ id: 'a2', balance: 300, init_date: iso(2026, 3, 1), created_at: iso(2026, 3, 1) }),
+      ],
+    });
+    expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 3, 1));
+  });
+
+  it('une régularisation postérieure remet bien tous les comptes à jour', () => {
+    const r = run({
+      accounts: [
+        account({ id: 'a1', balance: 1000, init_date: iso(2026, 1, 5), created_at: iso(2026, 1, 5) }),
+        account({ id: 'a2', balance: 300, init_date: iso(2026, 3, 1), created_at: iso(2026, 3, 1) }),
+      ],
+      transactions: [tx({
+        account_id: 'a1', amount: -250, date: iso(2026, 6, 12),
+        category_id: null, category: null, note: 'Régularisation',
+      })],
+    });
+    expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 6, 12));
+  });
+
+  it('une régularisation datée dans le futur ne vérifie rien', () => {
+    const r = run({
+      accounts: [account({ id: 'a1', balance: 1000, init_date: iso(2026, 4, 2), created_at: iso(2026, 4, 2) })],
+      transactions: [tx({
+        account_id: 'a1', amount: -250, date: iso(2026, 8, 30),
+        category_id: null, category: null, note: 'Régularisation',
+      })],
+    });
+    expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 4, 2));
+  });
 });
 
 describe('computePilotageData — enveloppe des dépenses variables', () => {

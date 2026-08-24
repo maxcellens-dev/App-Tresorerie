@@ -53,6 +53,10 @@ interface Props {
   cumulsTotal: number;
   resteDisponible: number;
   relykaAffiche: number;
+  /** Fourchette affichée sur la carte (confiance moyenne/basse) — rappelée sous le calcul. */
+  relykaRange?: { low: number; high: number; isRange: boolean } | null;
+  /** D'où vient cette fourchette : combien d'euros en doute, depuis quelle vérification. */
+  relykaDoubt?: { uncertaintyEur: number; lastVerifiedAt: string | null } | null;
   troughDate: string | null;
   troughExplain: string;
   varMode: 'auto' | 'estimate' | 'real';
@@ -73,7 +77,7 @@ interface Props {
 
 export default function DetailModal({
   detailKey, onClose, suiviDetail, recurUpcoming, pilotageData, profile, accounts,
-  rates, catParentName, reservationsTotal, cumulsTotal, resteDisponible, relykaAffiche, troughDate,
+  rates, catParentName, reservationsTotal, cumulsTotal, resteDisponible, relykaAffiche, relykaRange, relykaDoubt, troughDate,
   troughExplain, varMode, onVarMode, varModeDirty, savingVarMode, onSaveVarMode, scrollMaxHeight,
   isDesktop, colors, onPressTx, onShowRecurring, onShowTroughInfo, onEditEstimate, onSetMargin,
 }: Props) {
@@ -190,7 +194,7 @@ export default function DetailModal({
                       pilotageData={pilotageData} recurringTotal={suiviDetail.recurringTotal}
                       varSpentMonth={varSpentMonth} reservationsTotal={reservationsTotal}
                       cumulsTotal={cumulsTotal} resteDisponible={resteDisponible}
-                      relykaAffiche={relykaAffiche} troughDate={troughDate}
+                      relykaAffiche={relykaAffiche} relykaRange={relykaRange} relykaDoubt={relykaDoubt} troughDate={troughDate}
                       troughExplain={troughExplain} onShowTroughInfo={onShowTroughInfo}
                       onSetMargin={onSetMargin} colors={colors} styles={styles}
                     />
