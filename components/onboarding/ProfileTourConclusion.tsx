@@ -128,10 +128,8 @@ export default function ProfileTourConclusion() {
      source, les mêmes causes et les mêmes gestes que sur la page « Profil financier ».
      La marge de sécurité reste énoncée à part : elle n'entre pas dans le classement (elle affine le
      Relyka), donc le module de fiabilité n'en parle pas — mais c'est le moment de la rappeler. */
-  const missing: string[] = reliability
-    ? reliability.gaps.map((g) => g.label.toLowerCase())
-    : [];
-  if (!marginSet) missing.push('ta marge de sécurité');
+  const missing: string[] = reliability ? reliability.gaps.map((g) => g.label) : [];
+  if (!marginSet) missing.push('Ta marge de sécurité n’est pas définie');
 
   const cushionMonths = computeSecurityCushion({
     availableSavings: savings,
@@ -224,16 +222,6 @@ export default function ProfileTourConclusion() {
             <Text style={styles.title}>Ton profil : {info.name}</Text>
             <Text style={styles.desc}>{info.description}</Text>
 
-            {/* SUR QUOI CE PALIER REPOSE — la question qu'on se pose immédiatement en lisant
-                « Découverte » à la fin du parcours. Sans elle, le nom du profil est un verdict sans
-                cause : on ne peut ni le comprendre, ni savoir quoi faire pour qu'il change. */}
-            {!!reliability && (
-              <View style={[styles.relRow, { borderColor: relColor + '55', backgroundColor: relColor + '12' }]}>
-                <View style={[styles.relDot, { backgroundColor: relColor }]} />
-                <Text style={styles.relText} numberOfLines={2}>{reliability.title}</Text>
-              </View>
-            )}
-
             {/* Ce que le profil DÉCIDE : la répartition. C'est son unique rôle, autant le montrer.
                 Les barres se remplissent en CASCADE (décalage de 0,1 par ligne sur la même valeur
                 animée) : on voit la répartition se constituer, ligne après ligne. */}
@@ -264,20 +252,40 @@ export default function ProfileTourConclusion() {
 
             {missing.length > 0 ? (
               /* CONSTAT, pas consigne : aucun bouton, aucune obligation. On explique simplement que
-                 le profil s'affinera tout seul quand ces données arriveront. */
+                 le profil s'affinera tout seul quand ces données arriveront.
+                 SUR QUOI CE PALIER REPOSE, PUIS CE QUI MANQUE — dans cet ordre et dans le MÊME
+                 encadré : l'indice de fiabilité et la liste des manques disent la même chose, l'un
+                 en un mot, l'autre en détail. Séparés, l'indice devenait un badge sans cause.
+                 Et des puces plutôt qu'une phrase : « il lui manque aucune rentrée détectée, tes
+                 dépenses variables sont une estimation, peu d'historique » se lisait comme une
+                 phrase cassée — trois éléments hétérogènes cousus par des virgules. */
               <View style={styles.missingCard}>
+                {!!reliability && (
+                  <View style={[styles.relRow, { borderColor: relColor + '55', backgroundColor: relColor + '14' }]}>
+                    <View style={[styles.relDot, { backgroundColor: relColor }]} />
+                    <Text style={styles.relText} numberOfLines={1}>{reliability.title}</Text>
+                  </View>
+                )}
                 <View style={styles.missingHead}>
                   <Ionicons name="information-circle-outline" size={17} color={COLORS.orange} />
                   <Text style={styles.missingTitle}>Il s’affinera encore</Text>
                 </View>
+                {missing.map((m) => (
+                  <View key={m} style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.bulletText}>{m}</Text>
+                  </View>
+                ))}
                 <Text style={styles.missingText}>
-                  Pour l’instant Relyka reste prudent : il lui manque {missing.join(', ')}.
-                  {'\n'}Dès que ce sera renseigné, ton profil se met à jour tout seul — on te le dira.
+                  Dès que ce sera renseigné, ton profil se met à jour tout seul — on te le dira.
                 </Text>
               </View>
             ) : (
               <Text style={styles.okText}>
-                Calculé sur tes vraies données{cushionMonths != null ? ` \nton épargne couvre ≈ ${securityMonthsLabel(cushionMonths)} de revenus` : ''}.
+                {/* « de revenus » était un reste de l'ancienne unité : le matelas se mesure en mois
+                    de DÉPENSES depuis longtemps. On annonçait donc une unité, et un chiffre calculé
+                    dans une autre. */}
+                Calculé sur tes vraies données{cushionMonths != null ? ` \nton épargne couvre ≈ ${securityMonthsLabel(cushionMonths)} de dépenses` : ''}.
                 {'\n'}Ton profil peut évoluer selon ta situation.
               </Text>
             )}
@@ -337,13 +345,18 @@ function makeStyles(c: any) {
     missingTitle: { fontSize: 13.5, fontWeight: '800', color: c.orange },
     missingText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18.5 },
 
-    // Fiabilité : une pastille de ton et son libellé, juste sous le nom du palier.
+    // Fiabilité : une pastille de ton et son libellé, en tête de l'encadré des manques.
     relRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 7,
-      borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, marginTop: 2,
+      flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start',
+      borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5,
     },
     relDot: { width: 8, height: 8, borderRadius: 4 },
     relText: { fontSize: 12, fontWeight: '700', color: c.text },
+
+    // Puces : une ligne = un manque. Alignées sur la marge du texte, jamais centrées.
+    bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingLeft: 2 },
+    bulletDot: { fontSize: 13, lineHeight: 19, color: c.orange, fontWeight: '800' },
+    bulletText: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 19 },
 
     okText: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18.5, marginTop: 4 },
 

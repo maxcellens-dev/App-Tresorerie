@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { PROFILE_INFO, PROFILE_ALLOCATIONS } from '../../lib/finance/financialProfileEngine';
@@ -135,12 +136,26 @@ export default function ProfileChangeModal({ userId }: Props) {
      montrée (ProfileTourConclusion) : c'est elle qui présente le profil à la fin du tour, ce modal
      ne doit pas la doubler ni la précéder. */
   const duringGuide = guide.active || guide.booting || guide.tourJustFinished;
+
+  /* ── UNIQUEMENT SUR LE TABLEAU DE BORD ────────────────────────────────────────────────────────
+     Le profil se recalcule dès qu'une donnée bouge : la fenêtre pouvait donc s'ouvrir en pleine
+     saisie de transaction, au milieu d'un virement ou dans un écran de réglages — c'est-à-dire
+     précisément là où l'utilisateur est en train de faire autre chose. Elle interrompait pour
+     annoncer la CONSÉQUENCE de ce qu'il venait de faire, avant même qu'il ait fini.
+     Elle attend donc le Pilotage : c'est l'écran des recommandations, celui que le changement de
+     palier modifie réellement, et le seul où l'annonce tombe au bon moment. Rien n'est perdu — les
+     lignes non lues restent en attente aussi longtemps qu'il faut. */
+  const segments = useSegments();
+  const onPilotage = segments[segments.length - 1] === 'pilotage';
   /* Le changement de profil vient APRÈS la clôture et le bilan du mois : il en est la conséquence.
      L'annoncer avant, c'était livrer le verdict d'un calcul dont l'utilisateur n'a pas encore vu
      les données (cf. lib/interruptQueue). */
   const myTurn = useInterruptSlot(
     'profile_change',
-    !isImpersonating && !duringGuide && !!pendingChange?.display,
+    /* `onPilotage` entre AUSSI dans la candidature au créneau : sans ça, la fenêtre réserverait le
+       créneau d'interruption depuis n'importe quel écran sans jamais s'afficher — et bloquerait les
+       autres annonces qui, elles, avaient le droit de parler. */
+    !isImpersonating && !duringGuide && onPilotage && !!pendingChange?.display,
   );
   /* Consommation SILENCIEUSE : pendant le parcours de démarrage (voir ci-dessus), et quand les
      changements en attente s'annulent entre eux (`display: false`) — il n'y a alors rien à
@@ -156,6 +171,8 @@ export default function ProfileChangeModal({ userId }: Props) {
   // cible (ni le marquer comme « vu »). C'est une notification destinée à l'utilisateur lui-même.
   if (isImpersonating) return null;
   if (duringGuide) return null;
+  // Ailleurs que sur le tableau de bord : on attend. La ligne non lue reste en attente.
+  if (!onPilotage) return null;
   if (!pendingChange || !pendingChange.display) return null;
   // Pas encore notre tour : la clôture et/ou le bilan du mois parlent d'abord.
   if (!myTurn) return null;

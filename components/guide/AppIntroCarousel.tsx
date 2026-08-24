@@ -165,8 +165,13 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
     {
       key: 'ia',
       eyebrow: 'Conseils intelligents',
-      title: 'Une analyse\nrien que pour toi',
-      text: 'Relyka transmet **tes chiffres anonymisés** \n— Une IA te répond — \net t’explique où tu en es, en français.\n\nDes conseils ==adaptés à ta situation==.',
+      title: 'Des conseils boostés\npar IA, à la demande',
+      /* ⚠️ CE QUE CETTE DIAPO DOIT LEVER, C'EST UN DOUTE. « Relyka transmet tes chiffres » se lisait
+         comme un envoi PERMANENT, en tâche de fond — la lecture la plus inquiétante possible sur une
+         app qui contient toute la vie financière de quelqu'un. Or rien ne part jamais tout seul :
+         l'analyse se déclenche au bouton, et à ce moment-là seulement.
+         D'où l'ordre des phrases : le geste d'abord (« tu demandes »), l'envoi ensuite. */
+      text: '**Quand tu le souhaites**, tu peux demander à l’IA d’analyser ta situation. Relyka lui transmet alors les données nécessaires anonymisées, pour te donner une réponse personnalisée.\n\n==Tu demandes → l’IA analyse ta situation → tu reçois des conseils adaptés.==',
       render: (c, s) => <MockAi c={c} s={s} />,
     },
   ], []);
@@ -554,6 +559,13 @@ function MockAi({ c, s }: any) {
           </View>
         </View>
       ))}
+      {/* LE BOUTON FAIT PARTIE DE LA DÉMONSTRATION. Une carte de résultats seule se lit comme
+          quelque chose qui arrive tout seul — donc comme des données qui partent en continu. Voir
+          le geste rend l'analyse manifestement volontaire, avant même d'avoir lu la phrase. */}
+      <View style={[s.mockAiCta, { backgroundColor: c.emerald + '18', borderColor: c.emerald + '55' }]}>
+        <Ionicons name="sparkles-outline" size={13} color={c.emerald} />
+        <Text style={[s.mockRowTitle, { color: c.emerald }]}>Lancer l’analyse</Text>
+      </View>
     </View>
   );
 }
@@ -660,6 +672,11 @@ function makeStyles(c: any) {
 
     mockAiLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
     mockAiDot: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+    // Le geste, dessiné : c'est lui qui dit que rien ne part sans l'utilisateur.
+    mockAiCta: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      borderWidth: 1, borderRadius: 12, paddingVertical: 9, marginTop: 10,
+    },
 
   });
 }
