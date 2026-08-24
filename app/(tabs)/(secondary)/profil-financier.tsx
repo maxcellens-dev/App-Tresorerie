@@ -34,7 +34,8 @@ import {
 import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '../../../lib/finance/securityCushion';
 import type { QuestionnaireAnswers } from '../../../lib/finance/financialProfileEngine';
 import { resolveMonthlyAllocation } from '../../../lib/finance/financialPriorities';
-import type { FinancialProfileId } from '../../../types/database';
+import { resolveRecoMode } from '../../../lib/finance/recoMode';
+import RecoModeModal from '../../../components/pilotage/RecoModeModal';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
@@ -69,6 +70,8 @@ function ProfilFinancierScreen() {
 
   /** Panneau d'édition ouvert (une seule ligne à la fois). */
   const [editing, setEditing] = useState<null | 'q8' | 'q9'>(null);
+  /** Réglage de la répartition (profil ↔ pourcentages choisis) — même modale que le tableau de bord. */
+  const [showRecoMode, setShowRecoMode] = useState(false);
   const [amountDraft, setAmountDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -137,8 +140,18 @@ function ProfilFinancierScreen() {
     investedBalance: pilotage.total_invested ?? 0,
     irregularIncome: Boolean((fp as any)?.is_irregular_income),
   } : null;
-  const resolved = profileId && situation ? resolveMonthlyAllocation(profileId, situation) : null;
-  const alloc = resolved?.alloc ?? (profileId ? PROFILE_ALLOCATIONS[profileId] : null);
+  /* ── QUI DÉCIDE DE LA RÉPARTITION : le profil, ou l'utilisateur ? ──────────────────────────────
+     Le mode manuel remplace la table du palier par les pourcentages choisis — et rien d'autre : la
+     priorité du mois les borne de la même façon (cf. resolveMonthlyAllocation). Les pourcentages
+     affichés plus bas sont donc, dans les deux cas, CEUX QUI S'APPLIQUENT : il n'y a rien à
+     comparer à côté, seulement à dire d'où ils viennent. */
+  const recoMode = resolveRecoMode(userProfile);
+  const resolved = profileId && situation
+    ? resolveMonthlyAllocation(profileId, situation, recoMode.manualAllocation)
+    : null;
+  const alloc = resolved?.alloc
+    ?? recoMode.manualAllocation
+    ?? (profileId ? PROFILE_ALLOCATIONS[profileId] : null);
 
   const margin = Number((userProfile as any)?.safety_margin_amount ?? 0);
   const weekly = Number((userProfile as any)?.weekly_variable_budget ?? 0);
@@ -278,27 +291,57 @@ function ProfilFinancierScreen() {
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-          {/* ── Le profil ── */}
+          {/* ── Le profil, et le bouton qui règle sa répartition ──────────────────────────────────
+              Même bouton qu'en haut de la carte « Tes recommandations » du tableau de bord : c'est
+              le même réglage, il ouvre la même modale. En manuel, la pastille le dit ICI, sur le
+              nom du profil — c'est le seul endroit où l'on peut croire que le palier pilote encore
+              les pourcentages. */}
           <View style={[styles.hero, { borderColor: info.color + '55' }]}>
             <Text style={styles.heroEmoji}>{info.emoji}</Text>
             <View style={{ flex: 1 }}>
-              <View style={styles.rowLabelLine}>
+              {/* Ligne du titre PROPRE au bandeau (et non `rowLabelLine`, partagée avec les lignes
+                  de réglage) : elle se replie. Sur un écran étroit, « Patrimoine établi » + la
+                  pastille + le « ? » ne tiennent pas sur une ligne — sans repli, la pastille sortait
+                  de la carte. */}
+              <View style={styles.heroTitleLine}>
                 <Text style={[styles.heroName, { color: info.color }]}>{info.name}</Text>
+                {recoMode.mode === 'manual' && (
+                  <View style={styles.modePill}>
+                    <Text style={styles.modePillText}>Répartition manuelle</Text>
+                  </View>
+                )}
                 <InfoDot term="profil_financier" size={14} color={info.color} />
               </View>
               <Text style={styles.heroDesc}>{info.description}</Text>
             </View>
+            <TouchableOpacity
+              style={styles.modeBtn}
+              onPress={() => setShowRecoMode(true)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Régler la répartition de tes recommandations"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="options-outline" size={16} color={COLORS.textSecondary} />
+            </TouchableOpacity>
           </View>
 
           {/* ── Ce qu'il change concrètement ── */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Ce qu’il change</Text>
+            <Text style={styles.cardTitle}>
+              {recoMode.mode === 'manual' ? 'Ce qui est appliqué' : 'Ce qu’il change'}
+            </Text>
             {/* Le profil PROPOSE, la situation du mois DISPOSE : dire « il fixe la répartition »
                 serait faux depuis que la priorité du mois borne les pourcentages — et l'écran
                 annoncerait autre chose que ce que le Pilotage applique. */}
             <Text style={styles.cardLead}>
-              Il oriente la <Text style={styles.b}>répartition</Text> de ton Relyka entre les quatre
-              décisions — jamais les montants, qui viennent de ta trésorerie réelle.
+              {recoMode.mode === 'manual' ? (
+                <>Ce sont <Text style={styles.b}>tes pourcentages</Text> qui répartissent ton Relyka entre
+                les quatre décisions — jamais les montants, qui viennent de ta trésorerie réelle.</>
+              ) : (
+                <>Il oriente la <Text style={styles.b}>répartition</Text> de ton Relyka entre les quatre
+                décisions — jamais les montants, qui viennent de ta trésorerie réelle.</>
+              )}
             </Text>
             {resolved && (
               <Text style={styles.cardLead}>
@@ -394,6 +437,17 @@ function ProfilFinancierScreen() {
               Il n’est pas figé. Dès qu’une donnée réelle change — un virement d’épargne, une mise à
               jour de solde — il se recalcule, et tu es prévenu s’il bouge.
             </Text>
+            {/* En manuel, le palier n'est plus ce qui pilote les pourcentages — mais il continue
+                d'être calculé, et c'est ce qui rend un retour à l'automatique immédiat et juste. */}
+            {recoMode.mode === 'manual' && (
+              <View style={styles.note}>
+                <Ionicons name="information-circle-outline" size={14} color={COLORS.teal} />
+                <Text style={styles.noteText}>
+                  Tes pourcentages restent les tiens : ton profil continue d’être calculé en
+                  arrière-plan, prêt à reprendre la main si tu reviens à l’automatique.
+                </Text>
+              </View>
+            )}
             {(fp?.is_irregular_income ?? false) && (
               <View style={styles.note}>
                 <Ionicons name="pulse-outline" size={14} color={COLORS.teal} />
@@ -407,6 +461,9 @@ function ProfilFinancierScreen() {
           <View style={{ height: 40 }} />
         </KeyboardAwareScrollView>
       </SafeAreaView>
+
+      {/* Même modale que le tableau de bord : un seul endroit règle la répartition. */}
+      <RecoModeModal visible={showRecoMode} onClose={() => setShowRecoMode(false)} userId={user?.id} />
     </View>
   );
 }
@@ -423,7 +480,8 @@ function makeStyles(c: any) {
       backgroundColor: c.card, borderWidth: 1, borderRadius: 20, padding: 16,
     },
     heroEmoji: { fontSize: 34 },
-    heroName: { fontSize: 18, fontWeight: '800' },
+    heroTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    heroName: { fontSize: 18, fontWeight: '800', flexShrink: 1 },
     heroDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginTop: 3 },
 
     card: {
@@ -433,6 +491,18 @@ function makeStyles(c: any) {
     cardTitle: { fontSize: 15.5, fontWeight: '800', color: c.text },
     cardLead: { fontSize: 13, color: c.textSecondary, lineHeight: 19 },
     b: { fontWeight: '800', color: c.text },
+
+    /* Réglage de la répartition — MÊMES styles que l'en-tête de « Tes recommandations »
+       (components/pilotage/PilotageSimple) : c'est le même bouton, il doit se reconnaître. */
+    modePill: {
+      borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
+      backgroundColor: c.teal + '1A', borderWidth: 1, borderColor: c.teal + '40',
+    },
+    modePillText: { fontSize: 10.5, fontWeight: '800', color: c.teal },
+    modeBtn: {
+      width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
+    },
 
     allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     allocLabel: { width: 78, fontSize: 13, color: c.text },

@@ -121,6 +121,16 @@ export interface Profile {
   allocation_invest_percent?: number;
   allocation_enjoy_percent?: number;
   allocation_keep_percent?: number;
+  /**
+   * Qui décide de la répartition du Relyka (migration 205) : 'auto' = le profil financier,
+   * 'manual' = les quatre pourcentages ci-dessous. Toujours lu via lib/finance/recoMode.
+   */
+  reco_mode?: 'auto' | 'manual';
+  /** Répartition CHOISIE (mode manuel). Ignorée tant que les quatre ne totalisent pas 100. */
+  manual_alloc_save_percent?: number | null;
+  manual_alloc_invest_percent?: number | null;
+  manual_alloc_enjoy_percent?: number | null;
+  manual_alloc_keep_percent?: number | null;
   initial_onboarding_completed?: boolean;
   financial_profile_questionnaire_completed?: boolean;
   is_admin?: boolean;

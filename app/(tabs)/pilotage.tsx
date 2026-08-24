@@ -17,6 +17,7 @@ import GuideModal from '../../components/guide/GuideModal';
 import TroughInfoModal from '../../components/pilotage/TroughInfoModal';
 import RelykaShiftModal from '../../components/pilotage/RelykaShiftModal';
 import PilotageInputModal from '../../components/pilotage/PilotageInputModal';
+import RecoModeModal from '../../components/pilotage/RecoModeModal';
 import SuiviTxSheet from '../../components/pilotage/SuiviTxSheet';
 import ReservedModal from '../../components/pilotage/ReservedModal';
 import DetailModal, { type DetailKey } from '../../components/pilotage/DetailModal';
@@ -246,6 +247,10 @@ function PilotageScreen() {
   // Conservation manuelle (sans passer par la recommandation « Conserver »).
   const [showConserveModal, setShowConserveModal] = useState(false);
   const [conserveInput, setConserveInput] = useState('');
+  /* Réglage de la RÉPARTITION des recos (profil ou pourcentages choisis) — ouvert depuis l'en-tête
+     de la carte « Tes recommandations ». La modale lit et écrit elle-même : elle sert aussi depuis
+     la page « Profil financier », et deux câblages du même réglage finissent par diverger. */
+  const [showRecoModeModal, setShowRecoModeModal] = useState(false);
 
   /** Guide utilisateur (parcours de démarrage) — lu très tôt : il conditionne aussi la découverte. */
   const userGuide = useGuide();
@@ -395,6 +400,7 @@ function PilotageScreen() {
     baseADepenser, enDepassement,
     setupIncomplete, setupHint, firstName, welcomeStep, welcomeRoute,
     relConf, recoList, recoMessages, relykaMessages, suiviDetail, recurUpcoming, relykaColor,
+    recoMode,
   } = vm;
 
   /* Mode affiché = brouillon local s'il existe, sinon celui du profil. */
@@ -649,6 +655,11 @@ function PilotageScreen() {
               confidenceLevel={relConf?.result.level ?? 'high'}
               daysSinceVerification={relConf?.result.daysSinceVerification ?? 0}
               recommendations={recoList}
+              // Qui décide de la répartition : le profil, ou les pourcentages posés par l'utilisateur.
+              // `recoMode.mode` est le mode RÉELLEMENT appliqué (cf. lib/recoMode) — une répartition
+              // manuelle incomplète y est déjà écartée, donc la pastille ne peut pas mentir.
+              recoModeManual={recoMode.mode === 'manual'}
+              onOpenRecoMode={() => setShowRecoModeModal(true)}
               // Le POURQUOI des montants, un message à la fois, sous les quatre décisions.
               recoMessages={recoMessages}
               overspending={enDepassement}
@@ -974,6 +985,12 @@ function PilotageScreen() {
           setShowConserveModal(false);
         }}
         colors={COLORS}
+      />
+      {/* Réglage de la répartition des recos (profil ↔ pourcentages choisis). */}
+      <RecoModeModal
+        visible={showRecoModeModal}
+        onClose={() => setShowRecoModeModal(false)}
+        userId={user?.id}
       />
       <CalculatorButton page="pilotage" />
       <RecurringTransactionsModal visible={showRecurringModal} onClose={() => setShowRecurringModal(false)} userId={user?.id} />

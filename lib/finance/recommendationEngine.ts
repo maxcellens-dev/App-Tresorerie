@@ -277,6 +277,13 @@ export function deriveRecoAllocations(
     financialProfileId?: FinancialProfileId;
     /** Jours restants avant la prochaine rentrée d'argent (fin de période : « Confort » → « Conserver »). */
     daysLeftInPeriod?: number | null;
+    /**
+     * RÉPARTITION MANUELLE (mode manuel, cf. lib/finance/recoMode) : remplace la table du palier,
+     * et rien d'autre. Elle entre au même endroit que `PROFILE_ALLOCATIONS[pid]` — donc les bornes
+     * de la priorité, les modificateurs et la normalisation s'y appliquent à l'identique.
+     * Absente / `null` → le profil décide, comme avant.
+     */
+    manualAllocation?: Record<RecoType, number> | null;
   } = {},
 ): { tier: SavingsTier; alloc: Record<RecoType, number> } {
   let tier: SavingsTier;
@@ -308,7 +315,14 @@ export function deriveRecoAllocations(
       savingsBalance: data.current_savings ?? 0,
       investedBalance: data.total_invested ?? 0,
     });
-    alloc = applyPriorityBounds({ ...PROFILE_ALLOCATIONS[pid] }, priority);
+    /* La base est celle du palier — SAUF si l'utilisateur a réglé ses propres pourcentages. Le
+       reste du chemin est rigoureusement le même : c'est ce qui permet de dire honnêtement que le
+       mode manuel « revient à se donner un profil sur mesure ». */
+    alloc = applyPriorityBounds({ ...(opts.manualAllocation ?? PROFILE_ALLOCATIONS[pid]) }, priority);
+    /* Le PALIER reste celui du profil réel, même en manuel : il ne choisit plus de pourcentages
+       (ils viennent d'être posés), il ne sert qu'au VOCABULAIRE des conseils. Le déduire des
+       pourcentages choisis ferait parler l'app à quelqu'un d'autre — « ta réserve est confortable »
+       à qui a simplement demandé plus d'investissement. */
     tier = PROFILE_TO_TIER[pid];
   } else {
     // Ancien système : palier déterminé par le montant d'épargne
@@ -347,6 +361,12 @@ export interface RecoThresholds {
 export interface ComputeRecoOptions {
   customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>;
   financialProfileId?: FinancialProfileId;
+  /**
+   * Répartition CHOISIE par l'utilisateur (mode manuel, cf. lib/finance/recoMode). Elle remplace la
+   * table du palier au tout début du calcul ; tout le reste (priorité du mois, modificateurs,
+   * seuils, garde-fous) se déroule ensuite sans changement.
+   */
+  manualAllocation?: Record<RecoType, number> | null;
   /** Budget de référence (= reste disponible). Défaut : data.safe_to_spend. */
   budget?: number;
   /** Seuils min de reste pour afficher chaque reco (§9). */
@@ -459,6 +479,7 @@ export function computeRecommendations(
 
   const { tier, alloc } = deriveRecoAllocations(data, {
     customTierAllocations, financialProfileId, daysLeftInPeriod: opts.daysLeftInPeriod,
+    manualAllocation: opts.manualAllocation,
   });
 
   // 5. Filtrer les recommandations trop petites (< seuil minimum)

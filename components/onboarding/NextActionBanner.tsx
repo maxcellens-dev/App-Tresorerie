@@ -68,13 +68,20 @@ export function ActionBannerCard({ action, onPress, onDismiss }: {
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
   const accent = action.type === 'joint_low' ? COLORS.orange
     : action.positive ? COLORS.green : COLORS.emerald;
-  return (
-    <TouchableOpacity
-      style={[styles.banner, action.positive && styles.bannerPositive, { borderColor: accent + '55' }]}
-      activeOpacity={(action.deeplink || action.interactive) && onPress ? 0.85 : 1}
-      onPress={onPress}
-      accessibilityRole="button"
-    >
+
+  /* ── DEUX ACTIONS CÔTE À CÔTE, JAMAIS L'UNE DANS L'AUTRE ────────────────────────────────────────
+     La carte entière portait l'action principale, et la croix de fermeture vivait DEDANS. Sur
+     react-native-web, `accessibilityRole="button"` produit un vrai `<button>` : on obtenait donc un
+     bouton imbriqué dans un bouton, ce que le HTML interdit — React le signale à chaque rendu, et la
+     navigation au clavier n'atteint plus la croix.
+     La carte redevient donc un simple conteneur, et ses deux actions sont SŒURS : la zone principale
+     (icône + textes + chevron) et la croix. Aucune des deux ne perd son rôle — le correctif habituel
+     de l'app (`insidePressable`, cf. components/ui/InfoDot) sacrifie le rôle de l'élément intérieur ;
+     ici la croix est une vraie action, elle doit rester un bouton.
+     Le rendu ne bouge pas : la carte garde son fond, sa bordure et ses marges intérieures, la zone
+     principale reprend la même rangée (`flex: 1`, même espacement). */
+  const content = (
+    <>
       <View style={[styles.iconWrap, { backgroundColor: accent + '22' }]}>
         <Ionicons name={ICONS[action.type] as any} size={23} color={accent} />
       </View>
@@ -88,12 +95,32 @@ export function ActionBannerCard({ action, onPress, onDismiss }: {
       {(action.deeplink || action.interactive) && !action.positive && (
         <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
       )}
+    </>
+  );
+
+  return (
+    <View style={[styles.banner, action.positive && styles.bannerPositive, { borderColor: accent + '55' }]}>
+      {/* Sans geste à proposer (bandeau purement informatif), pas de bouton du tout : un `<button>`
+          qui ne fait rien est annoncé comme cliquable par les lecteurs d'écran. */}
+      {onPress ? (
+        <TouchableOpacity
+          style={styles.main}
+          activeOpacity={(action.deeplink || action.interactive) ? 0.85 : 1}
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={action.title}
+        >
+          {content}
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.main}>{content}</View>
+      )}
       {onDismiss && (
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.close}>
           <Ionicons name="close" size={16} color={COLORS.textSecondary} />
         </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -224,6 +251,9 @@ function makeStyles(c: any) {
       }),
     },
     bannerPositive: { opacity: 0.97 },
+    /* Zone d'action principale : la MÊME rangée que portait la carte (icône, textes, chevron), pour
+       que le rendu soit identique au pixel une fois la croix sortie du bouton. */
+    main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
     iconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
     title: { fontSize: 16, fontWeight: '800', color: c.text },
     reason: { fontSize: 13, color: c.textSecondary, marginTop: 2, lineHeight: 18 },

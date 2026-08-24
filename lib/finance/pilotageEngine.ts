@@ -23,6 +23,7 @@ import { computeTresoRows } from './tresoProjection';
 import { computeCashflowTrough } from './relyka';
 import { computeReferenceMonthlyIncome } from './incomeAverage';
 import { variablePacePercentage } from './spendingPace';
+import { resolveRecoMode } from './recoMode';
 import { addRecurrenceToMonth, recurrencePastInMonth, recurrenceOccurrencesBetween, monthlyEquivalent } from './recurrence';
 import { isoDay, dayOfMonthISO } from '../dateUtils';
 import type { DriftCalibration } from './confidenceEngine';
@@ -1008,6 +1009,10 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   }
   const monthly_essential_expenses = monthly_recurring_expenses + variable_envelope_initial;
 
+  /* Répartition CHOISIE par l'utilisateur, si elle est exploitable (cf. lib/finance/recoMode) :
+     `null` en mode automatique. Lue ici une fois, appliquée plus bas aux champs d'allocation. */
+  const manualAlloc = resolveRecoMode(profile as any).manualAllocation;
+
   // ── Référence de variable UNIFIÉE (Pilotage ET Reporting) ────────────────────────────────────
   // C'est L'ENVELOPPE elle-même : le questionnaire tant qu'on n'a pas 2 mois de données réelles,
   // puis la moyenne réelle sur jusqu'à 6 mois d'historique (plus l'historique grandit, plus la
@@ -1157,10 +1162,16 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     safety_margin_percent,
     safety_margin_amount,
     financial_profile: profile?.financial_profile ?? undefined,
-    allocation_save_percent: profile?.allocation_save_percent ?? undefined,
-    allocation_invest_percent: profile?.allocation_invest_percent ?? undefined,
-    allocation_enjoy_percent: profile?.allocation_enjoy_percent ?? undefined,
-    allocation_keep_percent: profile?.allocation_keep_percent ?? undefined,
+    /* RÉPARTITION ATTACHÉE À L'UTILISATEUR. Les colonnes `allocation_*_percent` sont réécrites par le
+       moteur de profil à chaque changement de palier : elles reflètent donc l'AUTOMATIQUE. Quand
+       l'utilisateur a posé ses propres pourcentages (migration 205), ce sont EUX qui s'appliquent —
+       et deux consommateurs annonçaient sinon les mauvais chiffres en les attribuant à l'utilisateur :
+       le contexte envoyé aux conseils IA (« répartition paramétrée par l'utilisateur ») et l'export
+       de données. On corrige à la source plutôt que chez chacun d'eux. */
+    allocation_save_percent: manualAlloc?.save ?? profile?.allocation_save_percent ?? undefined,
+    allocation_invest_percent: manualAlloc?.invest ?? profile?.allocation_invest_percent ?? undefined,
+    allocation_enjoy_percent: manualAlloc?.enjoy ?? profile?.allocation_enjoy_percent ?? undefined,
+    allocation_keep_percent: manualAlloc?.keep ?? profile?.allocation_keep_percent ?? undefined,
     initial_onboarding_completed: profile?.initial_onboarding_completed ?? false,
     available_savings,
     projects_with_progress,

@@ -27,6 +27,12 @@ export interface RecoBuildExtras {
   financialProfileId?: FinancialProfileId;
   thresholds?: RecommendationSettings | null;
   customTierAllocations?: ComputeRecoOptions['customTierAllocations'];
+  /**
+   * Répartition CHOISIE (mode manuel, cf. lib/finance/recoMode) — `null` en automatique. Elle passe
+   * par ici plutôt que d'être lue dans l'écran : le Pilotage et le Pouls construisent leurs options
+   * avec la même fonction, donc ils ne peuvent pas répartir différemment le même Relyka.
+   */
+  manualAllocation?: ComputeRecoOptions['manualAllocation'];
   /** Date de référence (tests). Défaut : aujourd'hui. */
   today?: Date;
 }
@@ -120,6 +126,7 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
 
   return {
     customTierAllocations: x.customTierAllocations,
+    manualAllocation: x.manualAllocation ?? null,
     /* PAS ENCORE DE PROFIL → P1, le plus prudent.
        Le profil se déduit maintenant des seules données réelles (financialProfileEngine.
        computeProfileFromData) : tant qu'il manque une donnée pour le calculer, on n'invente pas un

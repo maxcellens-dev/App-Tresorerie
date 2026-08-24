@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,8 +11,10 @@ import { useGuide } from '../../contexts/GuideContext';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { sheetWidth } from '../../lib/ui/appLayout';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
-import { resolveMonthlyAllocation } from '../../lib/finance/financialPriorities';
+import { resolveMonthlyAllocation, type Allocation } from '../../lib/finance/financialPriorities';
 import { computeSecurityCushion } from '../../lib/finance/securityCushion';
+import { resolveRecoMode } from '../../lib/finance/recoMode';
+import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 
 
 interface Props {
@@ -102,6 +104,19 @@ export default function ProfileChangeModal({ userId }: Props) {
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
+
+  /* ── RÉPARTITION MANUELLE : ce changement de profil ne s'applique pas tout seul ────────────────
+     Quelqu'un qui a posé ses propres pourcentages ne veut pas qu'un nouveau palier les efface — mais
+     c'est précisément le moment où la question se pose, puisque sa situation vient de changer. On la
+     pose donc ICI, une fois, sous forme de coche : ne rien faire garde ses pourcentages (c'est son
+     choix initial, il n'a pas à le redire), cocher rend la main à l'app.
+     Le profil, lui, a déjà été calculé et enregistré : il est à jour quoi qu'il décide. */
+  const { data: userProfile } = useProfile(userId);
+  const updateProfile = useUpdateProfile(userId);
+  const recoMode = useMemo(() => resolveRecoMode(userProfile), [userProfile]);
+  const [backToAuto, setBackToAuto] = useState(false);
+  // Une nouvelle annonce = une nouvelle question : la coche ne se souvient pas de la précédente.
+  useEffect(() => { setBackToAuto(false); }, [pendingChange?.ids.join(',')]);
 
   /* PARCOURS DE DÉMARRAGE : on ne montre RIEN, et on consomme la notification en arrière-plan.
      Pendant l'installation, l'utilisateur saisit ses comptes puis ses récurrences : son profil se
@@ -201,12 +216,20 @@ export default function ProfileChangeModal({ userId }: Props) {
     savingsBalance: pilotage.current_savings ?? 0,
     investedBalance: pilotage.total_invested ?? 0,
   } : null;
-  const applied = (id: FinancialProfileId) =>
-    (situation ? resolveMonthlyAllocation(id, situation).alloc : PROFILE_ALLOCATIONS[id]);
+  const applied = (id: FinancialProfileId, base?: Allocation | null) =>
+    (situation ? resolveMonthlyAllocation(id, situation, base).alloc : (base ?? PROFILE_ALLOCATIONS[id]));
 
-  const nextAlloc = applied(newProfileId);
   const prevProfileId = pendingChange.previous_profile as FinancialProfileId | null;
-  const prevAlloc = prevProfileId && prevProfileId !== newProfileId ? applied(prevProfileId) : null;
+  /* En mode manuel, la répartition affichée est CELLE QUI S'APPLIQUERA après ce que l'utilisateur
+     vient de décider dans cette fenêtre : ses pourcentages tant que la coche est vide, ceux du
+     nouveau profil dès qu'il la coche. Elle bouge donc sous ses yeux au moment où il coche — c'est
+     la réponse à sa question, il n'a pas à la chercher sur le tableau de bord. */
+  const isManual = recoMode.mode === 'manual';
+  const keepManual = isManual && !backToAuto;
+  const nextAlloc = applied(newProfileId, keepManual ? recoMode.manualAllocation : null);
+  const prevAlloc = isManual
+    ? applied(prevProfileId ?? newProfileId, recoMode.manualAllocation)
+    : (prevProfileId && prevProfileId !== newProfileId ? applied(prevProfileId) : null);
   const ALLOC_ROWS: { label: string; k: 'save' | 'invest' | 'enjoy' | 'keep'; color: string }[] = [
     { label: 'Épargner', k: 'save', color: COLORS.green ?? COLORS.emerald },
     { label: 'Investir', k: 'invest', color: COLORS.violet },
@@ -215,6 +238,11 @@ export default function ProfileChangeModal({ userId }: Props) {
   ];
 
   function handleClose() {
+    // Retour à l'automatique DEMANDÉ dans cette fenêtre. Les pourcentages saisis restent enregistrés :
+    // revenir en manuel plus tard ne demande pas de tout ressaisir (cf. RecoModeModal).
+    if (isManual && backToAuto) {
+      updateProfile.mutate({ reco_mode: 'auto' });
+    }
     // TOUTES les lignes en attente, pas seulement celle annoncée : c'est ce qui évite l'enchaînement
     // de modaux (« j'ai compris » → un autre changement s'ouvre → un troisième…).
     markShown.mutate(pendingChange!.ids);
@@ -287,9 +315,15 @@ export default function ProfileChangeModal({ userId }: Props) {
                 <View style={styles.allocHead}>
                   <Ionicons name="pie-chart-outline" size={15} color={COLORS.textSecondary} />
                   <Text style={styles.allocNote}>
-                    {isSame
-                      ? 'Tes recommandations ne changent pas : ton Relyka continue de se répartir ainsi.'
-                      : 'Tes recommandations s’adaptent : ton Relyka se répartira désormais ainsi.'}
+                    {keepManual
+                      ? (isSame
+                          ? 'Tes pourcentages restent appliqués : ton Relyka continue de se répartir ainsi.'
+                          : 'Tes pourcentages restent appliqués : ce changement de profil ne modifie pas tes recommandations.')
+                      : isManual
+                        ? 'Tu reviens aux recommandations de l’app : ton Relyka se répartira ainsi.'
+                        : isSame
+                          ? 'Tes recommandations ne changent pas : ton Relyka continue de se répartir ainsi.'
+                          : 'Tes recommandations s’adaptent : ton Relyka se répartira désormais ainsi.'}
                   </Text>
                 </View>
                 <View style={styles.allocGrid}>
@@ -310,6 +344,36 @@ export default function ProfileChangeModal({ userId }: Props) {
                   })}
                 </View>
               </View>
+            )}
+
+            {/* ── La question posée à qui a réglé ses pourcentages lui-même ────────────────────────
+                Ne rien faire = garder ses pourcentages. C'est volontairement le comportement par
+                défaut : il a déjà exprimé ce choix, et une fenêtre qu'on ferme d'un geste ne doit
+                pas défaire un réglage. Cocher rend la main à l'app, avec le nouveau palier.
+                Seulement quand le PALIER A BOUGÉ : c'est ce qui rend la question pertinente (ses
+                pourcentages ont été posés dans une autre situation). Sur le bilan mensuel, qui
+                n'annonce aucun changement, ce serait une décision à prendre sans raison — le
+                réglage reste accessible depuis la page « Profil financier ». */}
+            {isManual && !isSame && (
+              <TouchableOpacity
+                style={[styles.switchRow, backToAuto && { borderColor: accentColor }]}
+                onPress={() => setBackToAuto((v) => !v)}
+                activeOpacity={0.8}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: backToAuto }}
+              >
+                <Ionicons
+                  name={backToAuto ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={backToAuto ? accentColor : COLORS.textSecondary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchLabel}>Revenir aux recommandations de l’app</Text>
+                  <Text style={styles.switchHint}>
+                    Tes pourcentages sont conservés : tu pourras y revenir quand tu veux.
+                  </Text>
+                </View>
+              </TouchableOpacity>
             )}
 
           </ScrollView>
@@ -402,6 +466,16 @@ function makeStyles(c: any) {
   allocLabel: { fontSize: 11.5, color: c.textSecondary },
   allocPct: { fontSize: 13, fontWeight: '800' },
   allocDelta: { fontSize: 10.5, color: c.textSecondary, fontWeight: '700' },
+
+  // Coche « revenir à l'automatique » — bordure seule, aucun aplat : c'est une option, pas l'action
+  // principale de la fenêtre (qui reste « J'ai compris »).
+  switchRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: c.card, borderRadius: 12, padding: 13,
+    borderWidth: 1, borderColor: c.cardBorder,
+  },
+  switchLabel: { fontSize: 13.5, fontWeight: '700', color: c.text },
+  switchHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
 
   // Marge basse MINIMALE : c'est le SafeAreaView autour qui ajoute la hauteur réelle de la barre
   // système. Cumuler les deux repoussait le bouton hors de la feuille sur les petits écrans.

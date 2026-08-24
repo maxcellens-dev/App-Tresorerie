@@ -286,12 +286,19 @@ export function normalize(a: Allocation): Allocation {
  * C'est le point d'entrée unique du nouveau système. Le profil pose la couleur de fond — c'est lui
  * qui distingue deux personnes en même priorité — et la priorité pose les limites que les faits
  * imposent. Ni l'un ni l'autre ne décide seul.
+ *
+ * `baseOverride` est la RÉPARTITION MANUELLE (cf. lib/finance/recoMode) : l'utilisateur qui règle
+ * lui-même ses pourcentages se donne un profil sur mesure, et rien d'autre ne change — la priorité
+ * du mois borne SA répartition exactement comme elle bornerait celle d'un palier. Un mode manuel
+ * qui court-circuiterait aussi les bornes recommanderait d'investir à quelqu'un qui finit ses mois
+ * dans le rouge : ce ne serait plus un réglage, ce serait une panne.
  */
 export function resolveMonthlyAllocation(
   profileId: FinancialProfileId,
   situation: SituationInputs,
+  baseOverride?: Allocation | null,
 ): { alloc: Allocation; priority: PriorityResult } {
   const priority = computeFinancialPriority(situation);
-  const base = PROFILE_ALLOCATIONS[profileId] ?? PROFILE_ALLOCATIONS.P0;
+  const base = baseOverride ?? PROFILE_ALLOCATIONS[profileId] ?? PROFILE_ALLOCATIONS.P0;
   return { alloc: applyPriorityBounds({ ...base }, priority), priority };
 }

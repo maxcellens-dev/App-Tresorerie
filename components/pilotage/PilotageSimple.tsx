@@ -54,6 +54,10 @@ export interface PilotageSimpleProps {
   daysSinceVerification: number;
   /** Recommandations visibles du mois (le moteur en produit 0 à 4). */
   recommendations: SmartRecommendation[];
+  /** La répartition est-elle réglée à la main ? (cf. lib/recoMode — le mode RÉELLEMENT appliqué). */
+  recoModeManual?: boolean;
+  /** Ouvre le réglage de la répartition. Absent = bouton masqué. */
+  onOpenRecoMode?: () => void;
   /** Le POURQUOI de chaque décision (description + projection), en une liste défilante sous les
    *  quatre tuiles. Cf. lib/recoMessages. */
   recoMessages?: RecoMessage[];
@@ -251,7 +255,31 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
         ref={p.recoRef}
         collapsable={false}
       >
-        <Text style={styles.cardTitle}>Tes recommandations</Text>
+        {/* En-tête : le titre, et le réglage de la RÉPARTITION à droite. Il est là et pas dans les
+            paramètres parce que c'est ici qu'on se pose la question — devant les quatre montants
+            qu'il décide. La pastille « Manuel » n'est pas décorative : sans elle, une répartition
+            posée à la main devient invisible au bout de deux semaines, et les montants affichés
+            n'auraient plus d'explication. */}
+        <View style={styles.cardHead}>
+          <Text style={[styles.cardTitle, { flex: 1 }]}>Tes recommandations</Text>
+          {p.recoModeManual && (
+            <View style={styles.modePill}>
+              <Text style={styles.modePillText}>Manuel</Text>
+            </View>
+          )}
+          {!!p.onOpenRecoMode && (
+            <TouchableOpacity
+              style={styles.modeBtn}
+              onPress={p.onOpenRecoMode}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Régler la répartition de tes recommandations"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="options-outline" size={16} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Dépassement des réservations sur le reste disponible : alerte permanente, pas un
             message qui défile. */}
@@ -496,6 +524,16 @@ function makeStyles(c: any) {
       padding: 16, gap: 10,
     },
     cardTitle: { fontSize: 15.5, fontWeight: '800', color: c.text },
+    cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    modePill: {
+      borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
+      backgroundColor: c.teal + '1A', borderWidth: 1, borderColor: c.teal + '40',
+    },
+    modePillText: { fontSize: 10.5, fontWeight: '800', color: c.teal },
+    modeBtn: {
+      width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
+    },
     empty: { fontSize: 13, color: c.textSecondary, lineHeight: 19 },
 
     overspend: {

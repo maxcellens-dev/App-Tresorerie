@@ -16,6 +16,7 @@ import React from 'react';
 import { floorToTen, type RatesMap } from '../../lib/finance/currency';
 import { computeRecommendations, type SmartRecommendation } from '../../lib/finance/recommendationEngine';
 import { buildRecoOptions } from '../../lib/finance/recoInputs';
+import { resolveRecoMode } from '../../lib/finance/recoMode';
 import { buildRecoMessages, buildRelykaMessages, composeGuardMessage } from '../../lib/finance/recoMessages';
 import { unverifiedSincePhrase } from '../../lib/finance/confidenceEngine';
 import { deriveRelykaConfidence } from './useReliability';
@@ -75,6 +76,8 @@ export interface PilotageViewModel extends RelykaBreakdown {
   welcomeStep: WelcomeStep | null;
   welcomeRoute: string;
   relConf: ReturnType<typeof deriveRelykaConfidence> | null;
+  /** Qui décide de la répartition (auto/manuel) — l'écran l'affiche, il ne le recalcule pas. */
+  recoMode: ReturnType<typeof resolveRecoMode>;
   recoList: SmartRecommendation[];
   relykaBase: { text: string; isGeneric: boolean };
   /** Couleur du chiffre principal (cf. `relykaTone`) — l'écran la consomme, il ne la recalcule pas. */
@@ -146,6 +149,12 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
      « Investissement du mois ») : les deux écrans racontent la même histoire.
      MÉMOÏSÉ (perf) : ces deux blocs faisaient tourner le moteur de recos À CHAQUE re-rendu de
      l'écran (le plus lourd de l'app) — y compris au rattrapage post-gel du changement d'onglet. */
+  /* MODE DE RÉPARTITION — automatique (le profil décide) ou manuel (l'utilisateur décide).
+     Résolu par lib/finance/recoMode, qui est la SEULE lecture de ce réglage dans l'app : une
+     répartition manuelle incomplète ou qui ne fait pas 100 y est écartée, et on retombe sur le
+     profil. Le reste du calcul ne sait même pas qu'il y a deux modes. */
+  const recoMode = React.useMemo(() => resolveRecoMode(profile), [profile]);
+
   const recoOptions = React.useMemo(() => (
     pilotageData
       ? buildRecoOptions(pilotageData, {
@@ -156,9 +165,10 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
           financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
           thresholds: recoThresholds,
           customTierAllocations: customTiers,
+          manualAllocation: recoMode.manualAllocation,
         })
       : null
-  ), [pilotageData, reservationsTotal, preEpargneTotal, preInvestTotal, profile, financialProfile, recoThresholds, customTiers]);
+  ), [pilotageData, reservationsTotal, preEpargneTotal, preInvestTotal, profile, financialProfile, recoThresholds, customTiers, recoMode]);
 
   // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
   // Plafond passé AU MOTEUR (maxAmount) et non appliqué après coup : sinon la description et les
@@ -268,6 +278,7 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
     welcomeStep,
     welcomeRoute,
     relConf,
+    recoMode,
     recoList,
     relykaBase,
     relykaColor,

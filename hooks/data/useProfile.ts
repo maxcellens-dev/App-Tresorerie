@@ -87,6 +87,12 @@ export function useUpdateProfile(profileId: string | undefined) {
       allocation_invest_percent?: number;
       allocation_enjoy_percent?: number;
       allocation_keep_percent?: number;
+      /** Répartition des recos : 'auto' (le profil décide) ou 'manual' (migration 205). */
+      reco_mode?: 'auto' | 'manual';
+      manual_alloc_save_percent?: number | null;
+      manual_alloc_invest_percent?: number | null;
+      manual_alloc_enjoy_percent?: number | null;
+      manual_alloc_keep_percent?: number | null;
       initial_onboarding_completed?: boolean;
       theme_mode?: 'dark' | 'light';
       theme_preset?: string;
@@ -110,6 +116,11 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.allocation_invest_percent !== undefined) updates.allocation_invest_percent = payload.allocation_invest_percent;
       if (payload.allocation_enjoy_percent !== undefined) updates.allocation_enjoy_percent = payload.allocation_enjoy_percent;
       if (payload.allocation_keep_percent !== undefined) updates.allocation_keep_percent = payload.allocation_keep_percent;
+      if (payload.reco_mode !== undefined) updates.reco_mode = payload.reco_mode;
+      if (payload.manual_alloc_save_percent !== undefined) updates.manual_alloc_save_percent = payload.manual_alloc_save_percent;
+      if (payload.manual_alloc_invest_percent !== undefined) updates.manual_alloc_invest_percent = payload.manual_alloc_invest_percent;
+      if (payload.manual_alloc_enjoy_percent !== undefined) updates.manual_alloc_enjoy_percent = payload.manual_alloc_enjoy_percent;
+      if (payload.manual_alloc_keep_percent !== undefined) updates.manual_alloc_keep_percent = payload.manual_alloc_keep_percent;
       if (payload.initial_onboarding_completed !== undefined) updates.initial_onboarding_completed = payload.initial_onboarding_completed;
       if (payload.theme_mode !== undefined) updates.theme_mode = payload.theme_mode;
       if (payload.theme_preset !== undefined) updates.theme_preset = payload.theme_preset;
