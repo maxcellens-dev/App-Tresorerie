@@ -38,6 +38,7 @@ import { resolveRecoMode } from '../../../lib/finance/recoMode';
 import { useProfileReliability } from '../../../hooks/pilotage/useProfileReliability';
 import type { ProfileReliabilityTone } from '../../../lib/finance/profileReliability';
 import RecoModeModal from '../../../components/pilotage/RecoModeModal';
+import ProfileReliabilitySheet from '../../../components/ui/ProfileReliabilitySheet';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
@@ -80,6 +81,8 @@ function ProfilFinancierScreen() {
   const [editing, setEditing] = useState<null | 'q8' | 'q9'>(null);
   /** Réglage de la répartition (profil ↔ pourcentages choisis) — même modale que le tableau de bord. */
   const [showRecoMode, setShowRecoMode] = useState(false);
+  /** Détail de la fiabilité : le niveau reste sur la carte, le pourquoi s'ouvre à la demande. */
+  const [showReliability, setShowReliability] = useState(false);
   const [amountDraft, setAmountDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -310,78 +313,76 @@ function ProfilFinancierScreen() {
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-          {/* ── Le profil, et le bouton qui règle sa répartition ──────────────────────────────────
-              Même bouton qu'en haut de la carte « Tes recommandations » du tableau de bord : c'est
-              le même réglage, il ouvre la même modale. En manuel, la pastille le dit ICI, sur le
-              nom du profil — c'est le seul endroit où l'on peut croire que le palier pilote encore
-              les pourcentages. */}
+          {/* ── LA CARTE DU PROFIL ───────────────────────────────────────────────────────────────
+              Trois étages, dans l'ordre où on les lit : QUI (emblème, nom), CE QUE ÇA VEUT DIRE
+              (description), et CE QUI LE QUALIFIE (fiabilité, mode de répartition).
+              Le bouton de réglage est le même qu'en haut de « Tes recommandations » sur le tableau
+              de bord : même icône, même modale — c'est le même réglage. */}
           <View style={[styles.hero, { borderColor: info.color + '55' }]}>
-            <Text style={styles.heroEmoji}>{info.emoji}</Text>
-            <View style={{ flex: 1 }}>
-              {/* Ligne du titre PROPRE au bandeau (et non `rowLabelLine`, partagée avec les lignes
-                  de réglage) : elle se replie. Sur un écran étroit, « Patrimoine établi » + la
-                  pastille + le « ? » ne tiennent pas sur une ligne — sans repli, la pastille sortait
-                  de la carte. */}
-              <View style={styles.heroTitleLine}>
-                <Text style={[styles.heroName, { color: info.color }]}>{info.name}</Text>
+            {/* RANGÉE D'IDENTITÉ : l'emblème, le nom, le réglage. Trois choses, trois places fixes.
+                L'emblème est posé sur une tuile teintée du palier plutôt que nu : il tient alors sa
+                colonne quelle que soit la hauteur du texte à côté, et la carte cesse de flotter. */}
+            <View style={styles.heroTop}>
+              <View style={[styles.heroEmojiTile, { backgroundColor: info.color + '1A' }]}>
+                <Text style={styles.heroEmoji}>{info.emoji}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                {/* Ligne du titre PROPRE à la carte (et non `rowLabelLine`, partagée avec les lignes
+                    de réglage) : elle se replie plutôt que de laisser la puce d'aide sortir du
+                    cadre sur un écran étroit. */}
+                <View style={styles.heroTitleLine}>
+                  <Text style={[styles.heroName, { color: info.color }]}>{info.name}</Text>
+                  <InfoDot term="profil_financier" size={14} color={info.color} />
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.heroDesc}>{info.description}</Text>
+
+            {/* ── PIED DE CARTE : ce qui QUALIFIE le palier ──────────────────────────────────────
+                La fiabilité et le mode de répartition disent tous deux « d'où vient ce que tu
+                vois ». Ils tenaient auparavant l'un dans une carte pleine largeur sous celle-ci,
+                l'autre au milieu du titre : beaucoup de place pour deux informations qu'on consulte
+                rarement, et qui poussaient la répartition sous la ligne de flottaison.
+                Le NIVEAU reste lisible en un mot, le DÉTAIL s'ouvre au point d'exclamation. */}
+            <View style={styles.heroFoot}>
+              <View style={styles.heroFootChips}>
+                {!!reliability && (
+                  <TouchableOpacity
+                    style={styles.relChip}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${reliability.title} — voir le détail`}
+                    onPress={() => setShowReliability(true)}
+                  >
+                    <View style={[styles.relDot, { backgroundColor: toneColor(reliability.tone) }]} />
+                    <Text style={styles.relLabel} numberOfLines={1}>{reliability.title}</Text>
+                    <View style={[styles.relMark, { borderColor: toneColor(reliability.tone) }]}>
+                      <Text style={[styles.relMarkText, { color: toneColor(reliability.tone) }]}>!</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
                 {recoMode.mode === 'manual' && (
                   <View style={styles.modePill}>
                     <Text style={styles.modePillText}>Répartition manuelle</Text>
                   </View>
                 )}
-                <InfoDot term="profil_financier" size={14} color={info.color} />
               </View>
-              <Text style={styles.heroDesc}>{info.description}</Text>
+              {/* Le réglage vit sur cette ligne, à droite : la rangée d'identité redevient le seul
+                  endroit où l'on lit QUI l'on est, et les deux commandes de la carte — consulter la
+                  fiabilité, régler la répartition — se tiennent côte à côte, au même niveau. */}
+              <TouchableOpacity
+                style={styles.modeBtn}
+                onPress={() => setShowRecoMode(true)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Régler la répartition de tes recommandations"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="options-outline" size={16} color={COLORS.textSecondary} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.modeBtn}
-              onPress={() => setShowRecoMode(true)}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel="Régler la répartition de tes recommandations"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="options-outline" size={16} color={COLORS.textSecondary} />
-            </TouchableOpacity>
           </View>
-
-          {/* ── FIABILITÉ DU PROFIL ─────────────────────────────────────────────────────────────
-              Notion INDÉPENDANTE du palier : elle ne le déplace jamais, elle dit sur quoi il
-              repose. Un profil se déduit des données saisies — deux personnes dans la même
-              situation réelle peuvent donc tomber dans deux paliers si l'une a renseigné ses
-              charges et l'autre non. Ce n'est pas un défaut du classement, c'est la nature d'une
-              mesure ; ce qui en serait un, c'est de ne pas le dire.
-              Et jamais un badge nu : chaque manque porte le geste qui le lève. */}
-          {reliability && (
-            <View style={[styles.card, { borderColor: toneColor(reliability.tone) + '55' }]}>
-              <View style={styles.rowLabelLine}>
-                <View style={[styles.relDot, { backgroundColor: toneColor(reliability.tone) }]} />
-                <Text style={[styles.cardTitle, { flex: 1 }]}>{reliability.title}</Text>
-              </View>
-              <Text style={styles.cardLead}>{reliability.summary}</Text>
-              {reliability.gaps.map((gap) => (
-                <TouchableOpacity
-                  key={gap.id}
-                  style={styles.gapRow}
-                  activeOpacity={gap.route ? 0.7 : 1}
-                  disabled={!gap.route}
-                  accessibilityRole={gap.route ? 'button' : undefined}
-                  onPress={() => { if (gap.route) router.push(gap.route as any); }}
-                >
-                  <Ionicons
-                    name={gap.severity === 'blocking' ? 'alert-circle-outline' : 'information-circle-outline'}
-                    size={15}
-                    color={gap.severity === 'blocking' ? COLORS.orange : COLORS.textSecondary}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.gapLabel}>{gap.label}</Text>
-                    <Text style={styles.gapAction}>{gap.action}</Text>
-                  </View>
-                  {!!gap.route && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
 
           {/* ── Ce qu'il change concrètement ── */}
           <View style={styles.card}>
@@ -521,6 +522,15 @@ function ProfilFinancierScreen() {
 
       {/* Même modale que le tableau de bord : un seul endroit règle la répartition. */}
       <RecoModeModal visible={showRecoMode} onClose={() => setShowRecoMode(false)} userId={user?.id} />
+
+      {/* Le détail de la fiabilité, à la demande — et chaque manque emmène là où il se comble. */}
+      {showReliability && !!reliability && (
+        <ProfileReliabilitySheet
+          reliability={reliability}
+          onClose={() => setShowReliability(false)}
+          onNavigate={(route) => router.push(route as any)}
+        />
+      )}
     </View>
   );
 }
@@ -532,14 +542,43 @@ function makeStyles(c: any) {
     scroll: { flex: 1 },
     content: { gap: 14, paddingBottom: 20 },
 
+    /* CARTE DU PROFIL — trois étages, dans l'ordre où on les lit :
+       1. l'identité (emblème · nom · réglage),
+       2. ce que le palier veut dire (description),
+       3. ce qui le qualifie (fiabilité, mode de répartition).
+       Elle était une simple rangée : le nom, une pastille et une puce d'aide se disputaient la même
+       ligne, et la fiabilité occupait une carte entière juste en dessous. */
     hero: {
-      flexDirection: 'row', alignItems: 'center', gap: 14,
-      backgroundColor: c.card, borderWidth: 1, borderRadius: 20, padding: 16,
+      backgroundColor: c.card, borderWidth: 1, borderRadius: 20, padding: 16, gap: 10,
     },
-    heroEmoji: { fontSize: 34 },
+    heroTop: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+    heroEmojiTile: { width: 48, height: 48, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    heroEmoji: { fontSize: 27 },
     heroTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-    heroName: { fontSize: 18, fontWeight: '800', flexShrink: 1 },
-    heroDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginTop: 3 },
+    heroName: { fontSize: 18, fontWeight: '800', flexShrink: 1, letterSpacing: -0.2 },
+    heroDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 19 },
+
+    /* Pied : les qualificatifs à gauche, le réglage à droite, séparés du reste par un filet.
+       Le repli reste sur le GROUPE de gauche seulement — sinon, sur un écran étroit, le bouton
+       passerait à la ligne et se retrouverait seul sous les puces, sans rien à quoi s'aligner. */
+    heroFoot: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 10, marginTop: 1,
+    },
+    heroFootChips: { flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+    relChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1,
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
+      borderRadius: 999, paddingLeft: 10, paddingRight: 6, paddingVertical: 5,
+    },
+    relLabel: { fontSize: 12, fontWeight: '700', color: c.text, flexShrink: 1 },
+    /* Le point d'exclamation : une CIBLE, pas une décoration. Cerclé à la couleur du niveau, il se
+       lit comme « il y a quelque chose à savoir ici » — et il porte l'ouverture du détail. */
+    relMark: {
+      width: 18, height: 18, borderRadius: 9, borderWidth: 1.2,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    relMarkText: { fontSize: 11, fontWeight: '900', lineHeight: 14 },
 
     card: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
@@ -561,14 +600,10 @@ function makeStyles(c: any) {
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
     },
 
-    // Fiabilité : une pastille de ton, puis les manques — chacun avec le geste qui le lève.
-    relDot: { width: 9, height: 9, borderRadius: 5 },
-    gapRow: {
-      flexDirection: 'row', alignItems: 'flex-start', gap: 9,
-      paddingVertical: 9, borderTopWidth: 1, borderTopColor: c.cardBorder,
-    },
-    gapLabel: { fontSize: 13, fontWeight: '600', color: c.text },
-    gapAction: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
+    /* Pastille du niveau de fiabilité. Le DÉTAIL des manques a déménagé dans sa fiche
+       (components/ui/ProfileReliabilitySheet) : il occupait ici une carte pleine largeur pour une
+       information qu'on consulte une fois. */
+    relDot: { width: 8, height: 8, borderRadius: 4 },
 
     allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     allocLabel: { width: 78, fontSize: 13, color: c.text },
