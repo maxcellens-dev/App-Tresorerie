@@ -51,7 +51,7 @@ import CumulsPanel from '../../components/pilotage/CumulsPanel';
 import type { SmartRecommendation } from '../../lib/finance/recommendationEngine';
 import type { PreSavingType } from '../../types/database';
 import { useRecommendationTiers } from '../../hooks/pilotage/useRecommendationTiers';
-import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
+import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { useAutoProfileEvaluation } from '../../hooks/pilotage/useFinancialProfile';
 import { useGuide } from '../../contexts/GuideContext';
 import { useIsFocused } from 'expo-router';
@@ -172,6 +172,7 @@ function PilotageScreen() {
   const [appJustOpened] = useState(true);
   const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
+  const { data: profileAllocations } = useProfileAllocations();
   const autoEval = useAutoProfileEvaluation(user?.id);
 
   // ── Données recos évoluées : cumuls, réservations, seuils, comptes ──
@@ -389,6 +390,8 @@ function PilotageScreen() {
     financialProfile,
     recoThresholds,
     customTiers,
+    // Répartitions par palier réglées en administration (migration 207) — repli : celles du code.
+    profileAllocations,
     colors: COLORS,
     baseDataReady,
     guideIs: (s) => userGuide.is(s as any),

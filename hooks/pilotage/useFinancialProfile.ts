@@ -5,6 +5,7 @@ import {
   resolveLiveProfile,
   resolveProfileId,
   thresholdsFromMatrix,
+  allocationsFromRows,
   FINANCIAL_PROFILE_IDS,
   PROFILE_ALLOCATIONS,
   PROFILE_LADDER_VERSION,
@@ -187,6 +188,59 @@ export function useProfileNotificationMessages() {
   });
 }
 
+// ── Répartitions par palier (réglage admin) ──────────────────
+
+const ALLOCATIONS_KEY = 'profile_allocations';
+
+/**
+ * LA TABLE DE RÉPARTITION APPLIQUÉE : celle de l'administration, complétée par le code.
+ *
+ * Lue par tout le monde (le référentiel décide de ce qu'on recommande), écrite par les seuls
+ * administrateurs. Une lecture en échec ou une table vide rendent les valeurs du code : le calcul
+ * reste juste hors-ligne, et une erreur réseau ne peut pas redistribuer le Relyka de toute la base.
+ */
+export function useProfileAllocations() {
+  return useQuery({
+    queryKey: [ALLOCATIONS_KEY],
+    queryFn: async () => {
+      if (!supabase) return allocationsFromRows(null);
+      const { data, error } = await supabase.from('profile_allocations').select('*');
+      if (error) throw error;
+      return allocationsFromRows(data as any[]);
+    },
+    staleTime: 1000 * 60 * 10,
+    // Table absente (migration pas encore jouée) → on garde les valeurs du code, sans réessais.
+    retry: false,
+    placeholderData: allocationsFromRows(null),
+  });
+}
+
+/** Écriture admin d'un palier. La somme à 100 est vérifiée en base ET avant l'envoi. */
+export function useUpdateProfileAllocation(userId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (row: {
+      profile_id: FinancialProfileId;
+      save_percent: number; invest_percent: number; enjoy_percent: number; keep_percent: number;
+    }) => {
+      if (!supabase || !userId) throw new Error('Non connecté');
+      const total = row.save_percent + row.invest_percent + row.enjoy_percent + row.keep_percent;
+      /* Refus AVANT l'aller-retour : la contrainte en base rendrait une erreur Postgres brute, que
+         l'administrateur n'a aucune raison d'avoir à décoder. */
+      if (total !== 100) throw new Error(`La répartition doit faire 100 % (actuellement ${total} %).`);
+      const { error } = await supabase.from('profile_allocations').upsert({
+        ...row, updated_at: new Date().toISOString(), updated_by: userId,
+      }, { onConflict: 'profile_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [ALLOCATIONS_KEY] });
+      // Les montants recommandés en découlent directement : on relance le calcul des écrans.
+      client.invalidateQueries({ queryKey: ['pilotage_data'] });
+    },
+  });
+}
+
 // ── Distribution des profils (admin) ─────────────────────────
 
 /**
@@ -286,21 +340,37 @@ interface RealMetricsResult {
   savingsBalance: number;
   checkingBalance: number;
   investedBalance: number;
-  /** Au moins un compte d'épargne existe — porte d'entrée du classement (cf. ProfileDataInputs). */
-  hasSavingsAccount: boolean;
-  /** Revenu de référence — LE MÊME que celui affiché partout (cf. lib/incomeAverage). */
-  avgMonthlyIncome: number;
   /** Mois RÉVOLUS consécutifs terminés dans le rouge (0 = aucun). ≥ seuil ⇒ découvert chronique. */
   consecutiveOverdraftMonths: number;
 }
 
 /**
- * Charge les données RÉELLES du compte (soldes + 6 mois de transactions) dont le classement a
- * besoin : épargne, placements, revenu de référence, découvert chronique.
+ * Ce que le PILOTAGE mesure, et que le profil ne doit surtout pas recalculer de son côté.
  *
- * Elle calculait aussi le TAUX D'ÉPARGNE (une passe complète de transformation des transactions à
- * chaque recalcul). Il ne classe plus rien — il mesurait un mérite, et il valait 0 % pour qui
- * épargne autrement que par virement interne. La passe est partie avec lui.
+ * ⚠️ LE REVENU EST DANS CETTE LISTE, et c'est le correctif le plus important de cette évolution.
+ * Il était recalculé ici sur des comptes lus avec `is_joint = false` : quelqu'un dont le salaire
+ * tombe sur un compte joint n'avait donc, pour le moteur de profil, AUCUN revenu constaté — donc
+ * P0 « Découverte » à vie — pendant que le tableau de bord affichait son revenu et son Relyka.
+ * Deux périmètres, deux vérités, et l'utilisateur au milieu.
+ *
+ * Ces valeurs sont passées EN ARGUMENT plutôt que lues dans le cache au moment du calcul : lues,
+ * elles pouvaient être périmées (le Pilotage se recalcule après l'écriture d'une transaction) — le
+ * profil s'écrivait alors sur l'état d'AVANT la saisie, et plus rien ne le rattrapait. C'est
+ * exactement ce qui faisait qu'un loyer saisi ne changeait pas le profil.
+ */
+export interface LiveProfileMeasures {
+  avgMonthlyIncome: number;
+  monthlyEssentialExpenses: number | undefined;
+  hasRecurringExpenses: boolean;
+}
+
+/**
+ * Charge ce que le Pilotage n'expose pas : les soldes par type et le découvert chronique.
+ *
+ * ⚠️ ELLE NE CALCULE PLUS LE REVENU. Il vient désormais du Pilotage (cf. `LiveProfileMeasures`) :
+ * recalculé ici, il l'était sur des comptes lus `is_joint = false`, si bien qu'un salaire versé sur
+ * un compte joint n'existait pas pour le moteur de profil — P0 « Découverte » définitif, pendant que
+ * le tableau de bord affichait le même revenu sans difficulté.
  */
 async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null> {
   if (!supabase) return null;
@@ -309,23 +379,17 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
   // un 1er construit en local — la fenêtre de 6 mois démarrait un jour trop tôt.
   const sixMonthsAgo = isoDay(new Date(today.getFullYear(), today.getMonth() - 6, 1));
 
-  /* La tranche de revenu du questionnaire (q3) était lue ici : elle servait de dernier repli au
-     matelas. Le classement ne s'appuie plus jamais dessus — sans revenu CONSTATÉ on reste en P0,
-     donc un repli déclaratif ne peut plus rien décider. Une lecture de moins à chaque recalcul. */
-  const [{ data: txns, error: txErr }, { data: accounts, error: accErr }, { data: prof }] = await Promise.all([
+  const [{ data: txns, error: txErr }, { data: accounts, error: accErr }] = await Promise.all([
     supabase.from('transactions')
-      // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
-      // partagé (une recette « régul » ou posée sur une catégorie de dépense n'en est pas une).
       /* `regul_target`, `regul_covered` et `created_at` : indispensables au modèle d'ANCRES
          (cf. lib/balanceAt). Sans eux, reconstituer un solde de fin de mois retombe sur une
          soustraction naïve qui ignore les régularisations — et le décompte des mois dans le rouge
          serait faux précisément chez ceux qui corrigent leurs soldes. */
-      .select('id, amount, date, account_id, linked_account_id, is_draft, is_reserved, note, is_recurring, recurrence_rule, recurrence_end_date, materialized_from, regul_target, regul_covered, created_at, category:categories(type)')
+      .select('id, amount, date, account_id, linked_account_id, is_draft, is_reserved, regul_target, regul_covered, created_at')
       .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
     supabase.from('accounts')
       .select('id, type, balance')
       .eq('profile_id', userId).eq('is_active', true).eq('is_joint', false),
-    supabase.from('profiles').select('created_at').eq('id', userId).maybeSingle(),
   ]);
 
   /* ⚠️ ON NE CONCLUT PAS SUR UNE LECTURE EN ÉCHEC. Ces deux erreurs n'étaient pas lues : une
@@ -335,14 +399,12 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
      seul. `null` remonte à l'appelant, qui n'évalue rien du tout. */
   if (txErr || accErr) return null;
 
-  const checkingIds = new Set<string>();
   let savingsBalance = 0;
   let checkingBalance = 0;
   let investedBalance = 0;
-  let hasSavingsAccount = false;
   (accounts ?? []).forEach((a: any) => {
-    if (a.type === 'savings') { savingsBalance += Number(a.balance); hasSavingsAccount = true; }
-    if (a.type === 'checking') { checkingBalance += Number(a.balance); checkingIds.add(a.id); }
+    if (a.type === 'savings') savingsBalance += Number(a.balance);
+    if (a.type === 'checking') checkingBalance += Number(a.balance);
     if (a.type === 'investment') investedBalance += Number(a.balance);
   });
 
@@ -358,19 +420,7 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     (txns ?? []) as any[], checkingAccounts, today,
   );
 
-  return {
-    savingsBalance,
-    checkingBalance,
-    investedBalance,
-    hasSavingsAccount,
-    consecutiveOverdraftMonths,
-    // MÊME mesure que le Pilotage et la page « Profil financier ». Il y en avait deux, elles ne
-    // s'accordaient pas, et c'est le profil qui en payait le prix (cf. lib/incomeAverage).
-    avgMonthlyIncome: computeReferenceMonthlyIncome(
-      (txns ?? []) as any[], checkingIds, isoDay(today),
-      (prof as any)?.created_at ?? null,
-    ),
-  };
+  return { savingsBalance, checkingBalance, investedBalance, consecutiveOverdraftMonths };
 }
 
 // ── PROFIL VIVANT — recalculé sur les SEULES DONNÉES RÉELLES ─────────────────────────────────
@@ -399,7 +449,7 @@ export function useLiveProfileSync(userId: string | undefined) {
   const { isImpersonating } = useAuth();
 
   return useMutation({
-    mutationFn: async (): Promise<FinancialProfileId | null> => {
+    mutationFn: async (measures: LiveProfileMeasures): Promise<FinancialProfileId | null> => {
       if (isImpersonating) return null;          // consultation admin : jamais d'écriture
       if (!supabase || !userId) return null;
 
@@ -424,27 +474,25 @@ export function useLiveProfileSync(userId: string | undefined) {
       const real = await loadRealMetrics(userId);
       if (!real) return null;
 
-      /* DÉPENSES ESSENTIELLES = la base du matelas (charges récurrentes + enveloppe variable).
-         Elle n'était PAS transmise ici : le profil vivant continuait donc de mesurer le matelas en
-         mois de REVENUS, à contre-courant du reste de l'app depuis que la définition a changé. Deux
-         écrans annonçaient « 7 mois » et « 4 mois » pour la même personne.
-         Lue dans le cache du Pilotage — même source, même chiffre, aucun aller-retour réseau. */
-      const pilotage = client.getQueryData<any>(['pilotage_data', userId]);
-      const essentials = Number(pilotage?.monthly_essential_expenses) || undefined;
-      /* Les CHARGES RÉCURRENTES sont-elles connues ? Sans elles, les « dépenses essentielles » se
-         réduisent à l'enveloppe variable : quelqu'un avec 3 000 € de côté, 400 €/mois de courses et
-         un loyer que l'app ignore obtient 7,5 mois de réserve — donc « Sécurité acquise ». Le
-         matelas retombe alors sur le revenu, dénominateur prudent (cf. lib/securityCushion).
-         ⚠️ On lit `has_recurring_expenses` (au moins UNE dépense récurrente saisie), pas le montant :
-         celui-ci applique un périmètre strict qui écarte les virements, donc quelqu'un qui couvre ses
-         charges par un virement vers un compte joint passait pour n'en avoir aucune. */
-      const hasRecurringExpenses = !!pilotage?.has_recurring_expenses;
+      /* MESURES DU PILOTAGE — revenu, dépenses essentielles, charges connues. Elles arrivent EN
+         ARGUMENT, fraîches (cf. `LiveProfileMeasures` et components/system/LiveProfileSync) : lues
+         dans le cache au moment du calcul, elles pouvaient dater d'avant la saisie qui vient
+         justement de déclencher ce recalcul. */
+      const { avgMonthlyIncome, monthlyEssentialExpenses: essentials, hasRecurringExpenses } = measures;
 
       /* SEUILS DE L'ÉCHELLE : lus dans `profile_matrix_config` (écran d'administration), jamais
          codés en dur. Une lecture en échec retombe champ par champ sur les valeurs de repli — le
          profil reste calculable hors-ligne, avec le comportement documenté. */
-      const { data: matrix } = await supabase.from('profile_matrix_config').select('*');
+      const [{ data: matrix }, { data: allocRows }] = await Promise.all([
+        supabase.from('profile_matrix_config').select('*'),
+        /* Les POURCENTAGES du palier viennent eux aussi de l'administration (migration 207) : ils
+           sont recopiés dans `profiles.allocation_*` juste en dessous, et ce miroir doit porter la
+           valeur réglée, pas celle du code — sinon l'export de données et le contexte IA
+           annonceraient une répartition que personne n'applique. */
+        supabase.from('profile_allocations').select('*'),
+      ]);
       const thresholds = thresholdsFromMatrix(matrix as any[]);
+      const allocationTable = allocationsFromRows(allocRows as any[]);
 
       /* Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
          Données incomplètes → P0 « Découverte » : on dit qu'on ne sait pas encore, au lieu de
@@ -461,16 +509,14 @@ export function useLiveProfileSync(userId: string | undefined) {
         /* Patrimoine BANCAIRE (le seul que l'app connaisse) : il gouverne les paliers hauts, où le
            nombre de mois de réserve ne distingue plus rien. */
         totalLiquidWealth: real.checkingBalance + real.savingsBalance + real.investedBalance,
-        // ⚠️ PAS `metrics.avg_income_6m` : celui-là divise par 6 des mois RÉVOLUS et renvoie donc 0
-        // pour un compte neuf, dont la seule paie est dans le mois courant → « aucun revenu
-        // constaté » → P1 à vie, alors que l'app affiche par ailleurs 2 000 € et 7,5 mois.
-        avgMonthlyIncome: real.avgMonthlyIncome,
+        /* LE MÊME revenu que le tableau de bord, au chiffre près — il vient de lui (cf.
+           `LiveProfileMeasures`). Recalculé ici, il ignorait les comptes joints : un salaire versé
+           sur un compte joint n'existait pas pour le classement, et l'utilisateur restait en
+           « Découverte » en voyant son revenu affiché juste à côté. */
+        avgMonthlyIncome,
         totalInvested: real.investedBalance,
-        /* Les deux PORTES D'ENTRÉE du classement : sans compte d'épargne ni charge récurrente, le
-           matelas vaut mécaniquement zéro et on annoncerait « moins d'un mois devant toi » à
-           quelqu'un dont on ne sait rien. C'est le cas de tout nouvel inscrit — un groupe entier,
-           classé par un artefact. Le moteur répond P0 : on ne sait pas encore. */
-        hasSavingsAccount: real.hasSavingsAccount,
+        /* Décide du DÉNOMINATEUR du matelas, jamais du droit d'être classé : sans charge connue, on
+           divise par le revenu (prudent) plutôt que par un total amputé du loyer. */
         hasRecurringExpenses,
       };
 
@@ -496,7 +542,7 @@ export function useLiveProfileSync(userId: string | undefined) {
       }
 
       const now = new Date().toISOString();
-      const alloc = PROFILE_ALLOCATIONS[next as FinancialProfileId];
+      const alloc = allocationTable[next as FinancialProfileId] ?? PROFILE_ALLOCATIONS[next as FinancialProfileId];
       await supabase.from('user_financial_profile').upsert({
         user_id: userId,
         profile_id: next,

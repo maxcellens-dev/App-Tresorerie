@@ -284,6 +284,8 @@ export function deriveRecoAllocations(
      * Absente / `null` → le profil décide, comme avant.
      */
     manualAllocation?: Record<RecoType, number> | null;
+    /** Répartitions par palier réglées en administration (cf. allocationsFromRows). */
+    profileAllocations?: Record<FinancialProfileId, Record<RecoType, number>> | null;
   } = {},
 ): { tier: SavingsTier; alloc: Record<RecoType, number> } {
   let tier: SavingsTier;
@@ -321,7 +323,9 @@ export function deriveRecoAllocations(
     /* La base est celle du palier — SAUF si l'utilisateur a réglé ses propres pourcentages. Le
        reste du chemin est rigoureusement le même : c'est ce qui permet de dire honnêtement que le
        mode manuel « revient à se donner un profil sur mesure ». */
-    alloc = applyPriorityBounds({ ...(opts.manualAllocation ?? PROFILE_ALLOCATIONS[pid]) }, priority);
+    // Table de l'administration si elle est fournie, celle du code sinon (repli hors-ligne).
+    const table = opts.profileAllocations ?? PROFILE_ALLOCATIONS;
+    alloc = applyPriorityBounds({ ...(opts.manualAllocation ?? table[pid] ?? PROFILE_ALLOCATIONS[pid]) }, priority);
     /* Le PALIER reste celui du profil réel, même en manuel : il ne choisit plus de pourcentages
        (ils viennent d'être posés), il ne sert qu'au VOCABULAIRE des conseils. Le déduire des
        pourcentages choisis ferait parler l'app à quelqu'un d'autre — « ta réserve est confortable »
@@ -370,6 +374,11 @@ export interface ComputeRecoOptions {
    * seuils, garde-fous) se déroule ensuite sans changement.
    */
   manualAllocation?: Record<RecoType, number> | null;
+  /**
+   * Répartitions par palier réglées depuis l'administration (table `profile_allocations`).
+   * Absentes → celles du code. Elles remplacent la BASE, avant les bornes de la priorité du mois.
+   */
+  profileAllocations?: Record<FinancialProfileId, Record<RecoType, number>> | null;
   /** Budget de référence (= reste disponible). Défaut : data.safe_to_spend. */
   budget?: number;
   /** Seuils min de reste pour afficher chaque reco (§9). */
@@ -483,6 +492,7 @@ export function computeRecommendations(
   const { tier, alloc } = deriveRecoAllocations(data, {
     customTierAllocations, financialProfileId, daysLeftInPeriod: opts.daysLeftInPeriod,
     manualAllocation: opts.manualAllocation,
+    profileAllocations: opts.profileAllocations,
   });
 
   // 5. Filtrer les recommandations trop petites (< seuil minimum)

@@ -19,6 +19,8 @@ import {
   useFinancialProfile,
   useSimulateProfileChange,
   useProfileDistribution,
+  useProfileAllocations,
+  useUpdateProfileAllocation,
 } from '../../../hooks/pilotage/useFinancialProfile';
 import {
   PROFILE_INFO, FINANCIAL_PROFILE_IDS, PROFILE_TRANSITION_KEYS,
@@ -32,12 +34,13 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSavingsConfig, useSaveSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/config/useSavingsConfig';
 
 
-type Tab = 'simulate' | 'messages' | 'matrix' | 'global';
+type Tab = 'simulate' | 'messages' | 'matrix' | 'alloc' | 'global';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'simulate', label: 'Simulation' },
   { key: 'messages', label: 'Messages' },
   { key: 'matrix',   label: 'Matrice' },
+  { key: 'alloc',    label: 'Répartition' },
   { key: 'global',   label: 'Paramètres' },
 ];
 
@@ -306,6 +309,145 @@ function MessagesSection({ userId }: { userId: string }) {
               <View style={styles.msgPreview}>
                 <Text style={styles.msgTitle} numberOfLines={2}>{msg?.title ?? '—'}</Text>
                 <Text style={styles.msgBody} numberOfLines={3}>{msg?.body ?? '—'}</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ── Répartition du Relyka par palier ────────────────────────────
+
+/**
+ * LES POURCENTAGES QUE L'UTILISATEUR VOIT, réglables sans livraison.
+ *
+ * Ils vivaient uniquement dans le code : toute la calibration de l'échelle était administrable
+ * (seuils, viabilité, patrimoine) sauf ce que l'app RECOMMANDE réellement de faire de l'argent.
+ *
+ * ⚠️ C'est une BASE, pas un verdict : la priorité du mois la borne ensuite (investissement à 0 %
+ * tant qu'il n'y a pas un mois de réserve…), puis les modificateurs contextuels s'appliquent, puis
+ * on normalise. Régler ces pourcentages ne débranche aucun garde-fou.
+ * La somme doit faire 100 — vérifiée ici, avant l'envoi, ET par une contrainte en base : une ligne
+ * à 97 % distribuerait un Relyka amputé à tout un palier, et ça ne se voit qu'à l'euro près.
+ */
+function AllocationsSection({ userId }: { userId: string }) {
+  const COLORS = useAppColors();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { data: table, isLoading } = useProfileAllocations();
+  const updateAlloc = useUpdateProfileAllocation(userId);
+
+  const [editingId, setEditingId] = useState<FinancialProfileId | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  const KEYS = [
+    { field: 'save', label: 'Épargner', color: COLORS.green ?? COLORS.emerald },
+    { field: 'invest', label: 'Investir', color: COLORS.violet },
+    { field: 'enjoy', label: 'Confort', color: COLORS.orange },
+    { field: 'keep', label: 'Conserver', color: COLORS.blue },
+  ] as const;
+
+  const num = (v: string | undefined) => {
+    const n = parseInt(String(v ?? '').trim(), 10);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const draftTotal = KEYS.reduce((s, k) => s + num(draft[k.field]), 0);
+
+  function startEdit(id: FinancialProfileId) {
+    const a = table?.[id];
+    setDraft({
+      save: String(a?.save ?? 0), invest: String(a?.invest ?? 0),
+      enjoy: String(a?.enjoy ?? 0), keep: String(a?.keep ?? 0),
+    });
+    setEditingId(id);
+  }
+
+  async function handleSave(id: FinancialProfileId) {
+    try {
+      await updateAlloc.mutateAsync({
+        profile_id: id,
+        save_percent: num(draft.save), invest_percent: num(draft.invest),
+        enjoy_percent: num(draft.enjoy), keep_percent: num(draft.keep),
+      });
+      setEditingId(null);
+      Alert.alert('Sauvegardé');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
+    }
+  }
+
+  if (isLoading) return <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />;
+
+  return (
+    <View style={styles.sectionContent}>
+      <Text style={styles.matrixInfo}>
+        Répartition de BASE du Relyka pour chaque palier. La priorité du mois la borne ensuite
+        (investissement à 0 % sans réserve, plancher d’épargne…), puis les modificateurs
+        contextuels s’appliquent : ces pourcentages orientent, ils ne décident pas seuls.
+      </Text>
+      <Text style={styles.matrixInfo}>
+        La somme doit faire exactement 100 %. Un palier jamais enregistré ici garde la valeur du
+        code — le calcul reste juste même si cette table est vide.
+      </Text>
+
+      {ALL_PROFILES.map((id) => {
+        const info = PROFILE_INFO[id];
+        const a = table?.[id];
+        const isEditing = editingId === id;
+        return (
+          <View key={id} style={styles.matrixCard}>
+            <View style={styles.matrixHeader}>
+              <Text style={styles.matrixLabel}>{info.emoji} {id} — {info.name}</Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={isEditing ? 'Annuler' : `Modifier la répartition de ${id}`}
+                onPress={() => (isEditing ? setEditingId(null) : startEdit(id))}
+              >
+                <Ionicons name={isEditing ? 'close' : 'create-outline'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {isEditing ? (
+              <View style={styles.editForm}>
+                {KEYS.map(({ field, label }) => (
+                  <View key={field} style={styles.matrixRow}>
+                    <Text style={styles.matrixRowLabel}>{label} (%)</Text>
+                    <TextInput
+                      style={styles.matrixInput}
+                      value={draft[field]}
+                      onChangeText={(v) => setDraft((p) => ({ ...p, [field]: v.replace(/[^0-9]/g, '') }))}
+                      keyboardType="number-pad"
+                      maxLength={3}
+                      placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                ))}
+                <View style={styles.bufferRow}>
+                  <Text style={styles.bufferLabel}>Total</Text>
+                  <Text style={[styles.bufferValue, { color: draftTotal === 100 ? COLORS.emerald : COLORS.orange }]}>
+                    {draftTotal} %
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.saveBtn, (draftTotal !== 100 || updateAlloc.isPending) && { opacity: 0.5 }]}
+                  onPress={() => handleSave(id)}
+                  disabled={draftTotal !== 100 || updateAlloc.isPending}
+                >
+                  {updateAlloc.isPending
+                    ? <ActivityIndicator color={COLORS.bg} size="small" />
+                    : <Text style={styles.saveBtnText}>Sauvegarder</Text>}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.allocPreview}>
+                {KEYS.map(({ field, label, color }) => (
+                  <View key={field} style={styles.allocChip}>
+                    <View style={[styles.allocDot, { backgroundColor: color }]} />
+                    <Text style={styles.allocChipLabel}>{label}</Text>
+                    <Text style={[styles.allocChipPct, { color }]}>{a?.[field] ?? '—'} %</Text>
+                  </View>
+                ))}
               </View>
             )}
           </View>
@@ -817,6 +959,7 @@ export default function FinancialProfilesAdmin() {
           {activeTab === 'simulate' && <SimulationSection userId={user.id} />}
           {activeTab === 'messages' && <MessagesSection userId={user.id} />}
           {activeTab === 'matrix'   && <MatrixSection userId={user.id} />}
+          {activeTab === 'alloc'    && <AllocationsSection userId={user.id} />}
           {activeTab === 'global'   && <GlobalSection userId={user.id} />}
         </KeyboardAwareScrollView>
 
@@ -868,6 +1011,17 @@ function makeStyles(c: any) {
   matrixLabel: { fontSize: 13, fontWeight: '600', color: c.text, flex: 1 },
   matrixSummary: { gap: 4 },
   matrixSummaryText: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+
+  // Répartition : aperçu compact des quatre postes, une pastille par décision.
+  allocPreview: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  allocChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: c.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: c.cardBorder,
+  },
+  allocDot: { width: 7, height: 7, borderRadius: 4 },
+  allocChipLabel: { fontSize: 11.5, color: c.textSecondary },
+  allocChipPct: { fontSize: 12.5, fontWeight: '800' },
 
   // Distribution : une barre par palier, à l'échelle du palier le plus peuplé.
   distRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 },

@@ -214,6 +214,45 @@ export const PROFILE_ALLOCATIONS: Record<FinancialProfileId, {
   P9: { save:  0, invest: 62, enjoy: 28, keep: 10 },
 };
 
+/** Une ligne de `profile_allocations` (réglage admin), telle qu'elle arrive de la base. */
+export interface ProfileAllocationRow {
+  profile_id: string;
+  save_percent?: number | null;
+  invest_percent?: number | null;
+  enjoy_percent?: number | null;
+  keep_percent?: number | null;
+}
+
+/**
+ * La table de répartition RÉELLEMENT appliquée : celle de l'administration, complétée par le code.
+ *
+ * Le repli est PALIER PAR PALIER, comme pour les seuils : une ligne absente, une valeur illisible ou
+ * une somme qui ne fait pas 100 laissent ce palier sur sa valeur d'origine, sans emporter les neuf
+ * autres. C'est ce qui permet de régler l'échelle progressivement — et ce qui garantit qu'un
+ * incident de lecture ne distribue jamais un Relyka faux.
+ *
+ * ⚠️ La somme est vérifiée ICI en plus de la contrainte en base : les pourcentages traversent aussi
+ * un cache hors-ligne, et une répartition à 97 % répartirait un Relyka amputé de 3 % sans que rien
+ * ne le signale.
+ */
+export function allocationsFromRows(
+  rows: ProfileAllocationRow[] | null | undefined,
+): Record<FinancialProfileId, { save: number; invest: number; enjoy: number; keep: number }> {
+  const out = { ...PROFILE_ALLOCATIONS };
+  for (const row of rows ?? []) {
+    const id = row?.profile_id as FinancialProfileId;
+    if (!KNOWN_PROFILE_IDS.has(id)) continue;
+    const save = Number(row.save_percent);
+    const invest = Number(row.invest_percent);
+    const enjoy = Number(row.enjoy_percent);
+    const keep = Number(row.keep_percent);
+    if (![save, invest, enjoy, keep].every((n) => Number.isFinite(n) && n >= 0)) continue;
+    if (save + invest + enjoy + keep !== 100) continue;
+    out[id] = { save, invest, enjoy, keep };
+  }
+  return out;
+}
+
 /**
  * Correspondance profil → palier d'allocation historique (table `recommendation_tier_allocations`).
  *

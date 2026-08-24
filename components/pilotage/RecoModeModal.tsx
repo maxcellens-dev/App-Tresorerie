@@ -27,7 +27,7 @@ import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
-import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
+import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { PROFILE_ALLOCATIONS, PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import { resolveMonthlyAllocation, type Allocation, type RecoKey } from '../../lib/finance/financialPriorities';
@@ -59,11 +59,13 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
   const { data: fp } = useFinancialProfile(userId);
   const { data: pilotage } = usePilotageData(userId);
   const updateProfile = useUpdateProfile(userId);
+  /* La table RÉGLÉE en administration : la colonne « App » doit montrer ce que le moteur applique. */
+  const { data: allocTable } = useProfileAllocations();
 
   const profileId = resolveProfileId((fp as any)?.profile_id);
   const info = PROFILE_INFO[profileId];
   /** Ce que l'app recommande pour ce palier — la référence affichée en face de chaque poste. */
-  const autoBase: Allocation = PROFILE_ALLOCATIONS[profileId] ?? PROFILE_ALLOCATIONS.P0;
+  const autoBase: Allocation = allocTable?.[profileId] ?? PROFILE_ALLOCATIONS[profileId] ?? PROFILE_ALLOCATIONS.P0;
 
   const saved = useMemo(() => resolveRecoMode(profile), [profile]);
 
@@ -111,7 +113,7 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
   } : null;
 
   const resolvedDraft = situation
-    ? resolveMonthlyAllocation(profileId, situation, mode === 'manual' ? draft : null)
+    ? resolveMonthlyAllocation(profileId, situation, mode === 'manual' ? draft : null, allocTable)
     : null;
   const base = mode === 'manual' ? draft : autoBase;
   const bounded = !!resolvedDraft && RECO_KEYS.some((k) => resolvedDraft.alloc[k] !== base[k]);

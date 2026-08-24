@@ -11,6 +11,7 @@ import {
   resolveLiveProfile,
   DEFAULT_PROFILE_THRESHOLDS,
   thresholdsFromMatrix,
+  allocationsFromRows,
   type ProfileDataInputs,
 } from '../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
@@ -444,5 +445,64 @@ describe('thresholdsFromMatrix — la configuration gouverne, le code se content
     ]);
     expect(t.monthsUp.P5).toBe(DEFAULT_PROFILE_THRESHOLDS.monthsUp.P5);
     expect(Number.isFinite(t.monthsDown.P5)).toBe(true);
+  });
+});
+
+/**
+ * LES POURCENTAGES DE RÉPARTITION VIENNENT DE L'ADMINISTRATION (migration 207).
+ *
+ * Ils décident de ce qu'on recommande de faire de l'argent, palier par palier : les régler ne
+ * doit pas demander une livraison. Mais une table lue depuis la base peut être vide, partielle ou
+ * incohérente — et une répartition qui ne fait pas 100 % distribue un Relyka faux à toute une
+ * population, sans que rien ne le signale à l'écran.
+ */
+describe('allocationsFromRows — l’administration règle, le code garde le filet', () => {
+  it('sans configuration, exactement les valeurs du code', () => {
+    expect(allocationsFromRows(null)).toEqual(PROFILE_ALLOCATIONS);
+    expect(allocationsFromRows([])).toEqual(PROFILE_ALLOCATIONS);
+  });
+
+  it('une ligne valable remplace SON palier, et lui seul', () => {
+    const t = allocationsFromRows([
+      { profile_id: 'P4', save_percent: 40, invest_percent: 10, enjoy_percent: 20, keep_percent: 30 },
+    ]);
+    expect(t.P4).toEqual({ save: 40, invest: 10, enjoy: 20, keep: 30 });
+    expect(t.P5).toEqual(PROFILE_ALLOCATIONS.P5);
+  });
+
+  /* Le repli est PALIER PAR PALIER : une ligne cassée ne doit pas emporter les neuf autres, et
+     surtout pas se substituer à une répartition juste. */
+  it('une somme ≠ 100 est ignorée — on garde la valeur du code', () => {
+    const t = allocationsFromRows([
+      { profile_id: 'P4', save_percent: 40, invest_percent: 10, enjoy_percent: 20, keep_percent: 25 },
+    ]);
+    expect(t.P4).toEqual(PROFILE_ALLOCATIONS.P4);
+  });
+
+  it('une valeur manquante, négative ou illisible est ignorée', () => {
+    const t = allocationsFromRows([
+      { profile_id: 'P2', save_percent: 55, invest_percent: null, enjoy_percent: 10, keep_percent: 35 },
+      { profile_id: 'P3', save_percent: -5, invest_percent: 40, enjoy_percent: 30, keep_percent: 35 },
+    ]);
+    expect(t.P2).toEqual(PROFILE_ALLOCATIONS.P2);
+    expect(t.P3).toEqual(PROFILE_ALLOCATIONS.P3);
+  });
+
+  it('un palier inconnu n’entre jamais dans la table', () => {
+    const t = allocationsFromRows([
+      { profile_id: 'P42', save_percent: 25, invest_percent: 25, enjoy_percent: 25, keep_percent: 25 },
+    ]);
+    expect(Object.keys(t).sort()).toEqual([...FINANCIAL_PROFILE_IDS].sort());
+  });
+
+  it('la table rendue répartit toujours exactement 100 %', () => {
+    const t = allocationsFromRows([
+      { profile_id: 'P6', save_percent: 0, invest_percent: 70, enjoy_percent: 20, keep_percent: 10 },
+      { profile_id: 'P7', save_percent: 1, invest_percent: 1, enjoy_percent: 1, keep_percent: 1 },
+    ]);
+    for (const id of FINANCIAL_PROFILE_IDS) {
+      const a = t[id];
+      expect(`${id}:${a.save + a.invest + a.enjoy + a.keep}`).toBe(`${id}:100`);
+    }
   });
 });

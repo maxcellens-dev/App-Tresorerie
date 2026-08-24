@@ -25,12 +25,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGuide } from '../../contexts/GuideContext';
-import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
+import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { useProfile } from '../../hooks/data/useProfile';
 import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import { resolveMonthlyAllocation } from '../../lib/finance/financialPriorities';
 import { computeSecurityCushion, securityMonthsLabel } from '../../lib/finance/securityCushion';
+import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
 import type { FinancialProfileId } from '../../types/database';
 import { sheetWidth } from '../../lib/ui/appLayout';
 
@@ -51,6 +52,13 @@ export default function ProfileTourConclusion() {
   const { data: fp } = useFinancialProfile(user?.id);
   const { data: pilotage } = usePilotageData(user?.id);
   const { data: userProfile } = useProfile(user?.id);
+  /* Sur quoi le palier repose. À la fin du parcours, c'est LA question : « Découverte », d'accord,
+     mais pourquoi ? (cf. lib/finance/profileReliability) */
+  const reliability = useProfileReliability(user?.id);
+  // Même table que le moteur (réglable en administration, migration 207).
+  const { data: allocTable } = useProfileAllocations();
+  const relColor = reliability?.tone === 'good' ? (COLORS.green ?? COLORS.emerald)
+    : reliability?.tone === 'warn' ? COLORS.orange : COLORS.danger;
 
   // Le parcours est TERMINÉ (dernière bulle passée) et la conclusion n'a pas encore été montrée.
   const shouldShow = guide.tourJustFinished;
@@ -114,13 +122,15 @@ export default function ProfileTourConclusion() {
   const variableSet = Number((userProfile as any)?.weekly_variable_budget ?? 0) > 0
     || Number(pilotage?.variable_envelope_initial ?? 0) > 0;
 
-  /* Ce qui manque ENCORE pour que le profil soit pleinement calculé. Le revenu est la seule donnée
-     bloquante (sans lui, aucun ratio n'a de sens et le profil reste au plus prudent) ; les autres
-     affinent le Relyka. On les énonce, on ne les réclame pas. */
-  const missing: string[] = [];
-  if (income <= 0) missing.push('ta rentrée d’argent, enregistrée en récurrente');
-  if (savings <= 0) missing.push('un compte d’épargne avec son solde');
-  if (!variableSet) missing.push('ton estimation de dépenses variables');
+  /* CE QUI MANQUE ENCORE — repris du module de FIABILITÉ, plus d'une liste écrite à la main ici.
+     Elle omettait les charges récurrentes, qui sont pourtant la première cause d'un profil resté en
+     « Découverte » : l'écran annonçait un palier sans jamais dire pourquoi celui-là. Une seule
+     source, les mêmes causes et les mêmes gestes que sur la page « Profil financier ».
+     La marge de sécurité reste énoncée à part : elle n'entre pas dans le classement (elle affine le
+     Relyka), donc le module de fiabilité n'en parle pas — mais c'est le moment de la rappeler. */
+  const missing: string[] = reliability
+    ? reliability.gaps.map((g) => g.label.toLowerCase())
+    : [];
   if (!marginSet) missing.push('ta marge de sécurité');
 
   const cushionMonths = computeSecurityCushion({
@@ -145,8 +155,8 @@ export default function ProfileTourConclusion() {
         savingsBalance: savings,
         investedBalance: pilotage.total_invested ?? 0,
         irregularIncome: Boolean((fp as any)?.is_irregular_income),
-      }).alloc
-    : PROFILE_ALLOCATIONS[profileId];
+      }, null, allocTable).alloc
+    : (allocTable?.[profileId] ?? PROFILE_ALLOCATIONS[profileId]);
   if (!alloc) return null;
 
   const ALLOC_ROWS = [
@@ -213,6 +223,16 @@ export default function ProfileTourConclusion() {
             </Animated.Text>
             <Text style={styles.title}>Ton profil : {info.name}</Text>
             <Text style={styles.desc}>{info.description}</Text>
+
+            {/* SUR QUOI CE PALIER REPOSE — la question qu'on se pose immédiatement en lisant
+                « Découverte » à la fin du parcours. Sans elle, le nom du profil est un verdict sans
+                cause : on ne peut ni le comprendre, ni savoir quoi faire pour qu'il change. */}
+            {!!reliability && (
+              <View style={[styles.relRow, { borderColor: relColor + '55', backgroundColor: relColor + '12' }]}>
+                <View style={[styles.relDot, { backgroundColor: relColor }]} />
+                <Text style={styles.relText} numberOfLines={2}>{reliability.title}</Text>
+              </View>
+            )}
 
             {/* Ce que le profil DÉCIDE : la répartition. C'est son unique rôle, autant le montrer.
                 Les barres se remplissent en CASCADE (décalage de 0,1 par ligne sur la même valeur
@@ -316,6 +336,14 @@ function makeStyles(c: any) {
     missingHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     missingTitle: { fontSize: 13.5, fontWeight: '800', color: c.orange },
     missingText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18.5 },
+
+    // Fiabilité : une pastille de ton et son libellé, juste sous le nom du palier.
+    relRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 7,
+      borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, marginTop: 2,
+    },
+    relDot: { width: 8, height: 8, borderRadius: 4 },
+    relText: { fontSize: 12, fontWeight: '700', color: c.text },
 
     okText: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18.5, marginTop: 4 },
 

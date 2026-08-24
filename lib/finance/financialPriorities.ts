@@ -305,8 +305,16 @@ export function resolveMonthlyAllocation(
   profileId: FinancialProfileId,
   situation: SituationInputs,
   baseOverride?: Allocation | null,
+  /**
+   * Table des répartitions par palier, telle que l'administration l'a réglée
+   * (cf. `allocationsFromRows`). Absente → celle du code. Elle est passée plutôt que lue pour que
+   * les écrans et le moteur affichent la MÊME chose : une table lue à deux endroits différents
+   * finit toujours par diverger d'une version.
+   */
+  table?: Record<FinancialProfileId, Allocation> | null,
 ): { alloc: Allocation; priority: PriorityResult } {
   const priority = computeFinancialPriority(situation);
-  const base = baseOverride ?? PROFILE_ALLOCATIONS[profileId] ?? PROFILE_ALLOCATIONS.P0;
+  const from = table ?? PROFILE_ALLOCATIONS;
+  const base = baseOverride ?? from[profileId] ?? from.P0 ?? PROFILE_ALLOCATIONS.P0;
   return { alloc: applyPriorityBounds({ ...base }, priority), priority };
 }

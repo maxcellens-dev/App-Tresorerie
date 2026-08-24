@@ -24,7 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useFinancialProfile, useQuestionnaireAnswers } from '../../../hooks/pilotage/useFinancialProfile';
+import { useFinancialProfile, useQuestionnaireAnswers, useProfileAllocations } from '../../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import {
@@ -69,6 +69,9 @@ function ProfilFinancierScreen() {
   /* Fiabilité du profil : sur quoi le classement repose. Indépendante du palier — elle ne le
      déplace jamais (cf. lib/finance/profileReliability). */
   const reliability = useProfileReliability(user?.id);
+  /* Répartitions par palier réglées en administration (migration 207) : cet écran affiche ce que le
+     moteur applique, il doit donc lire la MÊME table que lui. */
+  const { data: allocTable } = useProfileAllocations();
 
   /* (Le recalcul du profil n'est pas déclenché ici : un observateur global surveille les comptes et
      les transactions et le relance dès qu'ils bougent — cf. components/LiveProfileSync.) */
@@ -157,7 +160,7 @@ function ProfilFinancierScreen() {
      comparer à côté, seulement à dire d'où ils viennent. */
   const recoMode = resolveRecoMode(userProfile);
   const resolved = profileId && situation
-    ? resolveMonthlyAllocation(profileId, situation, recoMode.manualAllocation)
+    ? resolveMonthlyAllocation(profileId, situation, recoMode.manualAllocation, allocTable)
     : null;
   const alloc = resolved?.alloc
     ?? recoMode.manualAllocation

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages } from '../../hooks/pilotage/useFinancialProfile';
+import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { PROFILE_INFO, PROFILE_ALLOCATIONS } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 import { useAppColors } from '../../hooks/theme/useAppColors';
@@ -15,6 +15,7 @@ import { resolveMonthlyAllocation, type Allocation } from '../../lib/finance/fin
 import { computeSecurityCushion } from '../../lib/finance/securityCushion';
 import { resolveRecoMode } from '../../lib/finance/recoMode';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
+import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
 
 
 interface Props {
@@ -104,6 +105,8 @@ export default function ProfileChangeModal({ userId }: Props) {
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
+  /* Les pourcentages annoncés sont ceux qui seront appliqués : même table que le moteur. */
+  const { data: allocTable = PROFILE_ALLOCATIONS } = useProfileAllocations();
 
   /* ── RÉPARTITION MANUELLE : ce changement de profil ne s'applique pas tout seul ────────────────
      Quelqu'un qui a posé ses propres pourcentages ne veut pas qu'un nouveau palier les efface — mais
@@ -113,6 +116,10 @@ export default function ProfileChangeModal({ userId }: Props) {
      Le profil, lui, a déjà été calculé et enregistré : il est à jour quoi qu'il décide. */
   const { data: userProfile } = useProfile(userId);
   const updateProfile = useUpdateProfile(userId);
+  /* Sur quoi ce palier repose (cf. lib/finance/profileReliability) — information, jamais un frein. */
+  const reliability = useProfileReliability(userId);
+  const relColor = reliability?.tone === 'warn' ? COLORS.orange
+    : reliability?.tone === 'bad' ? COLORS.danger : (COLORS.green ?? COLORS.emerald);
   const recoMode = useMemo(() => resolveRecoMode(userProfile), [userProfile]);
   const [backToAuto, setBackToAuto] = useState(false);
   // Une nouvelle annonce = une nouvelle question : la coche ne se souvient pas de la précédente.
@@ -219,7 +226,7 @@ export default function ProfileChangeModal({ userId }: Props) {
     investedBalance: pilotage.total_invested ?? 0,
   } : null;
   const applied = (id: FinancialProfileId, base?: Allocation | null) =>
-    (situation ? resolveMonthlyAllocation(id, situation, base).alloc : (base ?? PROFILE_ALLOCATIONS[id]));
+    (situation ? resolveMonthlyAllocation(id, situation, base, allocTable).alloc : (base ?? allocTable[id]));
 
   const prevProfileId = pendingChange.previous_profile as FinancialProfileId | null;
   /* En mode manuel, la répartition affichée est CELLE QUI S'APPLIQUERA après ce que l'utilisateur
@@ -290,6 +297,19 @@ export default function ProfileChangeModal({ userId }: Props) {
                   <Text style={[styles.profileName, { color: accentColor }]}>{profileInfo.name}</Text>
                   <Text style={styles.profileTier}>{profileInfo.tier}</Text>
                 </View>
+              </View>
+            )}
+
+            {/* SUR QUOI CE PALIER REPOSE. Annoncer un profil sans dire ce qui l'a produit, c'est
+                livrer un verdict : l'utilisateur ne peut ni le comprendre, ni savoir quoi faire
+                pour qu'il change. On ne l'affiche que s'il y a quelque chose à signaler — sur un
+                profil fiable, la mention n'apporterait rien. */}
+            {!!reliability && reliability.level !== 'reliable' && (
+              <View style={[styles.relRow, { borderColor: relColor + '55', backgroundColor: relColor + '12' }]}>
+                <View style={[styles.relDot, { backgroundColor: relColor }]} />
+                <Text style={styles.relText}>
+                  {reliability.title} — {reliability.gaps[0]?.label ?? reliability.summary}
+                </Text>
               </View>
             )}
 
@@ -476,6 +496,14 @@ function makeStyles(c: any) {
     backgroundColor: c.card, borderRadius: 12, padding: 13,
     borderWidth: 1, borderColor: c.cardBorder,
   },
+  // Fiabilité : une pastille de ton + la cause principale, sous la carte du profil.
+  relRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8,
+  },
+  relDot: { width: 8, height: 8, borderRadius: 4 },
+  relText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+
   switchLabel: { fontSize: 13.5, fontWeight: '700', color: c.text },
   switchHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
 

@@ -33,6 +33,8 @@ export interface RecoBuildExtras {
    * avec la même fonction, donc ils ne peuvent pas répartir différemment le même Relyka.
    */
   manualAllocation?: ComputeRecoOptions['manualAllocation'];
+  /** Répartitions par palier réglées en administration (migration 207). */
+  profileAllocations?: ComputeRecoOptions['profileAllocations'];
   /** Date de référence (tests). Défaut : aujourd'hui. */
   today?: Date;
 }
@@ -127,6 +129,7 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
   return {
     customTierAllocations: x.customTierAllocations,
     manualAllocation: x.manualAllocation ?? null,
+    profileAllocations: x.profileAllocations ?? null,
     /* PAS ENCORE DE PROFIL → P1, le plus prudent.
        Le profil se déduit maintenant des seules données réelles (financialProfileEngine.
        computeProfileFromData) : tant qu'il manque une donnée pour le calculer, on n'invente pas un
