@@ -24,7 +24,7 @@ import {
 } from '../../../hooks/pilotage/useFinancialProfile';
 import {
   PROFILE_INFO, FINANCIAL_PROFILE_IDS, PROFILE_TRANSITION_KEYS,
-  computeProfileFromData, thresholdsFromMatrix,
+  computeProfileFromData, thresholdsFromMatrix, resolveProfileId,
   type ProfileDataInputs,
 } from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
@@ -81,7 +81,11 @@ function SimulationSection({ userId }: { userId: string }) {
   const { data: fp, isLoading } = useFinancialProfile(userId);
   const simulate = useSimulateProfileChange(userId);
 
-  const current = (fp?.profile_id as FinancialProfileId | undefined) ?? null;
+  /* CLAMPÉ (cf. resolveProfileId). Brut, un identifiant venu d'une migration plus récente que
+     l'application installée faisait lire `PROFILE_INFO['P12'].emoji` — undefined, donc écran
+     d'administration à terre. Et le calcul de la cible « exceptionnelle » en dessous en tirait un
+     `P11` qui serait parti tel quel en base. */
+  const current = fp?.profile_id ? resolveProfileId(fp.profile_id) : null;
   const [target, setTarget] = useState<FinancialProfileId | null>(null);
 
   if (isLoading) return <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />;

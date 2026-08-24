@@ -43,7 +43,7 @@ import { deriveEngaged, computeHealthScore } from '../../lib/ai/aiScore';
 import { usePreviousBilanMetrics, type BilanMetricsRow } from '../admin/useAi';
 import { useFinancialProfile } from '../pilotage/useFinancialProfile';
 import { useProfileReliability } from '../pilotage/useProfileReliability';
-import { PROFILE_INFO } from '../../lib/finance/financialProfileEngine';
+import { PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 
@@ -101,8 +101,12 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   // Profil financier P0-P9 : cadre les conseils (pas d'invest à un P1, etc.).
   const { data: financialProfile } = useFinancialProfile(userId);
   const snapshotProfile = useMemo(() => {
-    const pid = financialProfile?.profile_id as FinancialProfileId | undefined;
-    if (!pid || !PROFILE_INFO[pid]) return null;
+    /* CLAMPÉ, comme partout ailleurs (cf. resolveProfileId). Un identifiant venu d'une migration
+       plus récente que l'application installée faisait rendre `null` — et la section « PROFIL
+       FINANCIER » disparaissait alors de l'instantané : l'IA conseillait sans son cadre le plus
+       important (« P1 → aucun conseil d'investissement »), en silence. */
+    if (!financialProfile?.profile_id) return null;
+    const pid = resolveProfileId(financialProfile.profile_id as string);
     return { id: pid, name: PROFILE_INFO[pid].name };
   }, [financialProfile?.profile_id]);
   /* FIABILITÉ du profil : l'IA doit savoir quand elle raisonne sur des données incomplètes. Sans

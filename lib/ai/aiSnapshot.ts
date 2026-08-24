@@ -177,7 +177,11 @@ export function buildSnapshot(input: SnapshotInput): string {
     const fp = input.financialProfile;
     L.push('\nPROFIL FINANCIER (déterminé par l\'app — RESPECTE-LE dans tes conseils)');
     L.push(`- Profil : ${fp.id} — ${fp.name} (échelle P0 découverte → P1 déficitaire → P9 patrimoine d'exception).`);
-    L.push('- Le profil répond à quatre questions, dans cet ordre : la situation est-elle VIABLE (revenu vs dépenses essentielles) → sinon P1 ; combien de temps l\'épargne tient-elle (épargne ÷ dépenses essentielles) → P2 moins d\'1 mois, P3 de 1 à 3, P4 de 3 à 6, P5 au-delà de 6 ; investit-il réellement → P6 ; taille du patrimoine bancaire → P7 ≥ 30k, P8 ≥ 100k, P9 ≥ 300k (toujours avec 6 mois de réserve et des placements). Le taux d\'épargne n\'entre PAS dans le classement.');
+    /* ⚠️ Cette phrase RÉSUME l'échelle pour l'IA : elle doit dire exactement ce que le moteur fait,
+       sinon l'IA raisonne sur une règle que l'app n'applique pas. Deux précisions ont manqué :
+       le PATRIMOINE exclut le solde courant (c'est la trésorerie du mois, pas un patrimoine), et
+       les montants cités sont les valeurs par défaut — l'administration peut les recalibrer. */
+    L.push('- Le profil répond à quatre questions, dans cet ordre : la situation est-elle VIABLE (revenu vs dépenses essentielles) → sinon P1 ; combien de temps l\'épargne tient-elle (épargne ÷ dépenses essentielles) → P2 moins d\'1 mois, P3 de 1 à 3, P4 de 3 à 6, P5 au-delà de 6 ; investit-il réellement → P6 ; taille du patrimoine bancaire, c\'est-à-dire ÉPARGNE + PLACEMENTS, hors compte courant → P7 ≥ 30k, P8 ≥ 100k, P9 ≥ 300k environ (toujours avec 6 mois de réserve et des placements). Le taux d\'épargne n\'entre PAS dans le classement. Ne recalcule jamais le palier toi-même : celui qui est indiqué ci-dessus fait foi.');
     L.push('- Adapte tes recommandations à ce profil : P0 → ne présume RIEN, invite simplement à compléter les données ; P1 → rétablir l\'équation revenus/charges, aucun conseil d\'épargne ambitieux ni d\'investissement ; P2-P3 → priorité absolue au matelas de sécurité, PAS d\'investissement ; P4-P5 → équilibre épargne/projets, investissement prudent une fois le matelas solide ; P6-P7 → l\'investissement régulier est le sujet principal ; P8-P9 → optimisation, fiscalité et allocation ; rappeler qu\'un liquide important qui dort a un coût.');
   }
 

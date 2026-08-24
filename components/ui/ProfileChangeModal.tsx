@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
+import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages, useProfileAllocations, useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
 import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 import { useAppColors } from '../../hooks/theme/useAppColors';
@@ -118,6 +118,8 @@ export default function ProfileChangeModal({ userId }: Props) {
   const guide = useGuide();
   const { data: pilotage } = usePilotageData(userId);
   const { data: pendingChange } = usePendingProfileChange(userId);
+  /* Le palier ACTUEL, pas celui figé dans le journal — cf. `announcedProfile` plus bas. */
+  const { data: currentProfileRow } = useFinancialProfile(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
   /* Les pourcentages annoncés sont ceux qui seront appliqués : même table que le moteur. */
@@ -191,9 +193,21 @@ export default function ProfileChangeModal({ userId }: Props) {
   // Pas encore notre tour : la clôture et/ou le bilan du mois parlent d'abord.
   if (!myTurn) return null;
 
+  /* ── UN BILAN ANNONCE LE PALIER D'AUJOURD'HUI, PAS CELUI DU JOUR OÙ IL A ÉTÉ POSÉ ─────────────
+     Le bilan mensuel est écrit au montage du tableau de bord ; le recalcul du profil, lui, arrive
+     une seconde plus tard (le temps que les données se posent). Quand ce recalcul est SILENCIEUX —
+     le cas d'un reclassement après changement des règles, marqué « déjà vu » — la seule ligne non
+     lue qui reste est le bilan, et il porte le palier d'AVANT. La fenêtre annonçait donc
+     « tu conserves ton profil Équilibre trouvé » à quelqu'un qui venait de passer ailleurs.
+     Un bilan dit « voilà où tu en es » : il lit donc le profil courant. Les vraies transitions, elles,
+     gardent le palier journalisé — c'est leur objet. */
+  const announcedProfile = pendingChange.change_reason === 'monthly_recap' && currentProfileRow?.profile_id
+    ? resolveProfileId(currentProfileRow.profile_id)
+    : pendingChange.new_profile;
+
   const key = getTransitionKey(
     pendingChange.previous_profile,
-    pendingChange.new_profile,
+    announcedProfile,
     pendingChange.change_reason,
   );
 
@@ -224,7 +238,7 @@ export default function ProfileChangeModal({ userId }: Props) {
      l'application installée laissait la table des profils sans réponse, et la fenêtre s'ouvrait sans
      nom, sans emblème et sans répartition — un « ton profil a changé » qui ne dit pas en quoi.
      Le reste de l'app clampe déjà partout (cf. resolveProfileId). */
-  const newProfileId = resolveProfileId(pendingChange.new_profile);
+  const newProfileId = resolveProfileId(announcedProfile);
   const profileInfo = PROFILE_INFO[newProfileId];
 
   const isUpgrade = key?.direction === 'upgrade';
@@ -345,9 +359,12 @@ export default function ProfileChangeModal({ userId }: Props) {
             {pendingChange.previous_profile && !isSame && (
               <View style={styles.transitionRow}>
                 <Text style={styles.transitionFrom}>
-                  {PROFILE_INFO[pendingChange.previous_profile as FinancialProfileId]?.emoji}
+                  {/* `prevProfileId` est CLAMPÉ (cf. resolveProfileId) : lu brut, le côté gauche de
+                      la transition s'affichait vide sur une application plus ancienne que la base,
+                      et la fenêtre annonçait « → P4 » sans dire d'où l'on venait. */}
+                  {prevProfileId ? PROFILE_INFO[prevProfileId].emoji : ''}
                   {' '}
-                  {PROFILE_INFO[pendingChange.previous_profile as FinancialProfileId]?.name}
+                  {prevProfileId ? PROFILE_INFO[prevProfileId].name : ''}
                 </Text>
                 <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} />
                 <Text style={[styles.transitionTo, { color: accentColor }]}>

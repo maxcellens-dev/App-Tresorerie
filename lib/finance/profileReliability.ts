@@ -46,7 +46,7 @@ export interface ProfileReliabilityInputs {
   /** Au moins une charge récurrente saisie. */
   hasRecurringExpenses: boolean;
   /** Base réellement utilisée pour le matelas (cf. lib/finance/securityCushion). */
-  cushionBase: 'expenses' | 'income' | 'questionnaire' | null;
+  cushionBase: 'expenses' | 'income' | null;
   /** Référence des dépenses variables : historique réel, estimation d'accueil, ou rien. */
   variableEnvelopeSource: 'history' | 'onboarding' | 'none';
   /** Mois COMPLETS d'utilisation de l'app (0 = arrivé ce mois-ci). */
@@ -140,15 +140,10 @@ export function computeProfileReliability(i: ProfileReliabilityInputs): ProfileR
       severity: 'weakening',
     });
   }
-  if (i.cushionBase === 'questionnaire') {
-    gaps.push({
-      id: 'cushion_on_estimate',
-      label: 'Ta réserve repose sur une estimation de revenu',
-      action: 'Saisis tes vraies rentrées d’argent.',
-      route: '/(tabs)/transactions',
-      severity: 'weakening',
-    });
-  }
+  /* Une troisième base existait — la tranche de revenu DÉCLARÉE au questionnaire d'accueil — avec
+     son propre manque (« ta réserve repose sur une estimation »). Ce repli a été retiré du matelas
+     avec le questionnaire : la branche ne pouvait plus se déclencher, et elle décrivait à qui la
+     lisait un état que l'app ne sait plus produire. */
   if (i.variableEnvelopeSource !== 'history') {
     gaps.push({
       id: 'variable_estimated',

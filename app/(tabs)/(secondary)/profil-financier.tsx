@@ -418,13 +418,12 @@ function ProfilFinancierScreen() {
                 <>Ce sont <Text style={styles.b}>tes pourcentages</Text> qui répartissent ton Relyka entre
                 les quatre décisions — jamais les montants, qui viennent de ta trésorerie réelle.</>
               ) : (
-                <>Il oriente la <Text style={styles.b}>répartition</Text> de ton Relyka entre les quatre
-                décisions — jamais les montants, qui viennent de ta trésorerie réelle.</>
+                <>La <Text style={styles.b}>répartition</Text> de ton Relyka entre les 4 recommandations.</>
               )}
             </Text>
             {resolved && (
               <Text style={styles.cardLead}>
-                Ce mois-ci, la priorité <Text style={styles.b}>{resolved.priority.label.toLowerCase()}</Text> ajuste
+                Ce mois-ci, la priorité : <Text style={styles.b}>{resolved.priority.label.toLowerCase()}</Text>, ajuste
                 ces pourcentages : {resolved.priority.reason}
               </Text>
             )}
