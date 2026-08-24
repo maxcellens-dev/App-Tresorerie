@@ -164,6 +164,14 @@ export interface PilotageData {
   total_checking: number;
   total_savings: number;
   total_invested: number;
+  /** Au moins un compte d'épargne EXISTE (indépendamment de son solde). */
+  has_savings_account: boolean;
+  /**
+   * Au moins une dépense RÉCURRENTE saisie, quelle que soit sa forme (y compris un virement de
+   * charges vers un compte joint). Plus large que `monthly_recurring_expenses`, qui applique un
+   * périmètre strict — cf. le commentaire de calcul.
+   */
+  has_recurring_expenses: boolean;
 
   // Safety Thresholds
   /** @deprecated */
@@ -362,6 +370,10 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   // =====================================================================
   const total_checking = accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + Number(a.balance), 0);
   const total_savings = accounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + Number(a.balance), 0);
+  /* EXISTENCE, pas montant : un livret à 0 € est une donnée connue, l'absence de livret est une
+     donnée MANQUANTE. Les deux donnent « 0 € d'épargne » et ne disent pas du tout la même chose —
+     le classement s'en sert comme porte d'entrée, la fiabilité comme cause à afficher. */
+  const has_savings_account = accounts.some(a => a.type === 'savings');
   const total_invested = accounts.filter(a => a.type === 'investment').reduce((sum, a) => sum + Number(a.balance), 0);
 
   const safety_threshold_min = profile?.safety_threshold_min ?? 5000;
@@ -1009,6 +1021,25 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   }
   const monthly_essential_expenses = monthly_recurring_expenses + variable_envelope_initial;
 
+  /* ── L'UTILISATEUR A-T-IL RENSEIGNÉ SES CHARGES ? ────────────────────────────────────────────
+     Question binaire, et VOLONTAIREMENT plus large que le montant calculé juste au-dessus. Celui-ci
+     applique un périmètre strict (comptes courants du périmètre, hors projets, hors virements) : un
+     utilisateur qui couvre ses charges par un VIREMENT MENSUEL vers un compte joint — où le crédit
+     et les charges de copropriété sont prélevés — obtenait donc « 0 € de charges », donc « tes
+     charges ne sont pas renseignées », alors qu'il venait précisément de les saisir.
+     Ici on répond à « a-t-il saisi au moins une dépense récurrente ? », sans périmètre : c'est ce
+     qui décide si l'app a de quoi mesurer un train de vie. Seuls les virements vers SA PROPRE
+     épargne ou ses placements sont écartés — mettre de côté n'est pas une charge. */
+  const setAsideIds = new Set(
+    accounts.filter((a) => a.type === 'savings' || a.type === 'investment').map((a) => a.id),
+  );
+  const has_recurring_expenses = transactions.some((t) => (
+    t.is_recurring && t.recurrence_rule
+    && !(t as any).is_draft
+    && Number(t.amount) < 0
+    && !(t.linked_account_id && setAsideIds.has(t.linked_account_id))
+  ));
+
   /* Répartition CHOISIE par l'utilisateur, si elle est exploitable (cf. lib/finance/recoMode) :
      `null` en mode automatique. Lue ici une fois, appliquée plus bas aux champs d'allocation. */
   const manualAlloc = resolveRecoMode(profile as any).manualAllocation;
@@ -1179,6 +1210,8 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     total_checking,
     total_savings,
     total_invested,
+    has_savings_account,
+    has_recurring_expenses,
     safety_threshold_min,
     safety_threshold_optimal,
     safety_threshold_comfort,

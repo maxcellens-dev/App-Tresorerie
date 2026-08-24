@@ -126,6 +126,8 @@ export default function ProfileTourConclusion() {
   const cushionMonths = computeSecurityCushion({
     availableSavings: savings,
     monthlyEssentialExpenses: pilotage?.monthly_essential_expenses ?? 0,
+    // Même garde que le moteur : sans charge saisie, le dénominateur est amputé (cf. securityCushion).
+    recurringExpensesKnown: !!pilotage?.has_recurring_expenses,
     avgMonthlyIncome: income,
   }).months;
 

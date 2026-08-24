@@ -97,6 +97,8 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
     monthsOfReserve: computeSecurityCushion({
       availableSavings: pilotage.current_savings ?? 0,
       monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+      // Même garde que le moteur : sans charge saisie, le dénominateur est amputé (cf. securityCushion).
+      recurringExpensesKnown: !!pilotage.has_recurring_expenses,
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
     }).months,
     monthlySurplus: pilotage.projected_surplus ?? 0,
@@ -170,6 +172,19 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
             décisions.
           </Text>
 
+          {/* LE PROFIL EN COURS, à part et toujours visible. Il était noyé dans la phrase
+              d'explication : c'est pourtant la donnée qu'on vient vérifier ici — « selon mon
+              profil », oui, mais lequel ? Elle reste affichée dans les deux modes, parce qu'en
+              manuel elle dit ce qu'on a mis de côté. */}
+          {!!info && (
+            <View style={[s.profileRow, { borderColor: info.color + '55', backgroundColor: info.color + '12' }]}>
+              <Text style={s.profileEmoji}>{info.emoji}</Text>
+              <Text style={s.profileLabel} numberOfLines={1}>
+                Ton profil : <Text style={[s.profileName, { color: info.color }]}>{info.name}</Text>
+              </Text>
+            </View>
+          )}
+
           {/* ── Le choix, en deux options exclusives ── */}
           <View style={s.segment}>
             {([
@@ -193,15 +208,16 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
             })}
           </View>
 
-          {/* INFORMATION, pas avertissement : on explique d'où viennent les chiffres de l'app et ce
-              que le choix manuel change. Aucun ton d'alerte — c'est un réglage légitime. */}
+          {/* INFORMATION, pas avertissement — et UNE EXPLICATION PAR MODE : une phrase unique qui
+              décrivait les deux obligeait à lire ce qui ne concernait pas le choix en cours, et
+              enterrait l'essentiel au milieu. Chaque option dit ce qu'ELLE fait, au moment où on
+              la regarde. Aucun ton d'alerte : les deux sont des réglages légitimes. */}
           <View style={s.info}>
             <Ionicons name="information-circle-outline" size={16} color={COLORS.teal} />
             <Text style={s.infoText}>
-              Relyka calcule cette répartition à partir de ton profil et
-              de ta situation du mois : elle se réajuste toute seule quand tes données bougent, ce
-              qui la rend en général plus fiable. Tes pourcentages, eux, resteront tels que tu les
-              poses — c'est toi qui les feras évoluer.
+              {mode === 'auto'
+                ? 'Relyka calcule cette répartition à partir de ton profil et de ta situation du mois. Elle se réajuste toute seule quand tes données bougent — c’est ce qui la rend en général la plus fiable.'
+                : 'Tes pourcentages remplacent ceux du profil, et servent exactement de la même façon. Ils resteront tels que tu les poses : c’est toi qui les feras évoluer quand ta situation changera.'}
             </Text>
           </View>
 
@@ -338,6 +354,16 @@ function makeStyles(c: any) {
     },
     segmentText: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
 
+    /* Le profil en cours : une ligne à lui, aux couleurs du palier. Assez discret pour ne pas
+       disputer la vedette au choix lui-même, assez présent pour répondre à « lequel ? ». */
+    profileRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8,
+    },
+    profileEmoji: { fontSize: 16 },
+    profileLabel: { flex: 1, fontSize: 12.5, color: c.textSecondary },
+    profileName: { fontWeight: '800' },
+
     info: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,
       backgroundColor: c.teal + '12', borderRadius: 12, padding: 11,
@@ -350,8 +376,12 @@ function makeStyles(c: any) {
     refCol: { width: 52, textAlign: 'center' },
     editCol: { width: 124, textAlign: 'center' },
 
+    /* HAUTEUR IDENTIQUE DANS LES DEUX MODES. En manuel la ligne porte un pas de réglage (30 px),
+       en automatique une simple valeur : sans plancher, les quatre lignes se tassaient d'une
+       dizaine de pixels chacune au changement d'option, et toute la modale sautait sous le
+       curseur — au moment précis où l'on compare les deux répartitions. */
     row: {
-      flexDirection: 'row', alignItems: 'center',
+      flexDirection: 'row', alignItems: 'center', minHeight: 44,
       paddingVertical: 6, borderTopWidth: 1, borderTopColor: c.cardBorder,
     },
     rowLabelCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 },

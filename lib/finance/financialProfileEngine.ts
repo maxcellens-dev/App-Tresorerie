@@ -33,6 +33,46 @@ import { computeSecurityCushion } from './securityCushion';
 // P0 (Découverte) N'EST PAS UN JUGEMENT : c'est l'absence de données. Avant lui, tout nouvel
 // arrivant tombait en « épargne critique » faute de revenu constaté — on lui annonçait une
 // situation préoccupante alors qu'on ne savait rien de lui.
+//
+// ── QUATRE QUESTIONS, DANS CET ORDRE, ET RIEN D'AUTRE ───────────────────────────────────────────
+//   1. la situation est-elle VIABLE ?          revenu vs dépenses essentielles      → sinon P1
+//   2. combien de temps tient-il ?             épargne ÷ dépenses essentielles      → P2 … P5
+//   3. investit-il RÉELLEMENT ?                oui / non                            → P6
+//   4. quelle est la taille du patrimoine ?    30k / 100k / 300k                    → P7 … P9
+//
+// Le TAUX D'ÉPARGNE a été retiré du calcul, et c'est un correctif, pas une simplification. Il
+// mesurait un MÉRITE là où le profil décrit un ÉTAT : la règle « 1 mois de réserve + 20 % mis de
+// côté → P4 » mettait dans le même palier quelqu'un avec cinq mois d'avance et quelqu'un avec un
+// mois — deux situations sans rapport, un seul conseil. Il était en outre mesuré sur les seuls
+// VIREMENTS sortants vers un compte d'épargne : qui épargne autrement (apports saisis à la main,
+// compte hors app, virement fait à la banque) lisait 0 %. Ce n'était pas un signal, c'était un
+// artefact de saisie. La trajectoire se célèbre ailleurs (Pouls, succès, série) — pas dans un
+// diagnostic.
+//
+// CONSÉQUENCE À GARDER EN TÊTE : toute la classification P2→P5 repose désormais sur UNE mesure, le
+// matelas. C'est pour cela que son dénominateur est protégé (cf. `recurringExpensesKnown` dans
+// lib/finance/securityCushion) et que la FIABILITÉ du profil est affichée à part
+// (cf. lib/finance/profileReliability).
+
+/**
+ * VERSION DE L'ÉCHELLE — sert à reclasser tout le monde EN SILENCE après un changement de règles.
+ *
+ * Le profil est journalisé à chaque changement, et chaque ligne non lue ouvre une fenêtre « ton
+ * profil a changé ». Modifier la cascade reclasse donc la base entière à la première ouverture :
+ * des milliers de fenêtres, pour un changement que personne n'a provoqué. Le pire moment pour
+ * expliquer quoi que ce soit.
+ *
+ * On horodate donc l'échelle. Quand la version stockée est plus ancienne que celle-ci, la
+ * réévaluation qui suit est une RECLASSIFICATION : le nouveau palier est écrit et journalisé (les
+ * statistiques d'administration restent justes), mais la notification est marquée comme déjà vue.
+ * L'utilisateur retrouve simplement son profil à jour.
+ *
+ * ⚠️ À incrémenter à CHAQUE modification des règles de classement, jamais pour un simple
+ * recalibrage de seuils (celui-là est un vrai changement de situation, il doit se voir).
+ *   1 → échelle à dix paliers avec taux d'épargne (migrations 182/194)
+ *   2 → cascade viabilité → matelas → placements → patrimoine, sans taux d'épargne
+ */
+export const PROFILE_LADDER_VERSION = 2;
 
 /** Ordre canonique. Toute liste de profils dans l'app doit partir d'ici, jamais d'un littéral. */
 export const FINANCIAL_PROFILE_IDS: FinancialProfileId[] = [
@@ -77,21 +117,23 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
     name: 'Découverte',
     emoji: '🧭',
     tier: 'Découverte',
-    description: 'On apprend à te connaître. Ajoute tes comptes et tes rentrées d\'argent : ton profil se calculera tout seul, sans questionnaire.',
+    /* Pas de « sans questionnaire » : il n'y en a pas, donc l'utilisateur n'a aucune raison d'y
+       penser. On ne rassure pas sur une contrainte qui n'existe pas — on dit quoi faire. */
+    description: 'On apprend à te connaître. Ajoute tes comptes et tes rentrées d\'argent : ton profil se calculera tout seul.',
     color: '#94a3b8',
   },
   P1: {
-    name: 'Sortir du rouge',
+    name: 'Fragile',
     emoji: '🌧️',
-    tier: 'Déficitaire',
-    description: 'Les mois se terminent trop souvent à découvert. Une seule priorité : arrêter l\'hémorragie et repasser au-dessus de zéro à la fin du mois.',
+    tier: 'Situation à rétablir',
+    description: 'Ce qui sort dépasse ce qui rentre : le mois ne peut pas se boucler tout seul. Une seule priorité, remettre l\'équation à l\'endroit — tout le reste attend.',
     color: '#dc2626',
   },
   P2: {
     name: 'Premiers repères',
     emoji: '🌱',
-    tier: 'Épargne critique',
-    description: 'Tu tiens le mois, mais sans filet : moins d\'un mois de revenu de côté. L\'objectif est d\'en constituer un premier.',
+    tier: 'Sans filet',
+    description: 'Tu tiens le mois, mais sans filet : moins d\'un mois de dépenses de côté. L\'objectif est d\'en constituer un premier.',
     color: '#ef4444',
   },
   P3: {
@@ -405,14 +447,30 @@ const Q4_MINIMAL = new Set([
  *   q4 « que fais-tu de ce qui reste ? »    → épargne-t-il / investit-il vraiment ?
  */
 export interface ProfileDataInputs {
-  /** Épargne disponible (comptes d'épargne). */
+  /**
+   * Épargne disponible = solde des COMPTES D'ÉPARGNE, et eux seuls.
+   *
+   * Décision produit assumée : ce qui dort sur le compte courant n'est pas une réserve. Il sert au
+   * quotidien, il est déjà compté dans le Relyka, et l'appeler « matelas » reviendrait à créditer
+   * d'une sécurité quelqu'un qui n'a fait que ne pas encore dépenser sa paie.
+   */
   availableSavings: number;
   /** Revenu mensuel moyen CONSTATÉ. 0/absent = donnée manquante → P0 (Découverte). */
   avgMonthlyIncome: number;
-  /** Mis de côté chaque mois en moyenne (épargne + investissement). */
-  monthlySetAside: number;
   /** Total réellement placé sur des comptes d'investissement. */
   totalInvested: number;
+  /**
+   * Au moins une dépense RÉCURRENTE saisie — quelle que soit sa forme (y compris un virement de
+   * charges vers un compte joint, cf. `has_recurring_expenses` dans lib/finance/pilotageEngine).
+   *
+   * ⚠️ Ce n'est PAS une porte d'entrée : la complétude des données ne décide jamais si un profil est
+   * attribué. Elle décide seulement du DÉNOMINATEUR du matelas — sans charge connue, les « dépenses
+   * essentielles » se réduisent à l'enveloppe variable, et on préfère alors diviser par le revenu
+   * (prudent) plutôt que par un total amputé du loyer (rassurant à tort).
+   * Ce que l'app ne sait pas se DIT, à part, dans la fiabilité du profil — ça ne se traduit pas par
+   * un refus de classer (cf. lib/finance/profileReliability).
+   */
+  hasRecurringExpenses: boolean;
   /**
    * Solde des comptes COURANTS, à l'instant T.
    *
@@ -462,7 +520,7 @@ export const WEALTH_THRESHOLDS = { P7: 30_000, P8: 100_000, P9: 300_000 } as con
 export const MILLIONAIRE_THRESHOLD = 1_000_000;
 
 /** Mois de réserve exigés pour prétendre à un palier de patrimoine (P7+) — valeur de repli. */
-const WEALTH_MIN_MONTHS = 3;
+const WEALTH_MIN_MONTHS = 6;
 
 /** Découvert « chronique » : mois consécutifs dans le rouge — valeur de repli. */
 const CHRONIC_OVERDRAFT_MONTHS = 2;
@@ -487,9 +545,6 @@ export interface ProfileThresholds {
   monthsUp: { P3: number; P4: number; P5: number; P6: number };
   /** Matelas sous lequel on REDESCEND de chaque palier. Toujours ≤ `monthsUp`. */
   monthsDown: { P3: number; P4: number; P5: number; P6: number };
-  /** Taux d'épargne, en % du revenu : « correct » (entrée P2) et « fort » (raccourci vers P4). */
-  rateMid: number;
-  rateHigh: number;
   /** Patrimoine bancaire à atteindre pour les paliers hauts, et seuil de sortie. */
   wealthUp: { P7: number; P8: number; P9: number };
   wealthDown: { P7: number; P8: number; P9: number };
@@ -497,6 +552,29 @@ export interface ProfileThresholds {
   wealthMinMonths: { P7: number; P8: number; P9: number };
   /** Mois consécutifs dans le rouge à partir desquels le découvert est CHRONIQUE. */
   chronicOverdraftMonths: number;
+  /**
+   * VIABILITÉ — la bande qui décide de l'entrée et de la sortie de P1, en part du revenu.
+   *
+   * Elle manquait, et c'était le seul endroit de l'échelle sans hystérésis : la comparaison
+   * `charges > revenu` était STRICTE, donc un revenu qui oscille de 3 % autour de ses charges
+   * faisait basculer P1 ⇄ P2 à chaque saisie — sur le palier le plus lourd à recevoir.
+   *   • `viabilityExitRatio` : pour être déclaré viable (donc QUITTER P1), les charges doivent
+   *     descendre sous cette part du revenu — une vraie marge, pas un centime d'écart ;
+   *   • `viabilityEnterRatio` : pour TOMBER en P1, elles doivent la dépasser franchement.
+   */
+  viabilityExitRatio: number;
+  viabilityEnterRatio: number;
+  /**
+   * RÉSERVE QUI DISPENSE DE P1, en mois.
+   *
+   * « Les revenus ne couvrent pas DURABLEMENT les dépenses » : le mot durablement est décisif.
+   * Quelqu'un qui pioche volontairement dans deux ans d'épargne (congé sabbatique, transition,
+   * retraite anticipée, création d'entreprise) n'est pas en danger ce mois-ci, et lui servir
+   * « Fragile » serait faux — c'est même une des rares situations où l'app peut vexer quelqu'un qui
+   * maîtrise parfaitement sa trajectoire. Au-dessus de ce matelas, la réserve parle ; en dessous,
+   * la non-viabilité domine. À 0, la viabilité l'emporte toujours.
+   */
+  viabilityGraceMonths: number;
 }
 
 /**
@@ -514,12 +592,25 @@ export const DEFAULT_PROFILE_THRESHOLDS: ProfileThresholds = {
      Ces valeurs sont celles semées dans `profile_matrix_config` : le code et la base disent la même
      chose, ce qui rend le repli hors-ligne indistinguable du fonctionnement normal. */
   monthsDown: { P3: 0.5, P4: 1, P5: 2.5, P6: 5 },
-  rateMid: 10,
-  rateHigh: 20,
   wealthUp:   { P7: 30_000, P8: 100_000, P9: 300_000 },
   wealthDown: { P7: 24_000, P8:  85_000, P9: 260_000 },
-  wealthMinMonths: { P7: WEALTH_MIN_MONTHS, P8: 6, P9: 6 },
+  /* SIX MOIS POUR LES TROIS PALIERS DE PATRIMOINE, et c'est ce qui rend l'échelle lisible.
+     P7 exigeait trois mois quand P5 et P6 en demandent six : un palier « supérieur » était donc
+     MOINS exigeant sur la réserve que les deux qu'il surplombe. On pouvait monter en P7 en sautant
+     P5 et P6, puis retomber en P3 sans qu'aucune donnée n'ait bougé — et le décompte de paliers
+     franchis annonçait des sauts qui ne voulaient rien dire.
+     Alignés, les dix paliers forment une chaîne strictement cumulative :
+       réserve < 1 → 1–3 → 3–6 → ≥ 6 → + placements → + 30k → + 100k → + 300k.
+     Chaque palier AJOUTE une condition à celui d'avant. C'est ce qui permet de l'expliquer en une
+     phrase, et c'est ce qui garantit qu'un utilisateur ne peut pas être « en avance » sur un axe et
+     « en retard » sur un autre dans le même palier. */
+  wealthMinMonths: { P7: WEALTH_MIN_MONTHS, P8: WEALTH_MIN_MONTHS, P9: WEALTH_MIN_MONTHS },
   chronicOverdraftMonths: CHRONIC_OVERDRAFT_MONTHS,
+  /* 95 % / 102 % : il faut une vraie marge pour être déclaré viable, un vrai écart pour ne plus
+     l'être. Entre les deux — la zone où le revenu et les charges se frôlent — personne ne bouge. */
+  viabilityExitRatio: 0.95,
+  viabilityEnterRatio: 1.02,
+  viabilityGraceMonths: 6,
 };
 
 /** Une ligne de `profile_matrix_config`, telle qu'elle arrive de la base. */
@@ -527,10 +618,13 @@ export interface MatrixRow {
   transition: string;
   upgrade_months_threshold?: number | null;
   downgrade_months_threshold?: number | null;
-  upgrade_flux_threshold?: number | null;
   upgrade_wealth_threshold?: number | null;
   downgrade_wealth_threshold?: number | null;
   chronic_overdraft_months?: number | null;
+  /* Viabilité (ligne P1_P2 uniquement) — cf. `ProfileThresholds`. */
+  viability_exit_ratio?: number | null;
+  viability_enter_ratio?: number | null;
+  viability_grace_months?: number | null;
 }
 
 /* `Number(null)` vaut 0, et 0 est un nombre fini : sans ce test préalable, une colonne VIDE se
@@ -568,8 +662,6 @@ export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): Prof
       P5: down('P4_P5', D.monthsDown.P5),
       P6: down('P5_P6', D.monthsDown.P6),
     },
-    rateMid: num(by.get('P2_P3')?.upgrade_flux_threshold, D.rateMid),
-    rateHigh: num(by.get('P3_P4')?.upgrade_flux_threshold, D.rateHigh),
     wealthUp: {
       P7: num(by.get('P6_P7')?.upgrade_wealth_threshold, D.wealthUp.P7),
       P8: num(by.get('P7_P8')?.upgrade_wealth_threshold, D.wealthUp.P8),
@@ -588,6 +680,11 @@ export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): Prof
     chronicOverdraftMonths: num(
       by.get('P1_P2')?.chronic_overdraft_months, D.chronicOverdraftMonths,
     ),
+    /* La viabilité est portée par la ligne P1_P2 : c'est elle qui gouverne l'entrée et la sortie du
+       palier « Fragile ». Trois réglages au même endroit, plutôt qu'un ratio codé en dur. */
+    viabilityExitRatio: num(by.get('P1_P2')?.viability_exit_ratio, D.viabilityExitRatio),
+    viabilityEnterRatio: num(by.get('P1_P2')?.viability_enter_ratio, D.viabilityEnterRatio),
+    viabilityGraceMonths: num(by.get('P1_P2')?.viability_grace_months, D.viabilityGraceMonths),
   };
 }
 
@@ -611,9 +708,16 @@ export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): Prof
 export function hasStructuralDeficit(
   i: ProfileDataInputs,
   cfg: ProfileThresholds = DEFAULT_PROFILE_THRESHOLDS,
+  /** Sens du trajet : la barre n'est pas au même endroit pour TOMBER en P1 que pour en SORTIR. */
+  bounds: 'up' | 'down' = 'up',
 ): boolean {
+  /* La bande de viabilité. `up` = lecture EXIGEANTE (celle qui décide si l'on peut monter, donc
+     quitter P1) : il faut une vraie marge. `down` = lecture INDULGENTE (celle qui décide si l'on
+     retombe) : il faut un vrai écart. Entre les deux, aucune des deux lectures ne change d'avis, et
+     `resolveLiveProfile` ne bouge pas. */
+  const ratio = bounds === 'up' ? cfg.viabilityExitRatio : cfg.viabilityEnterRatio;
   const essentials = i.monthlyEssentialExpenses ?? 0;
-  if (essentials > 0 && i.avgMonthlyIncome > 0 && essentials > i.avgMonthlyIncome) return true;
+  if (essentials > 0 && i.avgMonthlyIncome > 0 && essentials > i.avgMonthlyIncome * ratio) return true;
 
   const checking = i.checkingBalance;
   if (checking == null || checking >= 0) return false;
@@ -637,16 +741,26 @@ export function computeProfileFromData(
   cfg: ProfileThresholds = DEFAULT_PROFILE_THRESHOLDS,
   bounds: 'up' | 'down' = 'up',
 ): FinancialProfileId {
-  /* Sans revenu constaté, aucun ratio n'a de sens. On ne devine pas — et surtout on ne classe plus
-     au profil le plus prudent : « épargne critique » est un DIAGNOSTIC, et il était servi à tout
-     nouvel arrivant avant même qu'il ait saisi quoi que ce soit. P0 dit ce qui est vrai : on ne
-     sait pas encore. */
+  /* ── PORTE 0 : A-T-ON DE QUOI CALCULER ? ────────────────────────────────────────────────────
+     Sans revenu constaté, aucun ratio n'a de sens. On ne devine pas — et surtout on ne classe plus
+     au profil le plus prudent : « sans filet » est un DIAGNOSTIC, et il était servi à tout nouvel
+     arrivant avant même qu'il ait saisi quoi que ce soit.
+
+     ⚠️ C'est la SEULE porte, et elle porte sur la CALCULABILITÉ, pas sur la complétude. Une version
+     précédente exigeait en plus un compte d'épargne ou une charge récurrente : elle renvoyait en
+     « Découverte » des comptes parfaitement installés — comptes saisis, revenus récurrents,
+     enveloppe variable renseignée, c'est-à-dire exactement les trois choses que le démarrage impose.
+     Ce que l'app ignore se DIT (cf. lib/finance/profileReliability) ; ça ne se traduit pas par un
+     refus de classer. Une donnée manquante rend le profil moins sûr, elle ne le rend pas impossible. */
   if (!(i.avgMonthlyIncome > 0)) return 'P0';
 
   const rawMonths = computeSecurityCushion({
     availableSavings: Math.max(0, i.availableSavings),
     // Base = ce qu'il faut COUVRIR chaque mois, plus le revenu (cf. lib/securityCushion).
     monthlyEssentialExpenses: i.monthlyEssentialExpenses,
+    // Sans charge saisie, le total des « essentielles » n'est pas incomplet : il est FAUX dans le
+    // sens qui rassure. On lui préfère le revenu, dénominateur prudent.
+    recurringExpensesKnown: i.hasRecurringExpenses,
     avgMonthlyIncome: i.avgMonthlyIncome,
   }).months;
   if (rawMonths == null) return 'P0';
@@ -655,57 +769,47 @@ export function computeProfileFromData(
   const M = bounds === 'up' ? cfg.monthsUp : cfg.monthsDown;
   const W = bounds === 'up' ? cfg.wealthUp : cfg.wealthDown;
 
-  const rate = 100 * (Math.max(0, i.monthlySetAside) / i.avgMonthlyIncome);
-  const rateHigh = rate >= cfg.rateHigh;
-  const rateMid = rate >= cfg.rateMid;
   // « Investit » = il a réellement placé de l'argent sur un compte d'investissement.
   const invests = i.totalInvested > 0;
-  // « Épargne régulièrement » = il met effectivement de côté, mois après mois.
-  const saves = i.monthlySetAside > 0;
   const wealth = i.totalLiquidWealth
     ?? (Math.max(0, i.availableSavings) + Math.max(0, i.totalInvested));
 
-  /* ── Paliers de PATRIMOINE (P7 → P9) ────────────────────────────────────────────────────────
+  /* ── QUESTION 1 : LA SITUATION EST-ELLE VIABLE ? ─────────────────────────────────────────────
+     Elle passe AVANT tout le reste : tant que ce qui sort dépasse ce qui rentre, aucun palier de
+     réserve ni de patrimoine ne décrit correctement la situation — le compte se vide, et c'est la
+     seule chose à dire.
+     UNE SEULE DISPENSE, et elle est délibérée : une réserve profonde (`viabilityGraceMonths`).
+     Quelqu'un qui consomme volontairement deux ans d'épargne — sabbatique, transition, création
+     d'entreprise, retraite anticipée — n'est pas « fragile » ce mois-ci. Sans cette dispense, l'app
+     servirait son diagnostic le plus dur à des gens qui maîtrisent parfaitement leur trajectoire. */
+  if (months < cfg.viabilityGraceMonths && hasStructuralDeficit(i, cfg, bounds)) return 'P1';
+
+  /* ── QUESTIONS 3 ET 4 : PLACEMENTS, PUIS TAILLE DU PATRIMOINE (P7 → P9) ──────────────────────
      LE MONTANT SEUL NE SUFFIT PAS, et c'est délibéré. Un capital hérité, posé sur un livret, chez
      quelqu'un qui finit ses mois à découvert, n'est pas une « maturité financière » — lui servir
      des conseils d'optimisation patrimoniale serait à côté du sujet, et vaguement insultant.
-     Trois conditions cumulatives, en plus du montant :
-       • une RÉSERVE réelle (le seuil monte avec le palier : plus le patrimoine est important, plus
-         l'absence de liquidité est anormale) ;
+     Deux conditions cumulatives, en plus du montant :
+       • la RÉSERVE PLEINE (même exigence que P5/P6, cf. `wealthMinMonths`) — sans quoi un palier
+         « supérieur » serait moins exigeant que ceux qu'il surplombe ;
        • de l'argent RÉELLEMENT PLACÉ — c'est le geste qui distingue un patrimoine piloté d'un
-         capital qui dort ;
-       • pas de découvert : on ne « construit » pas un patrimoine en étant dans le rouge.
+         capital qui dort.
      À défaut, on redescend sur l'échelle du matelas — exactement le conseil dont cette personne a
      besoin. Le patrimoine reste donc un indicateur, jamais un laissez-passer. */
-  /* Condition « pas dans le rouge » : un DÉFICIT, pas un solde. Le test portait sur le solde
-     courant du jour — il déclassait quelqu'un avec 300 000 € placés parce qu'il était à −40 € la
-     veille de sa paie. Ce qui disqualifie un palier patrimonial, c'est un mois qui ne se boucle
-     pas, pas un compte courant à sec deux jours par mois. */
-  const solvent = !hasStructuralDeficit(i, cfg);
-  if (invests && solvent) {
+  if (invests) {
     if (months >= cfg.wealthMinMonths.P9 && wealth >= W.P9) return 'P9';
     if (months >= cfg.wealthMinMonths.P8 && wealth >= W.P8) return 'P8';
     if (months >= cfg.wealthMinMonths.P7 && wealth >= W.P7) return 'P7';
   }
 
-  // ── Paliers de MATELAS (P1 → P6) ───────────────────────────────────────────────────────────
-  // P6 : réserve faite ET argent réellement placé — le passage à l'investissement est acquis.
-  if (months >= M.P6 && invests) return 'P6';
-  // P5 : réserve faite, mais encore tout en liquide.
-  if (months >= M.P5) return 'P5';
-  // P4 : réserve intermédiaire avec un comportement d'épargne — ou moins, mais un taux fort.
-  if (months >= M.P4 && (saves || rateHigh)) return 'P4';
-  if (months >= M.P3 && rateHigh) return 'P4';
-  /* P3 : la réserve minimale est là. Ce cas ramasse AUSSI ceux qui atteignent le seuil de P4 sans
-     rien mettre de côté : la réserve stagne, elle ne se construit plus. */
-  if (months >= M.P3) return 'P3';
-  // P2 : réserve insuffisante, mais rien qui indique une impasse.
-  if (rateMid || saves) return 'P2';
-  /* P1 : DÉFICIT STRUCTUREL, et lui seul (cf. `hasStructuralDeficit`). En l'absence de preuve,
-     on reste à P2 : accuser quelqu'un de finir ses mois dans le rouge sur un solde négatif d'un
-     jour — ou sur une donnée manquante — serait pire que de ne rien dire. */
-  if (hasStructuralDeficit(i, cfg)) return 'P1';
-  return 'P2';
+  /* ── QUESTION 2 : COMBIEN DE TEMPS TIENT-IL ? (P2 → P6) ──────────────────────────────────────
+     Une seule mesure, quatre paliers, aucune condition annexe. C'est ce qui rend l'échelle
+     prévisible : à matelas égal, deux utilisateurs sont au même endroit — quoi qu'ils fassent par
+     ailleurs, et quelle que soit la façon dont ils saisissent leur épargne. */
+  if (months >= M.P6 && invests) return 'P6';   // réserve faite ET passage à l'investissement acquis
+  if (months >= M.P5) return 'P5';              // réserve faite, encore tout en liquide
+  if (months >= M.P4) return 'P4';              // 3 à 6 mois
+  if (months >= M.P3) return 'P3';              // 1 à 3 mois
+  return 'P2';                                  // viable, mais moins d'un mois devant soi
 }
 
 /**
@@ -784,31 +888,19 @@ export function isMillionaire(totalLiquidWealth: number): boolean {
   return totalLiquidWealth >= MILLIONAIRE_THRESHOLD;
 }
 
-export function computeInitialProfile(answers: QuestionnaireAnswers): FinancialProfileId {
-  const { q4, q5, q6 } = answers;
+/* ── CE QUI A ÉTÉ RETIRÉ ICI, ET POURQUOI ────────────────────────────────────────────────────────
+   • `computeInitialProfile` : le profil déduit des NEUF RÉPONSES du questionnaire d'accueil. Ce
+     questionnaire n'existe plus (le profil se déduit des données réelles), la fonction n'était plus
+     appelée nulle part — et elle rendait un palier calculé avec des règles que la cascade ci-dessus
+     contredit. Du code mort qui donne une SECONDE réponse à la question « quel est mon profil ? »
+     est pire que pas de code du tout : il finit par être rebranché.
+   • `computeMonthlyMetrics`, `MonthlyMetrics`, `RawTransaction` : ils ne servaient plus qu'à
+     mesurer le TAUX D'ÉPARGNE, retiré du classement (cf. l'en-tête). Leur seul appelant les a donc
+     perdus avec lui — et avec eux une passe complète de transformation des transactions à chaque
+     recalcul de profil.
+   Le revenu de référence, lui, vit dans lib/finance/incomeAverage : une seule mesure pour toute
+   l'app, c'était déjà la règle. */
 
-  // Cas immédiat : découvert déclaré.
-  if (q4 === 'Rien, je finis souvent le mois à découvert') return 'P1';
-
-  // Réserve faite (> 6 mois) ET argent placé / fort taux d'épargne → premiers placements.
-  if (q5 === 'Plus de 6 mois' && (Q4_INVEST.has(q4) || Q6_HIGH.has(q6))) return 'P6';
-
-  // Réserve faite, mais tout en liquide.
-  if (q5 === 'Plus de 6 mois') return 'P5';
-  if (q5 === '3 à 6 mois' && Q6_HIGH.has(q6)) return 'P5';
-
-  // Trois à six mois avec un comportement d'épargne → équilibre trouvé.
-  if (q5 === '3 à 6 mois' && Q4_SAVING.has(q4)) return 'P4';
-  if (q5 === '1 à 3 mois' && Q6_HIGH.has(q6)) return 'P4';
-
-  // Un à trois mois → réserve à construire.
-  if (q5 === '1 à 3 mois') return 'P3';
-  if (q5 === '3 à 6 mois' && Q4_MINIMAL.has(q4)) return 'P3';
-  if (q5 === "Moins d'un mois" && Q6_MID.has(q6)) return 'P3';
-
-  // Moins d'un mois de réserve, sans découvert déclaré.
-  return 'P2';
-}
 
 /* `MatrixConfig` a été retiré avec le moteur mensuel qui l'utilisait. La forme des lignes de
    `profile_matrix_config` telle que le moteur la LIT est décrite par `MatrixRow` (plus haut), qui
@@ -816,16 +908,6 @@ export function computeInitialProfile(answers: QuestionnaireAnswers): FinancialP
    toujours par diverger. L'écran d'administration, lui, lit le type de la base (ProfileMatrixConfig,
    types/database) : c'est le bon niveau pour un formulaire d'édition. */
 
-export interface MonthlyMetrics {
-  /** Part des recettes mise de côté, en POURCENTAGE (épargne + investissement). */
-  flux_total: number;
-  /** Montant mis de côté chaque mois, en EUROS. ⚠️ À ne pas confondre avec `flux_total`, qui est un
-   *  pourcentage : le profil vivant les a longtemps confondus et lisait un taux d'épargne de 1,5 %
-   *  là où l'utilisateur en mettait 30 % — aucun palier « fort taux » ne se déclenchait jamais. */
-  set_aside_monthly: number;
-  avg_income_6m: number;
-  avg_income_2m: number;
-}
 
 /**
  * Toutes les clés de transition, du bas vers le haut (P1_P2 … P8_P9). Elles nomment les SEUILS
@@ -838,111 +920,3 @@ export interface MonthlyMetrics {
 export const PROFILE_TRANSITION_KEYS: string[] = RANKED_PROFILE_IDS
   .slice(0, -1)
   .map((id, idx) => `${id}_${RANKED_PROFILE_IDS[idx + 1]}`);
-
-// ── Calcul des métriques depuis les transactions ──────────────
-
-export interface RawTransaction {
-  amount: number;
-  date: string;
-  account_type: string;
-  linked_account_type?: string | null;
-}
-
-export function computeMonthlyMetrics(
-  transactions: RawTransaction[],
-  savingsBalance: number,
-  checkingBalance: number,
-  windowExpenses: number = 6,
-  windowFlux: number = 3,
-  /** Tranche de revenu du questionnaire (Q3) — repli du matelas tant qu'aucun revenu n'est constaté. */
-  questionnaireQ3?: string | null,
-): MonthlyMetrics {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-
-  function monthsAgo(n: number) {
-    const d = new Date(currentYear, currentMonth - n, 1);
-    return { year: d.getFullYear(), month: d.getMonth() };
-  }
-
-  function txMonth(t: RawTransaction) {
-    const d = new Date(t.date);
-    return { year: d.getFullYear(), month: d.getMonth() };
-  }
-
-  function inWindow(t: RawTransaction, n: number) {
-    const { year, month } = txMonth(t);
-    for (let i = 1; i <= n; i++) {
-      const w = monthsAgo(i);
-      if (w.year === year && w.month === month) return true;
-    }
-    return false;
-  }
-
-  // Épargne disponible (comptes courants + épargne liquidable)
-  const epargne_dispo = Math.max(0, savingsBalance) + Math.max(0, checkingBalance);
-
-  // Recettes RÉELLES (virements inter-comptes exclus : un virement entrant n'est pas un revenu).
-  const isIncome = (t: RawTransaction) =>
-    t.amount > 0 && t.account_type === 'checking' && !t.linked_account_type;
-
-  // Revenus moyens 6 mois vs 2 mois (règles exceptionnelles + base du matelas de sécurité)
-  const rev6 = transactions
-    .filter(t => inWindow(t, 6) && isIncome(t))
-    .reduce((s, t) => s + t.amount, 0);
-
-  const rev2 = transactions
-    .filter(t => inWindow(t, 2) && isIncome(t))
-    .reduce((s, t) => s + t.amount, 0);
-
-  const avg_income_6m = rev6 / 6;
-
-  /* `mois_securite` a été retiré. Il mesurait le matelas sur le REVENU, alors que toute l'app le
-     mesure en mois de DÉPENSES essentielles — une seconde définition, qui ne servait qu'à l'ancien
-     moteur de profil. Le matelas se calcule là où il est utilisé, avec `computeSecurityCushion` et
-     les dépenses essentielles. */
-
-  // Flux épargne & investissement sur 3 mois
-  const fluxTxs = transactions.filter(t => inWindow(t, windowFlux));
-
-  const revenusBruts = fluxTxs
-    .filter(isIncome)
-    .reduce((s, t) => s + t.amount, 0);
-
-  const virEpargne = fluxTxs
-    .filter(t => t.amount < 0 && t.linked_account_type === 'savings')
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
-
-  const virInvest = fluxTxs
-    .filter(t => t.amount < 0 && t.linked_account_type === 'investment')
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
-
-  const flux_epargne = revenusBruts > 0 ? (virEpargne / revenusBruts) * 100 : 0;
-  const flux_invest = revenusBruts > 0 ? (virInvest / revenusBruts) * 100 : 0;
-  const flux_total = flux_epargne + flux_invest;
-
-  /* Le même mouvement, mais en EUROS PAR MOIS — c'est ce dont le profil a besoin (il le rapporte
-     ensuite au revenu pour en tirer un taux). Fenêtre INCLUANT le mois courant : un compte neuf
-     n'a encore aucun mois révolu, et l'écarter revenait à dire « il ne met rien de côté » de
-     quelqu'un qui venait précisément de faire son premier virement d'épargne. */
-  const inRecent = (t: RawTransaction) => {
-    const { year, month } = txMonth(t);
-    for (let i = 0; i < windowFlux; i++) {
-      const w = monthsAgo(i);
-      if (w.year === year && w.month === month) return true;
-    }
-    return false;
-  };
-  const setAside = transactions
-    .filter((t) => inRecent(t) && t.amount < 0
-      && (t.linked_account_type === 'savings' || t.linked_account_type === 'investment'))
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
-
-  return {
-    flux_total,
-    set_aside_monthly: setAside / windowFlux,
-    avg_income_6m,
-    avg_income_2m: rev2 / 2,
-  };
-}

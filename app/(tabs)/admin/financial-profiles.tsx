@@ -18,8 +18,12 @@ import {
   useUpdateMatrixConfig,
   useFinancialProfile,
   useSimulateProfileChange,
+  useProfileDistribution,
 } from '../../../hooks/pilotage/useFinancialProfile';
-import { PROFILE_INFO, FINANCIAL_PROFILE_IDS, PROFILE_TRANSITION_KEYS } from '../../../lib/finance/financialProfileEngine';
+import {
+  PROFILE_INFO, FINANCIAL_PROFILE_IDS, PROFILE_TRANSITION_KEYS,
+  computeProfileFromData, thresholdsFromMatrix,
+} from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -311,6 +315,159 @@ function MessagesSection({ userId }: { userId: string }) {
   );
 }
 
+// ── Garde-fou de calibrage : la monotonie de l'échelle ──────────
+
+/**
+ * L'échelle doit rester une CHAÎNE CUMULATIVE : chaque palier ajoute une condition à celui d'en
+ * dessous. Si la réserve exigée décroît quelque part, un palier « supérieur » devient plus facile à
+ * atteindre que le précédent — on peut alors sauter P5/P6, puis retomber de plusieurs crans sans
+ * qu'aucune donnée n'ait bougé. Ça ne se voit pas en éditant une ligne : ça se voit en les lisant
+ * toutes. D'où ce contrôle, ici, sur les valeurs RÉELLEMENT enregistrées.
+ */
+function MonotonyWarning({ configs }: { configs: any[] }) {
+  const COLORS = useAppColors();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const ladder = ['P2_P3', 'P3_P4', 'P4_P5', 'P5_P6', 'P6_P7', 'P7_P8', 'P8_P9'];
+
+  const breaks: string[] = [];
+  let previous = -Infinity;
+  for (const t of ladder) {
+    const v = Number(configs.find((c: any) => c.transition === t)?.upgrade_months_threshold);
+    if (!Number.isFinite(v)) continue;
+    if (v < previous) breaks.push(t);
+    previous = Math.max(previous, v);
+  }
+  if (breaks.length === 0) return null;
+
+  return (
+    <View style={[styles.matrixCard, { borderColor: COLORS.orange + '66' }]}>
+      <Text style={[styles.matrixLabel, { color: COLORS.orange }]}>⚠️ Échelle non monotone</Text>
+      <Text style={styles.matrixSummaryText}>
+        La réserve exigée DIMINUE sur : {breaks.join(', ')}. Un palier supérieur devient plus facile
+        à atteindre que celui d’en dessous — des sauts et des rechutes apparaîtront sans qu’aucune
+        donnée n’ait bougé.
+      </Text>
+    </View>
+  );
+}
+
+// ── Distribution des paliers ────────────────────────────────────
+
+/** Où tombe réellement la base. Un palier qui ramasse tout le monde ne segmente rien. */
+function ProfileDistribution() {
+  const COLORS = useAppColors();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { data, isLoading, isError } = useProfileDistribution();
+
+  if (isLoading) return <ActivityIndicator color={COLORS.emerald} style={{ marginVertical: 16 }} />;
+  if (isError || !data || data.total === 0) return null;
+
+  const max = Math.max(...ALL_PROFILES.map((p) => data.counts[p] ?? 0), 1);
+
+  return (
+    <View style={styles.matrixCard}>
+      <Text style={styles.matrixLabel}>Répartition de la base ({data.total} profils)</Text>
+      {ALL_PROFILES.map((p) => {
+        const n = data.counts[p] ?? 0;
+        const pct = Math.round((n / data.total) * 100);
+        const info = PROFILE_INFO[p];
+        return (
+          <View key={p} style={styles.distRow}>
+            <Text style={styles.distLabel} numberOfLines={1}>{info.emoji} {p}</Text>
+            <View style={styles.distTrack}>
+              <View style={[styles.distFill, { width: `${(n / max) * 100}%`, backgroundColor: info.color }]} />
+            </View>
+            <Text style={styles.distValue}>{n} · {pct} %</Text>
+          </View>
+        );
+      })}
+      {data.pending > 0 && (
+        <Text style={styles.matrixSummaryText}>
+          {data.pending} profil(s) encore sur les règles précédentes : ils seront reclassés en
+          silence à leur prochaine ouverture de l’app.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// ── Simulateur : où tombe cet utilisateur, avec CES seuils ? ─────
+
+/**
+ * ON NE RECALIBRE PAS À L'AVEUGLE. Un seuil déplacé d'un demi-mois change le palier — donc les
+ * recommandations — de milliers de personnes. Le simulateur applique le MOTEUR RÉEL
+ * (`computeProfileFromData`) aux seuils actuellement enregistrés : ce qu'il affiche est exactement
+ * ce que l'app calculerait pour cette situation.
+ */
+function LadderSimulator({ configs }: { configs: any[] }) {
+  const COLORS = useAppColors();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const [v, setV] = useState({
+    income: '2500', expenses: '1600', savings: '6000', invested: '0', wealth: '',
+  });
+  const num = (s: string) => {
+    const n = parseFloat(String(s).replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const thresholds = useMemo(() => thresholdsFromMatrix(configs as any[]), [configs]);
+  const savings = num(v.savings);
+  const invested = num(v.invested);
+  const inputs = {
+    availableSavings: savings,
+    avgMonthlyIncome: num(v.income),
+    monthlyEssentialExpenses: num(v.expenses),
+    totalInvested: invested,
+    totalLiquidWealth: v.wealth.trim() === '' ? undefined : num(v.wealth),
+    hasSavingsAccount: true,
+    hasRecurringExpenses: num(v.expenses) > 0,
+  };
+  const profile = computeProfileFromData(inputs, thresholds, 'up');
+  const floor = computeProfileFromData(inputs, thresholds, 'down');
+  const info = PROFILE_INFO[profile];
+  const months = num(v.expenses) > 0 ? savings / num(v.expenses) : null;
+
+  const FIELDS: { key: keyof typeof v; label: string }[] = [
+    { key: 'income',   label: 'Revenu mensuel de référence (€)' },
+    { key: 'expenses', label: 'Dépenses essentielles / mois (€)' },
+    { key: 'savings',  label: 'Épargne disponible (€)' },
+    { key: 'invested', label: 'Total réellement placé (€)' },
+    { key: 'wealth',   label: 'Patrimoine bancaire (€, vide = épargne + placements)' },
+  ];
+
+  return (
+    <View style={styles.matrixCard}>
+      <Text style={styles.matrixLabel}>Simulateur — avec les seuils enregistrés</Text>
+      {FIELDS.map(({ key, label }) => (
+        <View key={key} style={styles.matrixRow}>
+          <Text style={styles.matrixRowLabel}>{label}</Text>
+          <TextInput
+            style={styles.matrixInput}
+            value={v[key]}
+            onChangeText={(t) => setV((p) => ({ ...p, [key]: t }))}
+            keyboardType="decimal-pad"
+            placeholderTextColor={COLORS.textSecondary}
+          />
+        </View>
+      ))}
+      <View style={[styles.matrixSummary, { borderColor: info.color + '55', borderWidth: 1, borderRadius: 12, padding: 10 }]}>
+        <Text style={[styles.matrixLabel, { color: info.color }]}>
+          {info.emoji} {profile} — {info.name}
+        </Text>
+        <Text style={styles.matrixSummaryText}>
+          Matelas : {months == null ? '—' : `${months.toFixed(1)} mois`} ·
+          Patrimoine : {(inputs.totalLiquidWealth ?? savings + invested).toLocaleString('fr-FR')} €
+        </Text>
+        {/* Les deux lectures : c'est la bande d'hystérésis rendue visible. */}
+        <Text style={styles.matrixSummaryText}>
+          Lecture montée : {profile} · lecture descente : {floor}
+          {profile !== floor ? ' — dans la bande, un utilisateur déjà classé ne bougerait pas.' : ''}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 // ── Matrice de seuils ───────────────────────────────────────────
 
 function MatrixSection({ userId }: { userId: string }) {
@@ -333,15 +490,20 @@ function MatrixSection({ userId }: { userId: string }) {
   function startEdit(transition: string) {
     const cfg = configs.find((c: any) => c.transition === transition);
     if (cfg) {
+      /* ⚠️ N'ÉDITER QUE CE QUE LE MOTEUR LIT. Cet écran proposait encore quatre leviers morts —
+         seuils de flux (le taux d'épargne ne classe plus, échelle v2) et « mois consécutifs requis »
+         (remplacé par l'hystérésis). On croyait calibrer, rien ne bougeait : exactement le piège que
+         la migration 194 avait déjà corrigé une première fois. Chaque champ ci-dessous est lu par
+         `thresholdsFromMatrix`. */
       setEditValues({
-        upgrade_months_threshold: String(cfg.upgrade_months_threshold),
-        upgrade_flux_threshold: String(cfg.upgrade_flux_threshold),
-        downgrade_months_threshold: String(cfg.downgrade_months_threshold),
-        downgrade_flux_threshold: String(cfg.downgrade_flux_threshold),
-        anti_yoyo_months: String(cfg.anti_yoyo_months),
+        upgrade_months_threshold: String(cfg.upgrade_months_threshold ?? ''),
+        downgrade_months_threshold: String(cfg.downgrade_months_threshold ?? ''),
         upgrade_wealth_threshold: String((cfg as any).upgrade_wealth_threshold ?? ''),
         downgrade_wealth_threshold: String((cfg as any).downgrade_wealth_threshold ?? ''),
         chronic_overdraft_months: String((cfg as any).chronic_overdraft_months ?? ''),
+        viability_exit_ratio: String((cfg as any).viability_exit_ratio ?? ''),
+        viability_enter_ratio: String((cfg as any).viability_enter_ratio ?? ''),
+        viability_grace_months: String((cfg as any).viability_grace_months ?? ''),
       });
     }
     setEditingKey(transition);
@@ -351,16 +513,16 @@ function MatrixSection({ userId }: { userId: string }) {
     try {
       await updateConfig.mutateAsync({
         transition,
-        upgrade_months_threshold: parseFloat(editValues.upgrade_months_threshold) || 0,
-        upgrade_flux_threshold: parseFloat(editValues.upgrade_flux_threshold) || 0,
-        downgrade_months_threshold: parseFloat(editValues.downgrade_months_threshold) || 0,
-        downgrade_flux_threshold: parseFloat(editValues.downgrade_flux_threshold) || 0,
-        anti_yoyo_months: parseInt(editValues.anti_yoyo_months) || 1,
         /* Vide ⇒ `null`, JAMAIS 0. Le moteur retombe alors sur sa valeur de repli ; un zéro, lui,
            serait un seuil atteint par tout le monde. */
+        upgrade_months_threshold: numOrNull(editValues.upgrade_months_threshold),
+        downgrade_months_threshold: numOrNull(editValues.downgrade_months_threshold),
         upgrade_wealth_threshold: numOrNull(editValues.upgrade_wealth_threshold),
         downgrade_wealth_threshold: numOrNull(editValues.downgrade_wealth_threshold),
         chronic_overdraft_months: numOrNull(editValues.chronic_overdraft_months),
+        viability_exit_ratio: numOrNull(editValues.viability_exit_ratio),
+        viability_enter_ratio: numOrNull(editValues.viability_enter_ratio),
+        viability_grace_months: numOrNull(editValues.viability_grace_months),
       } as any);
       setEditingKey(null);
       Alert.alert('Sauvegardé');
@@ -376,11 +538,22 @@ function MatrixSection({ userId }: { userId: string }) {
       {/* Ce texte décrivait l'ANCIEN moteur (compteurs de mois consécutifs), débranché depuis que le
           profil est évalué en temps réel. Il décrit maintenant ce qui se passe réellement. */}
       <Text style={styles.matrixInfo}>
+        Le profil répond à quatre questions, dans cet ordre : la situation est-elle viable (P1) ·
+        combien de temps tient-elle (P2 → P5) · investit-il réellement (P6) · quelle taille fait le
+        patrimoine (P7 → P9). Le taux d’épargne ne classe plus rien.
+      </Text>
+      <Text style={styles.matrixInfo}>
         Le profil est recalculé DÈS QUE les données changent. L’écart entre le seuil de montée et
         celui de descente est la bande dans laquelle rien ne bouge : c’est elle qui empêche le
         profil de basculer d’avant en arrière autour d’un seuil. Un champ laissé vide reprend la
         valeur par défaut du moteur.
       </Text>
+      {/* GARDE-FOU DE CALIBRAGE. La réserve exigée ne doit jamais décroître en montant l'échelle,
+          sinon un palier « supérieur » devient plus facile à atteindre que celui d'en dessous — et
+          l'utilisateur peut sauter P5/P6 puis retomber sans qu'aucune donnée n'ait bougé. */}
+      <MonotonyWarning configs={configs} />
+      <ProfileDistribution />
+      <LadderSimulator configs={configs} />
 
       {TRANSITIONS.map(({ key: transition, label, from, to }) => {
         const cfg = configs.find((c: any) => c.transition === transition);
@@ -405,24 +578,32 @@ function MatrixSection({ userId }: { userId: string }) {
                   // « Mois de sécurité » = épargne ÷ DÉPENSES essentielles mensuelles, c'est-à-dire
                   // charges récurrentes + budget variable (lib/securityCushion) — MÊME définition
                   // partout dans l'app (Pouls, Reporting, recommandations).
-                  { field: 'upgrade_months_threshold',   label: 'Montée — mois de DÉPENSES couverts ≥' },
-                  { field: 'upgrade_flux_threshold',     label: 'Montée — flux total ≥ (%)' },
-                  { field: 'downgrade_months_threshold', label: 'Descente — mois de DÉPENSES couverts <' },
-                  { field: 'downgrade_flux_threshold',   label: 'Descente — flux total < (%)' },
+                  {
+                    field: 'upgrade_months_threshold',
+                    label: WEALTH_TRANSITIONS.has(transition)
+                      ? 'Réserve minimale exigée (mois de dépenses)'
+                      : 'Montée — mois de DÉPENSES couverts ≥',
+                  },
+                  ...(WEALTH_TRANSITIONS.has(transition) ? [] : [
+                    { field: 'downgrade_months_threshold', label: 'Descente — mois de DÉPENSES couverts <' },
+                  ]),
 
                   /* PALIERS DE PATRIMOINE : ne concernent que P6→P7, P7→P8, P8→P9. Sur ces trois
-                     transitions, « mois de dépenses couverts » est la RÉSERVE minimale exigée en
-                     plus du montant — le patrimoine seul n'ouvre jamais un palier. */
+                     transitions, la RÉSERVE minimale s'ajoute au montant — le patrimoine seul
+                     n'ouvre jamais un palier, et elle ne descend jamais sous celle de P5/P6 (sinon
+                     un palier « supérieur » deviendrait moins exigeant que ceux qu'il surplombe). */
                   ...(WEALTH_TRANSITIONS.has(transition) ? [
                     { field: 'upgrade_wealth_threshold',   label: 'Montée — patrimoine bancaire ≥ (€)' },
                     { field: 'downgrade_wealth_threshold', label: 'Descente — patrimoine bancaire < (€)' },
                   ] : []),
-                  /* Le découvert CHRONIQUE gouverne l'entrée en profil déficitaire. Porté par la
-                     ligne P1_P2, la seule où il ait un sens. */
+                  /* VIABILITÉ + découvert chronique : portés par la ligne P1_P2, la seule où ils
+                     aient un sens. Ce sont eux qui gouvernent l'entrée et la sortie de « Fragile ». */
                   ...(transition === 'P1_P2' ? [
+                    { field: 'viability_exit_ratio',     label: 'Sortie de P1 — charges ≤ × revenu (0,95)' },
+                    { field: 'viability_enter_ratio',    label: 'Entrée en P1 — charges > × revenu (1,02)' },
+                    { field: 'viability_grace_months',   label: 'Réserve qui dispense de P1 (mois)' },
                     { field: 'chronic_overdraft_months', label: 'Découvert chronique — mois consécutifs ≥' },
                   ] : []),
-                  { field: 'anti_yoyo_months',           label: 'Mois consécutifs requis (montée)' },
                 ].map(({ field, label: fl }) => (
                   <View key={field} style={styles.matrixRow}>
                     <Text style={styles.matrixRowLabel}>{fl}</Text>
@@ -435,12 +616,14 @@ function MatrixSection({ userId }: { userId: string }) {
                     />
                   </View>
                 ))}
-                <View style={styles.bufferRow}>
-                  <Text style={styles.bufferLabel}>Écart tampon (calculé)</Text>
-                  <Text style={styles.bufferValue}>
-                    {(parseFloat(editValues.upgrade_months_threshold) - parseFloat(editValues.downgrade_months_threshold)).toFixed(1)} mois
-                  </Text>
-                </View>
+                {!WEALTH_TRANSITIONS.has(transition) && (
+                  <View style={styles.bufferRow}>
+                    <Text style={styles.bufferLabel}>Écart tampon (calculé)</Text>
+                    <Text style={styles.bufferValue}>
+                      {(parseFloat(editValues.upgrade_months_threshold) - parseFloat(editValues.downgrade_months_threshold)).toFixed(1)} mois
+                    </Text>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={[styles.saveBtn, updateConfig.isPending && { opacity: 0.6 }]}
                   onPress={() => handleSave(transition)}
@@ -453,22 +636,33 @@ function MatrixSection({ userId }: { userId: string }) {
               </View>
             ) : cfg ? (
               <View style={styles.matrixSummary}>
-                <Text style={styles.matrixSummaryText}>
-                  ↑ Montée : ≥ {cfg.upgrade_months_threshold} mois · ≥ {cfg.upgrade_flux_threshold} % flux
-                </Text>
-                <Text style={styles.matrixSummaryText}>
-                  ↓ Descente : &lt; {cfg.downgrade_months_threshold} mois · &lt; {cfg.downgrade_flux_threshold} % flux
-                </Text>
-                {WEALTH_TRANSITIONS.has(transition) && (
-                  <Text style={styles.matrixSummaryText}>
-                    💰 Patrimoine : ≥ {(cfg as any).upgrade_wealth_threshold ?? '—'} € ·
-                    sortie &lt; {(cfg as any).downgrade_wealth_threshold ?? '—'} €
-                  </Text>
+                {WEALTH_TRANSITIONS.has(transition) ? (
+                  <>
+                    <Text style={styles.matrixSummaryText}>
+                      💰 Patrimoine : ≥ {(cfg as any).upgrade_wealth_threshold ?? '—'} € ·
+                      sortie &lt; {(cfg as any).downgrade_wealth_threshold ?? '—'} €
+                    </Text>
+                    <Text style={styles.matrixSummaryText}>
+                      Réserve exigée en plus : ≥ {cfg.upgrade_months_threshold} mois · placements obligatoires
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.matrixSummaryText}>↑ Montée : ≥ {cfg.upgrade_months_threshold} mois</Text>
+                    <Text style={styles.matrixSummaryText}>↓ Descente : &lt; {cfg.downgrade_months_threshold} mois</Text>
+                  </>
                 )}
                 {transition === 'P1_P2' && (
-                  <Text style={styles.matrixSummaryText}>
-                    Découvert chronique : {(cfg as any).chronic_overdraft_months ?? '—'} mois consécutifs
-                  </Text>
+                  <>
+                    <Text style={styles.matrixSummaryText}>
+                      Viabilité : sortie ≤ {(cfg as any).viability_exit_ratio ?? '—'} × revenu ·
+                      entrée &gt; {(cfg as any).viability_enter_ratio ?? '—'} × revenu
+                    </Text>
+                    <Text style={styles.matrixSummaryText}>
+                      Dispense de P1 au-delà de {(cfg as any).viability_grace_months ?? '—'} mois de réserve ·
+                      découvert chronique {(cfg as any).chronic_overdraft_months ?? '—'} mois
+                    </Text>
+                  </>
                 )}
               </View>
             ) : (
@@ -486,14 +680,6 @@ function MatrixSection({ userId }: { userId: string }) {
 function GlobalSection({ userId }: { userId: string }) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const { data: configs = [] } = useProfileMatrixConfig();
-  const updateConfig = useUpdateMatrixConfig(userId);
-  const [freeze, setFreeze] = useState('6');
-  const [fluxWindow, setFluxWindow] = useState('3');
-  const [expWindow, setExpWindow] = useState('6');
-  const [dropThreshold, setDropThreshold] = useState('50');
-  const [saving, setSaving] = useState(false);
-
   // ── Seuils d'épargne (globaux, en EUR) + libellés affichés (Comptes → vue d'ensemble) ──
   const { data: savingsCfg } = useSavingsConfig();
   const saveSavings = useSaveSavingsConfig();
@@ -522,66 +708,21 @@ function GlobalSection({ userId }: { userId: string }) {
     }
   }
 
-  useEffect(() => {
-    const first = configs[0] as any;
-    if (first) {
-      setFreeze(String(first.freeze_months ?? 2));
-      setFluxWindow(String(first.flux_window_months ?? 3));
-      setExpWindow(String(first.expenses_window_months ?? 6));
-      setDropThreshold(String(first.exceptional_drop_threshold_pct ?? 50));
-    }
-  }, [configs.length]);
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const transitions = ['P1_P2', 'P2_P3', 'P3_P4', 'P4_P5'];
-      await Promise.all(transitions.map(t =>
-        updateConfig.mutateAsync({
-          transition: t,
-          freeze_months: parseInt(freeze) || 2,
-          flux_window_months: parseInt(fluxWindow) || 3,
-          expenses_window_months: parseInt(expWindow) || 6,
-          exceptional_drop_threshold_pct: parseFloat(dropThreshold) || 50,
-        } as any)
-      ));
-      Alert.alert('Sauvegardé');
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <View style={styles.sectionContent}>
-      {[
-        { label: 'Durée de gel du profil initial (mois, sauf cas exceptionnels)', value: freeze, setter: setFreeze },
-        { label: 'Fenêtre de calcul des flux (mois)', value: fluxWindow, setter: setFluxWindow },
-        { label: 'Fenêtre de calcul des dépenses moy. (mois)', value: expWindow, setter: setExpWindow },
-        { label: 'Seuil de chute de revenus (%)', value: dropThreshold, setter: setDropThreshold },
-      ].map(({ label, value, setter }) => (
-        <View key={label} style={styles.globalRow}>
-          <Text style={styles.globalLabel}>{label}</Text>
-          <TextInput
-            style={styles.globalInput}
-            value={value}
-            onChangeText={setter}
-            keyboardType="decimal-pad"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-        </View>
-      ))}
-
-      <TouchableOpacity
-        style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-        onPress={handleSave}
-        disabled={saving}
-      >
-        {saving
-          ? <ActivityIndicator color={COLORS.bg} size="small" />
-          : <Text style={styles.saveBtnText}>Appliquer à toutes les transitions</Text>}
-      </TouchableOpacity>
+      {/* ── QUATRE RÉGLAGES ONT ÉTÉ RETIRÉS D'ICI, ET C'EST VOLONTAIRE ──────────────────────────
+          « Gel du profil initial », « fenêtre des flux », « fenêtre des dépenses moyennes » et
+          « seuil de chute de revenus » n'étaient plus lus par aucun moteur : le profil n'est plus
+          gelé (il suit les données en continu), le taux d'épargne ne classe plus rien, et la règle
+          de chute exceptionnelle a disparu avec l'évaluation mensuelle décisionnelle.
+          Les afficher revenait à promettre un calibrage sans effet — exactement ce que la migration
+          194 avait déjà corrigé une fois. Les vrais leviers sont dans l'onglet « Matrice ». */}
+      <Text style={styles.matrixInfo}>
+        Les seuils qui gouvernent réellement le classement (matelas, patrimoine, viabilité,
+        découvert chronique) se règlent dans l’onglet <Text style={{ fontWeight: '800' }}>Matrice</Text>,
+        transition par transition. Le profil n’est plus gelé et le taux d’épargne ne le décide plus :
+        les réglages correspondants ont été retirés plutôt que laissés sans effet.
+      </Text>
 
       {/* ── Seuils d'épargne + libellés (vue d'ensemble Comptes) ── */}
       <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Seuils d'épargne (en €, base — convertis dans la devise de réf.)</Text>
@@ -726,7 +867,14 @@ function makeStyles(c: any) {
   matrixHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   matrixLabel: { fontSize: 13, fontWeight: '600', color: c.text, flex: 1 },
   matrixSummary: { gap: 4 },
-  matrixSummaryText: { fontSize: 12, color: c.textSecondary },
+  matrixSummaryText: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+
+  // Distribution : une barre par palier, à l'échelle du palier le plus peuplé.
+  distRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 },
+  distLabel: { width: 58, fontSize: 12, color: c.text },
+  distTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: c.cardBorder, overflow: 'hidden' },
+  distFill: { height: 8, borderRadius: 4 },
+  distValue: { width: 78, fontSize: 11.5, color: c.textSecondary, textAlign: 'right' },
   matrixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   matrixRowLabel: { flex: 1, fontSize: 13, color: c.text },
   matrixInput: {

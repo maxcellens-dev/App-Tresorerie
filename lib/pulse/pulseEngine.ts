@@ -162,6 +162,12 @@ export interface PulseInputs {
   avgMonthlyIncome: number;
   /** Dépenses ESSENTIELLES mensuelles (charges récurrentes + enveloppe variable) : la base du matelas. */
   monthlyEssentialExpenses?: number;
+  /**
+   * Les charges récurrentes sont-elles connues ? Sans elles, les « dépenses essentielles » se
+   * réduisent à l'enveloppe variable et le matelas gonfle (cf. lib/finance/securityCushion). Le
+   * bilan dirait alors « ta réserve couvre 7 mois » à quelqu'un dont l'app ignore le loyer.
+   */
+  recurringExpensesKnown?: boolean;
   /** Tranche de revenu du questionnaire (repli du matelas tant qu'aucune recette n'est constatée). */
   questionnaireQ3?: string | null;
 
@@ -289,6 +295,7 @@ function buildCushion(i: PulseInputs): PulseSignal {
     availableSavings: i.savingsBalance,
     // Base = les DÉPENSES à couvrir, pas le revenu (cf. lib/securityCushion).
     monthlyEssentialExpenses: i.monthlyEssentialExpenses,
+    recurringExpensesKnown: i.recurringExpensesKnown,
     avgMonthlyIncome: i.avgMonthlyIncome,
     questionnaireQ3: i.questionnaireQ3,
   });

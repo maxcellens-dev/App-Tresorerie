@@ -112,6 +112,12 @@ export interface SnapshotInput {
   evolution?: { previousDate: string; previous: BilanMetrics; current: BilanMetrics } | null;
   /** Profil financier de l'app (P1 fragile → P5 confortable) : les conseils doivent le RESPECTER. */
   financialProfile?: { id: string; name: string } | null;
+  /**
+   * Fiabilité du profil (cf. lib/finance/profileReliability) — sur quoi le classement repose.
+   * L'IA doit savoir quand elle raisonne sur des données incomplètes : sinon elle affirme avec la
+   * même assurance un conseil tiré d'un matelas mesuré et un conseil tiré d'un matelas deviné.
+   */
+  profileReliability?: { level: string; title: string; gaps: string[] } | null;
 }
 
 /** Métriques top-line d'un bilan, persistées pour comparer d'un bilan à l'autre (~8 nombres). */
@@ -162,7 +168,27 @@ export function buildSnapshot(input: SnapshotInput): string {
     const fp = input.financialProfile;
     L.push('\nPROFIL FINANCIER (déterminé par l\'app — RESPECTE-LE dans tes conseils)');
     L.push(`- Profil : ${fp.id} — ${fp.name} (échelle P0 découverte → P1 déficitaire → P9 patrimoine d'exception).`);
-    L.push('- Adapte tes recommandations à ce profil : P0 → ne présume RIEN, invite simplement à compléter les données ; P1 → sortir du découvert, aucun conseil d\'épargne ambitieux ni d\'investissement ; P2-P3 → priorité absolue au matelas de sécurité, PAS d\'investissement ; P4-P5 → équilibre épargne/projets, investissement prudent une fois le matelas solide ; P6-P7 → l\'investissement régulier est le sujet principal ; P8-P9 → optimisation, fiscalité et allocation ; rappeler qu\'un liquide important qui dort a un coût.');
+    L.push('- Le profil répond à quatre questions, dans cet ordre : la situation est-elle VIABLE (revenu vs dépenses essentielles) → sinon P1 ; combien de temps l\'épargne tient-elle (épargne ÷ dépenses essentielles) → P2 moins d\'1 mois, P3 de 1 à 3, P4 de 3 à 6, P5 au-delà de 6 ; investit-il réellement → P6 ; taille du patrimoine bancaire → P7 ≥ 30k, P8 ≥ 100k, P9 ≥ 300k (toujours avec 6 mois de réserve et des placements). Le taux d\'épargne n\'entre PAS dans le classement.');
+    L.push('- Adapte tes recommandations à ce profil : P0 → ne présume RIEN, invite simplement à compléter les données ; P1 → rétablir l\'équation revenus/charges, aucun conseil d\'épargne ambitieux ni d\'investissement ; P2-P3 → priorité absolue au matelas de sécurité, PAS d\'investissement ; P4-P5 → équilibre épargne/projets, investissement prudent une fois le matelas solide ; P6-P7 → l\'investissement régulier est le sujet principal ; P8-P9 → optimisation, fiscalité et allocation ; rappeler qu\'un liquide important qui dort a un coût.');
+  }
+
+  /* FIABILITÉ : ce que l'app SAIT réellement. Sans cette section, l'IA affirmait avec la même
+     assurance un conseil tiré d'un matelas mesuré et un conseil tiré d'un matelas deviné faute de
+     charges saisies — c'est-à-dire le cas de tout utilisateur récent. */
+  if (input.profileReliability) {
+    const r = input.profileReliability;
+    L.push(`- Fiabilité du profil : ${r.title.toUpperCase()}.`);
+    if (r.gaps.length > 0) {
+      L.push(`- Données manquantes ou estimées : ${r.gaps.join(' ; ')}.`);
+    }
+    /* On informe, on ne pilote pas : la fiabilité n'a AUCUN effet mécanique dans l'app (cf.
+       lib/finance/profileReliability). Ce qu'on demande à l'IA est du même ordre — ne pas affirmer
+       ce qu'elle ne sait pas, et inviter à compléter. Pas d'interdiction de conseiller. */
+    if (r.level === 'incomplete') {
+      L.push('- ⚠ Le profil repose sur des données INCOMPLÈTES : formule tes constats au conditionnel et invite d\'abord à compléter ce qui manque — un conseil tiré d\'une réserve mal mesurée peut être l\'inverse du bon.');
+    } else if (r.level === 'estimated') {
+      L.push('- Une partie du calcul est estimée : reste factuel, évite les affirmations catégoriques sur la réserve.');
+    }
   }
 
   L.push('\nCONTEXTE TEMPOREL (important pour interpréter les chiffres)');

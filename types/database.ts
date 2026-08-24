@@ -41,6 +41,11 @@ export interface UserFinancialProfile {
   consecutive_upgrade_months: number;
   consecutive_downgrade_months: number;
   last_auto_evaluation: string | null;
+  /**
+   * Version des RÈGLES de classement ayant produit ce profil (migration 206). En retard sur
+   * `PROFILE_LADDER_VERSION` ⇒ la prochaine réévaluation reclasse en silence, sans notification.
+   */
+  ladder_version?: number;
   created_at: string;
   updated_at: string;
 }
@@ -75,10 +80,22 @@ export interface ProfileChangeLog {
 export interface ProfileMatrixConfig {
   transition: string;
   upgrade_months_threshold: number;
-  upgrade_flux_threshold: number;
   downgrade_months_threshold: number;
-  downgrade_flux_threshold: number;
-  anti_yoyo_months: number;
+  /** @deprecated Échelle v2 (migration 206) : le taux d'épargne ne classe plus. Colonne conservée, jamais lue. */
+  upgrade_flux_threshold?: number | null;
+  /** @deprecated Idem — l'hystérésis a remplacé les seuils de flux. */
+  downgrade_flux_threshold?: number | null;
+  /** @deprecated Le clignotement est traité par l'hystérésis, pas par un compteur de mois consécutifs. */
+  anti_yoyo_months?: number | null;
+  /** Patrimoine bancaire (€) d'entrée / de sortie — lignes P6_P7, P7_P8, P8_P9. */
+  upgrade_wealth_threshold?: number | null;
+  downgrade_wealth_threshold?: number | null;
+  /** Mois consécutifs dans le rouge = découvert chronique — ligne P1_P2. */
+  chronic_overdraft_months?: number | null;
+  /** Bande de VIABILITÉ et dispense de réserve (migration 206) — ligne P1_P2. */
+  viability_exit_ratio?: number | null;
+  viability_enter_ratio?: number | null;
+  viability_grace_months?: number | null;
   exceptional_drop_threshold_pct: number;
   exceptional_drop_months: number;
   irregular_drop_threshold_pct: number;

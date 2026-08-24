@@ -11,6 +11,9 @@ import { computeSecurityCushion } from '../lib/finance/securityCushion';
  * page affichait « 2 000 € » et « 7,5 mois de sécurité ». Ces tests verrouillent la mesure unique.
  */
 const CHECKING = new Set(['c1']);
+/* Les deux PORTES D'ENTRÉE du classement (cf. ProfileDataInputs) : ces cas-ci portent sur le revenu,
+   pas sur la complétude des données — on ouvre donc les deux pour ne mesurer qu'une chose à la fois. */
+const known = { hasSavingsAccount: true, hasRecurringExpenses: true };
 // Jour LOCAL : `toISOString()` bascule en UTC et décale d'un jour à l'est de Greenwich.
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -191,7 +194,7 @@ describe('démarrage — le TOTAL du mois, pas seulement ce qui est déjà tomb�
     const cushion = computeSecurityCushion({ availableSavings: 15000, avgMonthlyIncome: income });
     expect(cushion.months).toBe(7.5);   // au lieu de `null` (« — » à l'écran)
     expect(computeProfileFromData({
-      availableSavings: 15000, avgMonthlyIncome: income, monthlySetAside: 0, totalInvested: 0,
+      availableSavings: 15000, avgMonthlyIncome: income, totalInvested: 0, ...known,
     })).toBe('P5');                     // au lieu de P1 : 7,5 mois de réserve, tout en liquide
   });
 
@@ -222,8 +225,8 @@ describe('le profil suit enfin les données du compte neuf', () => {
     const profile = computeProfileFromData({
       availableSavings: 15000,
       avgMonthlyIncome: income,
-      monthlySetAside: 0,
       totalInvested: 0,
+      ...known,
     });
     expect(income).toBe(2000);
     expect(profile).toBe('P5');
@@ -233,7 +236,7 @@ describe('le profil suit enfin les données du compte neuf', () => {
     // Reproduction de l'ancien calcul : un seul mois de recette, divisé par 6 mois révolus → 0.
     const ancien = 0;
     expect(computeProfileFromData({
-      availableSavings: 15000, avgMonthlyIncome: ancien, monthlySetAside: 0, totalInvested: 0,
+      availableSavings: 15000, avgMonthlyIncome: ancien, totalInvested: 0, ...known,
     })).toBe('P0');
   });
 });
@@ -266,8 +269,8 @@ describe('une rentrée exceptionnelle ne fait pas chuter le revenu de référenc
     const profileFor = (thisMonthAmount: number) => computeProfileFromData({
       availableSavings: 15000,
       avgMonthlyIncome: computeReferenceMonthlyIncome(sixMonths(thisMonthAmount), CHECKING, today, etabli),
-      monthlySetAside: 500,
       totalInvested: 3000,
+      ...known,
     });
     expect(profileFor(2000)).toBe('P6');    // 7,5 mois de sécurité + il investit
     expect(profileFor(22000)).toBe('P6');   // encaisser 20 000 € de plus ne peut pas faire redescendre

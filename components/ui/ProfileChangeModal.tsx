@@ -207,6 +207,8 @@ export default function ProfileChangeModal({ userId }: Props) {
     monthsOfReserve: computeSecurityCushion({
       availableSavings: pilotage.current_savings ?? 0,
       monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+      // Même garde que le moteur : sans charge saisie, le dénominateur est amputé (cf. securityCushion).
+      recurringExpensesKnown: !!pilotage.has_recurring_expenses,
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
     }).months,
     monthlySurplus: pilotage.projected_surplus ?? 0,

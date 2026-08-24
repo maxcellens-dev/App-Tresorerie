@@ -18,6 +18,9 @@ const comfortable: any = {
   safety_margin_amount: 0,
   current_savings: 12000,
   monthly_essential_expenses: 2000,
+  /* Des charges RÉCURRENTES connues : sans elles, le matelas retombe sur le revenu (dénominateur
+     prudent, cf. lib/securityCushion) et ces cas mesureraient autre chose que ce qu'ils annoncent. */
+  has_recurring_expenses: true,
   avg_monthly_income: 3000,
   current_checking_balance: 3000,
   total_checking: 3000,

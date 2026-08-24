@@ -2,15 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  computeInitialProfile,
-  computeProfileFromData,
   resolveLiveProfile,
+  resolveProfileId,
   thresholdsFromMatrix,
-  detectIrregularIncome,
-  computeMonthlyMetrics,
+  FINANCIAL_PROFILE_IDS,
   PROFILE_ALLOCATIONS,
-  safetyMarginFromQ8,
-  weeklyVariableFromQ9,
+  PROFILE_LADDER_VERSION,
 } from '../../lib/finance/financialProfileEngine';
 import { computeReferenceMonthlyIncome } from '../../lib/finance/incomeAverage';
 import { isoDay } from '../../lib/dateUtils';
@@ -25,6 +22,16 @@ import type {
   ChangeReason,
 } from '../../types/database';
 import type { QuestionnaireAnswers } from '../../lib/finance/financialProfileEngine';
+
+/**
+ * Rang d'un palier sur l'échelle — sert à journaliser le SENS RÉEL d'un changement.
+ *
+ * ⚠️ Ne pas se fier à `live.direction` pour un RECLASSEMENT : celui-ci repart d'un profil nul (la
+ * bande d'hystérésis de l'ancienne échelle n'a plus de sens), et `direction` vaut alors `null`.
+ * Comparer les deux rangs donne toujours la bonne réponse, quelle que soit l'origine du changement.
+ */
+const rankOfProfile = (id: string | null | undefined): number =>
+  FINANCIAL_PROFILE_IDS.indexOf(resolveProfileId(id));
 
 const PROFILE_KEY = 'financial_profile';
 const QUESTIONNAIRE_KEY = 'questionnaire_answers';
@@ -180,6 +187,43 @@ export function useProfileNotificationMessages() {
   });
 }
 
+// ── Distribution des profils (admin) ─────────────────────────
+
+/**
+ * COMBIEN D'UTILISATEURS PAR PALIER — la seule façon de vérifier que les groupes sont homogènes.
+ *
+ * Une échelle qui range 70 % de la base dans le même palier ne segmente rien : elle donne le même
+ * conseil à tout le monde en ayant l'air de personnaliser. Ce décompte est donc l'instrument de
+ * calibrage — on ne recalibre pas des seuils qui pilotent des milliers de recommandations à l'aveugle.
+ *
+ * ⚠️ On ne lit QUE `profile_id` et `ladder_version` : aucune donnée personnelle ne transite, et la
+ * requête reste légère même à grande échelle. Le décompte se fait côté client, faute de vue agrégée.
+ */
+export function useProfileDistribution(enabled = true) {
+  return useQuery({
+    queryKey: ['profile_distribution'],
+    queryFn: async (): Promise<{ counts: Record<string, number>; total: number; pending: number }> => {
+      if (!supabase) return { counts: {}, total: 0, pending: 0 };
+      const { data, error } = await supabase
+        .from('user_financial_profile')
+        .select('profile_id, ladder_version')
+        .limit(5000);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      let pending = 0;
+      for (const row of (data ?? []) as any[]) {
+        const id = resolveProfileId(row.profile_id);
+        counts[id] = (counts[id] ?? 0) + 1;
+        // Encore sur les anciennes règles : sera reclassé en silence à la prochaine ouverture.
+        if (Number(row.ladder_version ?? 0) < PROFILE_LADDER_VERSION) pending++;
+      }
+      return { counts, total: (data ?? []).length, pending };
+    },
+    enabled,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 // ── Matrice de configuration (admin) ─────────────────────────
 
 export function useProfileMatrixConfig() {
@@ -199,141 +243,15 @@ export function useProfileMatrixConfig() {
 
 // ── Sauvegarde du questionnaire + attribution du profil ───────
 
-export function useSaveQuestionnaire(userId: string | undefined) {
-  const client = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      answers,
-      isUpdate = false,
-      live = false,
-    }: {
-      answers: QuestionnaireAnswers;
-      isUpdate?: boolean;
-      /**
-       * Profil « vivant » : issu du nouveau démarrage, où q5 est MESURÉE (épargne ÷ dépenses) et où
-       * q4/q6 arrivent plus tard. Il se recalcule à chaque changement de données réelles
-       * (useLiveProfileSync) au lieu d'attendre le bilan mensuel, et n'est pas gelé.
-       */
-      live?: boolean;
-    }) => {
-      if (!supabase || !userId) throw new Error('Non connecté');
-
-      const profileId = computeInitialProfile(answers);
-      const isIrregular = detectIrregularIncome(answers.q1, answers.q2);
-      const now = new Date().toISOString();
-      const alloc = PROFILE_ALLOCATIONS[profileId];
-
-      // 1. Upsert des réponses
-      const { error: qErr } = await supabase
-        .from('user_questionnaire_answers')
-        .upsert({
-          user_id: userId,
-          q1: answers.q1, q2: answers.q2, q3: answers.q3, q4: answers.q4,
-          q5: answers.q5, q6: answers.q6, q7: answers.q7, q8: answers.q8 ?? '', q9: answers.q9 ?? '',
-          answered_at: now, updated_at: now,
-        }, { onConflict: 'user_id' });
-      if (qErr) throw qErr;
-
-      // 2. Récupérer l'éventuel profil existant
-      const { data: existing } = await supabase
-        .from('user_financial_profile')
-        .select('profile_id, auto_unlock_at')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      // Gel initial = config admin `freeze_months` (défaut 2 mois — migration 144) : pendant ce
-      // délai, aucun changement AUTOMATIQUE de profil, sauf cas exceptionnels (chute de revenus).
-      // Le gel ne se pose qu'au TOUT PREMIER questionnaire : une mise à jour ultérieure (via
-      // Paramètres → Profil financier) conserve la date d'origine — elle ne relance JAMAIS le gel.
-      let autoUnlockAt: string | null;
-      if (live) {
-        // Profil vivant : AUCUN gel. Il doit pouvoir bouger dès que l'utilisateur complète son
-        // installation (« j'ajoute mon épargne → mon profil suit dans la seconde »). Geler deux
-        // mois un profil calculé sur des données encore partielles n'aurait aucun sens.
-        autoUnlockAt = null;
-      } else if (existing) {
-        autoUnlockAt = (existing as any).auto_unlock_at ?? null;
-      } else {
-        const { data: freezeCfg } = await supabase
-          .from('profile_matrix_config').select('freeze_months').limit(1).maybeSingle();
-        const freezeMonths = Number((freezeCfg as any)?.freeze_months ?? 2);
-        autoUnlockAt = new Date(Date.now() + freezeMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
-      }
-
-      // 3. Upsert du profil
-      const { error: pErr } = await supabase
-        .from('user_financial_profile')
-        .upsert({
-          user_id: userId,
-          profile_id: profileId,
-          // ⚠️ `profile_source` porte une contrainte CHECK ('questionnaire' | 'automatic') en base :
-          // la phase « vivante » est donc marquée dans `profiles.onboarding_state.pp_live` (jsonb),
-          // ce qui évite une migration pour un simple drapeau de parcours.
-          profile_source: 'questionnaire',
-          assigned_at: now,
-          auto_unlock_at: autoUnlockAt,
-          is_irregular_income: isIrregular,
-          consecutive_upgrade_months: 0,
-          consecutive_downgrade_months: 0,
-          updated_at: now,
-        }, { onConflict: 'user_id' });
-      if (pErr) throw pErr;
-
-      // 4. Journal — notification uniquement si update manuel et profil différent
-      const previousProfileId = existing?.profile_id ?? null;
-      const profileChanged = existing && existing.profile_id !== profileId;
-      const notifShown = !isUpdate || !profileChanged; // pas de notif pour modif manuelle
-
-      await supabase.from('profile_change_log').insert({
-        user_id: userId,
-        previous_profile: previousProfileId,
-        new_profile: profileId,
-        change_reason: 'questionnaire_update',
-        triggered_at: now,
-        notification_shown: notifShown,
-      });
-
-      // 5a. Mise à jour des allocations dans profiles (non-fatale)
-      const { error: allocErr } = await supabase.from('profiles').update({
-        allocation_save_percent: alloc.save,
-        allocation_invest_percent: alloc.invest,
-        allocation_enjoy_percent: alloc.enjoy,
-        allocation_keep_percent: alloc.keep,
-        updated_at: now,
-      }).eq('id', userId);
-      if (allocErr) {
-        console.warn('[saveQuestionnaire] update allocations profiles échoué (non bloquant):', allocErr);
-      }
-
-      // 5b. Mise à jour de la marge de sécurité (non-fatale, migration 031 requise)
-      const marginAmount = safetyMarginFromQ8(answers.q8 ?? '');
-      const { error: marginErr } = await supabase.from('profiles').update({
-        safety_margin_amount: marginAmount,
-      }).eq('id', userId);
-      if (marginErr) {
-        console.warn('[saveQuestionnaire] update safety_margin_amount échoué (migration 031 requise ?):', marginErr);
-      }
-
-      // 5c. Mise à jour du budget variable hebdo (non-fatale, migration 035 requise)
-      const weeklyVar = weeklyVariableFromQ9(answers.q9 ?? '');
-      const { error: weeklyErr } = await supabase.from('profiles').update({
-        weekly_variable_budget: weeklyVar > 0 ? weeklyVar : null,
-      }).eq('id', userId);
-      if (weeklyErr) {
-        console.warn('[saveQuestionnaire] update weekly_variable_budget échoué (migration 035 requise ?):', weeklyErr);
-      }
-
-      return profileId;
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: [PROFILE_KEY, userId] });
-      client.invalidateQueries({ queryKey: [QUESTIONNAIRE_KEY, userId] });
-      client.invalidateQueries({ queryKey: ['profile', userId] });
-      client.invalidateQueries({ queryKey: ['pilotage_data', userId] });
-    },
-  });
-}
+/* ── LE QUESTIONNAIRE D'ACCUEIL A ÉTÉ RETIRÉ D'ICI ───────────────────────────────────────────────
+   `useSaveQuestionnaire` enregistrait neuf réponses déclarées, en tirait un profil
+   (`computeInitialProfile`) et posait un GEL de deux mois pendant lequel rien ne pouvait bouger.
+   Plus rien ne l'appelait depuis la refonte du démarrage — le profil se déduit des données réelles
+   et n'est plus gelé. Ce n'était donc pas seulement du code mort : c'était un SECOND moteur de
+   profil, avec ses propres règles, prêt à contredire la cascade au premier rebranchement.
+   Ce que ce hook écrivait encore et qui compte vraiment — la marge de sécurité et le budget
+   variable — passe par `useUpdateProfile` (hooks/data/useProfile), qui synchronise déjà les copies
+   q8/q9 pour tous les écrans. */
 
 // ── Marquer la notification comme vue ────────────────────────
 
@@ -365,21 +283,24 @@ export function useMarkNotificationShown(userId: string | undefined) {
 // ── Métriques réelles (partagées : profil vivant + évaluation mensuelle) ─────
 
 interface RealMetricsResult {
-  metrics: ReturnType<typeof computeMonthlyMetrics>;
   savingsBalance: number;
   checkingBalance: number;
   investedBalance: number;
+  /** Au moins un compte d'épargne existe — porte d'entrée du classement (cf. ProfileDataInputs). */
+  hasSavingsAccount: boolean;
   /** Revenu de référence — LE MÊME que celui affiché partout (cf. lib/incomeAverage). */
   avgMonthlyIncome: number;
   /** Mois RÉVOLUS consécutifs terminés dans le rouge (0 = aucun). ≥ seuil ⇒ découvert chronique. */
   consecutiveOverdraftMonths: number;
-  q3: string | null;
 }
 
 /**
- * Charge les métriques RÉELLES du compte (soldes + 6 mois de transactions) et les passe au même
- * `computeMonthlyMetrics` que l'évaluation mensuelle. Une seule façon de mesurer, partagée par les
- * deux mécanismes — sinon le profil « vivant » et le bilan mensuel raconteraient deux histoires.
+ * Charge les données RÉELLES du compte (soldes + 6 mois de transactions) dont le classement a
+ * besoin : épargne, placements, revenu de référence, découvert chronique.
+ *
+ * Elle calculait aussi le TAUX D'ÉPARGNE (une passe complète de transformation des transactions à
+ * chaque recalcul). Il ne classe plus rien — il mesurait un mérite, et il valait 0 % pour qui
+ * épargne autrement que par virement interne. La passe est partie avec lui.
  */
 async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null> {
   if (!supabase) return null;
@@ -388,8 +309,10 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
   // un 1er construit en local — la fenêtre de 6 mois démarrait un jour trop tôt.
   const sixMonthsAgo = isoDay(new Date(today.getFullYear(), today.getMonth() - 6, 1));
 
-  const [{ data: answers }, { data: txns, error: txErr }, { data: accounts, error: accErr }, { data: prof }] = await Promise.all([
-    supabase.from('user_questionnaire_answers').select('q3').eq('user_id', userId).maybeSingle(),
+  /* La tranche de revenu du questionnaire (q3) était lue ici : elle servait de dernier repli au
+     matelas. Le classement ne s'appuie plus jamais dessus — sans revenu CONSTATÉ on reste en P0,
+     donc un repli déclaratif ne peut plus rien décider. Une lecture de moins à chaque recalcul. */
+  const [{ data: txns, error: txErr }, { data: accounts, error: accErr }, { data: prof }] = await Promise.all([
     supabase.from('transactions')
       // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
       // partagé (une recette « régul » ou posée sur une catégorie de dépense n'en est pas une).
@@ -412,24 +335,16 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
      seul. `null` remonte à l'appelant, qui n'évalue rien du tout. */
   if (txErr || accErr) return null;
 
-  const accountTypeMap: Record<string, string> = {};
   const checkingIds = new Set<string>();
   let savingsBalance = 0;
   let checkingBalance = 0;
   let investedBalance = 0;
+  let hasSavingsAccount = false;
   (accounts ?? []).forEach((a: any) => {
-    accountTypeMap[a.id] = a.type;
-    if (a.type === 'savings') savingsBalance += Number(a.balance);
+    if (a.type === 'savings') { savingsBalance += Number(a.balance); hasSavingsAccount = true; }
     if (a.type === 'checking') { checkingBalance += Number(a.balance); checkingIds.add(a.id); }
     if (a.type === 'investment') investedBalance += Number(a.balance);
   });
-
-  const rawTxns = (txns ?? []).map((t: any) => ({
-    amount: Number(t.amount),
-    date: t.date,
-    account_type: accountTypeMap[t.account_id] ?? 'other',
-    linked_account_type: t.linked_account_id ? (accountTypeMap[t.linked_account_id] ?? null) : null,
-  }));
 
   /* DÉCOUVERT CHRONIQUE — mesuré, enfin. Le moteur l'attendait (`consecutiveOverdraftMonths`) mais
      personne ne le calculait : « chroniquement déficitaire » se décidait donc sur le solde du jour.
@@ -443,12 +358,11 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     (txns ?? []) as any[], checkingAccounts, today,
   );
 
-  const q3 = ((answers as any)?.q3 ?? null) as string | null;
   return {
-    metrics: computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, q3),
     savingsBalance,
     checkingBalance,
     investedBalance,
+    hasSavingsAccount,
     consecutiveOverdraftMonths,
     // MÊME mesure que le Pilotage et la page « Profil financier ». Il y en avait deux, elles ne
     // s'accordaient pas, et c'est le profil qui en payait le prix (cf. lib/incomeAverage).
@@ -456,7 +370,6 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
       (txns ?? []) as any[], checkingIds, isoDay(today),
       (prof as any)?.created_at ?? null,
     ),
-    q3,
   };
 }
 
@@ -492,12 +405,21 @@ export function useLiveProfileSync(userId: string | undefined) {
 
       const { data: fp } = await supabase
         .from('user_financial_profile')
-        .select('profile_id')
+        .select('profile_id, ladder_version')
         .eq('user_id', userId)
         .maybeSingle();
       // Ligne ABSENTE = compte qui n'a jamais eu de profil (le questionnaire, qui la créait, n'existe
       // plus). On la CRÉE au lieu d'abandonner : sans ça, aucun profil n'était jamais attribué et
       // l'écran restait vide indéfiniment.
+
+      /* RECLASSEMENT APRÈS CHANGEMENT DE RÈGLES (cf. PROFILE_LADDER_VERSION).
+         Modifier la cascade reclasse toute la base à la première ouverture. Sans ce garde-fou,
+         chaque utilisateur recevrait une fenêtre « ton profil a changé » pour un changement qu'il
+         n'a pas provoqué — des milliers de notifications le même jour, et la plus mauvaise façon
+         d'annoncer une amélioration. On écrit le nouveau palier, on le journalise (les statistiques
+         d'administration restent justes), mais la notification est marquée comme déjà vue. */
+      const storedLadder = Number((fp as any)?.ladder_version ?? 0);
+      const isReclassification = !!fp && storedLadder < PROFILE_LADDER_VERSION;
 
       const real = await loadRealMetrics(userId);
       if (!real) return null;
@@ -509,6 +431,14 @@ export function useLiveProfileSync(userId: string | undefined) {
          Lue dans le cache du Pilotage — même source, même chiffre, aucun aller-retour réseau. */
       const pilotage = client.getQueryData<any>(['pilotage_data', userId]);
       const essentials = Number(pilotage?.monthly_essential_expenses) || undefined;
+      /* Les CHARGES RÉCURRENTES sont-elles connues ? Sans elles, les « dépenses essentielles » se
+         réduisent à l'enveloppe variable : quelqu'un avec 3 000 € de côté, 400 €/mois de courses et
+         un loyer que l'app ignore obtient 7,5 mois de réserve — donc « Sécurité acquise ». Le
+         matelas retombe alors sur le revenu, dénominateur prudent (cf. lib/securityCushion).
+         ⚠️ On lit `has_recurring_expenses` (au moins UNE dépense récurrente saisie), pas le montant :
+         celui-ci applique un périmètre strict qui écarte les virements, donc quelqu'un qui couvre ses
+         charges par un virement vers un compte joint passait pour n'en avoir aucune. */
+      const hasRecurringExpenses = !!pilotage?.has_recurring_expenses;
 
       /* SEUILS DE L'ÉCHELLE : lus dans `profile_matrix_config` (écran d'administration), jamais
          codés en dur. Une lecture en échec retombe champ par champ sur les valeurs de repli — le
@@ -535,10 +465,13 @@ export function useLiveProfileSync(userId: string | undefined) {
         // pour un compte neuf, dont la seule paie est dans le mois courant → « aucun revenu
         // constaté » → P1 à vie, alors que l'app affiche par ailleurs 2 000 € et 7,5 mois.
         avgMonthlyIncome: real.avgMonthlyIncome,
-        // ⚠️ PAS `metrics.flux_total` : c'est un POURCENTAGE, et il était lu comme un montant en
-        // euros — le taux d'épargne calculé derrière valait alors 1,5 % au lieu de 30 %.
-        monthlySetAside: real.metrics.set_aside_monthly,
         totalInvested: real.investedBalance,
+        /* Les deux PORTES D'ENTRÉE du classement : sans compte d'épargne ni charge récurrente, le
+           matelas vaut mécaniquement zéro et on annoncerait « moins d'un mois devant toi » à
+           quelqu'un dont on ne sait rien. C'est le cas de tout nouvel inscrit — un groupe entier,
+           classé par un artefact. Le moteur répond P0 : on ne sait pas encore. */
+        hasSavingsAccount: real.hasSavingsAccount,
+        hasRecurringExpenses,
       };
 
       /* HYSTÉRÉSIS. Ce calcul tourne à chaque fois que les données bougent : sans marge, quelqu'un
@@ -547,10 +480,20 @@ export function useLiveProfileSync(userId: string | undefined) {
          exige que le seuil soit franchi FRANCHEMENT dans le sens du trajet. C'est ce qui permet
          d'évaluer en continu sans ralentir l'évaluation. */
       const current = (fp as any)?.profile_id as FinancialProfileId | undefined;
-      const live = resolveLiveProfile(current ?? null, inputs, thresholds);
+      /* Un RECLASSEMENT repart de zéro : on lit le palier que la nouvelle échelle donne, sans se
+         laisser retenir par l'hystérésis d'un palier attribué par les règles PRÉCÉDENTES. La bande
+         protège d'un clignotement entre deux mesures, pas d'un changement de définition. */
+      const live = resolveLiveProfile(isReclassification ? null : (current ?? null), inputs, thresholds);
       const next = live.profileId;
 
-      if (!live.changed && fp) return next;
+      if (!live.changed && fp && !isReclassification) return next;
+      // Reclassement qui ne change rien : on tamponne la version et on s'arrête là.
+      if (isReclassification && next === current) {
+        await supabase.from('user_financial_profile')
+          .update({ ladder_version: PROFILE_LADDER_VERSION })
+          .eq('user_id', userId);
+        return next;
+      }
 
       const now = new Date().toISOString();
       const alloc = PROFILE_ALLOCATIONS[next as FinancialProfileId];
@@ -560,6 +503,7 @@ export function useLiveProfileSync(userId: string | undefined) {
         // Le profil n'est plus « gelé » : il suit les données en continu.
         auto_unlock_at: null,
         assigned_at: now,
+        ladder_version: PROFILE_LADDER_VERSION,
         updated_at: now,
       }, { onConflict: 'user_id' });
 
@@ -585,9 +529,13 @@ export function useLiveProfileSync(userId: string | undefined) {
              s'en apercevait pas (elle recalcule le sens depuis les deux paliers), mais tout ce qui
              lit le journal — statistiques d'administration, historique — comptait des hausses qui
              n'en étaient pas. */
-          change_reason: live.direction === 'down' ? 'automatic_downgrade' : 'automatic_upgrade',
+          change_reason: rankOfProfile(next) < rankOfProfile((fp as any).profile_id)
+            ? 'automatic_downgrade' : 'automatic_upgrade',
           triggered_at: now,
-          notification_shown: false,
+          /* Un RECLASSEMENT ne s'annonce pas : l'utilisateur n'a rien fait, et « ton profil a
+             changé » lui ferait chercher ce qu'il a bien pu provoquer. La ligne est écrite (le
+             journal reste complet) mais déjà marquée comme vue. */
+          notification_shown: isReclassification,
         });
       }
 

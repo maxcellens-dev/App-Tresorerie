@@ -325,6 +325,8 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
     // Base du matelas = ce qu'il faut couvrir chaque mois (cf. lib/securityCushion).
     monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
+    // Même garde que le moteur de profil : sans charge saisie, on mesure le matelas sur le revenu.
+    recurringExpensesKnown: !!pilotage.has_recurring_expenses,
     questionnaireQ3: (answers as any)?.q3 ?? null,
     totalWealth: wealth,
     wealth3mAgo,

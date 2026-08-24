@@ -35,6 +35,8 @@ import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '
 import type { QuestionnaireAnswers } from '../../../lib/finance/financialProfileEngine';
 import { resolveMonthlyAllocation } from '../../../lib/finance/financialPriorities';
 import { resolveRecoMode } from '../../../lib/finance/recoMode';
+import { useProfileReliability } from '../../../hooks/pilotage/useProfileReliability';
+import type { ProfileReliabilityTone } from '../../../lib/finance/profileReliability';
 import RecoModeModal from '../../../components/pilotage/RecoModeModal';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -64,6 +66,9 @@ function ProfilFinancierScreen() {
      pendant le tour, et un doublon avec la ligne mesurée juste au-dessus. Une seule source. */
   const { data: userProfile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
+  /* Fiabilité du profil : sur quoi le classement repose. Indépendante du palier — elle ne le
+     déplace jamais (cf. lib/finance/profileReliability). */
+  const reliability = useProfileReliability(user?.id);
 
   /* (Le recalcul du profil n'est pas déclenché ici : un observateur global surveille les comptes et
      les transactions et le relance dès qu'ils bougent — cf. components/LiveProfileSync.) */
@@ -118,6 +123,11 @@ function ProfilFinancierScreen() {
   const cushion = computeSecurityCushion({
     availableSavings: pilotage?.current_savings ?? 0,
     monthlyEssentialExpenses: pilotage?.monthly_essential_expenses ?? 0,
+    /* MÊME garde que le moteur de profil : sans charge récurrente saisie, les « dépenses
+       essentielles » se réduisent à l'enveloppe variable et le matelas gonfle. On retombe alors sur
+       le revenu, dénominateur prudent — sinon cet écran annoncerait un matelas que le classement,
+       lui, aurait refusé d'utiliser. */
+    recurringExpensesKnown: !!pilotage?.has_recurring_expenses,
     avgMonthlyIncome: pilotage?.avg_monthly_income ?? 0,
     questionnaireQ3: a.q3 ?? null,
   });
@@ -188,11 +198,12 @@ function ProfilFinancierScreen() {
               <Text style={styles.emptyTitle}>Ton profil se calcule tout seul</Text>
               <Text style={styles.emptyText}>
                 Il décide de la répartition entre Épargner, Investir, Confort et Conserver, et il se
-                déduit de tes données : le solde de tes comptes, ton revenu et ce que tu mets de côté.
+                déduit de tes données : le solde de tes comptes, ton revenu et tes charges.
               </Text>
+              {/* On dit le geste qui manque, pas ce qu'on ne demande pas : « aucune question à
+                  remplir » répondait à une inquiétude que l'utilisateur n'a pas. */}
               <Text style={styles.emptyText}>
-                Aucune question à remplir : renseigne tes comptes et tes revenus récurrents, et ton
-                profil apparaît ici.
+                Renseigne tes comptes et tes rentrées d’argent récurrentes, et ton profil apparaît ici.
               </Text>
               <TouchableOpacity style={styles.cta} onPress={() => router.push('/(tabs)/comptes' as any)} activeOpacity={0.85}>
                 <Text style={styles.ctaText}>Voir mes comptes</Text>
@@ -204,6 +215,11 @@ function ProfilFinancierScreen() {
       </View>
     );
   }
+
+  /* Le module de fiabilité rend un TON sémantique, jamais une couleur : la palette appartient au
+     thème (clair/sombre), pas à une bibliothèque de calcul. */
+  const toneColor = (tone: ProfileReliabilityTone) =>
+    tone === 'good' ? (COLORS.green ?? COLORS.emerald) : tone === 'warn' ? COLORS.orange : COLORS.danger;
 
   const ALLOC_ROWS = [
     { label: 'Épargner', key: 'save' as const, color: COLORS.green ?? COLORS.emerald },
@@ -325,6 +341,44 @@ function ProfilFinancierScreen() {
               <Ionicons name="options-outline" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
+
+          {/* ── FIABILITÉ DU PROFIL ─────────────────────────────────────────────────────────────
+              Notion INDÉPENDANTE du palier : elle ne le déplace jamais, elle dit sur quoi il
+              repose. Un profil se déduit des données saisies — deux personnes dans la même
+              situation réelle peuvent donc tomber dans deux paliers si l'une a renseigné ses
+              charges et l'autre non. Ce n'est pas un défaut du classement, c'est la nature d'une
+              mesure ; ce qui en serait un, c'est de ne pas le dire.
+              Et jamais un badge nu : chaque manque porte le geste qui le lève. */}
+          {reliability && (
+            <View style={[styles.card, { borderColor: toneColor(reliability.tone) + '55' }]}>
+              <View style={styles.rowLabelLine}>
+                <View style={[styles.relDot, { backgroundColor: toneColor(reliability.tone) }]} />
+                <Text style={[styles.cardTitle, { flex: 1 }]}>{reliability.title}</Text>
+              </View>
+              <Text style={styles.cardLead}>{reliability.summary}</Text>
+              {reliability.gaps.map((gap) => (
+                <TouchableOpacity
+                  key={gap.id}
+                  style={styles.gapRow}
+                  activeOpacity={gap.route ? 0.7 : 1}
+                  disabled={!gap.route}
+                  accessibilityRole={gap.route ? 'button' : undefined}
+                  onPress={() => { if (gap.route) router.push(gap.route as any); }}
+                >
+                  <Ionicons
+                    name={gap.severity === 'blocking' ? 'alert-circle-outline' : 'information-circle-outline'}
+                    size={15}
+                    color={gap.severity === 'blocking' ? COLORS.orange : COLORS.textSecondary}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gapLabel}>{gap.label}</Text>
+                    <Text style={styles.gapAction}>{gap.action}</Text>
+                  </View>
+                  {!!gap.route && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {/* ── Ce qu'il change concrètement ── */}
           <View style={styles.card}>
@@ -503,6 +557,15 @@ function makeStyles(c: any) {
       width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
     },
+
+    // Fiabilité : une pastille de ton, puis les manques — chacun avec le geste qui le lève.
+    relDot: { width: 9, height: 9, borderRadius: 5 },
+    gapRow: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 9,
+      paddingVertical: 9, borderTopWidth: 1, borderTopColor: c.cardBorder,
+    },
+    gapLabel: { fontSize: 13, fontWeight: '600', color: c.text },
+    gapAction: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
 
     allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     allocLabel: { width: 78, fontSize: 13, color: c.text },

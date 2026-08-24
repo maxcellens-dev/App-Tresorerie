@@ -306,6 +306,9 @@ export function deriveRecoAllocations(
       monthsOfReserve: computeSecurityCushion({
         availableSavings: data.current_savings,
         monthlyEssentialExpenses: data.monthly_essential_expenses,
+        // Charges inconnues → base « dépenses » écartée (cf. lib/securityCushion) : la même règle
+        // partout, sinon deux écrans annoncent deux matelas.
+        recurringExpensesKnown: !!data.has_recurring_expenses,
         avgMonthlyIncome: data.avg_monthly_income,
       }).months,
       monthlySurplus: data.safe_to_spend ?? 0,
@@ -957,6 +960,9 @@ function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: Pilot
   const months = computeSecurityCushion({
     availableSavings: savings,
     monthlyEssentialExpenses: data.monthly_essential_expenses,
+    // Charges inconnues → base « dépenses » écartée (cf. lib/securityCushion) : la même règle
+    // partout, sinon deux écrans annoncent deux matelas.
+    recurringExpensesKnown: !!data.has_recurring_expenses,
     avgMonthlyIncome: data.avg_monthly_income,
   }).months;
 
@@ -975,6 +981,9 @@ function getSaveStateNote(tier: SavingsTier, data: PilotageData): string {
   const months = computeSecurityCushion({
     availableSavings: savings,
     monthlyEssentialExpenses: data.monthly_essential_expenses,
+    // Charges inconnues → base « dépenses » écartée (cf. lib/securityCushion) : la même règle
+    // partout, sinon deux écrans annoncent deux matelas.
+    recurringExpensesKnown: !!data.has_recurring_expenses,
     avgMonthlyIncome: data.avg_monthly_income,
   }).months;
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';

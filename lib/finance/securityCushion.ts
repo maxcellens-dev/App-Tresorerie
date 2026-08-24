@@ -51,6 +51,21 @@ export interface SecurityCushionInputs {
    * C'est la base de référence. 0/absent → on retombe sur le revenu.
    */
   monthlyEssentialExpenses?: number;
+  /**
+   * Les CHARGES RÉCURRENTES sont-elles connues ? (au moins une saisie)
+   *
+   * ⚠️ SANS ELLES, LE DÉNOMINATEUR EST UN LEURRE. Les « dépenses essentielles » valent
+   * `charges récurrentes + enveloppe variable`. Tant qu'aucune charge n'est saisie, il ne reste que
+   * l'enveloppe variable — et quelqu'un avec 3 000 € de côté, 400 €/mois de courses et un loyer de
+   * 900 € que l'app ignore obtient « 7,5 mois de sécurité ». L'app se trompe, et se trompe avec
+   * aplomb : c'est ce chiffre qui gouverne le profil financier.
+   *
+   * À `false`, on saute donc la base « dépenses » et on retombe sur le revenu — repli PRUDENT (il
+   * sous-estime le matelas plutôt que de rassurer à tort). Absent = `true` : les appelants qui
+   * connaissent la réponse doivent la donner, ceux qui ne la connaissent pas gardent l'ancien
+   * comportement.
+   */
+  recurringExpensesKnown?: boolean;
   /** Revenu mensuel moyen constaté (0 = non détecté). Repli quand les dépenses sont inconnues. */
   avgMonthlyIncome: number;
   /** Tranche de revenu du questionnaire (dernier repli, quand tout le reste est vide). */
@@ -72,9 +87,12 @@ export interface SecurityCushion {
 export function computeSecurityCushion(i: SecurityCushionInputs): SecurityCushion {
   const savings = Math.max(0, i.availableSavings);
 
-  // 1. LA vraie mesure : ce qu'il faut couvrir chaque mois pour continuer à vivre.
+  /* 1. LA vraie mesure : ce qu'il faut couvrir chaque mois pour continuer à vivre — et seulement
+        si les charges récurrentes sont connues (cf. `recurringExpensesKnown`). Un total de dépenses
+        amputé de son loyer n'est pas une mesure « imparfaite », c'est une mesure fausse dans le
+        sens dangereux : elle gonfle le matelas. */
   const essential = Math.max(0, i.monthlyEssentialExpenses ?? 0);
-  if (essential > 0) {
+  if (essential > 0 && i.recurringExpensesKnown !== false) {
     return { months: savings / essential, reference: essential, base: 'expenses' };
   }
 

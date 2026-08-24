@@ -221,6 +221,14 @@ export function computeFinancialPriority(i: SituationInputs): PriorityResult {
   };
 }
 
+/* ── LA FIABILITÉ DU PROFIL N'A AUCUN EFFET MÉCANIQUE, ET C'EST DÉLIBÉRÉ ─────────────────────────
+   Une version précédente plafonnait l'investissement recommandé quand le profil reposait sur des
+   données incomplètes (`applyReliabilityBounds`). Retiré : la fiabilité est une INFORMATION — elle
+   dit sur quoi le classement repose, elle ne pilote rien. Lui donner un effet, c'était recréer un
+   second moteur de décision à côté du premier, invisible depuis l'échelle.
+   Ce que l'app ne sait pas se dit à l'écran, avec le geste qui le comble (cf. profileReliability) ;
+   le doute sur les MONTANTS, lui, a déjà son mécanisme et son seul mécanisme (confidenceEngine). */
+
 /** Somme d'une répartition (doit valoir 100 après normalisation). */
 function total(a: Allocation): number {
   return a.save + a.invest + a.enjoy + a.keep;

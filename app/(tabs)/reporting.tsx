@@ -883,6 +883,9 @@ function ReportingBody() {
                     monthsCovered={computeSecurityCushion({
                       availableSavings: pilotage.current_savings,
                       monthlyEssentialExpenses: pilotage.monthly_essential_expenses,
+                      // Même garde que le moteur (cf. securityCushion) : sans charge saisie, les
+                      // « dépenses essentielles » se réduisent à l'enveloppe variable.
+                      recurringExpensesKnown: !!pilotage.has_recurring_expenses,
                       avgMonthlyIncome: pilotage.avg_monthly_income,
                     }).months}
                   />
