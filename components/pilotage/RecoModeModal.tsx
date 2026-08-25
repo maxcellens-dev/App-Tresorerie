@@ -326,7 +326,7 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
               <View style={s.exceptHead}>
                 <Ionicons name="information-circle-outline" size={16} color={COLORS.teal} />
                 <Text style={s.exceptTitle}>
-                  Ce mois-ci, tes montants ne suivent pas exactement ces pourcentages
+                  Tes montants ne suivent pas exactement ces pourcentages
                 </Text>
               </View>
               {adjustments.map((k) => (
