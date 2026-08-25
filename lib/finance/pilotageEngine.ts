@@ -399,9 +399,16 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   const has_savings_account = accounts.some(a => a.type === 'savings');
   const total_invested = accounts.filter(a => a.type === 'investment').reduce((sum, a) => sum + Number(a.balance), 0);
 
-  const safety_threshold_min = profile?.safety_threshold_min ?? 5000;
-  const safety_threshold_optimal = profile?.safety_threshold_optimal ?? 10000;
-  const safety_threshold_comfort = profile?.safety_threshold_comfort ?? 20000;
+  /* Seuils d'épargne : STOCKÉS EN EUR (base, cf. hooks/useSavingsConfig) → convertis dans la devise
+     de RÉFÉRENCE avant toute comparaison. Les soldes, eux, sont déjà convertis quelques lignes plus
+     haut : sans cette conversion, on comparait 10 000 CHF d'épargne à un seuil de 10 000 « euros »
+     lu comme des francs, et l'utilisateur était déclaré au-dessus du seuil optimal alors qu'il ne
+     l'était pas — avec, derrière, un profil financier et des recommandations calés dessus. La page
+     Comptes applique déjà exactement cette conversion (toRefAmount) ; les deux écrans annonçaient
+     donc des niveaux différents pour la même épargne. Devise de référence EUR → conversion neutre. */
+  const safety_threshold_min = toRef(profile?.safety_threshold_min ?? 5000, 'EUR');
+  const safety_threshold_optimal = toRef(profile?.safety_threshold_optimal ?? 10000, 'EUR');
+  const safety_threshold_comfort = toRef(profile?.safety_threshold_comfort ?? 20000, 'EUR');
   const current_savings = total_savings;
 
   /* DÉCOUVERT CHRONIQUE — mesuré ici, une seule fois, pour tout le monde.

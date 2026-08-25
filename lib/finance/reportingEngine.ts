@@ -16,6 +16,7 @@
  *    datées dans le FUTUR (sinon les points passés sont faussés).
  */
 import { isRegul } from './regul';
+import { isInvestmentDeposit } from './investment';
 import { CURRENCY_SYMBOL } from './currency';
 import { recurringAmountForMonth } from './recurrenceMonth';
 
@@ -40,6 +41,14 @@ export interface ReportTx {
   recurrence_end_date?: string | null;
   /** Occurrence déjà matérialisée d'un modèle récurrent (= ligne réelle, pas une projection). */
   materialized_from?: string | null;
+  /**
+   * Compte d'investissement : NATURE de l'opération (migration 196) — 'deposit' = versement de
+   * capital, 'gain'/'loss' = plus/moins-value. C'est ce marqueur qui distingue « j'ai mis 5 000 € »
+   * de « mon placement a pris 5 000 € » quand la saisie est DIRECTE (pas un virement).
+   */
+  investment_kind?: string | null;
+  /** Échéance de crédit à venir (flux virtuel, cf. hooks/useCreditFlows) — jamais une dépense variable. */
+  is_credit_flow?: boolean | null;
 }
 
 export interface MonthlyFlux {
@@ -115,13 +124,31 @@ export function isRealFlux(t: ReportTx): boolean {
  * DÉPENSE : un positif sans catégorie (entrée inclassée, « reçu du compte partagé »…) ne doit ni
  * compter en revenu ni effacer les dépenses du mois.
  */
-export function buildMonthlyFlux(fluxTx: ReportTx[], months: MonthBucket[], categoryType: CategoryTypeResolver): MonthlyFlux[] {
+export function buildMonthlyFlux(
+  fluxTx: ReportTx[],
+  months: MonthBucket[],
+  categoryType: CategoryTypeResolver,
+  opts?: {
+    /**
+     * N'AGRÉGER QUE LES `upToDay` PREMIERS JOURS de chaque mois — pour comparer deux mois « à la
+     * même date ». Sans ça, le mois EN COURS (qui n'a que ses premiers jours) était comparé à un
+     * mois précédent COMPLET : le 4 du mois, l'app annonçait « tes dépenses sont 78 % plus basses
+     * que le mois dernier 📉 » et félicitait l'utilisateur pour un mois qui n'avait pas commencé.
+     */
+    upToDay?: number;
+  },
+): MonthlyFlux[] {
+  const upToDay = opts?.upToDay;
   const acc: Record<string, { income: number; expense: number }> = {};
   months.forEach((m) => { acc[m.ym] = { income: 0, expense: 0 }; });
   for (const t of fluxTx) {
     if (!isRealFlux(t)) continue;
-    const ym = (t.date ?? '').substring(0, 7);
+    const date = t.date ?? '';
+    const ym = date.substring(0, 7);
     if (!acc[ym]) continue;
+    // Date illisible → `Number('')` vaut 0, donc la ligne est CONSERVÉE : on ne masque jamais une
+    // opération sur un défaut de format.
+    if (upToDay != null && Number(date.substring(8, 10)) > upToDay) continue;
     const amt = Number(t.amount);
     const ty = categoryType(t.category_id);
     if (ty === 'income') {
@@ -187,6 +214,10 @@ export function variableShareByAccount(fluxTx: ReportTx[], months: MonthBucket[]
   let total = 0;
   for (const t of fluxTx) {
     if (!isRealFlux(t) || isRecurringTemplate(t) || t.materialized_from) continue;
+    /* Ni les RÉGULARISATIONS (une correction de solde n'est pas une course), ni les ÉCHÉANCES DE
+       CRÉDIT (c'est l'inverse d'une dépense variable) ne définissent l'enveloppe du quotidien. Les
+       compter ici attribuait à un compte une part de dépenses variables qu'il ne porte pas. */
+    if (isRegul(t) || t.is_credit_flow) continue;
     if (!ymSet.has((t.date ?? '').substring(0, 7))) continue;
     const amt = Number(t.amount);
     if (amt >= 0) continue; // dépenses seulement
@@ -239,27 +270,49 @@ export function buildForecastFlux(input: {
 }
 
 /**
- * Épargne réellement mise de côté par mois = argent ARRIVÉ sur un compte épargne/investissement
- * (jambe entrante d'un virement interne). `typeById` : id compte → type.
+ * Épargne réellement mise de côté par mois = argent ARRIVÉ sur un compte épargne/investissement.
+ * `typeById` : id compte → type.
+ *
+ * Deux façons d'alimenter ces comptes, et il faut les DEUX :
+ *  • la jambe entrante d'un VIREMENT interne (courant → épargne, épargne → invest…) ;
+ *  • sur un compte d'INVESTISSEMENT, la saisie DIRECTE d'un versement — le bouton « Apport » du
+ *    détail de compte crée une ligne sans compte lié, marquée `investment_kind = 'deposit'`
+ *    (migration 196). Ne compter que les virements revenait à ignorer ces apports : « Mis de côté »
+ *    et le taux d'épargne les perdaient, et surtout « Gain hors apports » les recomptait en
+ *    PERFORMANCE — l'app annonçait un gain de 5 000 € à qui venait simplement de verser 5 000 €.
+ *
+ * `opts.todayISO` : ne compter que ce qui est DÉJÀ arrivé. C'est la même règle que la valeur du
+ * portefeuille (`buildBalanceSeries`) et que l'apport de `lib/contributed` — sans elle, un virement
+ * programmé pour le 28 gonflait les apports d'un mois où l'argent n'a pas encore bougé, et « Gain
+ * hors apports » devenait faux du même montant.
  */
 export function buildSavingsSeries(
   allTx: ReportTx[],
   months: MonthBucket[],
   typeById: Record<string, string>,
+  opts?: { todayISO?: string },
 ): { ym: string; label: string; saved: number; savings: number; invest: number }[] {
+  const today = opts?.todayISO;
   const acc: Record<string, { savings: number; invest: number }> = {};
   months.forEach((m) => { acc[m.ym] = { savings: 0, invest: 0 }; });
   for (const t of allTx) {
-    if (t.is_draft || !t.linked_account_id) continue; // jambe d'un virement interne uniquement
+    if (t.is_draft) continue;
+    if (today && (t.date ?? '') > today) continue; // pas encore arrivé
     const amt = Number(t.amount);
-    if (amt <= 0) continue; // jambe ENTRANTE (argent qui arrive)
+    if (amt <= 0) continue; // argent qui ARRIVE
     const destType = typeById[t.account_id];
     if (destType !== 'savings' && destType !== 'investment') continue;
-    // Compte SEULEMENT si l'argent vient d'un compte d'un AUTRE type (courant→épargne, épargne→invest…).
-    // Un virement entre deux comptes de MÊME type (épargne↔épargne, invest↔invest) = simple réorganisation,
-    // pas une mise de côté.
-    const srcType = typeById[t.linked_account_id];
-    if (srcType === destType) continue;
+    if (t.linked_account_id) {
+      // Compte SEULEMENT si l'argent vient d'un compte d'un AUTRE type (courant→épargne, épargne→invest…).
+      // Un virement entre deux comptes de MÊME type (épargne↔épargne, invest↔invest) = simple réorganisation,
+      // pas une mise de côté.
+      const srcType = typeById[t.linked_account_id];
+      if (srcType === destType) continue;
+    } else if (!(destType === 'investment' && isInvestmentDeposit(t))) {
+      // Saisie directe : seul un APPORT marqué compte. Une plus-value, un intérêt versé ou une
+      // entrée inclassée font monter la VALEUR du compte — ce n'est pas de l'argent mis de côté.
+      continue;
+    }
     const ym = (t.date ?? '').substring(0, 7);
     if (!acc[ym]) continue;
     if (destType === 'savings') acc[ym].savings += amt;
@@ -296,7 +349,13 @@ export function buildCategoryBreakdown(
   return top;
 }
 
-/** Top postes de dépense (grande catégorie) : mois `curYm` vs `prevYm`. */
+/**
+ * Top postes de dépense (grande catégorie) : mois `curYm` vs `prevYm`.
+ *
+ * `upToDay` arrête LES DEUX mois au même jour tant que le mois en cours n'est pas terminé. Sans
+ * cette borne, chaque poste s'affichait « ▼ ‑X € vs mois préc. » du 1ᵉʳ au 25 du mois : une baisse
+ * qui ne disait rien d'autre que « le mois n'est pas fini ».
+ */
 export function buildTopCategoriesCompare(
   fluxTx: ReportTx[],
   curYm: string,
@@ -304,6 +363,7 @@ export function buildTopCategoriesCompare(
   grandCategoryName: (categoryId: string | null | undefined) => string,
   categoryType: CategoryTypeResolver,
   topN = 5,
+  upToDay?: number,
 ): { label: string; current: number; previous: number }[] {
   const cur: Record<string, number> = {};
   const old: Record<string, number> = {};
@@ -311,11 +371,14 @@ export function buildTopCategoriesCompare(
     if (!isRealFlux(t)) continue;
     if (categoryType(t.category_id) === 'income') continue;
     if (Number(t.amount) >= 0) continue;
-    const ym = (t.date ?? '').substring(0, 7);
+    const date = t.date ?? '';
+    const ym = date.substring(0, 7);
+    if (ym !== curYm && ym !== prevYm) continue;
+    if (upToDay != null && Number(date.substring(8, 10)) > upToDay) continue;
     const name = grandCategoryName(t.category_id);
     const amt = Math.abs(Number(t.amount));
     if (ym === curYm) cur[name] = (cur[name] ?? 0) + amt;
-    else if (ym === prevYm) old[name] = (old[name] ?? 0) + amt;
+    else old[name] = (old[name] ?? 0) + amt;
   }
   return Object.entries(cur)
     .sort((a, b) => b[1] - a[1])
@@ -356,13 +419,31 @@ export function buildBalanceSeries(
 export type InsightTone = 'alert' | 'win' | 'tip';
 export interface Insight { tone: InsightTone; icon: string; text: string; priority: number }
 
+/**
+ * Comparaison des dépenses avec le mois précédent, À LA MÊME DATE tant que le mois en cours n'est
+ * pas terminé. Obligatoire : c'est la seule façon d'empêcher qu'un mois de 4 jours soit comparé à
+ * un mois de 31 (cf. `buildMonthlyFlux`, option `upToDay`).
+ */
+export interface ExpenseCompare {
+  /** Dépenses du mois en cours sur la période comparée. */
+  current: number;
+  /** Dépenses du mois précédent sur la MÊME période. */
+  previous: number;
+  /** true = comparaison arrêtée au jour du mois (mois en cours non terminé) → à le DIRE. */
+  toDate: boolean;
+  /** Jour du mois auquel la comparaison s'arrête (utile seulement si `toDate`). */
+  day: number;
+}
+
 export interface InsightInputs {
   monthlyFlux: MonthlyFlux[];
   savingsSeries: { saved: number }[];
-  netWorthTotal: { value: number }[];
+  netWorthTotal: { value: number; label?: string }[];
   categoryBreakdown: { label: string; amount: number }[];
   monthIncome: number;
   monthSaved: number;
+  /** Dépenses M vs M-1 à périmètre de temps COMPARABLE. `null` = pas de mois précédent connu. */
+  expenseCompare: ExpenseCompare | null;
   /**
    * RYTHME de dépenses variables : 100 = pile le budget variable habituel, au rythme actuel.
    * `null` = trop tôt dans le mois pour conclure (cf. lib/spendingPace) → aucun constat.
@@ -382,7 +463,13 @@ export function buildInsights(inp: InsightInputs): Insight[] {
   const out: Insight[] = [];
   const flux = inp.monthlyFlux;
   const last = flux[flux.length - 1];
-  const prev = flux[flux.length - 2];
+  const cmp = inp.expenseCompare;
+  /** Écart de dépenses en %, sur une période comparable. `null` si M-1 est à 0 (division impossible). */
+  const cmpDelta = cmp && cmp.previous > 0
+    ? Math.round(((cmp.current - cmp.previous) / cmp.previous) * 100)
+    : null;
+  /** « au 12 du mois » — à accoler à tout constat bâti sur un mois en cours. */
+  const cmpWhen = cmp?.toDate ? ` (au ${cmp.day} du mois, des deux côtés)` : '';
 
   // — ALERTES —
   // (Le Reporting ne parle PAS de vérification de solde : c'est un bilan d'analyse, la fiabilité se
@@ -394,9 +481,10 @@ export function buildInsights(inp: InsightInputs): Insight[] {
       text: `À ce rythme, tes dépenses variables finiront ${delta} % au-dessus de ton budget variable habituel — surveille les sorties non prévues.` });
   }
   // Mois déficitaire (dépenses > revenus).
+  // PRÉSENT, pas passé composé : le mois en cours n'est pas terminé quand ce constat s'affiche.
   if (last && last.income > 0 && last.net < 0) {
     out.push({ tone: 'alert', icon: 'warning', priority: 12,
-      text: `Ce mois-ci tu as dépensé ${Math.abs(Math.round((last.net / last.income) * 100))} % de plus que tes revenus (déficit de ${fmtEur(-last.net)}).` });
+      text: `Ce mois-ci, tes dépenses dépassent tes revenus de ${Math.abs(Math.round((last.net / last.income) * 100))} % (déficit de ${fmtEur(-last.net)}).` });
   }
   // Concentration des dépenses sur une catégorie.
   const totalCat = inp.categoryBreakdown.reduce((s, c) => s + c.amount, 0);
@@ -406,11 +494,10 @@ export function buildInsights(inp: InsightInputs): Insight[] {
     if (share >= 40 && top.label !== 'Autres') out.push({ tone: 'alert', icon: 'pie-chart', priority: 14,
       text: `${share} % de tes dépenses du mois passent dans « ${top.label} » (${fmtEur(top.amount)}). Un poste à surveiller.` });
   }
-  // Dépenses en forte hausse vs mois dernier.
-  if (last && prev && prev.expense > 0) {
-    const d = Math.round(((last.expense - prev.expense) / prev.expense) * 100);
-    if (d >= 15) out.push({ tone: 'alert', icon: 'swap-vertical', priority: 16,
-      text: `Tes dépenses (${fmtEur(last.expense)}) dépassent de ${d} % celles du mois dernier.` });
+  // Dépenses en forte hausse vs mois dernier — à période COMPARABLE (cf. ExpenseCompare).
+  if (cmp && cmpDelta != null && cmpDelta >= 15) {
+    out.push({ tone: 'alert', icon: 'swap-vertical', priority: 16,
+      text: `Tes dépenses (${fmtEur(cmp.current)}) dépassent de ${cmpDelta} % celles du mois dernier${cmpWhen}.` });
   }
 
   // — RÉUSSITES —
@@ -419,15 +506,20 @@ export function buildInsights(inp: InsightInputs): Insight[] {
     if (rate >= 10) out.push({ tone: 'win', icon: 'shield-checkmark', priority: 20,
       text: `Tu mets de côté ${rate} % de tes revenus ce mois-ci (${fmtEur(inp.monthSaved)}). ${rate >= 20 ? 'Rythme excellent 🎯' : 'Beau rythme.'}` });
   }
-  // Croissance du patrimoine sur les N derniers mois (N concret, pas « la période »).
+  /* Croissance du TOTAL DES COMPTES. Volontairement pas « patrimoine » : ce total ne couvre que
+     l'argent des comptes — ni les biens possédés, ni le capital restant dû des crédits. C'est le
+     même choix de mot que la page Comptes (« Vue d'ensemble »), pour que les deux écrans ne
+     promettent pas deux choses différentes. Le repère de départ est DATÉ (« depuis fin mars »)
+     plutôt qu'annoncé « sur les 6 derniers mois » : entre le 1ᵉʳ et le 6ᵉ point, il s'est écoulé
+     5 mois, pas 6. */
   const nw = inp.netWorthTotal;
   if (nw.length >= 2) {
     const growth = nw[nw.length - 1].value - nw[0].value;
-    const span = nw.length; // nb de mois couverts
+    const since = nw[0].label ? ` depuis fin ${nw[0].label}` : '';
     if (growth > 0 && nw[0].value !== 0) {
       const pct = Math.round((growth / Math.abs(nw[0].value)) * 100);
       out.push({ tone: 'win', icon: 'trending-up', priority: 22,
-        text: `Ton patrimoine a progressé de ${fmtEur(growth)}${pct > 0 ? ` (+${pct} %)` : ''} sur les ${span} derniers mois. 📈` });
+        text: `Le total de tes comptes a progressé de ${fmtEur(growth)}${pct > 0 ? ` (+${pct} %)` : ''}${since}. 📈` });
     }
   }
   // Dépenses variables sous contrôle.
@@ -436,11 +528,10 @@ export function buildInsights(inp: InsightInputs): Insight[] {
     if (delta <= -12) out.push({ tone: 'win', icon: 'trending-down', priority: 24,
       text: `À ce rythme, tes dépenses variables finiront ${Math.abs(delta)} % sous ton budget variable habituel. Beau contrôle 👌` });
   }
-  // Dépenses en baisse vs mois dernier.
-  if (last && prev && prev.expense > 0) {
-    const d = Math.round(((last.expense - prev.expense) / prev.expense) * 100);
-    if (d <= -12) out.push({ tone: 'win', icon: 'trending-down', priority: 26,
-      text: `Tes dépenses (${fmtEur(last.expense)}) sont ${Math.abs(d)} % plus basses que le mois dernier. 📉` });
+  // Dépenses en baisse vs mois dernier — à période COMPARABLE (cf. ExpenseCompare).
+  if (cmp && cmpDelta != null && cmpDelta <= -12) {
+    out.push({ tone: 'win', icon: 'trending-down', priority: 26,
+      text: `Tes dépenses (${fmtEur(cmp.current)}) sont ${Math.abs(cmpDelta)} % plus basses que le mois dernier${cmpWhen}. 📉` });
   }
 
   // — OPPORTUNITÉS —

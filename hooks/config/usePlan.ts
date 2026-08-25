@@ -60,14 +60,26 @@ export function useAwaitPremiumFromServer(userId: string | undefined) {
 }
 
 export function usePlan(userId: string | undefined) {
-  const { data: flags } = useFeatureFlags();
-  const { data: profile } = useProfile(userId);
+  const flagsQuery = useFeatureFlags();
+  const profileQuery = useProfile(userId);
+  const flags = flagsQuery.data;
+  const profile = profileQuery.data;
   const premiumEnabled = !!flags?.premium_enabled;
   const hasEntitlement = !!(profile as any)?.is_premium;
   const isPremium = premiumEnabled && hasEntitlement;
   return {
     premiumEnabled,
     isPremium,
+    /**
+     * Le plan est-il CONNU, ou seulement supposé ?
+     *
+     * Tant que les drapeaux et le profil ne sont pas revenus, `isPremium` vaut `false` — la valeur
+     * par défaut, pas une réponse. Un écran qui refuse l'accès sur cette base affiche le mur
+     * « réservé aux abonnés Premium » à un abonné, pendant tout le premier chargement. Un écran qui
+     * BLOQUE doit donc attendre `isResolved` ; un écran qui se contente d'adapter son affichage
+     * (badge, publicité) peut s'en passer.
+     */
+    isResolved: flagsQuery.isSuccess && profileQuery.isSuccess,
     plan: isPremium ? ('premium' as const) : ('free' as const),
     /* Les publicités font partie de l'offre gratuite : elles s'affichent pour tout utilisateur
        non-premium. Le CONTENU (bannières maison) se gère dans l'admin « Publicités » — n'en

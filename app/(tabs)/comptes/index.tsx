@@ -215,26 +215,33 @@ function AccountsListScreen() {
         >
           {/* Question du profil progressif — la 1ʳᵉ visite des Comptes est un déclencheur sûr. */}
 
-          {/* ── Vue d'ensemble patrimoine (avant le total) ── */}
+          {/* ── Totaux par type de compte (courant / épargne / investi / autre) ── */}
           {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
           {/* totalScope : un utilisateur qui n'a QUE des comptes partagés a droit à sa vue d'ensemble. */}
           {totalScope.length > 0 && (
             <View ref={overviewRef} collapsable={false}>
-            <View style={styles.overviewHeaderRow}>
-              {/* « Vue d'ensemble » et non « Patrimoine » : ce total ne couvre que l'argent DES COMPTES
-                  (courant + épargne + investissement), pas les biens possédés (logement, véhicule…). */}
-              <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
-              {/* #2 — filtre persistant des totaux (visible s'il y a des comptes partagés) */}
-              {hasSharedAccounts && (
+            {/* UNE seule ligne au-dessus des cartes, et elle ne sert qu'à une chose à la fois :
+                 • des comptes partagés → le filtre Tout/Perso/Partagés, à la place exacte du titre
+                   (même bord gauche). Il y a un choix à faire, c'est lui qui doit occuper la ligne
+                   (le titre ne disait rien de plus que ce que les cartes montrent déjà) ;
+                 • aucun compte partagé → aucun filtre possible, donc pas de puces : on retrouve le
+                   titre « Vue d'ensemble », qui nomme le bloc.
+                « Vue d'ensemble » et non « Patrimoine » : ce total ne couvre que l'argent DES
+                COMPTES (courant + épargne + investissement), pas les biens possédés. */}
+            {hasSharedAccounts ? (
+              <View style={styles.overviewHeaderRow}>
+                {/* #2 — filtre persistant des totaux */}
                 <View style={styles.totalsFilterRow}>
                   {(['all', 'perso', 'shared'] as const).map((f) => (
-                    <TouchableOpacity key={f} onPress={() => setTotalsFilter(f)} style={[styles.totalsFilterChip, activeFilter === f && styles.totalsFilterChipActive]}>
+                    <TouchableOpacity key={f} onPress={() => setTotalsFilter(f)} style={[styles.totalsFilterChip, activeFilter === f && styles.totalsFilterChipActive]} accessibilityRole="button">
                       <Text style={[styles.totalsFilterText, activeFilter === f && styles.totalsFilterTextActive]}>{f === 'all' ? 'Tout' : f === 'perso' ? 'Perso' : 'Partagés'}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-              )}
-            </View>
+              </View>
+            ) : (
+              <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
+            )}
             <View style={styles.overviewRow}>
               {(() => {
                 // Agrégats convertis dans la devise de référence (multi-devises).
@@ -274,7 +281,11 @@ function AccountsListScreen() {
             </View>
           )}
 
-          {/* ── Onglets Comptes / Crédits (#6b : à la place de l'ancien « Total Liquidités ») ── */}
+          {/* ── Onglets Comptes / Crédits ─────────────────────────────────────────────────────────
+              Les anciennes « actions rapides » (deux ronds de 52 px + libellés, ~120 px de hauteur
+              avant la première carte de compte) ont disparu d'ici : le virement vit dans l'accès
+              rapide, et la création de compte est passée SOUS la liste, à la même place et sous la
+              même forme que « Ajouter un crédit » de l'onglet voisin. */}
           <View style={styles.tabsRow} ref={tabsRef} collapsable={false}>
             {(['comptes', 'credits'] as const).map((t) => (
               <TouchableOpacity key={t} style={[styles.tabItem, tab === t && styles.tabItemActive]} onPress={() => setTab(t)} activeOpacity={0.8} accessibilityRole="button">
@@ -287,36 +298,11 @@ function AccountsListScreen() {
             <CreditsTab userId={user?.id} openCreateSignal={creditCreateSignal} />
           ) : (
           <>
-          {/* ── Actions rapides du compte ── */}
-          <View style={styles.hero}>
-
-            {/* Quick actions + zone pub compacte (maison) à droite, gérable en admin */}
-            <View style={styles.quickActions}>
-              <View ref={actionsRef} style={styles.quickBtnGroup} collapsable={false}>
-                <TouchableOpacity
-                  style={styles.quickBtn}
-                  activeOpacity={0.75}
-                  onPress={() => setShowCreateType(true)}
-                >
-                  <View style={styles.quickIcon}>
-                    <Ionicons name="add" size={22} color={COLORS.emerald} />
-                    {/* Bordure du guide tracée SUR le bouton lui-même (aucune mesure). */}
-                  </View>
-                  <Text style={styles.quickLabel}>Créer Compte</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.quickBtn}
-                  activeOpacity={0.75}
-                  onPress={() => router.push('/(tabs)/comptes/transfer')}
-                >
-                  <View style={styles.quickIcon}>
-                    <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
-                  </View>
-                  <Text style={styles.quickLabel}>Virement</Text>
-                </TouchableOpacity>
-              </View>
-              <AdSlot placement="comptes_actions" compact style={{ marginLeft: 16 }} />
-            </View>
+          {/* Les deux actions sont désormais dans la barre d'onglets ci-dessus. Il ne reste ici que
+              la zone de publicité « maison » (vide pour un abonné Premium ou sans bannière) — et
+              l'air qui sépare l'en-tête de la liste. */}
+          <View style={styles.tabTopGap}>
+            <AdSlot placement="comptes_actions" compact />
           </View>
 
           {/* Banner de bienvenue */}
@@ -347,8 +333,10 @@ function AccountsListScreen() {
           {isLoading ? (
             <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
           ) : accounts.length === 0 ? (
-            // L'app TUTOIE partout : c'était « Appuyez sur ».
-            <Text style={styles.empty}>Aucun compte. Appuie sur « Compte » pour commencer.</Text>
+            /* Le bouton « Ajouter un compte » est juste en dessous : cette phrase n'a plus à
+               renvoyer vers un bouton d'en-tête, elle dit seulement pourquoi ça vaut la peine.
+               (L'app TUTOIE partout : c'était « Appuyez sur ».) */
+            <Text style={styles.empty}>Aucun compte pour l'instant. Ajoute ton premier compte pour que tes chiffres aient un sens.</Text>
           ) : (
             /* ── Liste Revolut ── */
             <View style={[styles.accountList, onbAccount ? onbGlow(COLORS, true) : null]}>
@@ -466,6 +454,22 @@ function AccountsListScreen() {
               ))}
             </View>
           )}
+
+          {/* ── Ajouter un compte ────────────────────────────────────────────────────────────────
+              Exactement la place et la forme du « Ajouter un crédit » de l'onglet voisin : sous les
+              listes, pleine largeur, fond plein. Les deux onglets de la page se terminent donc par
+              le même geste, au même endroit — et la liste des comptes n'est plus repoussée vers le
+              bas par un bloc d'actions en haut de page. */}
+          <TouchableOpacity
+            ref={actionsRef}
+            style={styles.addAccountBtn}
+            onPress={() => setShowCreateType(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Ionicons name="add" size={18} color={COLORS.bg} />
+            <Text style={styles.addAccountBtnLabel}>Ajouter un compte</Text>
+          </TouchableOpacity>
 
           {archivedAccounts.length > 0 && (
             <View style={styles.archivedSection}>
@@ -618,13 +622,38 @@ function makeStyles(c: any) {
   scrollContentDesktop: { paddingBottom: 56, paddingTop: 12 },
   loader: { marginVertical: 40 },
   overviewTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, paddingHorizontal: 24, marginBottom: 8, marginTop: 4 },
-  overviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 },
+  /* Ne porte QUE le filtre Tout/Perso/Partagés, calé à GAUCHE — exactement là où commence le titre
+     « Vue d'ensemble » qu'il remplace, et où commencent les cartes de totaux qu'il commande
+     (`paddingLeft` 24 = leur `paddingHorizontal`). La première puce a un retrait de 10 px propre
+     (`totalsFilterChip`) : on le compense pour que le texte, lui, tombe pile sur la colonne. */
+  overviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 14 },
   totalLiquidSmall: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'right', paddingHorizontal: 24, marginTop: 6 },
-  tabsRow: { flexDirection: 'row', gap: 22, paddingHorizontal: 24, marginTop: 14, marginBottom: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
+
+  /* ── Barre d'en-tête : onglets à gauche, actions à droite, une seule ligne ──────────────────────
+     `alignItems: 'flex-end'` fait reposer le soulignement de l'onglet actif sur le filet du bas ;
+     les pastilles d'action, plus courtes que les onglets (31 px contre 32), s'alignent dessus sans
+     rallonger la ligne d'un pixel. */
+  tabsRow: {
+    flexDirection: 'row', gap: 22,
+    paddingHorizontal: 24, marginTop: 14, marginBottom: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder,
+  },
   tabItem: { paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabItemActive: { borderBottomColor: c.text },
   tabLabel: { fontSize: 17, fontWeight: '700', color: c.textSecondary },
   tabLabelActive: { color: c.text, fontWeight: '800' },
+  /* Copie conforme de « Ajouter un crédit » (CreditsTab.addBtn) : mêmes espacements, même rayon,
+     même graisse. Seul `marginHorizontal` diffère (16), pour tomber sur les bords de la liste des
+     comptes — l'onglet Crédits, lui, tient déjà ce retrait par son conteneur. */
+  addAccountBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 12,
+    marginTop: 14, marginHorizontal: 16,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+  },
+  addAccountBtnLabel: { color: c.bg, fontWeight: '800', fontSize: 14 },
+  // Air entre l'en-tête et la liste (et logement de la bannière maison, souvent vide).
+  tabTopGap: { paddingHorizontal: 24, paddingTop: 16 },
   totalsFilterRow: { flexDirection: 'row', gap: 4, marginBottom: 8, marginTop: 4 },
   // Pas de contour : ces puces sont un réglage secondaire, elles ne doivent pas concurrencer
   // visuellement les cartes de totaux juste en dessous. L'état actif est porté par le seul fond
@@ -642,58 +671,9 @@ function makeStyles(c: any) {
   overviewLabel: { fontSize: 10, fontWeight: '600', color: c.textSecondary, marginBottom: 2 },
   overviewValue: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
 
-  // ── Hero ──
-  hero: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 20,
-  },
-  heroLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: c.textSecondary,
-    letterSpacing: 0.3,
-    marginBottom: 8,
-  },
-  heroAmountRow: { flexDirection: 'row', alignItems: 'flex-end' },
-  heroAmount: {
-    fontSize: 44,
-    fontWeight: '700',
-    color: c.text,
-    letterSpacing: -1,
-    lineHeight: 52,
-  },
-  heroDec: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: c.textSecondary,
-    lineHeight: 44,
-  },
-
-  // ── Quick actions ──
-  quickActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  quickBtnGroup: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  quickBtn: {
-    alignItems: 'center',
-    gap: 7,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
-  },
-  quickIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: c.emerald + '22',
-  },
-  quickLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+  /* Les styles « hero » (grand montant) et « quick actions » (ronds de 52 px) ont été retirés :
+     le montant total est passé en petit sous la vue d'ensemble, et les deux actions vivent
+     maintenant dans la barre d'onglets (cf. headerActions / headerBtn). */
 
   // ── Liste comptes ──
   accountList: {
@@ -749,7 +729,7 @@ function makeStyles(c: any) {
   // ── Empty ──
   empty: {
     marginHorizontal: 24,
-    padding: 32,
+    paddingVertical: 28,
     color: c.textSecondary,
     textAlign: 'center',
     fontSize: 14,

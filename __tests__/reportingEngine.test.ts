@@ -45,6 +45,20 @@ describe('buildMonthlyFlux', () => {
     expect(r[1].expense).toBe(300 - 100 + 80 + 200); // dont la régularisation de −200
     expect(r[0]).toMatchObject({ income: 1000, expense: 600 });
   });
+  /* Comparer deux mois « à la même date » : c'est cette borne qui empêche de féliciter
+     l'utilisateur le 4 du mois pour des dépenses qui n'ont pas encore eu lieu. */
+  it('upToDay arrête l’agrégation au même jour du mois', () => {
+    const tx: ReportTx[] = [
+      { date: '2026-07-02', amount: -100, account_id: 'a', category_id: 'shop' },
+      { date: '2026-07-20', amount: -900, account_id: 'a', category_id: 'shop' }, // hors période
+      { date: '2026-07-28', amount: 2000, account_id: 'a', category_id: 'sal' },  // salaire à venir
+    ];
+    const full = buildMonthlyFlux(tx, [M('2026-07')], catType)[0];
+    const toDate = buildMonthlyFlux(tx, [M('2026-07')], catType, { upToDay: 4 })[0];
+    expect(full).toMatchObject({ income: 2000, expense: 1000 });
+    expect(toDate).toMatchObject({ income: 0, expense: 100 });
+  });
+
   it('dépense nette d’un remboursement', () => {
     const r = buildMonthlyFlux([
       { date: '2026-07-10', amount: -300, account_id: 'a', category_id: 'shop' },
@@ -83,6 +97,37 @@ describe('buildSavingsSeries', () => {
     expect(r.savings).toBe(200);
     expect(r.invest).toBe(150);
     expect(r.saved).toBe(350);
+  });
+
+  /* Le bouton « Apport » du détail d'un compte d'investissement crée une ligne SANS compte lié,
+     marquée `investment_kind = 'deposit'` (migration 196). L'ignorer faisait passer l'apport pour
+     de la performance dans « Gain hors apports ». */
+  it('compte l’APPORT saisi directement sur un compte d’investissement (marqueur), pas une plus-value', () => {
+    const months = [M('2026-07')];
+    const typeById = { sav: 'savings', inv: 'investment' };
+    const tx: ReportTx[] = [
+      { date: '2026-07-01', amount: 1000, account_id: 'inv', investment_kind: 'deposit' }, // apport ✓
+      { date: '2026-07-02', amount: 300, account_id: 'inv', investment_kind: 'gain' },     // plus-value ✗
+      { date: '2026-07-03', amount: 50, account_id: 'inv' },                                // inclassé ✗
+      { date: '2026-07-04', amount: 25, account_id: 'sav' },                                // intérêts livret ✗
+      { date: '2026-07-05', amount: 400, account_id: 'inv', note: 'Apport de juillet' },     // repli libellé ✓
+    ];
+    const r = buildSavingsSeries(tx, months, typeById)[0];
+    expect(r.invest).toBe(1400);
+    expect(r.savings).toBe(0);
+  });
+
+  /* Même règle que la valeur du portefeuille et que l'apport (lib/contributed) : ce qui n'est pas
+     encore arrivé ne compte pas. Sinon « Gain hors apports » est faux du montant programmé. */
+  it('ignore les mouvements datés dans le FUTUR quand la date du jour est fournie', () => {
+    const months = [M('2026-07')];
+    const typeById = { chk: 'checking', sav: 'savings' };
+    const tx: ReportTx[] = [
+      { date: '2026-07-03', amount: 200, account_id: 'sav', linked_account_id: 'chk' },
+      { date: '2026-07-28', amount: 500, account_id: 'sav', linked_account_id: 'chk' }, // programmé
+    ];
+    expect(buildSavingsSeries(tx, months, typeById).at(0)!.saved).toBe(700);
+    expect(buildSavingsSeries(tx, months, typeById, { todayISO: '2026-07-15' }).at(0)!.saved).toBe(200);
   });
 });
 
@@ -129,6 +174,7 @@ describe('buildInsights', () => {
       categoryBreakdown: [{ label: 'Logement', amount: 900 }, { label: 'Courses', amount: 500 }],
       monthIncome: 2000,
       monthSaved: 400,
+      expenseCompare: { current: 1400, previous: 1000, toDate: false, day: 31 },
       variablePacePct: 130, // rythme +30 % → alerte
       hasVariableBaseline: true,
     });
@@ -145,9 +191,48 @@ describe('buildInsights', () => {
     const ins = buildInsights({
       monthlyFlux: [{ ym: '2026-07', label: 'juil.', income: 2000, expense: 2500, net: -500, rate: 0 }],
       savingsSeries: [], netWorthTotal: [], categoryBreakdown: [],
-      monthIncome: 2000, monthSaved: 0, variablePacePct: null, hasVariableBaseline: false,
+      monthIncome: 2000, monthSaved: 0, expenseCompare: null,
+      variablePacePct: null, hasVariableBaseline: false,
     });
     expect(ins.every((i) => !/vérif/i.test(i.text))).toBe(true);
+  });
+
+  /* Le piège n°1 de cette page : un mois de 4 jours comparé à un mois de 31. La comparaison passe
+     donc par `expenseCompare`, calculé À LA MÊME DATE des deux côtés — et le constat le dit. */
+  it('compare les dépenses à période comparable et l’ANNONCE (mois en cours)', () => {
+    const base = {
+      monthlyFlux: [
+        { ym: '2026-06', label: 'juin', income: 2000, expense: 1800, net: 200, rate: 10 },
+        { ym: '2026-07', label: 'juil', income: 2000, expense: 400, net: 1600, rate: 80 },
+      ],
+      savingsSeries: [], netWorthTotal: [], categoryBreakdown: [],
+      monthIncome: 2000, monthSaved: 0, variablePacePct: null, hasVariableBaseline: false,
+    };
+    // Le 4 du mois : 400 € dépensés contre 1 800 € au mois précédent COMPLET → aucune félicitation.
+    const withCompare = buildInsights({
+      ...base,
+      expenseCompare: { current: 400, previous: 380, toDate: true, day: 4 },
+    });
+    expect(withCompare.some((i) => /plus basses que le mois dernier/.test(i.text))).toBe(false);
+
+    // Vraie baisse à la même date → constat rendu, avec la mention de la période.
+    const realDrop = buildInsights({
+      ...base,
+      expenseCompare: { current: 400, previous: 900, toDate: true, day: 4 },
+    });
+    const win = realDrop.find((i) => /plus basses que le mois dernier/.test(i.text));
+    expect(win).toBeDefined();
+    expect(win!.text).toContain('au 4 du mois');
+  });
+
+  it('ne compare rien sans mois précédent connu', () => {
+    const ins = buildInsights({
+      monthlyFlux: [{ ym: '2026-07', label: 'juil', income: 2000, expense: 400, net: 1600, rate: 80 }],
+      savingsSeries: [], netWorthTotal: [], categoryBreakdown: [],
+      monthIncome: 2000, monthSaved: 0, expenseCompare: null,
+      variablePacePct: null, hasVariableBaseline: false,
+    });
+    expect(ins.every((i) => !/mois dernier/.test(i.text))).toBe(true);
   });
 });
 

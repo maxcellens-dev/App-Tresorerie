@@ -15,9 +15,10 @@ import { Animated, Easing } from 'react-native';
 const svgPress = (handler: () => void): Record<string, unknown> =>
   Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
 import Svg, { Rect, Text as SvgText, Line, Path, G, Circle } from 'react-native-svg';
-import { useTransactions } from '../../hooks/data/useTransactions';
+import { useTransactions, TX_FETCH_LIMIT } from '../../hooks/data/useTransactions';
 import { useAccounts } from '../../hooks/data/useAccounts';
 import { useCategories } from '../../hooks/data/useCategories';
+import { useCreditFlows } from '../../hooks/data/useCreditFlows';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { useSharedContribution } from '../../hooks/data/useSharedContribution';
 import { useProfile } from '../../hooks/data/useProfile';
@@ -30,7 +31,8 @@ import { pageColumn } from '../../lib/ui/webLayout';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/finance/currency';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
-import { computeSecurityCushion } from '../../lib/finance/securityCushion';
+import { addMonthKey } from '../../lib/finance/monthKeys';
+import { computeSecurityCushion, securityBaseLabel } from '../../lib/finance/securityCushion';
 import { buildPerimeterCtx, transformFluxTransactions, fluxFactor, effectiveSharedMode } from '../../lib/finance/perimeter';
 import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMonthOverrides';
 import {
@@ -67,7 +69,13 @@ const fmtK = (n: number) => {
   return Math.round(n).toString();
 };
 const fmtFull = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
-const fmtSigned = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}`;
+/** Zéro : ni « +0 € » ni « −0 € » — un écart nul n'a pas de sens. On teste l'ARRONDI affiché
+ *  (−0,4 € s'affiche « 0 € » : lui coller un signe laisserait croire à une variation). */
+const fmtSigned = (n: number) => {
+  const r = Math.round(n);
+  if (r === 0) return fmtFull(0);
+  return `${r > 0 ? '+' : '−'}${fmtFull(Math.abs(r))}`;
+};
 
 /* ═══ Barres groupées Revenus vs Dépenses — colonne entière cliquable + bandeau détail.
    Les zones tapables sont des Views RN SUPERPOSÉES au SVG : les événements de clic sur les
@@ -133,8 +141,15 @@ function IncomeExpenseBars({ data, width }: {
         </Svg>
         {/* Zones tapables (une par mois), par-dessus le SVG. */}
         <View style={{ position: 'absolute', top: 0, bottom: 0, left: 48, right: 0, flexDirection: 'row' }}>
-          {data.map((_, i) => (
-            <TouchableOpacity key={i} style={{ width: groupW, height: '100%' }} activeOpacity={0.55} onPress={() => setActive(i)} accessibilityRole="button" />
+          {data.map((d, i) => (
+            <TouchableOpacity
+              key={i} style={{ width: groupW, height: '100%' }} activeOpacity={0.55} onPress={() => setActive(i)}
+              accessibilityRole="button"
+              // Une zone tapable vide n'annonce rien : sans libellé, un lecteur d'écran lit neuf
+              // « bouton » identiques.
+              accessibilityLabel={`${d.label}${d.forecast ? ' (prévu)' : ''} — revenus ${fmtFull(d.income)}, dépenses ${fmtFull(d.expense)}`}
+              accessibilityState={{ selected: sel === i }}
+            />
           ))}
         </View>
       </View>
@@ -171,7 +186,7 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
   if (!data.length) return <Text style={s.emptyChart}>Pas encore assez d'historique.</Text>;
   const total = data.reduce((a, d) => a + d.saved, 0);
   if (total <= 0) {
-    return <Text style={s.emptyChart}>Aucun virement vers l'épargne ou l'investissement sur la période. Tes virements apparaîtront ici.</Text>;
+    return <Text style={s.emptyChart}>Aucun versement vers l'épargne ou l'investissement sur la période. Tes virements et tes apports apparaîtront ici.</Text>;
   }
   const chartH = 150, padT = 12;
   const groupW = (width - 52) / data.length;
@@ -221,8 +236,13 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
           })}
         </Svg>
         <View style={{ position: 'absolute', top: 0, bottom: 0, left: 48, right: 0, flexDirection: 'row' }}>
-          {data.map((_, i) => (
-            <TouchableOpacity key={i} style={{ width: groupW, height: '100%' }} activeOpacity={0.55} onPress={() => setActive(i)} accessibilityRole="button" />
+          {data.map((d, i) => (
+            <TouchableOpacity
+              key={i} style={{ width: groupW, height: '100%' }} activeOpacity={0.55} onPress={() => setActive(i)}
+              accessibilityRole="button"
+              accessibilityLabel={`${d.label} — ${fmtFull(d.saved)} mis de côté`}
+              accessibilityState={{ selected: sel === i }}
+            />
           ))}
         </View>
       </View>
@@ -289,13 +309,15 @@ function InvestmentValueChart({ points, apports, width }: {
         </Svg>
         {/* Zones tapables centrées sur chaque point (Views RN : fiables web + natif). */}
         <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
-          {points.map((_, i) => (
+          {points.map((p, i) => (
             <TouchableOpacity
               key={i}
               style={{ position: 'absolute', top: 0, bottom: 0, left: x(i) - zoneW / 2, width: zoneW }}
               activeOpacity={0.55}
               onPress={() => setActive(i)}
               accessibilityRole="button"
+              accessibilityLabel={`${p.label} — ${fmtFull(p.value)}`}
+              accessibilityState={{ selected: sel === i }}
             />
           ))}
         </View>
@@ -398,7 +420,12 @@ function HBarCompare({ rows, width }: { rows: { label: string; current: number; 
 }
 
 /* ═══ Jauge « épargne de sécurité » — langage simple, orientée objectif ═══ */
-function SafetyGauge({ value, min, optimal, comfort, monthsCovered }: { value: number; min: number; optimal: number; comfort: number; monthsCovered: number | null }) {
+function SafetyGauge({ value, min, optimal, comfort, monthsCovered, monthsBase }: {
+  value: number; min: number; optimal: number; comfort: number;
+  monthsCovered: number | null;
+  /** D'OÙ vient le nombre de mois : 'expenses' (la vraie mesure) ou 'income' (repli). Cf. securityCushion. */
+  monthsBase: 'expenses' | 'income' | null;
+}) {
   const C = useReportingColors();
   const status = value < min ? { label: 'Épargne faible', color: C.expense }
     : value < optimal ? { label: 'À renforcer', color: C.amber }
@@ -420,24 +447,33 @@ function SafetyGauge({ value, min, optimal, comfort, monthsCovered }: { value: n
       <View style={{ height: 12, backgroundColor: C.cardBorder, borderRadius: 6, overflow: 'hidden', marginTop: 12 }}>
         <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: status.color, borderRadius: 6 }} />
       </View>
+      {/* CE QU'ON DIVISE, on le DIT. La phrase annonçait « X mois de dépenses » quel que soit le
+          calcul réel : tant qu'aucune charge récurrente n'est saisie, le moteur retombe sur le
+          REVENU (cf. lib/securityCushion) — l'écran affirmait alors couvrir des dépenses qu'il
+          n'avait jamais mesurées. La page Profil financier nomme déjà la base ; on fait pareil. */}
       <Text style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 9, lineHeight: 18 }}>
         {monthsCovered != null && monthsCovered > 0
           ? (monthsCovered < 0.75
-              ? 'Ton épargne couvre moins d’1 mois de dépenses. '
-              : `Ton épargne couvre environ ${Math.round(monthsCovered)} mois de dépenses. `)
+              ? `Ton épargne couvre moins d’1 mois ${monthsBase === 'income' ? 'de revenus' : 'de dépenses'}. `
+              : `Ton épargne couvre environ ${Math.round(monthsCovered)} mois ${monthsBase === 'income' ? 'de revenus' : 'de dépenses'}. `)
           : ''}
         {target > value ? `Objectif conseillé : ${fmtFull(target)} — encore ${fmtFull(target - value)}.` : 'Objectif atteint 🎉'}
       </Text>
+      {monthsCovered != null && monthsCovered > 0 && securityBaseLabel(monthsBase) ? (
+        <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 4, lineHeight: 16 }}>{securityBaseLabel(monthsBase)}</Text>
+      ) : null}
     </View>
   );
 }
 
 /* ═══ KPI ═══ */
-function KpiCard({ icon, label, value, color, sub }: { icon: string; label: string; value: string; color: string; sub?: string }) {
+function KpiCard({ icon, label, value, color, sub, desktop }: { icon: string; label: string; value: string; color: string; sub?: string; desktop?: boolean }) {
   const C = useReportingColors();
   const s = makeStyles(C);
   return (
-    <View style={[s.kpiCard, { borderLeftColor: color }]}>
+    // Bureau : quatre cartes sur une ligne. À 46 % de base, elles restaient deux par ligne dans une
+    // colonne de 1 180 px — deux pavés de 570 px pour y écrire « 1 240 € ».
+    <View style={[s.kpiCard, desktop && s.kpiCardDesktop, { borderLeftColor: color }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
         <Ionicons name={icon as any} size={15} color={color} />
         <Text style={s.kpiLabel} numberOfLines={1}>{label}</Text>
@@ -503,16 +539,27 @@ function ReportingBody() {
   };
 
   const { data: profile } = useProfile(user?.id);
-  const { isPremium } = usePlan(user?.id);
+  const { isPremium, isResolved: planResolved } = usePlan(user?.id);
   const isAdmin = (profile as any)?.is_admin === true;
   const reportingAllowed = isPremium || isAdmin;
 
-  const { data: rawTxPerso, refetch: rTx } = useTransactions(user?.id);
-  const { data: rawAccPerso, refetch: rAcc } = useAccounts(user?.id);
-  const { data: categories } = useCategories(user?.id);
-  const { data: pilotage, refetch: rPil } = usePilotageData(user?.id);
-  const { data: sharedContrib } = useSharedContribution(user?.id);
+  const txQuery = useTransactions(user?.id);
+  const accQuery = useAccounts(user?.id);
+  const pilotageQuery = usePilotageData(user?.id);
+  const sharedQuery = useSharedContribution(user?.id);
+  const categoriesQuery = useCategories(user?.id);
+  const { data: rawTxPerso } = txQuery;
+  const { data: rawAccPerso } = accQuery;
+  const { data: categories } = categoriesQuery;
+  const { data: pilotage } = pilotageQuery;
+  const { data: sharedContrib } = sharedQuery;
   const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  /* C3 — mensualités de crédit à venir (flux VIRTUELS : les échéances échues sont, elles, de vraies
+     transactions depuis la migration 143). Sans elles, les mois prévus perdaient le remboursement
+     et l'assurance : les barres « à venir » plongeaient de plusieurs centaines d'euros par rapport
+     aux mois passés — une baisse des dépenses qui n'existe pas, et que la Projection et le plan de
+     Trésorerie (qui les intègrent tous les deux) ne montraient pas. */
+  const creditFlows = useCreditFlows(user?.id);
 
   const refCode = (profile as any)?.currency_code ?? 'EUR';
 
@@ -522,9 +569,9 @@ function ReportingBody() {
     return merged.map((a) => ({ ...a, balance: convertAmount(Number(a.balance), (a as any).currency || 'EUR', refCode, rates) ?? Number(a.balance) }));
   }, [rawAccPerso, sharedContrib, rates, refCode]);
   const allTx = useMemo(() => {
-    const merged = [...(rawTxPerso ?? []), ...((sharedContrib?.transactions ?? []) as any[])];
+    const merged = [...(rawTxPerso ?? []), ...((sharedContrib?.transactions ?? []) as any[]), ...creditFlows];
     return merged.map((t) => ({ ...t, amount: convertAmount(Number(t.amount), (t as any).account?.currency || refCode, refCode, rates) ?? Number(t.amount) }));
-  }, [rawTxPerso, sharedContrib, rates, refCode]);
+  }, [rawTxPerso, sharedContrib, creditFlows, rates, refCode]);
 
   // ── Périmètre (vue FLUX) — même logique que Pilotage/Projection. ──
   const perimeterCtx = useMemo(() => buildPerimeterCtx(allAccounts.map((a: any) => ({
@@ -538,7 +585,22 @@ function ReportingBody() {
 
   const typeById = useMemo(() => { const m: Record<string, string> = {}; for (const a of allAccounts) m[a.id] = (a as any).type; return m; }, [allAccounts]);
 
-  const handleRefresh = async () => { setRefreshing(true); await Promise.all([rTx(), rAcc(), rPil()]); setRefreshing(false); };
+  /* Rafraîchit TOUT ce que la page affiche — les parts de comptes partagés et les catégories en
+     faisaient partie sans jamais être rechargées : « tirer pour rafraîchir » laissait les chiffres
+     des comptes joints dans l'état où ils étaient à l'ouverture.
+     Et le `finally` n'est pas décoratif : sans lui, une coupure réseau pendant le rafraîchissement
+     laissait le rond de chargement tourner indéfiniment, sans aucun moyen de l'arrêter. */
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        txQuery.refetch(), accQuery.refetch(), pilotageQuery.refetch(),
+        sharedQuery.refetch(), categoriesQuery.refetch(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // ── Catégorie « parent » ── */
   const catById = useMemo(() => { const m = new Map<string, { name: string; parent_id?: string | null }>(); for (const c of categories ?? []) m.set(c.id, { name: c.name, parent_id: c.parent_id }); return m; }, [categories]);
@@ -553,16 +615,42 @@ function ReportingBody() {
   const catTypeById = useMemo(() => { const m = new Map<string, 'income' | 'expense'>(); for (const c of categories ?? []) { const ty = (c as any).type; if (ty === 'income' || ty === 'expense') m.set(c.id, ty); } return m; }, [categories]);
   const categoryType = (categoryId: string | null | undefined): 'income' | 'expense' | null => (categoryId ? (catTypeById.get(categoryId) ?? null) : null);
 
-  // ── Fenêtre de mois (période choisie, bornée à la 1ʳᵉ donnée). ──
+  const today = todayISO();
+  const curYm = today.substring(0, 7);
+
+  /* ── JUSQU'OÙ L'HISTORIQUE CHARGÉ EST-IL COMPLET ? ─────────────────────────────────────────────
+     La liste des opérations perso est bornée à 500 lignes (TX_FETCH_LIMIT), et un abonné Premium a
+     le droit d'en saisir 500 par MOIS : au-delà, il manque les plus anciennes — sans que rien ne le
+     dise. Or toute cette page raisonne dessus : les revenus/dépenses des mois passés seraient
+     amputés, et le total des comptes est reconstruit À REBOURS du solde du jour (on retire ce qui
+     est tombé depuis), donc chaque opération manquante décale tous les points antérieurs.
+     On refuse donc de remonter au-delà du premier mois RÉELLEMENT complet — c'est déjà la règle de
+     la courbe de solde du détail de compte (cf. buildBalanceHistory / completeSince).
+     Le mois courant reste toujours affiché : c'est le plus récent, donc le seul qu'on est certain
+     d'avoir en entier. */
+  const historyFloorYM = useMemo(() => {
+    const list = rawTxPerso ?? [];
+    if (list.length < TX_FETCH_LIMIT) return null;             // rien n'a été tronqué
+    let oldest: string | null = null;
+    for (const t of list as any[]) { const d = t.date ?? ''; if (d && (!oldest || d < oldest)) oldest = d; }
+    if (!oldest) return null;
+    const firstComplete = addMonthKey(oldest.substring(0, 7), 1);
+    return firstComplete > curYm ? curYm : firstComplete;
+  }, [rawTxPerso, curYm]);
+
+  // ── Fenêtre de mois (période choisie, bornée à la 1ʳᵉ donnée ET à l'historique complet). ──
   const dataStartYM = useMemo(() => {
     let earliest: string | null = null;
     for (const a of allAccounts) { const ym = ((a as any).created_at ?? '').substring(0, 7); if (ym && (!earliest || ym < earliest)) earliest = ym; }
     for (const t of allTx as any[]) { const ym = (t.date ?? '').substring(0, 7); if (ym && (!earliest || ym < earliest)) earliest = ym; }
+    if (historyFloorYM && (!earliest || earliest < historyFloorYM)) return historyFloorYM;
     return earliest;
-  }, [allAccounts, allTx]);
+  }, [allAccounts, allTx, historyFloorYM]);
   // Fenêtre fixe unique : 6 mois (plus de sélecteur). Bornée à la 1ʳᵉ donnée.
   const months = useMemo(() => monthsWindow(6, dataStartYM), [dataStartYM]);
   const monthsBars = months;
+  /** L'historique affiché est-il RACCOURCI par la troncature (et pas simplement par l'ancienneté du compte) ? */
+  const historyTruncated = !!historyFloorYM && months.length < 6 && months[0]?.ym === historyFloorYM;
 
   /* ══ Revenus vs Dépenses — filtre par compte courant + 3 mois d'anticipation ══════════════════
      Le filtre ne vaut QUE pour cette section : le reste de la page (patrimoine, catégories, bilan)
@@ -595,16 +683,27 @@ function ReportingBody() {
   // Échéances modifiées (« ce mois-là seulement ») — la prévision doit les respecter, comme la Projection.
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(user?.id);
   const overridesMap = useMemo(() => {
-    const txById = new Map((rawTxPerso ?? []).map((t: any) => [t.id, t]));
+    /* Les échéances des comptes PARTAGÉS comptent aussi : on cherche donc la transaction d'origine
+       dans les deux jeux. Et le montant modifié est saisi EN ENTIER — il faut lui appliquer la même
+       part d'impact que le reste (`factorByAccount`), sinon une échéance retouchée sur un compte
+       joint à 50 % repartait à 100 % dans la prévision, elle seule. */
+    const txById = new Map<string, any>();
+    for (const t of (rawTxPerso ?? []) as any[]) txById.set(t.id, t);
+    for (const t of ((sharedContrib?.transactions ?? []) as any[])) txById.set(t.id, t);
     const map: Record<string, number> = {};
     for (const o of monthOverrides) {
       if (o.override_amount == null) continue; // override de DATE seule → pas de montant
-      const cur = (txById.get(o.transaction_id) as any)?.account?.currency || refCode;
-      map[`${o.transaction_id}:${o.year}:${o.month}`] =
-        convertAmount(Number(o.override_amount), cur, refCode, rates) ?? Number(o.override_amount);
+      const src = txById.get(o.transaction_id) as any;
+      const cur = src?.account?.currency || refCode;
+      const factor = src ? (sharedContrib?.factorByAccount?.[src.account_id] ?? 1) : 1;
+      const raw = Number(o.override_amount);
+      // Parenthèses obligatoires : `f * convertAmount(...) ?? raw` vaudrait 0 quand la conversion
+      // échoue (f × null = 0, qui n'est pas « nullish » → le repli ne s'appliquerait jamais).
+      const converted = convertAmount(raw, cur, refCode, rates) ?? raw;
+      map[`${o.transaction_id}:${o.year}:${o.month}`] = converted * factor;
     }
     return map;
-  }, [monthOverrides, rawTxPerso, rates, refCode]);
+  }, [monthOverrides, rawTxPerso, sharedContrib, rates, refCode]);
 
   // ── Séries. ──
   const monthlyFlux = useMemo(() => buildMonthlyFlux(fluxTx, months, categoryType), [fluxTx, months, catTypeById]);
@@ -627,11 +726,13 @@ function ReportingBody() {
     overridesMap, variableMonthly: forecastVariable,
   }), [sectionFluxTx, forecastMonths, catTypeById, overridesMap, forecastVariable]);
   const monthlyFluxBars = useMemo<MonthlyFlux[]>(() => [...sectionFlux, ...forecastFlux], [sectionFlux, forecastFlux]);
-  const savingsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], months, typeById), [allTx, months, typeById]);
-  const savingsBarsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], monthsBars, typeById), [allTx, monthsBars, typeById]);
+  /* « Mis de côté » s'arrête à AUJOURD'HUI (`todayISO`) : un virement programmé pour le 28 n'a pas
+     encore quitté le compte. C'est la même borne que la valeur des comptes ci-dessous — sans elle,
+     « Gain hors apports » retranchait un apport qui n'était pas encore dans la valeur. */
+  const savingsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], months, typeById, { todayISO: today }), [allTx, months, typeById, today]);
+  const savingsBarsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], monthsBars, typeById, { todayISO: today }), [allTx, monthsBars, typeById, today]);
   const allIds = useMemo(() => new Set(allAccounts.map((a: any) => a.id)), [allAccounts]);
-  const today = todayISO();
-  // Série de patrimoine : plus de graphe dédié, mais elle alimente le KPI « Patrimoine net » et le bilan.
+  // Série des comptes : plus de graphe dédié, mais elle alimente le KPI « Total des comptes » et le bilan.
   const netWorthTotal = useMemo(() => buildBalanceSeries(allIds, allAccounts as any, allTx as ReportTx[], months, today), [allIds, allAccounts, allTx, months, today]);
 
   // ── Investissements : valeur du portefeuille dans le temps + apports mensuels. ──
@@ -639,25 +740,56 @@ function ReportingBody() {
   const investIds = useMemo(() => new Set((allAccounts as any[]).filter((a) => a.type === 'investment').map((a) => a.id)), [allAccounts]);
   const investSeries = useMemo(() => buildBalanceSeries(investIds, allAccounts as any, allTx as ReportTx[], months, today), [investIds, allAccounts, allTx, months, today]);
 
-  const curYm = today.substring(0, 7);
-  const prevYm = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }, []);
+  /* ── COMPARER DEUX MOIS QUI SE RESSEMBLENT ─────────────────────────────────────────────────────
+     Le mois précédent était pris avec `new Date().setMonth(m - 1)` : le 31 mars, « le mois d'avant »
+     valait… mars (le 31 février n'existe pas et déborde sur mars). Huit jours par an, la comparaison
+     se faisait donc contre le mois EN COURS, et chaque poste s'affichait « nouveau ce mois ».
+     `addMonthKey` fait cette arithmétique sur la clé de mois, sans jamais toucher au jour ; et quand
+     la fenêtre contient déjà le mois précédent, c'est lui qui fait foi.
+
+     Ensuite, la vraie difficulté : un mois EN COURS n'a que ses premiers jours. Le comparer à un
+     mois complet, c'est annoncer une baisse des dépenses tous les 4 du mois. On arrête donc les DEUX
+     mois au même jour tant que le mois n'est pas terminé — et on l'écrit à l'écran. */
+  const prevYm = months.length >= 2 ? months[months.length - 2].ym : addMonthKey(curYm, -1);
+  const dayOfMonth = Number(today.substring(8, 10));
+  const daysInCurMonth = useMemo(() => { const [y, m] = curYm.split('-').map(Number); return new Date(y, m, 0).getDate(); }, [curYm]);
+  const monthInProgress = dayOfMonth < daysInCurMonth;
+  /** Jour d'arrêt commun aux deux mois, ou `undefined` quand le mois courant est terminé. */
+  const compareDay = monthInProgress ? dayOfMonth : undefined;
+
   const categoryBreakdown = useMemo(() => buildCategoryBreakdown(fluxTx, curYm, grandCategoryName, categoryType, 7), [fluxTx, curYm, catById, catTypeById]);
-  const topCategories = useMemo(() => buildTopCategoriesCompare(fluxTx, curYm, prevYm, grandCategoryName, categoryType, 5), [fluxTx, curYm, prevYm, catById, catTypeById]);
+  const topCategories = useMemo(
+    () => buildTopCategoriesCompare(fluxTx, curYm, prevYm, grandCategoryName, categoryType, 5, compareDay),
+    [fluxTx, curYm, prevYm, catById, catTypeById, compareDay],
+  );
 
   // ── KPIs. ──
-  const patrimoineTotal = useMemo(() => allAccounts.reduce((sum: number, a: any) => sum + Number(a.balance), 0), [allAccounts]);
+  const comptesTotal = useMemo(() => allAccounts.reduce((sum: number, a: any) => sum + Number(a.balance), 0), [allAccounts]);
   const lastFlux = monthlyFlux[monthlyFlux.length - 1];
   const prevFlux = monthlyFlux[monthlyFlux.length - 2];
   const monthSaved = savingsSeries[savingsSeries.length - 1]?.saved ?? 0;
   const monthIncome = lastFlux?.income ?? 0;
-  const savingsRate = monthIncome > 0 ? Math.round((monthSaved / monthIncome) * 100) : 0;
-  // Écart de dépenses vs mois précédent : en € (toujours affichable, même si M-1 = 0 €) + % si calculable.
-  const expenseDiff = lastFlux && prevFlux ? lastFlux.expense - prevFlux.expense : null;
-  const expensePct = lastFlux && prevFlux && prevFlux.expense > 0 ? Math.round(((lastFlux.expense - prevFlux.expense) / prevFlux.expense) * 100) : null;
+  /* Sans revenu connu ce mois-ci, le taux n'existe pas — il ne vaut pas « 0 % ». Afficher 0 % à
+     quelqu'un qui vient de mettre 300 € de côté est simplement faux. */
+  const savingsRate = monthIncome > 0 ? Math.round((monthSaved / monthIncome) * 100) : null;
 
-  // Apports (virements entrants) par mois, et « gain hors apports » : la variation de valeur qui
-  // n'est PAS due à de l'argent ajouté. `buildBalanceSeries` renvoie le solde de FIN de mois, donc
-  // les apports du 1ᵉʳ mois sont déjà inclus dans le point de départ → on ne compte que les suivants.
+  /** Dépenses M vs M-1, arrêtées au même jour tant que le mois court (cf. plus haut). */
+  const expenseCompare = useMemo(() => {
+    if (!lastFlux || !prevFlux) return null;
+    if (!compareDay) return { current: lastFlux.expense, previous: prevFlux.expense, toDate: false, day: dayOfMonth };
+    const cur = buildMonthlyFlux(fluxTx, [months[months.length - 1]], categoryType, { upToDay: compareDay })[0];
+    const prev = buildMonthlyFlux(fluxTx, [months[months.length - 2]], categoryType, { upToDay: compareDay })[0];
+    return { current: cur.expense, previous: prev.expense, toDate: true, day: compareDay };
+  }, [lastFlux, prevFlux, fluxTx, months, catTypeById, compareDay, dayOfMonth]);
+  const expenseDiff = expenseCompare ? expenseCompare.current - expenseCompare.previous : null;
+  const expensePct = expenseCompare && expenseCompare.previous > 0
+    ? Math.round(((expenseCompare.current - expenseCompare.previous) / expenseCompare.previous) * 100)
+    : null;
+
+  // Apports (virements entrants + versements marqués) par mois, et « gain hors apports » : la
+  // variation de valeur qui n'est PAS due à de l'argent ajouté. `buildBalanceSeries` renvoie le
+  // solde de FIN de mois, donc les apports du 1ᵉʳ mois sont déjà inclus dans le point de départ →
+  // on ne compte que les suivants.
   const investApports = useMemo(() => savingsSeries.map((m) => m.invest), [savingsSeries]);
   const investValue = investSeries[investSeries.length - 1]?.value ?? 0;
   const investApportsPeriod = useMemo(() => investApports.slice(1).reduce((a, b) => a + b, 0), [investApports]);
@@ -666,17 +798,23 @@ function ReportingBody() {
   // ── Bilan intelligent. ──
   const insights = useMemo(() => buildInsights({
     monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved,
+    expenseCompare,
     // RYTHME (rapporté à l'avancement du mois), pas taux de remplissage : ce dernier valant ~5 % le
     // 3 du mois, le bilan félicitait « 95 % sous ton budget » avant toute dépense.
     variablePacePct: pilotage?.variable_pace_percentage ?? null,
     hasVariableBaseline: (pilotage?.avg_variable_expenses_3m ?? 0) > 0,
-  }), [monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved, pilotage]);
+  }), [monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved, expenseCompare, pilotage]);
 
   const toneMeta: Record<InsightTone, { color: string; label: string }> = {
     alert: { color: C.expense, label: 'À surveiller' }, win: { color: C.income, label: 'Bravo' }, tip: { color: C.violet, label: 'Opportunité' },
   };
 
   if (!user) return <Gate C={C} s={s} icon="lock-closed-outline" text="Connecte-toi pour accéder au reporting." />;
+  /* Tant que le plan n'est pas CONNU, on ne refuse rien : `isPremium` vaut `false` par défaut, pas
+     par réponse. Sans cette attente, un abonné qui ouvrait le Reporting à froid (ou après une
+     lecture réseau ratée des drapeaux) tombait sur le mur « réservé aux abonnés Premium », son
+     abonnement en poche. Un mur d'accès se ferme sur une réponse, jamais sur une absence. */
+  if (!planResolved && !reportingAllowed) return <PageLoader />;
   if (!reportingAllowed) return (
     <View style={s.root}>
       <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
@@ -685,7 +823,8 @@ function ReportingBody() {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
           <Ionicons name="star-outline" size={48} color={C.amber} />
           <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>Reporting réservé aux abonnés Premium</Text>
-          <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>Patrimoine, répartition des dépenses et bilan intelligent : passez Premium pour y accéder.</Text>
+          {/* TUTOIEMENT — comme partout ailleurs dans l'app (« passez » détonnait ici seulement). */}
+          <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>Total de tes comptes, répartition des dépenses et bilan intelligent : passe Premium pour y accéder.</Text>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
             <Ionicons name="star" size={16} color="#0f172a" /><Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
           </TouchableOpacity>
@@ -696,7 +835,41 @@ function ReportingBody() {
 
   /* Données pas encore là → cercle, pas une page de graphes vides et de « 0 € » qui sauteront aux
      vraies valeurs. On teste l'ABSENCE de données, jamais `isFetching` (cf. components/PageLoader). */
-  if (!pilotage || !rawTxPerso || !rawAccPerso) return <PageLoader label="Analyse de tes données…" />;
+  if (!pilotage || !rawTxPerso || !rawAccPerso) {
+    /* …MAIS un chargement qui a ÉCHOUÉ n'est pas un chargement en cours. Les requêtes de cette page
+       lèvent leurs erreurs (règle « lecture en erreur ≠ liste vide ») : sans données ET en erreur,
+       l'écran tournait indéfiniment, sans un mot et sans moyen de réessayer — coupure réseau,
+       session expirée ou droit manquant se ressemblaient tous les trois. */
+    const failed = txQuery.isError || accQuery.isError || pilotageQuery.isError || sharedQuery.isError;
+    if (failed) {
+      const retry = () => {
+        txQuery.refetch(); accQuery.refetch(); pilotageQuery.refetch();
+        sharedQuery.refetch(); categoriesQuery.refetch();
+      };
+      return (
+        <View style={s.root}>
+          <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
+          <SafeAreaView style={s.safe} edges={['left', 'right']}>
+            <BackRow C={C} onPress={goBack} />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
+              <Ionicons name="cloud-offline-outline" size={48} color={C.textSecondary} />
+              <Text style={{ color: C.text, marginTop: 14, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>Tes données n’ont pas pu être chargées</Text>
+              <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>
+                Vérifie ta connexion, puis réessaie. Rien n’a été modifié.
+              </Text>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.violet, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }}
+                onPress={retry} activeOpacity={0.85} accessibilityRole="button"
+              >
+                <Ionicons name="refresh" size={16} color="#fff" /><Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>Réessayer</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
+      );
+    }
+    return <PageLoader label="Analyse de tes données…" />;
+  }
 
   return (
     <View style={s.root}>
@@ -711,18 +884,54 @@ function ReportingBody() {
           {/* KPIs */}
           <FadeIn delay={100}>
             <View style={s.kpiRow}>
-              <KpiCard icon="layers-outline" label="Patrimoine net" value={fmtFull(patrimoineTotal)} color={ACCOUNT_COLORS.checking} sub={netWorthTotal.length >= 2 ? `${fmtSigned(netWorthTotal[netWorthTotal.length - 1].value - netWorthTotal[0].value)} sur ${months.length} mois` : undefined} />
-              <KpiCard icon="wallet-outline" label="Net du mois" value={lastFlux ? fmtSigned(lastFlux.net) : '—'} color={lastFlux && lastFlux.net >= 0 ? C.income : C.expense} sub={lastFlux ? `${fmtFull(lastFlux.income)} − ${fmtFull(lastFlux.expense)}` : undefined} />
-              <KpiCard icon="shield-checkmark-outline" label="Taux d'épargne" value={`${savingsRate} %`} color={C.income} sub={`${fmtFull(monthSaved)} mis de côté`} />
+              {/* « Total des comptes », pas « Patrimoine net » : ce total ne couvre que l'argent DES
+                  COMPTES — ni les biens possédés, ni le capital restant dû des crédits. C'est le
+                  mot choisi par la page Comptes ; deux écrans ne peuvent pas promettre deux choses
+                  différentes pour le même chiffre. */}
+              <KpiCard
+                icon="layers-outline" label="Total des comptes" value={fmtFull(comptesTotal)} color={ACCOUNT_COLORS.checking}
+                desktop={isDesktop}
+                sub={netWorthTotal.length >= 2
+                  ? `${fmtSigned(netWorthTotal[netWorthTotal.length - 1].value - netWorthTotal[0].value)} depuis fin ${netWorthTotal[0].label}`
+                  : undefined}
+              />
+              <KpiCard icon="wallet-outline" label="Net du mois" value={lastFlux ? fmtSigned(lastFlux.net) : '—'} color={lastFlux && lastFlux.net >= 0 ? C.income : C.expense} desktop={isDesktop} sub={lastFlux ? `${fmtFull(lastFlux.income)} − ${fmtFull(lastFlux.expense)}` : undefined} />
+              <KpiCard
+                icon="shield-checkmark-outline" label="Taux d'épargne"
+                value={savingsRate == null ? '—' : `${savingsRate} %`}
+                color={C.income} desktop={isDesktop}
+                sub={savingsRate == null ? `${fmtFull(monthSaved)} mis de côté · revenu inconnu` : `${fmtFull(monthSaved)} mis de côté`}
+              />
               <KpiCard
                 icon="swap-vertical-outline"
                 label="Dépenses vs M-1"
                 value={expenseDiff == null ? '—' : fmtSigned(expenseDiff)}
                 color={expenseDiff != null && expenseDiff > 0 ? C.expense : C.income}
-                sub={lastFlux ? `${fmtFull(lastFlux.expense)} ce mois${expensePct != null ? ` · ${expensePct > 0 ? '+' : ''}${expensePct} %` : ''}` : undefined}
+                desktop={isDesktop}
+                sub={expenseCompare
+                  ? `${expenseCompare.toDate ? `au ${expenseCompare.day}` : 'ce mois'} · ${fmtFull(expenseCompare.current)}${expensePct != null ? ` · ${expensePct > 0 ? '+' : ''}${expensePct} %` : ''}`
+                  : undefined}
               />
             </View>
           </FadeIn>
+          {/* Ce qu'il faut savoir pour lire les chiffres ci-dessus SANS se tromper : d'un côté la
+              comparaison à date, de l'autre l'historique éventuellement raccourci. */}
+          {(expenseCompare?.toDate || historyTruncated) ? (
+            <FadeIn delay={120}>
+              <View style={{ marginTop: 10, gap: 4 }}>
+                {expenseCompare?.toDate ? (
+                  <Text style={s.kpiNote}>
+                    « Dépenses vs M-1 » compare le mois en cours au mois précédent <Text style={{ fontWeight: '700' }}>arrêté au même jour</Text> (le {expenseCompare.day}) — sinon un mois entamé paraîtrait toujours moins cher.
+                  </Text>
+                ) : null}
+                {historyTruncated ? (
+                  <Text style={s.kpiNote}>
+                    Historique limité à {months.length} mois : au-delà, toutes tes opérations ne sont pas chargées et les chiffres seraient incomplets.
+                  </Text>
+                ) : null}
+              </View>
+            </FadeIn>
+          ) : null}
 
           {/* Bilan intelligent */}
           {insights.length > 0 && (
@@ -780,14 +989,17 @@ function ReportingBody() {
                       );
                     })}
                   </ScrollView>
-                  {contributionJointCount > 0 && (
-                    <Text style={s.acctFilterHint}>
-                      {contributionJointCount > 1
-                        ? `${contributionJointCount} comptes joints en mode « contribution » ne sont pas listés`
-                        : 'Un compte joint en mode « contribution » n’est pas listé'} : leurs opérations ne comptent pas dans ton budget — seuls tes virements vers eux apparaissent, en dépense.
-                    </Text>
-                  )}
                 </>
+              )}
+              {/* Hors du filtre : cette explication vaut même quand il n'y a qu'UN compte courant
+                  éligible (donc pas de puces à afficher). Elle disparaissait alors complètement, et
+                  l'utilisateur cherchait en vain les opérations de son compte joint dans ces barres. */}
+              {contributionJointCount > 0 && (
+                <Text style={s.acctFilterHint}>
+                  {contributionJointCount > 1
+                    ? `${contributionJointCount} comptes joints en mode « contribution » ne sont pas comptés ici`
+                    : 'Un compte joint en mode « contribution » n’est pas compté ici'} : leurs opérations ne comptent pas dans ton budget — seuls tes virements vers eux apparaissent, en dépense.
+                </Text>
               )}
               <View style={s.tableCard}>
                 <View style={s.tableHeaderRow}>
@@ -796,22 +1008,25 @@ function ReportingBody() {
                   <Text style={[s.tableHeaderCell, { flex: 2, textAlign: 'right' }]}>Dépenses</Text>
                   <Text style={[s.tableHeaderCell, { flex: 2, textAlign: 'right' }]}>Net</Text>
                 </View>
+                {/* `numberOfLines` + `adjustsFontSizeToFit` sur les colonnes de montants : à quatre
+                    colonnes sur un écran de 320 px, « 1 234 567 € » repassait à la ligne et
+                    disloquait la rangée. Le chiffre rétrécit, il ne se casse plus. */}
                 {sectionFlux.map((row, i) => (
                   <View key={i} style={[s.tableRow, i % 2 === 0 && s.tableRowAlt]}>
-                    <Text style={[s.tableCell, { flex: 2 }]}>{row.label}</Text>
-                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income }]}>{fmtFull(row.income)}</Text>
-                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense }]}>{fmtFull(row.expense)}</Text>
-                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: row.net >= 0 ? C.income : C.expense }]}>{fmtSigned(row.net)}</Text>
+                    <Text style={[s.tableCell, { flex: 2 }]} numberOfLines={1}>{row.label}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(row.income)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(row.expense)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: row.net >= 0 ? C.income : C.expense }]} numberOfLines={1} adjustsFontSizeToFit>{fmtSigned(row.net)}</Text>
                   </View>
                 ))}
                 {sectionFlux.length > 0 && (() => {
                   const ti = sectionFlux.reduce((a, r) => a + r.income, 0), te = sectionFlux.reduce((a, r) => a + r.expense, 0);
                   return (
                     <View style={[s.tableRow, { borderTopWidth: 1, borderTopColor: C.cardBorder }]}>
-                      <Text style={[s.tableCell, { flex: 2, fontWeight: '800' }]}>Total</Text>
-                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, fontWeight: '800' }]}>{fmtFull(ti)}</Text>
-                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, fontWeight: '800' }]}>{fmtFull(te)}</Text>
-                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: ti - te >= 0 ? C.income : C.expense, fontWeight: '800' }]}>{fmtSigned(ti - te)}</Text>
+                      <Text style={[s.tableCell, { flex: 2, fontWeight: '800' }]} numberOfLines={1}>Total</Text>
+                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, fontWeight: '800' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(ti)}</Text>
+                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, fontWeight: '800' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(te)}</Text>
+                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: ti - te >= 0 ? C.income : C.expense, fontWeight: '800' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtSigned(ti - te)}</Text>
                     </View>
                   );
                 })()}
@@ -822,10 +1037,10 @@ function ReportingBody() {
                     distingue au premier coup d'œil. */}
                 {forecastFlux.map((row, i) => (
                   <View key={`f${i}`} style={[s.tableRow, s.tableRowForecast]}>
-                    <Text style={[s.tableCell, { flex: 2, color: C.textSecondary }]}>{row.label} · prévu</Text>
-                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, opacity: 0.6 }]}>{fmtFull(row.income)}</Text>
-                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, opacity: 0.6 }]}>{fmtFull(row.expense)}</Text>
-                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', opacity: 0.6, color: row.net >= 0 ? C.income : C.expense }]}>{fmtSigned(row.net)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, color: C.textSecondary }]} numberOfLines={1}>{row.label} · prévu</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, opacity: 0.6 }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(row.income)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, opacity: 0.6 }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(row.expense)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', opacity: 0.6, color: row.net >= 0 ? C.income : C.expense }]} numberOfLines={1} adjustsFontSizeToFit>{fmtSigned(row.net)}</Text>
                   </View>
                 ))}
               </View>
@@ -859,7 +1074,11 @@ function ReportingBody() {
           <FadeIn delay={370}>
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="podium-outline" size={20} color={C.violet} /><Text style={s.sectionTitle}>Top postes de dépense</Text></View>
-              <Text style={s.sectionSub}>Par grande catégorie · ce mois vs précédent</Text>
+              <Text style={s.sectionSub}>
+                Par grande catégorie · {expenseCompare?.toDate
+                  ? `ce mois vs le précédent, arrêtés au ${expenseCompare.day} tous les deux`
+                  : 'ce mois vs précédent'}
+              </Text>
               <View style={s.chartCard} onLayout={onChartCardLayout}><HBarCompare rows={topCategories} width={chartWidth} /></View>
             </View>
           </FadeIn>
@@ -873,22 +1092,30 @@ function ReportingBody() {
                 <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
                 <View style={s.chartCard} onLayout={onChartCardLayout}>
                   {/* « Mois de sécurité » : UNE seule définition dans toute l'app (lib/securityCushion) —
-                      épargne ÷ DÉPENSES essentielles mensuelles (charges récurrentes + budget variable).
-                      Partagée avec le Pouls, les recommandations et le moteur de profils P0–P9. */}
-                  <SafetyGauge
-                    value={pilotage.current_savings}
-                    min={pilotage.safety_threshold_min}
-                    optimal={pilotage.safety_threshold_optimal}
-                    comfort={pilotage.safety_threshold_comfort}
-                    monthsCovered={computeSecurityCushion({
+                      épargne ÷ DÉPENSES essentielles mensuelles (charges récurrentes + budget variable),
+                      avec repli sur le revenu tant qu'aucune charge n'est saisie. Partagée avec le
+                      Pouls, les recommandations et le moteur de profils P0–P9. On transmet aussi la
+                      BASE retenue : c'est elle qui décide du mot affiché sous la jauge. */}
+                  {(() => {
+                    const cushion = computeSecurityCushion({
                       availableSavings: pilotage.current_savings,
                       monthlyEssentialExpenses: pilotage.monthly_essential_expenses,
                       // Même garde que le moteur (cf. securityCushion) : sans charge saisie, les
                       // « dépenses essentielles » se réduisent à l'enveloppe variable.
                       recurringExpensesKnown: !!pilotage.has_recurring_expenses,
                       avgMonthlyIncome: pilotage.avg_monthly_income,
-                    }).months}
-                  />
+                    });
+                    return (
+                      <SafetyGauge
+                        value={pilotage.current_savings}
+                        min={pilotage.safety_threshold_min}
+                        optimal={pilotage.safety_threshold_optimal}
+                        comfort={pilotage.safety_threshold_comfort}
+                        monthsCovered={cushion.months}
+                        monthsBase={cushion.base}
+                      />
+                    );
+                  })()}
                 </View>
               </View>
             </FadeIn>
@@ -896,7 +1123,9 @@ function ReportingBody() {
           <FadeIn delay={480}>
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={ACCOUNT_COLORS.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
-              <Text style={s.sectionSub}>Virements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
+              {/* « Versements », pas seulement « virements » : un apport saisi directement sur un
+                  compte d'investissement compte aussi (cf. buildSavingsSeries). */}
+              <Text style={s.sectionSub}>Versements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
               <View style={s.chartCard} onLayout={onChartCardLayout}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
             </View>
           </FadeIn>
@@ -967,9 +1196,11 @@ function makeStyles(C: any) {
 
     kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
     kpiCard: { flexGrow: 1, flexBasis: '46%', backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.cardBorder, borderLeftWidth: 3, paddingVertical: 12, paddingHorizontal: 14 },
+    kpiCardDesktop: { flexBasis: '22%' },
     kpiLabel: { fontSize: 11.5, color: C.textSecondary, fontWeight: '600', flex: 1 },
     kpiValue: { fontSize: 20, fontWeight: '800', marginTop: 1 },
     kpiSub: { fontSize: 10.5, color: C.textSecondary, marginTop: 1 },
+    kpiNote: { fontSize: 11, color: C.textSecondary, lineHeight: 16 },
 
     section: { marginTop: 20 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1019,7 +1250,7 @@ function makeStyles(C: any) {
     tableCard: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.cardBorder, overflow: 'hidden' },
     tableHeaderRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.cardBorder },
     tableHeaderCell: { fontSize: 11, color: C.textSecondary, fontWeight: '700', textTransform: 'uppercase' },
-    tableRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14 },
+    tableRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
     tableRowAlt: { backgroundColor: C.mode === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' },
     // Ligne de PRÉVISION : atténuée et détachée du bloc réel par un liseré.
     tableRowForecast: { borderTopWidth: 1, borderTopColor: C.cardBorder, borderStyle: 'dashed' },
