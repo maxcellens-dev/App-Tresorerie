@@ -10,8 +10,19 @@
  * table du palier. C'est un profil sur mesure, pas un mode « sans garde-fou ». Tout ce qui vient
  * après continue de s'appliquer à l'identique :
  *
- *     répartition de base  →  bornes de la PRIORITÉ du mois  →  modificateurs contextuels
- *                          →  normalisation à 100 %  →  seuils d'affichage  →  garde-fou projection
+ *     répartition (profil OU manuelle)  →  modificateurs contextuels  →  normalisation à 100 %
+ *                                       →  seuils d'affichage  →  garde-fou projection
+ *
+ * ⚠️ IL N'Y A PLUS D'ÉTAGE « PRIORITÉ DU MOIS » entre les deux. Un module `financialPriorities`
+ * classait la situation en sept priorités écrites en dur (« sortir du rouge », « te constituer un
+ * filet », « faire travailler ton patrimoine »…) et imposait des bornes qui ÉCRASAIENT les
+ * pourcentages du profil. Il a été retiré : la répartition vient du profil financier — ou du
+ * réglage manuel — et rien ne la réécrit avant les modificateurs.
+ * Ce que ces bornes prétendaient protéger est déjà assuré, plus bas et sur des MONTANTS RÉELS
+ * plutôt que sur des pourcentages, par le moteur de recommandations : cascade de l'enveloppe
+ * variable dépassée (étape 8), garde-fou « point bas de la projection − marge » qui rabote
+ * l'investissement en premier et reverse l'excédent sur « Conserver » (étape 8bis), seuils
+ * d'affichage et réconciliation Σ(recos) = Relyka (étapes 9 à 10).
  *
  * ── POURQUOI CE FICHIER EXISTE ──────────────────────────────────────────────────────────────────
  * Quatre endroits doivent répondre à la même question (« quelle répartition s'applique ? ») : le
@@ -26,9 +37,15 @@
  * conduirait à recommander des montants sans rapport avec le Relyka. C'est la même exigence que
  * celle qui existait déjà pour les préférences d'allocation historiques (`applyUserAllocationPreferences`).
  */
-import type { Allocation, RecoKey } from './financialPriorities';
+import type { FinancialProfileId } from '../../types/database';
+import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
 
 export type RecoMode = 'auto' | 'manual';
+
+/* Les quatre postes du Relyka. Ces types vivaient dans `financialPriorities` ; ils lui ont survécu
+   parce qu'ils ne parlaient pas de priorités — seulement de la forme d'une répartition. */
+export type RecoKey = 'save' | 'invest' | 'enjoy' | 'keep';
+export type Allocation = Record<RecoKey, number>;
 
 /** Les quatre postes, dans l'ordre où ils sont présentés partout dans l'app. */
 export const RECO_KEYS: RecoKey[] = ['save', 'invest', 'enjoy', 'keep'];
@@ -101,4 +118,25 @@ export function resolveRecoMode(src: RecoModeSource | null | undefined): Resolve
 /** Somme des quatre postes — sert à l'écran de réglage (« il te reste X à répartir »). */
 export function allocationTotal(a: Allocation): number {
   return a.save + a.invest + a.enjoy + a.keep;
+}
+
+/**
+ * LA RÉPARTITION QUI S'APPLIQUE — point d'entrée unique des écrans ET du moteur.
+ *
+ * Réglage manuel s'il existe, sinon la table du palier. C'est tout : plus rien ne borne ni ne
+ * réécrit ces pourcentages à ce stade (cf. l'avertissement en tête de fichier sur le retrait de
+ * l'étage « priorité du mois »).
+ *
+ * `table` = la table réglée en ADMINISTRATION quand elle a pu être chargée, celle du code sinon.
+ * Elle est passée plutôt que lue ici pour que les écrans et le moteur affichent la même chose : une
+ * table lue à deux endroits finit toujours par diverger d'une version.
+ */
+export function appliedAllocation(
+  profileId: FinancialProfileId,
+  manualAllocation?: Allocation | null,
+  table?: Record<FinancialProfileId, Allocation> | null,
+): Allocation {
+  if (manualAllocation) return { ...manualAllocation };
+  const from = table ?? PROFILE_ALLOCATIONS;
+  return { ...(from[profileId] ?? from.P0 ?? PROFILE_ALLOCATIONS.P0) };
 }

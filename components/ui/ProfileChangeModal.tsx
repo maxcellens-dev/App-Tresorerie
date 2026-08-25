@@ -12,8 +12,7 @@ import { useGuide } from '../../contexts/GuideContext';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { sheetWidth } from '../../lib/ui/appLayout';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
-import { resolveMonthlyAllocation, situationFromPilotage, type Allocation } from '../../lib/finance/financialPriorities';
-import { resolveRecoMode } from '../../lib/finance/recoMode';
+import { resolveRecoMode, appliedAllocation, type Allocation } from '../../lib/finance/recoMode';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
 
@@ -254,18 +253,12 @@ export default function ProfileChangeModal({ userId }: Props) {
      plusieurs paliers, ex. P4 → P2) et où il ne restait donc que le nom du nouveau profil.
      On montre donc les nouveaux pourcentages, avec l'écart par poste quand il y a un avant : c'est
      exactement ce qui bouge, et ça se lit en une seconde. */
-  /* Les pourcentages ANNONCÉS sont ceux qui seront APPLIQUÉS. La table brute du palier est ajustée
-     par la priorité du mois (cf. resolveMonthlyAllocation) : afficher 30 % d'investissement dans la
-     fenêtre qui célèbre un nouveau palier, pendant que le tableau de bord en recommande 0 parce que
-     le mois ne se boucle pas, c'est se contredire à une seconde d'intervalle.
-     La comparaison avant/après reste faite à priorité ÉGALE — c'est bien l'effet du CHANGEMENT DE
-     PALIER qu'on montre, pas celui de la situation du mois, qui n'a pas bougé entre les deux. */
-  /* Situation du mois : fonction PARTAGÉE (lib/financialPriorities). Recopiée ici, elle OMETTAIT
-     le découvert chronique — cette fenêtre pouvait donc annoncer une répartition que le tableau de
-     bord, lui, bornait autrement. */
-  const situation = situationFromPilotage(pilotage);
+  /* Les pourcentages ANNONCÉS sont ceux qui seront APPLIQUÉS : même point d'entrée que le moteur
+     de recommandations (cf. `appliedAllocation`). Annoncer 30 % d'investissement dans la fenêtre
+     qui célèbre un nouveau palier pendant que le tableau de bord en recommande autre chose, c'est
+     se contredire à une seconde d'intervalle. */
   const applied = (id: FinancialProfileId, base?: Allocation | null) =>
-    (situation ? resolveMonthlyAllocation(id, situation, base, allocTable).alloc : (base ?? allocTable[id]));
+    appliedAllocation(id, base, allocTable);
 
   const prevProfileId = pendingChange.previous_profile ? resolveProfileId(pendingChange.previous_profile) : null;
   /* En mode manuel, la répartition affichée est CELLE QUI S'APPLIQUERA après ce que l'utilisateur

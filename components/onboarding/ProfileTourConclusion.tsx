@@ -28,8 +28,8 @@ import { useGuide } from '../../contexts/GuideContext';
 import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { useProfile } from '../../hooks/data/useProfile';
-import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
-import { resolveMonthlyAllocation, situationFromPilotage } from '../../lib/finance/financialPriorities';
+import { PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
+import { appliedAllocation } from '../../lib/finance/recoMode';
 import { computeSecurityCushion, securityMonthsLabel } from '../../lib/finance/securityCushion';
 import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
 import type { FinancialProfileId } from '../../types/database';
@@ -139,17 +139,11 @@ export default function ProfileTourConclusion() {
     avgMonthlyIncome: income,
   }).months;
 
-  /* Les pourcentages ANNONCÉS sont ceux qui seront APPLIQUÉS : la table brute du palier est
-     ajustée par la priorité du mois (cf. resolveMonthlyAllocation). Cet écran conclut le
-     parcours — présenter une répartition que le tableau de bord contredit dès la seconde
-     suivante serait la pire des premières impressions. */
-  /* Situation du mois : fonction PARTAGÉE (lib/financialPriorities). Elle était assemblée à la
-     main ici et dans quatre autres fichiers — donc avec des champs différents d'un écran à l'autre,
-     et des pourcentages qui pouvaient se contredire d'une seconde à l'autre. */
-  const tourSituation = situationFromPilotage(pilotage);
-  const alloc = tourSituation
-    ? resolveMonthlyAllocation(profileId, tourSituation, null, allocTable).alloc
-    : (allocTable?.[profileId] ?? PROFILE_ALLOCATIONS[profileId]);
+  /* Les pourcentages ANNONCÉS sont ceux qui seront APPLIQUÉS — même point d'entrée que le moteur
+     de recommandations (cf. `appliedAllocation`). Cet écran conclut le parcours : présenter une
+     répartition que le tableau de bord contredit dès la seconde suivante serait la pire des
+     premières impressions. */
+  const alloc = appliedAllocation(profileId, null, allocTable);
   if (!alloc) return null;
 
   const ALLOC_ROWS = [

@@ -50,7 +50,6 @@ import PreSavingsModal from '../../components/pilotage/PreSavingsModal';
 import CumulsPanel from '../../components/pilotage/CumulsPanel';
 import type { SmartRecommendation } from '../../lib/finance/recommendationEngine';
 import type { PreSavingType } from '../../types/database';
-import { useRecommendationTiers } from '../../hooks/pilotage/useRecommendationTiers';
 import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
 import { useAutoProfileEvaluation } from '../../hooks/pilotage/useFinancialProfile';
 import { useGuide } from '../../contexts/GuideContext';
@@ -170,7 +169,6 @@ function PilotageScreen() {
      changement d'onglet ne le remonte pas, donc la clôture ne se rouvre pas en boucle pendant la
      session — elle revient à la prochaine ouverture, tant qu'un mois reste dû. */
   const [appJustOpened] = useState(true);
-  const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const { data: profileAllocations } = useProfileAllocations();
   const autoEval = useAutoProfileEvaluation(user?.id);
@@ -390,7 +388,6 @@ function PilotageScreen() {
     reliabilityCfg,
     financialProfile,
     recoThresholds,
-    customTiers,
     // Répartitions par palier réglées en administration (migration 207) — repli : celles du code.
     profileAllocations,
     colors: COLORS,

@@ -1,6 +1,5 @@
-import { readManualAllocation, resolveRecoMode, allocationTotal } from '../lib/finance/recoMode';
+import { readManualAllocation, resolveRecoMode, allocationTotal, appliedAllocation } from '../lib/finance/recoMode';
 import { deriveRecoAllocations, computeRecommendations } from '../lib/finance/recommendationEngine';
-import { resolveMonthlyAllocation } from '../lib/finance/financialPriorities';
 import { PROFILE_ALLOCATIONS } from '../lib/finance/financialProfileEngine';
 
 /**
@@ -106,42 +105,39 @@ describe('deriveRecoAllocations — le manuel remplace la table du palier, et ri
     expect(manuel.tier).toBe(auto.tier);
   });
 
-  it('les BORNES de la priorité du mois s’appliquent aussi au manuel', () => {
-    /* Moins d'un mois de réserve → priorité « te constituer un filet » : investissement borné à
-       0 %, épargne plancher à 50 %. Demander 60 % d'investissement ne doit pas passer outre — c'est
-       un réglage, pas un débrayage.
-       On compare au MÊME calcul en automatique : les postes bornés doivent tomber au même endroit.
-       Ce qui reste libre (Confort / Conserver) suit, lui, la répartition choisie — c'est justement
-       l'influence qu'on a voulu lui laisser. */
+  /* ── PLUS AUCUN ÉTAGE NE RÉÉCRIT LA RÉPARTITION DE BASE ───────────────────────────────────────
+     Un module `financialPriorities` classait la situation en sept priorités écrites en dur et
+     imposait des bornes qui écrasaient les pourcentages du profil — y compris ceux réglés à la
+     main. Quelqu'un qui posait 20 % d'épargne en voyait arriver 10, plus deux autres postes
+     décalés par le report des points libérés : trois chiffres qu'il n'avait choisis nulle part.
+     L'étage a été supprimé. Ce que ces bornes prétendaient protéger reste assuré plus bas, sur des
+     MONTANTS réels (cascade, garde-fou projection, réconciliation Σ recos = Relyka). */
+  it('la répartition de base n’est plus bornée, même sans réserve', () => {
+    // Situation extrême (réserve quasi nulle) : c'est elle qui déclenchait « invest ≤ 0 %, save ≥ 50 ».
+    const auto = deriveRecoAllocations(noReserve, { financialProfileId: 'P6' }).alloc;
     const manuel = deriveRecoAllocations(noReserve, {
       financialProfileId: 'P6', manualAllocation: manual,
     }).alloc;
-    const auto = deriveRecoAllocations(noReserve, { financialProfileId: 'P6' }).alloc;
-
-    expect(manuel.invest).toBe(auto.invest);          // 60 % demandés → ramenés au niveau borné
-    expect(manuel.invest).toBeLessThan(manual.invest / 2);
-    expect(manuel.save).toBe(auto.save);              // le plancher d'épargne remonte les 10 % demandés
-    expect(manuel.save).toBeGreaterThan(manual.save);
+    // L'investissement n'est plus ramené à zéro, ni l'épargne remontée à 50 %.
+    expect(auto.invest).toBeGreaterThan(0);
+    expect(auto.save).toBeLessThan(50);
+    expect(manuel.invest).toBeGreaterThan(0);
+    expect(manuel.save).toBeLessThan(50);
     expect(manuel.save + manuel.invest + manuel.enjoy + manuel.keep).toBe(100);
   });
 
-  it('la répartition manuelle ne s’applique QU’À LA BASE (bornes lues sans modificateurs)', () => {
-    // `resolveMonthlyAllocation` est ce que les écrans affichent : profil + priorité, sans les
-    // modificateurs contextuels. C'est là que la borne « investissement 0 % » se lit telle quelle.
-    const situation = {
-      monthsOfReserve: 0.25,
-      monthlySurplus: 300,
-      avgMonthlyIncome: 3000,
-      monthlyEssentialExpenses: 2000,
-      checkingBalance: 3000,
-      savingsBalance: 500,
-      investedBalance: 0,
-    };
-    const { alloc, priority } = resolveMonthlyAllocation('P6', situation, manual);
-    expect(priority.id).toBe('emergency');
-    expect(alloc.invest).toBe(0);
-    expect(alloc.save).toBeGreaterThanOrEqual(50);
-    expect(alloc.save + alloc.invest + alloc.enjoy + alloc.keep).toBe(100);
+  it('appliedAllocation dit la même chose que le moteur (écrans ⇄ recos)', () => {
+    /* `appliedAllocation` est le point d'entrée des ÉCRANS. S'il répondait autre chose que le
+       moteur, l'écran de réglage annoncerait une répartition et le tableau de bord en appliquerait
+       une autre — c'est exactement ce que ce fichier existe pour empêcher. */
+    expect(appliedAllocation('P6', manual)).toEqual(manual);
+    expect(appliedAllocation('P6', null)).toEqual(PROFILE_ALLOCATIONS.P6);
+    // Table de l'administration : elle prime sur celle du code, dans les deux sens de lecture.
+    const admin = { ...PROFILE_ALLOCATIONS, P6: { save: 30, invest: 30, enjoy: 20, keep: 20 } };
+    expect(appliedAllocation('P6', null, admin)).toEqual(admin.P6);
+    expect(deriveRecoAllocations(comfortable, {
+      financialProfileId: 'P6', profileAllocations: admin,
+    }).alloc).toEqual(admin.P6);
   });
 });
 
@@ -167,25 +163,23 @@ describe('computeRecommendations — les montants suivent la répartition choisi
   });
 });
 
-describe('resolveMonthlyAllocation — même règle pour les écrans', () => {
-  const situation = {
-    monthsOfReserve: 6.5,
-    monthlySurplus: 500,
-    avgMonthlyIncome: 3000,
-    monthlyEssentialExpenses: 2000,
-    checkingBalance: 3000,
-    savingsBalance: 12000,
-    investedBalance: 5000,
-  };
-
-  it('sans base imposée : la table du palier', () => {
-    expect(resolveMonthlyAllocation('P6', situation).alloc).toEqual(PROFILE_ALLOCATIONS.P6);
+describe('appliedAllocation — la répartition qui s’applique, sans condition', () => {
+  it('sans réglage manuel : la table du palier', () => {
+    expect(appliedAllocation('P6')).toEqual(PROFILE_ALLOCATIONS.P6);
+    expect(appliedAllocation('P6', null)).toEqual(PROFILE_ALLOCATIONS.P6);
   });
 
-  it('avec base imposée : la répartition choisie, bornée par la même priorité', () => {
-    const { alloc, priority } = resolveMonthlyAllocation('P6', situation, manual);
-    expect(alloc).toEqual(manual);
-    // L'écran affiche cette priorité : elle doit être la même dans les deux modes.
-    expect(priority.id).toBe(resolveMonthlyAllocation('P6', situation).priority.id);
+  it('avec réglage manuel : la répartition choisie, telle quelle', () => {
+    expect(appliedAllocation('P6', manual)).toEqual(manual);
+  });
+
+  it('rend une COPIE — un appelant ne peut pas abîmer la table du palier', () => {
+    const a = appliedAllocation('P6');
+    a.invest = 999;
+    expect(PROFILE_ALLOCATIONS.P6.invest).not.toBe(999);
+  });
+
+  it('palier inconnu : repli sur P0 plutôt qu’une répartition vide', () => {
+    expect(appliedAllocation('PX' as any)).toEqual(PROFILE_ALLOCATIONS.P0);
   });
 });

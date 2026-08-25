@@ -96,7 +96,12 @@ const confortLe = (day: number) => {
   return computeRecommendations(pilotage, opts).find((r) => r.type === 'enjoy')?.amount ?? 0;
 };
 
-describe('salaire le 25 — Confort ne fond plus en fin de mois civil', () => {
+/* Le Confort ne fond plus DU TOUT au fil de la période. Une bascule progressive le déversait dans
+   « Conserver » sur les sept derniers jours ; elle a été retirée avec les autres modificateurs
+   contextuels — les pourcentages du profil s'appliquent tels quels, et c'est à l'utilisateur de
+   décider s'il dépense son Confort la veille de sa paie. Seul le LIBELLÉ de « Conserver » change
+   à l'approche de la fin (report sur la période suivante), pas les montants. */
+describe('Confort — stable d’un bout à l’autre de la période', () => {
   it('du 26 au 31, Confort reste identique au milieu de période', () => {
     const reference = confortLe(10);
     expect(reference).toBeGreaterThan(0);
@@ -105,13 +110,13 @@ describe('salaire le 25 — Confort ne fond plus en fin de mois civil', () => {
     }
   });
 
-  it('en revanche, à l’approche de la VRAIE fin de période, il bascule bien', () => {
+  it('même la VEILLE de la rentrée d’argent, il ne bascule plus', () => {
     const veille = { ...pilotage, next_income_date: '2026-07-25' };
     const opts = buildRecoOptions(veille, {
       reservationsTotal: 0, preEpargneTotal: 0, preInvestTotal: 0, prudenceLevel: null,
       financialProfileId: 'P3', today: new Date(2026, 6, 24),
     });
     const enjoy = computeRecommendations(veille, opts).find((r) => r.type === 'enjoy')?.amount ?? 0;
-    expect(enjoy).toBeLessThan(confortLe(10));
+    expect(enjoy).toBe(confortLe(10));
   });
 });

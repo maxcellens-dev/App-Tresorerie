@@ -26,7 +26,6 @@ export interface RecoBuildExtras {
   prudenceLevel: number | null;
   financialProfileId?: FinancialProfileId;
   thresholds?: RecommendationSettings | null;
-  customTierAllocations?: ComputeRecoOptions['customTierAllocations'];
   /**
    * Répartition CHOISIE (mode manuel, cf. lib/finance/recoMode) — `null` en automatique. Elle passe
    * par ici plutôt que d'être lue dans l'écran : le Pilotage et le Pouls construisent leurs options
@@ -128,7 +127,6 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
   const resteDisponible = computeRelyka(relykaInputs);
 
   return {
-    customTierAllocations: x.customTierAllocations,
     manualAllocation: x.manualAllocation ?? null,
     profileAllocations: x.profileAllocations ?? null,
     /* PAS ENCORE DE PROFIL → P1, le plus prudent.

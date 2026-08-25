@@ -26,7 +26,8 @@
  * recommandations plafonnait l'investissement quand le profil repose sur des données incomplètes.
  * Ce n'est plus vrai : ce plafond (`applyReliabilityBounds`) a été retiré, précisément pour que la
  * fiabilité ne devienne pas un second moteur de décision invisible depuis l'échelle
- * (cf. lib/finance/financialPriorities, qui le documente). Laisser la promesse dans ce fichier,
+ * (cf. lib/finance/recoMode, qui documente ce qui borne — ou non — la répartition). Laisser la
+ * promesse dans ce fichier,
  * c'était décrire un garde-fou qui n'existe plus — le genre de commentaire qu'on finit par croire.
  * Ce que l'app ne sait pas se DIT, avec le geste qui le comble. Rien d'autre.
  */

@@ -53,7 +53,6 @@ export interface PilotageViewModelInput {
   reliabilityCfg: any;
   financialProfile: { profile_id?: string } | null | undefined;
   recoThresholds: any;
-  customTiers: any;
   /** Répartitions par palier réglées en administration (cf. useProfileAllocations). */
   profileAllocations: any;
   colors: AppColors;
@@ -93,7 +92,7 @@ export interface PilotageViewModel extends RelykaBreakdown {
 export function usePilotageViewModel(input: PilotageViewModelInput): PilotageViewModel {
   const {
     pilotageData, accounts, accountsForSuivi, txForSuivi, txPerso, reservations, preSavings,
-    profile, rates, reliabilityCfg, financialProfile, recoThresholds, customTiers, profileAllocations, colors,
+    profile, rates, reliabilityCfg, financialProfile, recoThresholds, profileAllocations, colors,
     baseDataReady, guideIs,
   } = input;
 
@@ -165,12 +164,11 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
           prudenceLevel: ((profile as any)?.prudence_level ?? null) as number | null,
           financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
           thresholds: recoThresholds,
-          customTierAllocations: customTiers,
           manualAllocation: recoMode.manualAllocation,
           profileAllocations,
         })
       : null
-  ), [pilotageData, reservationsTotal, preEpargneTotal, preInvestTotal, profile, financialProfile, recoThresholds, customTiers, profileAllocations, recoMode]);
+  ), [pilotageData, reservationsTotal, preEpargneTotal, preInvestTotal, profile, financialProfile, recoThresholds, profileAllocations, recoMode]);
 
   // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
   // Plafond passé AU MOTEUR (maxAmount) et non appliqué après coup : sinon la description et les

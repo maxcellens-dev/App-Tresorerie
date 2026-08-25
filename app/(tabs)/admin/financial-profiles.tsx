@@ -332,9 +332,10 @@ function MessagesSection({ userId }: { userId: string }) {
  * Ils vivaient uniquement dans le code : toute la calibration de l'échelle était administrable
  * (seuils, viabilité, patrimoine) sauf ce que l'app RECOMMANDE réellement de faire de l'argent.
  *
- * ⚠️ C'est une BASE, pas un verdict : la priorité du mois la borne ensuite (investissement à 0 %
- * tant qu'il n'y a pas un mois de réserve…), puis les modificateurs contextuels s'appliquent, puis
- * on normalise. Régler ces pourcentages ne débranche aucun garde-fou.
+ * ⚠️ C'est une BASE, pas un verdict : les modificateurs contextuels s'appliquent ensuite, puis on
+ * normalise, puis les garde-fous de FAISABILITÉ travaillent sur les montants (cascade de
+ * l'enveloppe variable, point bas de la projection). Régler ces pourcentages ne débranche aucun
+ * de ces garde-fous.
  * La somme doit faire 100 — vérifiée ici, avant l'envoi, ET par une contrainte en base : une ligne
  * à 97 % distribuerait un Relyka amputé à tout un palier, et ça ne se voit qu'à l'euro près.
  */
@@ -388,9 +389,9 @@ function AllocationsSection({ userId }: { userId: string }) {
   return (
     <View style={styles.sectionContent}>
       <Text style={styles.matrixInfo}>
-        Répartition de BASE du Relyka pour chaque palier. La priorité du mois la borne ensuite
-        (investissement à 0 % sans réserve, plancher d’épargne…), puis les modificateurs
-        contextuels s’appliquent : ces pourcentages orientent, ils ne décident pas seuls.
+        Répartition du Relyka pour chaque palier : c’est elle qui s’applique, telle quelle, à qui
+        n’a pas réglé ses propres pourcentages. Les modificateurs contextuels l’ajustent ensuite de
+        quelques points, puis les garde-fous de faisabilité travaillent sur les montants.
       </Text>
       <Text style={styles.matrixInfo}>
         La somme doit faire exactement 100 %. Un palier jamais enregistré ici garde la valeur du

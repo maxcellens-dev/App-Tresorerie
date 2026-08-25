@@ -28,12 +28,11 @@ import { useFinancialProfile, useProfileAllocations } from '../../../hooks/pilot
 import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import {
-  PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId,
+  PROFILE_INFO, resolveProfileId,
   WEEKS_PER_MONTH,
 } from '../../../lib/finance/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '../../../lib/finance/securityCushion';
-import { resolveMonthlyAllocation, situationFromPilotage } from '../../../lib/finance/financialPriorities';
-import { resolveRecoMode } from '../../../lib/finance/recoMode';
+import { resolveRecoMode, appliedAllocation } from '../../../lib/finance/recoMode';
 import { useProfileReliability } from '../../../hooks/pilotage/useProfileReliability';
 import type { ProfileReliabilityTone } from '../../../lib/finance/profileReliability';
 import RecoModeModal from '../../../components/pilotage/RecoModeModal';
@@ -148,29 +147,12 @@ function ProfilFinancierScreen() {
   });
 
   /* ── LES POURCENTAGES AFFICHÉS SONT CEUX QUI SONT APPLIQUÉS ────────────────────────────────
-     Cet écran lisait `PROFILE_ALLOCATIONS[profileId]` — la table BRUTE du palier. Or la
-     répartition réellement utilisée par les recommandations passe par les BORNES DE LA PRIORITÉ
-     du mois (cf. resolveMonthlyAllocation) : un P6 en déficit structurel se voit recommander 0 %
-     d'investissement, pendant que cette page continuait d'annoncer 30 %. Deux chiffres pour la
-     même chose, sur deux écrans — exactement ce que le profil est censé expliquer.
-     `resolveMonthlyAllocation` est le point d'entrée unique prévu pour ça ; il n'était appelé
-     nulle part. Sans données de Pilotage, on retombe sur la table du palier. */
-  /* La situation du mois vient de la fonction PARTAGÉE (lib/financialPriorities) : elle était
-     assemblée à la main ici et dans quatre autres fichiers, avec des champs différents d'un endroit
-     à l'autre — donc des pourcentages qui pouvaient diverger entre cette page et le tableau de bord. */
-  const situation = situationFromPilotage(pilotage);
-  /* ── QUI DÉCIDE DE LA RÉPARTITION : le profil, ou l'utilisateur ? ──────────────────────────────
-     Le mode manuel remplace la table du palier par les pourcentages choisis — et rien d'autre : la
-     priorité du mois les borne de la même façon (cf. resolveMonthlyAllocation). Les pourcentages
-     affichés plus bas sont donc, dans les deux cas, CEUX QUI S'APPLIQUENT : il n'y a rien à
-     comparer à côté, seulement à dire d'où ils viennent. */
+     Même point d'entrée que le moteur de recommandations (`appliedAllocation`) : le réglage manuel
+     s'il existe, sinon la table du palier — celle de l'administration si elle a pu être chargée.
+     C'est ce qui garantit que cette page ne peut pas annoncer 30 % pendant que le tableau de bord
+     en applique 45. */
   const recoMode = resolveRecoMode(userProfile);
-  const resolved = profileId && situation
-    ? resolveMonthlyAllocation(profileId, situation, recoMode.manualAllocation, allocTable)
-    : null;
-  const alloc = resolved?.alloc
-    ?? recoMode.manualAllocation
-    ?? (profileId ? PROFILE_ALLOCATIONS[profileId] : null);
+  const alloc = profileId ? appliedAllocation(profileId, recoMode.manualAllocation, allocTable) : null;
 
   const margin = Number((userProfile as any)?.safety_margin_amount ?? 0);
   const weekly = Number((userProfile as any)?.weekly_variable_budget ?? 0);
@@ -410,23 +392,19 @@ function ProfilFinancierScreen() {
             <Text style={styles.cardTitle}>
               {recoMode.mode === 'manual' ? 'Ce qui est appliqué' : 'Ce qu’il change'}
             </Text>
-            {/* Le profil PROPOSE, la situation du mois DISPOSE : dire « il fixe la répartition »
-                serait faux depuis que la priorité du mois borne les pourcentages — et l'écran
-                annoncerait autre chose que ce que le Pilotage applique. */}
+            {/* Ces pourcentages sont EXACTEMENT ceux qui s'appliquent : plus rien ne les réécrit
+                entre cet écran et les recommandations (l'étage « priorité du mois » a été retiré).
+                Ce qui peut encore faire varier les MONTANTS, plus bas dans le moteur, ce sont les
+                garde-fous de faisabilité — jamais ces pourcentages-ci. */}
             <Text style={styles.cardLead}>
               {recoMode.mode === 'manual' ? (
                 <>Ce sont <Text style={styles.b}>tes pourcentages</Text> qui répartissent ton Relyka entre
                 les quatre décisions — jamais les montants, qui viennent de ta trésorerie réelle.</>
               ) : (
-                <>La <Text style={styles.b}>répartition</Text> de ton Relyka entre les 4 recommandations.</>
+                <>Ton profil fixe la <Text style={styles.b}>répartition</Text> de ton Relyka entre les 4
+                recommandations — jamais les montants, qui viennent de ta trésorerie réelle.</>
               )}
             </Text>
-            {resolved && (
-              <Text style={styles.cardLead}>
-                Ce mois-ci, la priorité : <Text style={styles.b}>{resolved.priority.label.toLowerCase()}</Text>, ajuste
-                ces pourcentages : {resolved.priority.reason}
-              </Text>
-            )}
             {ALLOC_ROWS.map(({ label, key, color }) => (
               <View key={key} style={styles.allocRow}>
                 <Text style={styles.allocLabel}>{label}</Text>

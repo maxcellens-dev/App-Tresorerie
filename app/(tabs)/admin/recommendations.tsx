@@ -10,17 +10,13 @@ import ScreenGradient from '../../../components/layout/ScreenGradient';
 import {
   RECO_COLORS,
   RECO_TYPE_LABELS,
-  TIER_LABELS,
-  TIER_COLORS,
   CONSUMPTION_MODE_LABELS,
   DEFAULT_CONSUMPTION_ORDERS,
   DEFAULT_AUTO_PROFILE_MAP,
 } from '../../../lib/finance/recommendationEngine';
-import type { RecoType, SavingsTier, ConsumptionMode } from '../../../lib/finance/recommendationEngine';
+import type { RecoType, ConsumptionMode } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { FINANCIAL_PROFILE_IDS, PROFILE_INFO } from '../../../lib/finance/financialProfileEngine';
-import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../../hooks/pilotage/useRecommendationTiers';
-import type { TierAllocations } from '../../../hooks/pilotage/useRecommendationTiers';
 import { useRecoThresholds, useUpdateRecoThresholds, useUpdateRecoConsumption } from '../../../hooks/pilotage/useRecoThresholds';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
@@ -41,7 +37,7 @@ const RECO_DESC: Record<RecoType, string> = {
   save: 'Transférer vers l\'épargne de sécurité.',
   invest: 'Alimenter un compte d\'investissement.',
   enjoy: 'Marge de confort : ce qu\'il reste en plus une fois les dépenses variables habituelles couvertes. Grignotée en premier en cas de dépassement.',
-  keep: 'Conserver sur le compte courant. Récupère aussi ce que les garde-fous retirent à Épargner / Investir, et le Confort en fin de période (report sur la période suivante).',
+  keep: 'Conserver sur le compte courant. Récupère aussi ce que les garde-fous retirent à Épargner / Investir.',
 };
 
 const CONSUMPTION_MODES: ConsumptionMode[] = ['prudent', 'equilibre', 'dynamique'];
@@ -53,35 +49,14 @@ const PROFILE_LABELS_SHORT: Record<FinancialProfileId, string> = Object.fromEntr
   FINANCIAL_PROFILE_IDS.map((p) => [p, `${p} — ${PROFILE_INFO[p].name}`]),
 ) as Record<FinancialProfileId, string>;
 
-type AdminTab = 'paliers' | 'seuils' | 'ordre' | 'infos';
+type AdminTab = 'infos' | 'seuils' | 'ordre';
 const ADMIN_TABS: { key: AdminTab; label: string }[] = [
-  { key: 'paliers', label: 'Paliers' },
   { key: 'seuils', label: 'Seuils' },
   { key: 'ordre', label: 'Ordre' },
   { key: 'infos', label: 'Infos' },
 ];
 
-const TIERS: SavingsTier[] = ['critical', 'below_optimal', 'healthy', 'p4_dynamic', 'comfortable'];
-const TIER_CONDITIONS: Record<SavingsTier, string> = {
-  critical:      'Profil P1 — Premiers repères',
-  below_optimal: 'Profil P2 — Réserve à construire',
-  healthy:       'Profil P3 — Stabilité à améliorer',
-  p4_dynamic:    'Profil P4 — Bonne dynamique',
-  comfortable:   'Profil P5 — Patrimoine en développement',
-};
-
 const TYPES: RecoType[] = ['save', 'invest', 'enjoy', 'keep'];
-
-/**
- * Les modificateurs appliqués aux % d'allocation, dans l'ORDRE réel du moteur
- * (lib/recommendationEngine → deriveRecoAllocations), avant normalisation à 100 %.
- */
-const MODIFIERS = [
-  { icon: 'analytics-outline', name: '1. Tendance variables', desc: 'Rythme de dépenses > 120 % des habitudes → jusqu\'à −15 pp sur Confort, autant sur Conserver. < 80 % → jusqu\'à +5 pp sur Confort.' },
-  { icon: 'wallet-outline', name: '2. Santé du compte courant', desc: 'Solde courant < 2× engagements mensuels (allocations engagées + charges fixes restantes) → +10 pp sur Conserver, −5 pp sur Épargner et sur Investir.' },
-  { icon: 'swap-horizontal-outline', name: '3. Ratio invest / épargne', desc: 'Investi < 15 % de l\'épargne → +8 pp sur Investir, pris sur le plus gros de Épargner / Confort.' },
-  { icon: 'hourglass-outline', name: '4. Fin de période', desc: 'À moins de 7 jours de la PROCHAINE RENTRÉE D\'ARGENT (pas du 31 du mois), Confort bascule progressivement vers Conserver — jusqu\'à 100 % le dernier jour. Épargne et investissement ne bougent pas, pour que la capacité annoncée ailleurs reste la même. Période inconnue → aucune bascule.' },
-];
 
 /**
  * Garde-fous et bornes appliqués APRÈS la répartition en %, sur les MONTANTS.
@@ -101,19 +76,13 @@ export default function RecommendationsAdmin() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
-  const { data: dbTiers, isLoading } = useRecommendationTiers();
-  const updateTiers = useUpdateRecommendationTiers();
   const { user } = useAuth();
   const { data: thresholds } = useRecoThresholds();
   const updateThresholds = useUpdateRecoThresholds(user?.id);
   const updateConsumption = useUpdateRecoConsumption(user?.id);
 
   // Onglet actif (réorganisation de la page en onglets pour éviter une page interminable).
-  const [tab, setTab] = useState<AdminTab>('paliers');
-
-  // Local editable state: string values for inputs
-  const [draft, setDraft] = useState<Record<SavingsTier, Record<RecoType, string>> | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const [tab, setTab] = useState<AdminTab>('infos');
 
   // ── Ordre de déduction (cascade de dépassement) ──
   const [orders, setOrders] = useState<Record<ConsumptionMode, RecoType[]>>(DEFAULT_CONSUMPTION_ORDERS);
@@ -172,67 +141,6 @@ export default function RecommendationsAdmin() {
     }
   }
 
-  useEffect(() => {
-    if (dbTiers && !draft) {
-      setDraft(toStringDraft(dbTiers));
-    }
-  }, [dbTiers]);
-
-  function toStringDraft(alloc: TierAllocations): Record<SavingsTier, Record<RecoType, string>> {
-    const result = {} as Record<SavingsTier, Record<RecoType, string>>;
-    for (const tier of TIERS) {
-      result[tier] = {} as Record<RecoType, string>;
-      for (const type of TYPES) {
-        result[tier][type] = String(alloc[tier][type]);
-      }
-    }
-    return result;
-  }
-
-  function getTierSum(tier: SavingsTier): number {
-    if (!draft) return 0;
-    return TYPES.reduce((s, t) => s + (parseInt(draft[tier][t], 10) || 0), 0);
-  }
-
-  function handleChange(tier: SavingsTier, type: RecoType, value: string) {
-    if (!draft) return;
-    setDraft(prev => ({
-      ...prev!,
-      [tier]: { ...prev![tier], [type]: value.replace(/[^0-9]/g, '') },
-    }));
-  }
-
-  async function handleSave() {
-    if (!draft) return;
-    // Validate each tier sums to 100
-    for (const tier of TIERS) {
-      const sum = getTierSum(tier);
-      if (sum !== 100) {
-        Alert.alert('Erreur', `Le palier "${TIER_LABELS[tier]}" totalise ${sum} % au lieu de 100 %.`);
-        return;
-      }
-    }
-    // Build typed allocations
-    const alloc = {} as TierAllocations;
-    for (const tier of TIERS) {
-      alloc[tier] = {} as Record<RecoType, number>;
-      for (const type of TYPES) {
-        alloc[tier][type] = parseInt(draft[tier][type], 10) || 0;
-      }
-    }
-    try {
-      await updateTiers.mutateAsync(alloc);
-      setEditMode(false);
-      Alert.alert('Enregistré', 'Les paliers ont été mis à jour. Ils s\'appliquent dès la prochaine ouverture du Pilotage.');
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
-    }
-  }
-
-  function handleCancel() {
-    if (dbTiers) setDraft(toStringDraft(dbTiers));
-    setEditMode(false);
-  }
 
   return (
     <View style={styles.root}>
@@ -242,34 +150,11 @@ export default function RecommendationsAdmin() {
         <ScreenHeader
           title="Recommandations"
           onBack={goBack}
-          right={tab === 'paliers' ? (!editMode ? (
-            <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>
-              <Ionicons name="pencil-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.editBtnLabel}>Modifier</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-                <Text style={styles.cancelLabel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveBtn, updateTiers.isPending && { opacity: 0.6 }]}
-                onPress={handleSave}
-                disabled={updateTiers.isPending}
-              >
-                {updateTiers.isPending
-                  ? <ActivityIndicator size="small" color={COLORS.bg} />
-                  : <Text style={styles.saveBtnLabel}>Enregistrer</Text>
-                }
-              </TouchableOpacity>
-            </View>
-          )) : undefined}
         />
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.subtitle}>
             Le moteur propose 2 à 4 actions dont la somme fait 100 % du « À dépenser ».
-            {tab === 'paliers' && editMode ? ' Chaque palier doit totaliser exactement 100 %.' : ''}
           </Text>
 
           {/* ── Onglets ── */}
@@ -301,68 +186,6 @@ export default function RecommendationsAdmin() {
               <Text style={styles.typeDesc}>{RECO_DESC[type]}</Text>
             </View>
           ))}
-          </>)}
-
-          {/* ══════════ Onglet PALIERS ══════════ */}
-          {tab === 'paliers' && (<>
-          <Text style={styles.sectionTitle}>Paliers d'allocation</Text>
-          {isLoading || !draft ? (
-            <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 16 }} />
-          ) : (
-            TIERS.map(tier => {
-              const sum = getTierSum(tier);
-              const isInvalid = editMode && sum !== 100;
-              return (
-                <View key={tier} style={[styles.tierCard, isInvalid && styles.tierCardInvalid]}>
-                  <View style={styles.tierHeader}>
-                    <View style={[styles.tierDot, { backgroundColor: TIER_COLORS[tier] }]} />
-                    <Text style={[styles.tierName, { color: TIER_COLORS[tier] }]}>{TIER_LABELS[tier]}</Text>
-                    {editMode && (
-                      <Text style={[styles.tierSum, { color: isInvalid ? COLORS.danger : COLORS.emerald }]}>
-                        {sum} %
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={styles.tierCondition}>{TIER_CONDITIONS[tier]}</Text>
-
-                  {editMode ? (
-                    <View style={styles.inputGrid}>
-                      {TYPES.map(type => (
-                        <View key={type} style={styles.inputItem}>
-                          <View style={styles.inputLabelRow}>
-                            <View style={[styles.allocDot, { backgroundColor: RECO_COLORS[type] }]} />
-                            <Text style={styles.inputLabel}>{RECO_TYPE_LABELS[type]}</Text>
-                          </View>
-                          <View style={styles.inputWrapper}>
-                            <TextInput
-                              style={styles.input}
-                              value={draft[tier][type]}
-                              onChangeText={v => handleChange(tier, type, v)}
-                              keyboardType="numeric"
-                              maxLength={3}
-                              selectTextOnFocus
-                            />
-                            <Text style={styles.inputSuffix}>%</Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <View style={styles.allocRow}>
-                      {TYPES.map(type => (
-                        <View key={type} style={styles.allocItem}>
-                          <View style={[styles.allocDot, { backgroundColor: RECO_COLORS[type] }]} />
-                          <Text style={styles.allocText}>
-                            {RECO_TYPE_LABELS[type]} {draft[tier][type]} %
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              );
-            })
-          )}
           </>)}
 
           {/* ══════════ Onglet SEUILS ══════════ */}
@@ -476,22 +299,18 @@ export default function RecommendationsAdmin() {
           </TouchableOpacity>
           </>)}
 
-          {/* ── Modificateurs (onglet Infos) ── */}
           {tab === 'infos' && (<>
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Modificateurs contextuels</Text>
-          <Text style={styles.modNote}>
-            Appliqués aux POURCENTAGES, dans cet ordre, après les paliers — puis normalisation à
-            100 %. Non éditables ici.
-          </Text>
-          {MODIFIERS.map(m => (
-            <View key={m.name} style={styles.modCard}>
-              <Ionicons name={m.icon as any} size={18} color={COLORS.textSecondary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modName}>{m.name}</Text>
-                <Text style={styles.modDesc}>{m.desc}</Text>
-              </View>
-            </View>
-          ))}
+          {/* ── D'où viennent les pourcentages ──────────────────────────────────────────────────
+              Il n'y a plus qu'une réponse, et c'est le point le plus important de cet écran :
+              deux étages réécrivaient ces pourcentages (« priorité du mois », puis quatre
+              modificateurs contextuels), si bien que l'utilisateur ne retrouvait jamais ceux de son
+              profil dans ses recommandations. Les deux ont été retirés. */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>D'où viennent les pourcentages</Text>
+          <View style={styles.rulesCard}>
+            <Text style={styles.ruleItem}>• Du <Text style={{ fontWeight: '700' }}>profil financier</Text> (P0–P9), réglable dans « Profils financiers » — ou des pourcentages que l'utilisateur a posés lui-même (mode manuel).</Text>
+            <Text style={styles.ruleItem}>• <Text style={{ fontWeight: '700' }}>Rien ne les réécrit ensuite.</Text> Ce que l'utilisateur voit sur son écran de profil est ce qui s'applique.</Text>
+            <Text style={styles.ruleItem}>• Seuls les <Text style={{ fontWeight: '700' }}>MONTANTS</Text> peuvent s'en écarter, via les garde-fous ci-dessous. L'écran de répartition explique alors à l'utilisateur lequel s'applique.</Text>
+          </View>
 
           {/* ── Garde-fous (sur les montants, après la répartition) ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Garde-fous</Text>
@@ -517,7 +336,6 @@ export default function RecommendationsAdmin() {
             <Text style={styles.ruleItem}>• Un poste sous son seuil d'affichage (onglet « Seuils ») est reversé aux autres</Text>
             <Text style={styles.ruleItem}>• Si AUCUN poste n'atteint son seuil → une seule reco de repli, et rien du tout en dessous de 10 €</Text>
             <Text style={styles.ruleItem}>• 2 à 4 recommandations affichées</Text>
-            <Text style={styles.ruleItem}>• Les préférences utilisateur écrasent les paliers</Text>
             <Text style={styles.ruleItem}>• En cas de dépassement des dépenses variables, les recos sont grignotées dans l'ordre de déduction (voir onglet « Ordre »)</Text>
             <Text style={styles.ruleItem}>• Les mêmes % servent au calcul de la capacité d'investissement ailleurs dans l'app (source unique : deriveRecoAllocations) — deux écrans ne peuvent pas annoncer deux montants plaçables différents</Text>
           </View>
@@ -541,13 +359,6 @@ function makeStyles(c: any) {
   seuilSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
   seuilSaveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
   seuilSaveLabel: { color: c.bg, fontWeight: '700', fontSize: 14 },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  editBtnLabel: { fontSize: 14, fontWeight: '600', color: c.emerald },
-  headerActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  cancelBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder },
-  cancelLabel: { fontSize: 14, color: c.textSecondary },
-  saveBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: c.emerald },
-  saveBtnLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 16, lineHeight: 20 },
@@ -593,12 +404,7 @@ function makeStyles(c: any) {
     marginBottom: 10,
     gap: 8,
   },
-  tierCardInvalid: { borderColor: c.danger },
-  tierHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  tierDot: { width: 10, height: 10, borderRadius: 5 },
   tierName: { fontSize: 14, fontWeight: '700', flex: 1 },
-  tierSum: { fontSize: 13, fontWeight: '700' },
-  tierCondition: { fontSize: 12, color: c.textSecondary },
   allocRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   allocItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   allocDot: { width: 8, height: 8, borderRadius: 4 },

@@ -171,23 +171,20 @@ describe('freins de sécurité — plus de carte « 0 € », plus de double com
 });
 
 describe('fin de période (avant la prochaine rentrée d’argent)', () => {
-  it('le « Confort » bascule vers « Conserver » sur les derniers jours', () => {
+  /* Les MONTANTS ne bougent plus avec les jours restants : la bascule progressive « Confort →
+     Conserver » faisait partie des modificateurs contextuels, retirés. Ce sont les pourcentages du
+     profil qui s'appliquent, du premier au dernier jour de la période. Seuls les LIBELLÉS changent
+     à l'approche de la rentrée d'argent (tests suivants). */
+  it('les montants sont les MÊMES du premier au dernier jour de la période', () => {
     const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 20 }));
-    const end = byType(computeRecommendations(base, { daysLeftInPeriod: 0 }));
+    for (const daysLeftInPeriod of [7, 3, 0]) {
+      const jour = byType(computeRecommendations(base, { daysLeftInPeriod }));
+      expect(jour.enjoy.amount).toBe(mid.enjoy.amount);
+      expect(jour.keep.amount).toBe(mid.keep.amount);
+      expect(jour.save.amount).toBe(mid.save.amount);
+      expect(jour.invest.amount).toBe(mid.invest.amount);
+    }
     expect(mid.enjoy.amount).toBe(200);
-    expect(end.enjoy).toBeUndefined();          // 0 % → filtré, son montant part en réserve
-    expect(end.keep.amount).toBe(500);          // 300 + 200
-    // Épargner / investir ne bougent pas (capacité d'investissement du Pouls inchangée).
-    expect(end.save.amount).toBe(mid.save.amount);
-    expect(end.invest.amount).toBe(mid.invest.amount);
-  });
-
-  it('bascule PROGRESSIVE (pas d’effet falaise au 7ᵉ jour avant la fin)', () => {
-    const j7 = byType(computeRecommendations(base, { daysLeftInPeriod: 7 }));
-    const j3 = byType(computeRecommendations(base, { daysLeftInPeriod: 3 }));
-    expect(j7.enjoy.amount).toBe(200);
-    expect(j3.enjoy.amount).toBeGreaterThan(0);
-    expect(j3.enjoy.amount).toBeLessThan(200);
   });
 
   // Vocabulaire figé : le geste s'appelle « Réserver » partout à l'affichage (comme la ligne
@@ -240,5 +237,68 @@ describe('libellé de fourchette', () => {
   it('fourchette normale et bornes confondues', () => {
     expect(formatRangeLabel(120, 264)).toBe('120–260 €');
     expect(formatRangeLabel(121, 129)).toBe('120 €');
+  });
+});
+
+/* ── LA TRACE DES ÉCARTS ────────────────────────────────────────────────────────────────────────
+   Les pourcentages appliqués sont désormais EXACTEMENT ceux du profil (les priorités du mois et les
+   modificateurs contextuels ont été retirés). Mais les MONTANTS peuvent encore s'en écarter pour
+   des raisons factuelles, et l'utilisateur n'avait aucun moyen de savoir lesquelles. Le moteur
+   consigne donc ce qu'il fait, au moment où il le fait — c'est ce que l'écran de réglage affiche.
+
+   Deux exigences : ne RIEN signaler quand le calcul est nominal, et ne signaler QUE ce qui a
+   réellement eu lieu (une exception inventée serait pire que pas d'explication du tout). */
+describe('trace des écarts — ce que le moteur a réellement fait', () => {
+  const traceOf = (data: any, opts: any = {}) => {
+    const trace: any[] = [];
+    computeRecommendations(data, { ...opts, trace });
+    return trace;
+  };
+
+  it('calcul nominal → AUCUN écart signalé', () => {
+    expect(traceOf(base)).toEqual([]);
+  });
+
+  it('argent déjà mis de côté ce mois-ci', () => {
+    expect(traceOf(base, { alreadyAllocated: { save: 150 } })).toContain('already_allocated');
+  });
+
+  it('budget variable dépassé → cascade', () => {
+    expect(traceOf(base, { overspend: 200 })).toContain('cascade');
+  });
+
+  it('un dépassement NUL ne déclenche pas la cascade', () => {
+    expect(traceOf(base, { overspend: 0 })).not.toContain('cascade');
+  });
+
+  it('solde courant sous la marge de sécurité', () => {
+    expect(traceOf({ ...base, total_checking: 500 })).toEqual(['margin_freeze']);
+  });
+
+  it('trajectoire en danger', () => {
+    expect(traceOf({ ...base, projection_in_danger: true })).toEqual(['projection_freeze']);
+  });
+
+  it('point bas de projection sous la marge → gel, et non un simple plafond', () => {
+    const t = traceOf(base, { projectionGuard: { margin: 1000, balances: [800, 900, 1200] } });
+    expect(t).toEqual(['projection_freeze']);
+  });
+
+  it('épargne + invest plafonnés par le point bas → l’excédent part en « Conserver »', () => {
+    // Point bas 1 400 au-dessus de la marge 1 000 → headroom 400, alors que save+invest valent 500.
+    const t = traceOf(base, { projectionGuard: { margin: 1000, balances: [1400, 1600, 1800] } });
+    expect(t).toContain('projection_guard');
+  });
+
+  it('reste trop petit pour être découpé → une seule reco', () => {
+    expect(traceOf({ ...base, safe_to_spend: 60 })).toContain('single_fallback');
+  });
+
+  it('sans collecteur, le moteur rend exactement le même résultat', () => {
+    const avec: any[] = [];
+    const a = computeRecommendations(base, { overspend: 200, trace: avec });
+    const b = computeRecommendations(base, { overspend: 200 });
+    expect(a.map((r) => [r.type, r.amount])).toEqual(b.map((r) => [r.type, r.amount]));
+    expect(avec.length).toBeGreaterThan(0);
   });
 });

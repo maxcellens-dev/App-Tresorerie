@@ -8,12 +8,12 @@
  * Cette modale est ce moyen — et elle dit aussi ce que ce choix implique, sans le déconseiller :
  * une répartition posée à la main ne bouge plus quand la situation bouge.
  *
- * ⚠️ CE QUE LE MODE MANUEL NE FAIT PAS : il ne débranche rien. Les pourcentages choisis remplacent
- * la table du palier, à cet endroit précis et nulle part ailleurs. La priorité du mois continue de
- * les borner (investissement à 0 % tant qu'il n'y a pas un mois de réserve…), les modificateurs et
- * les garde-fous s'appliquent à l'identique. La modale le montre : quand la priorité du mois ajuste
- * la répartition, l'écart est affiché AVANT l'enregistrement, pas découvert après coup sur le
- * tableau de bord.
+ * ⚠️ CE QUE CET ÉCRAN MONTRE EST, LITTÉRALEMENT, CE QUI S'APPLIQUE.
+ * Un étage « priorité du mois » réécrivait ces pourcentages avant de les appliquer : quelqu'un qui
+ * posait 20 % d'épargne en voyait arriver 10, plus deux autres postes décalés par le report des
+ * points libérés — trois chiffres qu'il n'avait choisis nulle part. Cet étage a été retiré, et avec
+ * lui le bloc qui tentait de l'expliquer ici. La répartition passe désormais par `appliedAllocation`
+ * (lib/recoMode), le même point d'entrée que le moteur de recommandations.
  *
  * Elle est montée depuis DEUX écrans (le tableau de bord et la page « Profil financier ») : elle
  * lit donc ses données elle-même. Toutes viennent du cache react-query, aucun aller-retour réseau.
@@ -28,10 +28,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage/useFinancialProfile';
-import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
-import { PROFILE_ALLOCATIONS, PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
-import { resolveMonthlyAllocation, situationFromPilotage, type Allocation, type RecoKey } from '../../lib/finance/financialPriorities';
-import { RECO_KEYS, RECO_KEY_LABEL, allocationTotal, readManualAllocation, resolveRecoMode, type RecoMode } from '../../lib/finance/recoMode';
+import { PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
+import { RECO_KEYS, RECO_KEY_LABEL, allocationTotal, appliedAllocation, readManualAllocation, resolveRecoMode, type Allocation, type RecoKey, type RecoMode } from '../../lib/finance/recoMode';
+import { useRecoAdjustments, type RecoAdjustmentKind } from '../../hooks/pilotage/useRecoAdjustments';
 
 interface Props {
   visible: boolean;
@@ -41,6 +40,37 @@ interface Props {
 
 /** Pas d'un appui sur « − » / « + ». Cinq points : assez gros pour arriver vite, assez fin pour viser. */
 const STEP = 5;
+
+/* ── LES EXCEPTIONS, EN FRANÇAIS ────────────────────────────────────────────────────────────────
+   Un libellé court (le NOM de ce qui se passe) et une phrase qui dit ce que ça fait aux montants.
+   Volontairement descriptives et sans reproche : aucune de ces situations n'est une erreur, et
+   aucune ne demande d'action ici — elles expliquent seulement un écart que l'utilisateur constate. */
+const ADJUSTMENT_LABEL: Record<RecoAdjustmentKind, string> = {
+  margin_freeze: 'Solde sous ta marge de sécurité',
+  projection_freeze: 'Trajectoire sous ta marge',
+  projection_guard: 'Plafond lié à ta trajectoire',
+  cascade: 'Budget variable dépassé',
+  already_allocated: 'Déjà mis de côté ce mois-ci',
+  crumbs: 'Montant trop petit pour être découpé',
+  single_fallback: 'Trop peu à répartir',
+};
+
+const ADJUSTMENT_TEXT: Record<RecoAdjustmentKind, string> = {
+  margin_freeze:
+    'ton compte courant est en dessous de la marge que tu t’es fixée. Tant que c’est le cas, on te recommande de « Conserver » à 100%.',
+  projection_freeze:
+    'ton solde prévu passe sous ta marge dans les prochains mois. Tant que c’est le cas, on te recommande de « Conserver » à 100%.',
+  projection_guard:
+    'épargner et investir la totalité ferait passer ton solde prévu sous ta marge. La part en trop est basculée sur « Conserver ».',
+  cascade:
+    'tu as dépensé plus que ton budget variable habituel. Le dépassement est retiré des recommandations, en commençant par « Confort ».',
+  already_allocated:
+    'ce que tu as déjà viré, réservé ou cumulé est déduit de la recommandation correspondante.',
+  crumbs:
+    'une recommandation tombait sous son seuil d’affichage. Son montant n’est pas perdu : il rejoint une autre recommandation.',
+  single_fallback:
+    'ton reste du mois est trop petit pour être découpé en quatre. Une seule proposition est faite : tout conserver.',
+};
 
 /** Entier 0–100 depuis une saisie libre (le champ ne doit jamais afficher autre chose qu'un nombre). */
 function sanitizePercent(raw: string): string {
@@ -56,17 +86,21 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
 
   const { data: profile } = useProfile(userId);
   const { data: fp } = useFinancialProfile(userId);
-  const { data: pilotage } = usePilotageData(userId);
   const updateProfile = useUpdateProfile(userId);
   /* La table RÉGLÉE en administration : la colonne « App » doit montrer ce que le moteur applique. */
   const { data: allocTable } = useProfileAllocations();
 
   const profileId = resolveProfileId((fp as any)?.profile_id);
   const info = PROFILE_INFO[profileId];
-  /** Ce que l'app recommande pour ce palier — la référence affichée en face de chaque poste. */
-  const autoBase: Allocation = allocTable?.[profileId] ?? PROFILE_ALLOCATIONS[profileId] ?? PROFILE_ALLOCATIONS.P0;
+  /** Ce que l'app recommande pour ce palier — la référence affichée en face de chaque poste.
+   *  Même point d'entrée que le moteur (`appliedAllocation`) : la colonne « App » ne peut donc pas
+   *  annoncer autre chose que ce qui serait appliqué en repassant en automatique. */
+  const autoBase: Allocation = appliedAllocation(profileId, null, allocTable);
 
   const saved = useMemo(() => resolveRecoMode(profile), [profile]);
+  /* Les exceptions RÉELLEMENT en cours — telles que le moteur les a consignées en calculant les
+     recommandations affichées, avec exactement ses entrées (cf. useRecoAdjustments). */
+  const adjustments = useRecoAdjustments(userId);
 
   const [mode, setMode] = useState<RecoMode>('auto');
   const [draft, setDraft] = useState<Allocation>(autoBase);
@@ -90,19 +124,10 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
   const setKey = (k: RecoKey, value: number) =>
     setDraft((d) => ({ ...d, [k]: Math.max(0, Math.min(100, Math.round(value))) }));
 
-  /* ── CE QUI SERA RÉELLEMENT APPLIQUÉ ────────────────────────────────────────────────────────────
-     La priorité du mois borne la répartition, quelle que soit son origine. L'annoncer ici évite le
-     « j'ai demandé 60 % d'investissement et j'en vois 5 » : l'écart se voit AVANT d'enregistrer,
-     avec sa raison. */
-  /* Situation du mois : fonction PARTAGÉE (lib/financialPriorities) — la même que le moteur de
-     recommandations, sinon cette modale annonce des bornes que le tableau de bord n'applique pas. */
-  const situation = situationFromPilotage(pilotage);
-
-  const resolvedDraft = situation
-    ? resolveMonthlyAllocation(profileId, situation, mode === 'manual' ? draft : null, allocTable)
-    : null;
-  const base = mode === 'manual' ? draft : autoBase;
-  const bounded = !!resolvedDraft && RECO_KEYS.some((k) => resolvedDraft.alloc[k] !== base[k]);
+  /* ── PLUS RIEN À ANNONCER ICI ───────────────────────────────────────────────────────────────
+     Un bloc expliquait, sous les curseurs, que la « priorité du mois » allait réécrire ces
+     pourcentages avant de les appliquer. Cet étage n'existe plus : ce que l'écran montre est,
+     littéralement, ce que le moteur applique. Le bloc n'avait donc plus rien à dire. */
 
   async function handleSave() {
     if (isImpersonating) {
@@ -205,7 +230,7 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
             <Text style={s.infoText}>
               {mode === 'auto'
                 ? 'Relyka calcule cette répartition à partir de ton profil et de ta situation du mois. Elle se réajuste toute seule quand tes données bougent — c’est ce qui la rend en général la plus fiable.'
-                : 'Tes pourcentages remplacent ceux du profil, et servent exactement de la même façon. Ils resteront tels que tu les poses : c’est toi qui les feras évoluer quand ta situation changera.'}
+                : 'Tes pourcentages sont appliqués tels que tu les poses : Relyka ne les corrige pas, même quand ta situation du mois appellerait autre chose. C’est toi qui les feras évoluer.'}
             </Text>
           </View>
 
@@ -289,15 +314,31 @@ export default function RecoModeModal({ visible, onClose, userId }: Props) {
             </View>
           )}
 
-          {/* La priorité du mois s'applique aux DEUX modes : on montre son effet avant d'enregistrer,
-              sinon l'écart se découvrirait sur le tableau de bord, sans explication. */}
-          {bounded && resolvedDraft && (
-            <View style={s.bounded}>
-              <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.textSecondary} />
-              <Text style={s.boundedText}>
-                Ce mois-ci, la priorité <Text style={s.b}>{resolvedDraft.priority.label.toLowerCase()}</Text> ajuste
-                cette répartition avant de l’appliquer :{' '}
-                {RECO_KEYS.map((k) => `${RECO_KEY_LABEL[k]} ${resolvedDraft.alloc[k]} %`).join(' · ')}.
+          {/* ── POURQUOI TES RECOS NE TOMBENT PAS SUR CES POURCENTAGES ─────────────────────────────
+              Affiché UNIQUEMENT si une exception s'applique réellement en ce moment (liste tenue
+              par le moteur lui-même en calculant, cf. `ComputeRecoOptions.trace`). Rien à signaler
+              → rien à l'écran : ces pourcentages sont alors appliqués à la lettre, et une note
+              permanente ne ferait qu'inquiéter sans raison.
+              Ce n'est plus l'app qui réécrit les pourcentages (priorités et modificateurs ont été
+              retirés) : ce sont des FAITS du mois qui déplacent des MONTANTS. */}
+          {adjustments.length > 0 && (
+            <View style={s.except}>
+              <View style={s.exceptHead}>
+                <Ionicons name="information-circle-outline" size={16} color={COLORS.teal} />
+                <Text style={s.exceptTitle}>
+                  Ce mois-ci, tes montants ne suivent pas exactement ces pourcentages
+                </Text>
+              </View>
+              {adjustments.map((k) => (
+                <View key={k} style={s.exceptRow}>
+                  <Text style={s.exceptBullet}>•</Text>
+                  <Text style={s.exceptText}>
+                    <Text style={s.b}>{ADJUSTMENT_LABEL[k]}</Text> — {ADJUSTMENT_TEXT[k]}
+                  </Text>
+                </View>
+              ))}
+              <Text style={s.exceptFoot}>
+                Tes pourcentages, eux, ne bougent pas : ils s’appliqueront lors du retour à la normal de ta situation.
               </Text>
             </View>
           )}
@@ -393,13 +434,22 @@ function makeStyles(c: any) {
     totalText: { fontSize: 12.5, fontWeight: '800' },
     totalFix: { fontSize: 12, fontWeight: '700', color: c.emerald, textDecorationLine: 'underline' },
 
-    bounded: {
-      flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-      backgroundColor: c.card, borderRadius: 12, padding: 11,
-      borderWidth: 1, borderColor: c.cardBorder,
+    /* Bloc « pourquoi mes montants ne suivent pas ces % ». Teinte d'INFORMATION (teal), comme le
+       bloc d'explication du mode juste au-dessus : rien n'est en défaut, rien n'est à corriger. */
+    except: {
+      gap: 8,
+      backgroundColor: c.teal + '12', borderRadius: 12, padding: 12,
     },
-    boundedText: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
+    exceptHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+    exceptTitle: { flex: 1, fontSize: 12.5, fontWeight: '800', color: c.text, lineHeight: 17 },
+    exceptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+    exceptBullet: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    exceptText: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
+    exceptFoot: { fontSize: 11, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic' },
     b: { fontWeight: '800', color: c.text },
+
+    /* Les styles du bloc « pourquoi ça ne s'applique pas tel quel » ont été retirés avec lui :
+       il n'y a plus d'étage qui réécrive ces pourcentages, donc plus rien à expliquer. */
 
     actions: { flexDirection: 'row', gap: 10, marginTop: 2 },
     cancel: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
