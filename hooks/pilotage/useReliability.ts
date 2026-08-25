@@ -141,7 +141,15 @@ export function deriveRelykaConfidence(
   const result = computeConfidence({
     today: new Date(),
     lastVerifiedAt: inputs?.lastVerifiedAt ?? null,
-    lastActivityAt: inputs?.lastActivityAt ?? null,
+    /* Signaux d'observation : assiduité de saisie (amortit le doute) et variable constaté (l'efface
+       à hauteur du taux d'honoration de l'enveloppe).
+       ⚠️ On passe `undefined`, JAMAIS `{}`, quand le champ manque. Le cache local peut servir un
+       `pilotage_data` calculé par une version antérieure de l'app, qui ne contenait pas ces séries :
+       un objet vide se lit « tu n'as rien saisi » (doute plein, en silence), là où l'absence se lit
+       « je n'ai pas cette donnée » — et laisse `observedRelief` à `null`, ce qui rend le diagnostic
+       possible au lieu de faire passer un cache périmé pour un utilisateur négligent. */
+    activityDays: inputs?.activityDays,
+    variableSpentByDay: inputs?.variableSpentByDay,
     calibration: inputs?.calibration ?? null,
     relyka,
     floorBase: inputs?.floorBase ?? 0,

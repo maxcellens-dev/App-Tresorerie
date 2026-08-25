@@ -216,8 +216,10 @@ function AccountDetailScreen() {
   const [monthsShown, setMonthsShown] = useState(MONTHS_STEP);
   useEffect(() => { setMonthsShown(MONTHS_STEP); }, [id]);
 
-  // Deeplink « Vérifie ton solde » (bandeau prochain geste) : ?verify=1 ouvre directement le modal
-  // Nouveau Solde — le user n'a plus qu'à saisir le montant (~10 s réels).
+  /* Deeplink de saisie de solde : ?verify=1 ouvre directement le modal Nouveau Solde — le user n'a
+     plus qu'à saisir le montant (~10 s réels). Il était produit par le bandeau « Vérifie ton
+     solde », qui n'existe plus (le doute est porté par le badge « Estimation » de la carte Relyka) ;
+     le raccourci reste valable pour toute navigation qui voudrait amener ici prêt à saisir. */
   useEffect(() => {
     if (params.verify === '1' && account?.type === 'checking') {
       setShowBalance(true);

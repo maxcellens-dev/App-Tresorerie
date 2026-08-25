@@ -8,6 +8,20 @@ const TODAY = new Date('2026-07-15T00:00:00');
 
 function iso(d: string) { return d; }
 
+/** Clé de jour (locale) à n jours avant TODAY — même convention que le moteur. */
+function daysAgo(n: number): string {
+  const d = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+/** n jours consécutifs finissant aujourd'hui : suivi quotidien sans trou. */
+function everyDay(n: number): string[] {
+  return Array.from({ length: n }, (_, i) => daysAgo(i));
+}
+/** Même chose, avec un montant de dépenses variables par jour. */
+function spentEveryDay(n: number, perDay: number): Record<string, number> {
+  return Object.fromEntries(everyDay(n).map((k) => [k, perDay]));
+}
+
 describe('median / computeCalibration', () => {
   it('médiane simple', () => {
     expect(median([])).toBe(0);
@@ -98,7 +112,11 @@ describe('computeConfidence — niveaux', () => {
   });
 });
 
-describe('computeConfidence — amortisseur d’activité (saisies du mois courant)', () => {
+/* ── B. L'AMORTISSEUR RÉCOMPENSE L'ASSIDUITÉ, PLUS LA RÉCENCE ──────────────────────────────────
+   Il suffisait d'UNE saisie dans la journée pour obtenir le demi-doute d'un suivi quotidien — et six
+   jours de silence derrière n'y changeaient rien. C'est ce qui faisait dire « je saisis et rien ne
+   bouge » : l'app ne comptait pas ce qu'on saisit, seulement quand. */
+describe('computeConfidence — amortisseur d’assiduité (couverture de saisie)', () => {
   // Dérive 20 €/j, vérif il y a 20 j → doute brut 400, ratio 0.20 → basse sans activité.
   const calib: DriftCalibration = { medianAbsGap: 400, medianDaysBetween: 20, sampleCount: 4 };
   const base = {
@@ -106,48 +124,216 @@ describe('computeConfidence — amortisseur d’activité (saisies du mois coura
     relyka: 2000, floorBase: 2000, config: cfg,
   };
 
-  it('saisie du jour → doute réduit (× activityDampening) et niveau remonté bas → moyen', () => {
-    const r = computeConfidence({ ...base, lastActivityAt: iso('2026-07-15') });
-    expect(r.activityDamped).toBe(true);
-    expect(r.uncertaintyEur).toBeCloseTo(400 * cfg.activityDampening, 0); // 200
-    expect(r.level).toBe('medium'); // ratio 0.10, entre highMax et lowMin
-  });
-
-  it('amortissement dégressif : saisie en milieu de fenêtre → facteur intermédiaire', () => {
-    // Saisie il y a 3 j sur une fenêtre de 7 → damp = 0.5 + 0.5 × 3/7 ≈ 0.714
-    const r = computeConfidence({ ...base, lastActivityAt: iso('2026-07-12') });
-    expect(r.activityDamped).toBe(true);
-    expect(r.uncertaintyEur).toBeCloseTo(400 * (0.5 + 0.5 * (3 / 7)), 0);
-  });
-
-  it('saisie plus vieille que la fenêtre → aucun effet', () => {
-    const r = computeConfidence({ ...base, lastActivityAt: iso('2026-07-01') }); // 14 j > 7
+  it('aucune saisie → doute intact', () => {
+    const r = computeConfidence(base);
+    expect(r.activityCoverage).toBe(0);
     expect(r.activityDamped).toBe(false);
     expect(r.uncertaintyEur).toBeCloseTo(400, 0);
     expect(r.level).toBe('low');
   });
 
-  it('ne fait JAMAIS passer en confiance haute (« À jour » = vraie vérif uniquement)', () => {
-    // Doute brut juste au-dessus de highMax : 20 €/j × 6 j = 120, ratio 0.06 ; amorti → 0.03 < highMax
+  it('une saisie chaque jour de la fenêtre → amortissement PLEIN', () => {
+    const r = computeConfidence({ ...base, activityDays: everyDay(7) });
+    expect(r.activityCoverage).toBe(1);
+    expect(r.uncertaintyEur).toBeCloseTo(400 * cfg.activityDampening, 0); // 200
+    expect(r.level).toBe('medium'); // ratio 0.10, entre highMax et lowMin
+  });
+
+  it('couverture partielle → amortissement proportionnel', () => {
+    // 3 jours sur 7 → damp = 1 − 0.5 × 3/7 ≈ 0.786
+    const r = computeConfidence({ ...base, activityDays: [daysAgo(0), daysAgo(2), daysAgo(5)] });
+    expect(r.activityCoverage).toBeCloseTo(3 / 7, 3);
+    expect(r.uncertaintyEur).toBeCloseTo(400 * (1 - 0.5 * (3 / 7)), 0);
+  });
+
+  it('un tap isolé ne vaut PLUS le demi-doute d’un suivi quotidien', () => {
+    const isole = computeConfidence({ ...base, activityDays: [daysAgo(0)] });
+    const assidu = computeConfidence({ ...base, activityDays: everyDay(7) });
+    expect(isole.uncertaintyEur).toBeCloseTo(400 * (1 - 0.5 / 7), 0); // ≈ 371, et non 200
+    expect(isole.uncertaintyEur).toBeGreaterThan(assidu.uncertaintyEur);
+  });
+
+  it('saisies plus vieilles que la fenêtre → aucun effet', () => {
+    const r = computeConfidence({ ...base, activityDays: [daysAgo(10), daysAgo(12)] });
+    expect(r.activityCoverage).toBe(0);
+    expect(r.uncertaintyEur).toBeCloseTo(400, 0);
+    expect(r.level).toBe('low');
+  });
+
+  it('assiduité insuffisante → toujours pas de confiance haute par simple amortissement', () => {
+    // Doute brut juste au-dessus de highMax : 20 €/j × 6 j = 120, ratio 0.06 ; couverture 3/6 = 0.5
+    // → amorti à 0.045 < highMax, mais sous le seuil d'assiduité → le verrou tient.
     const r = computeConfidence({
-      ...base, lastVerifiedAt: iso('2026-07-09'), lastActivityAt: iso('2026-07-15'),
+      ...base, lastVerifiedAt: iso('2026-07-09'),
+      activityDays: [daysAgo(0), daysAgo(1), daysAgo(2)],
     });
     expect(r.doubtRatio).toBeLessThan(cfg.highMax);
-    expect(r.level).toBe('medium'); // plafonné : pas de « haute » par simple activité
+    expect(r.activityCoverage).toBeCloseTo(0.5, 3);
+    expect(r.level).toBe('medium');
+  });
+
+  it('assiduité RÉELLE → le verrou est levé (vérifier ne sert qu’à retrouver ce qui manque)', () => {
+    const r = computeConfidence({
+      ...base, lastVerifiedAt: iso('2026-07-09'), activityDays: everyDay(6),
+    });
+    expect(r.activityCoverage).toBe(1);
+    expect(r.doubtRatio).toBeLessThan(cfg.highMax);
+    expect(r.level).toBe('high');
+  });
+
+  it('mais jamais sans vérification passée : l’assiduité ne dit rien du point de départ', () => {
+    // Dérive 6 €/j × 21 j (plafond) = 126 → ratio 0.063, AU-DESSUS de highMax ; amorti à 0.031, en
+    // dessous. Avec une vérif passée, l'assiduité donnerait « À jour » — ici, non.
+    const drift6: DriftCalibration = { medianAbsGap: 180, medianDaysBetween: 30, sampleCount: 3 };
+    const args = { ...base, calibration: drift6, activityDays: everyDay(21) };
+    const jamaisVerifie = computeConfidence({ ...args, lastVerifiedAt: null });
+    const verifieUnJour = computeConfidence({ ...args, lastVerifiedAt: iso('2026-06-24') }); // 21 j
+
+    expect(jamaisVerifie.neverVerified).toBe(true);
+    expect(jamaisVerifie.doubtRatio).toBeLessThan(cfg.highMax);  // le doute amorti passe le seuil…
+    expect(jamaisVerifie.level).toBe('medium');                  // …mais le verrou tient
+    expect(verifieUnJour.level).toBe('high');                    // même doute, une vérif derrière
   });
 
   it('confiance haute LÉGITIME (doute brut déjà sous le seuil) : reste haute malgré l’activité', () => {
     const calmCalib: DriftCalibration = { medianAbsGap: 2, medianDaysBetween: 30, sampleCount: 6 };
     const r = computeConfidence({
-      ...base, calibration: calmCalib, lastVerifiedAt: iso('2026-07-05'), lastActivityAt: iso('2026-07-15'),
+      ...base, calibration: calmCalib, lastVerifiedAt: iso('2026-07-05'), activityDays: everyDay(7),
     });
     expect(r.level).toBe('high');
   });
 });
 
+/* ── A. L'ENVELOPPE HONORÉE EFFACE LE DOUTE ────────────────────────────────────────────────────
+   Le doute ne dépendait que de l'horloge : le 28 du mois, quelqu'un ayant tout noté portait le même
+   doute que le 8, pendant que l'écran lui promettait que saisir « actualiserait » ses montants.
+   Ce qui tranche, c'est le RESTE d'enveloppe : il en reste → des dépenses attendues manquent
+   peut-être à l'appel ; elle est consommée → tout ce qui était prévu est là. */
+describe('computeConfidence — le doute suit le taux d’honoration de l’enveloppe', () => {
+  const calib: DriftCalibration = { medianAbsGap: 400, medianDaysBetween: 20, sampleCount: 4 }; // 20 €/j
+  const base = {
+    today: TODAY, lastVerifiedAt: iso('2026-06-25'), calibration: calib, // 20 jours → doute brut 400
+    relyka: 2000, floorBase: 2000, variableBase: 600, config: cfg,
+  };
+  const attendu20j = (600 / 30.44) * 20; // ~394 € attendus sur la période douteuse
+
+  it('rien de saisi → strictement le calcul d’avant', () => {
+    const r = computeConfidence({ ...base, variableSpentByDay: {} });
+    expect(r.observedRelief).toBe(0);
+    expect(r.uncertaintyEur).toBeCloseTo(400, 0);
+    expect(r.level).toBe('low');
+  });
+
+  it('enveloppe honorée → le doute tombe, SANS vérifier son solde', () => {
+    const r = computeConfidence({ ...base, variableSpentByDay: spentEveryDay(20, attendu20j / 20) });
+    expect(r.observedRelief).toBeCloseTo(400, 0);
+    expect(r.uncertaintyEur).toBeCloseTo(0, 0);
+    expect(r.level).toBe('high');
+  });
+
+  it('la moitié de l’enveloppe honorée → la moitié du doute', () => {
+    const r = computeConfidence({ ...base, variableSpentByDay: spentEveryDay(20, attendu20j / 40) });
+    expect(r.observedRelief).toBeCloseTo(200, 0);
+    expect(r.uncertaintyEur).toBeCloseTo(200, 0);
+  });
+
+  /* ⚠️ CE N'EST PAS UN PLAFOND EN EUROS — c'est ce qui bloquait le cas réel. Avec un budget déclaré
+     à 600 € alors que le réel tourne à 2 400 €, un plafond proratisé ne pouvait jamais effacer plus
+     de ~414 € : quelqu'un ayant saisi 2 048 € de dépenses restait en « estimation ». L'enveloppe est
+     la RÉFÉRENCE du taux, jamais la limite de l'effacement. */
+  it('un budget sous-déclaré ne bride PLUS l’effacement', () => {
+    const gros: DriftCalibration = { medianAbsGap: 1000, medianDaysBetween: 20, sampleCount: 4 }; // 50 €/j
+    const r = computeConfidence({
+      ...base, calibration: gros, variableBase: 600,      // doute brut 1 000 €, enveloppe 600 €/mois
+      variableSpentByDay: spentEveryDay(20, 100),          // 2 000 € saisis : enveloppe largement honorée
+    });
+    expect(r.observedRelief).toBeCloseTo(1000, 0); // et non ~394 € (l'ancien plafond)
+    expect(r.uncertaintyEur).toBeCloseTo(0, 0);
+    expect(r.level).toBe('high');
+  });
+
+  it('dépasser l’enveloppe ne fait pas plus que l’honorer (taux plafonné à 1)', () => {
+    const juste = computeConfidence({ ...base, variableSpentByDay: spentEveryDay(20, attendu20j / 20) });
+    const large = computeConfidence({ ...base, variableSpentByDay: spentEveryDay(20, 500) });
+    expect(large.uncertaintyEur).toBeCloseTo(juste.uncertaintyEur, 5);
+  });
+
+  it('jamais vérifié → aucune remise (le point de départ reste inconnu)', () => {
+    const r = computeConfidence({
+      ...base, lastVerifiedAt: null, variableSpentByDay: spentEveryDay(20, 60),
+    });
+    expect(r.observedRelief).toBeNull();
+    expect(r.level).not.toBe('high');
+  });
+
+  /* ── LE TAUX DOIT ÊTRE RÉPARTI, PAS CONCENTRÉ ────────────────────────────────────────────────
+     Mesuré d'un bloc sur toute la période, il se laissait saturer par un seul jour : deux profils
+     très différents ressortaient « à jour » à tort. C'est le découpage en tranches (on retient la
+     plus faible) qui les sépare. */
+  it('assidu puis SILENCE : le doute revient, même si le cumul honore l’enveloppe', () => {
+    // Tout saisi il y a 15 à 20 jours (largement de quoi honorer l'enveloppe), plus rien depuis.
+    const early = Object.fromEntries(
+      everyDay(20).map((k, i) => [k, i >= 15 ? (600 / 30.44) * 4 : 0]),
+    );
+    const r = computeConfidence({
+      ...base, variableSpentByDay: early, activityDays: everyDay(20).slice(15),
+    });
+    expect(r.observedRelief).toBe(0);        // la tranche récente est muette → taux 0
+    expect(r.uncertaintyEur).toBeCloseTo(400, 0);
+    expect(r.level).toBe('low');
+  });
+
+  it('UN achat exceptionnel saisi ne vaut pas trois semaines de suivi', () => {
+    const r = computeConfidence({
+      ...base, variableSpentByDay: { [daysAgo(0)]: 2000 }, activityDays: [daysAgo(0)],
+    });
+    // Les tranches plus anciennes n'ont ni montant ni activité → elles plafonnent le taux à 0.
+    expect(r.observedRelief).toBe(0);
+    // Le doute reste quasi entier : seul l'amortisseur d'assiduité joue, et pour un jour sur sept.
+    expect(r.uncertaintyEur).toBeGreaterThan(350);
+    expect(r.level).not.toBe('high');
+  });
+
+  /* L'assiduité COMPLÈTE les montants, elle ne les remplace pas : sans plafond, quelqu'un ayant
+     honoré 60 % de son enveloppe voyait 100 % de son doute disparaître — la règle « il reste de
+     l'enveloppe ≠ elle est consommée » n'aurait plus rien voulu dire. */
+  it('saisir tous les jours ne suffit pas à effacer une enveloppe à moitié honorée', () => {
+    const attendu = (600 / 30.44) * 20;
+    const r = computeConfidence({
+      ...base, variableSpentByDay: spentEveryDay(20, attendu / 40), activityDays: everyDay(20),
+    });
+    expect(r.observedRelief).toBeCloseTo(200, 0);   // 50 % du doute, pas 100 %
+  });
+
+  it('… mais une tranche sans AUCUNE dépense n’annule pas tout si le suivi est là', () => {
+    // Semaine calme (rien dépensé) mais saisies quotidiennes : l'assiduité sauve la moitié.
+    const calme = Object.fromEntries(everyDay(20).map((k, i) => [k, i < 7 ? 0 : (600 / 30.44) * 2]));
+    const r = computeConfidence({ ...base, variableSpentByDay: calme, activityDays: everyDay(20) });
+    expect(r.observedRelief).toBeCloseTo(200, 0);   // plafond d'assiduité : 50 %
+  });
+
+  it('sans enveloppe établie, rien à opposer au doute', () => {
+    const r = computeConfidence({
+      ...base, variableBase: 0, variableSpentByDay: spentEveryDay(20, 30),
+    });
+    expect(r.observedRelief).toBeNull();
+    expect(r.uncertaintyEur).toBeCloseTo(400, 0);
+  });
+
+  /* LE CAS QUI A DÉCLENCHÉ TOUT ÇA : fin de mois, dépenses saisies au fil de l'eau, aucune envie
+     d'ouvrir son appli bancaire avant la clôture. L'app cesse de réclamer une vérification. */
+  it('fin de mois suivie au jour le jour : plus d’« estimation », plus de relance', () => {
+    const r = computeConfidence({
+      ...base, variableSpentByDay: spentEveryDay(20, 80), activityDays: everyDay(20),
+    });
+    expect(r.level).toBe('high');       // le message « solde non vérifié » ne s'affiche qu'en 'low'
+    expect(toRange(1200, r, cfg).isRange).toBe(false); // un seul chiffre, pas de fourchette
+  });
+});
+
 describe('toRange', () => {
-  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, rawDaysSinceVerification: 1, neverVerified: false, dailyDrift: 0, coldStart: false, activityDamped: false };
-  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false, dailyDrift: 22, coldStart: false, activityDamped: false };
+  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, rawDaysSinceVerification: 1, neverVerified: false, dailyDrift: 0, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null };
+  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false, dailyDrift: 22, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null };
 
   it('confiance haute = pas de fourchette', () => {
     expect(toRange(2000, highConf, cfg)).toEqual({ low: 2000, high: 2000, isRange: false });
@@ -164,12 +350,12 @@ describe('toRange', () => {
   it('niveau « moyen » mais doute sous highMax (saisie récente) = PAS de fourchette (évite « 750–750 »)', () => {
     // Doute fortement réduit par l'amortisseur d'activité : ratio < highMax → un seul chiffre,
     // même si le niveau reste « medium » (« À jour » réservé à une vraie vérif).
-    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, rawDaysSinceVerification: 8, neverVerified: false, dailyDrift: 2.5, coldStart: false, activityDamped: true };
+    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, rawDaysSinceVerification: 8, neverVerified: false, dailyDrift: 2.5, coldStart: false, activityDamped: true, activityCoverage: 1, observedRelief: null };
     expect(toRange(750, damped, cfg)).toEqual({ low: 750, high: 750, isRange: false });
   });
 
   it('borne basse jamais négative (doute plus large que le montant)', () => {
-    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false };
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false, activityCoverage: 0, observedRelief: null };
     const r = toRange(154, huge, cfg);
     expect(r.isRange).toBe(true);
     expect(r.low).toBe(0);
@@ -180,7 +366,7 @@ describe('toRange', () => {
      fabriquait une borne haute à partir de rien — « minimum sûr 0 € · jusqu'à 100 € si tout est à
      jour » s'affichait sous un « 0 € » rouge accompagné d'un message de budget dépassé. */
   it('aucune fourchette à zéro : l’incertitude ne rend pas de l’argent qui n’existe pas', () => {
-    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false };
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false, activityCoverage: 0, observedRelief: null };
     expect(toRange(0, huge, cfg)).toEqual({ low: 0, high: 0, isRange: false });
   });
 
@@ -231,7 +417,7 @@ describe('toRange', () => {
 
   it('garde-fou d’arrondi : bornes égales après arrondi → un seul chiffre (quel que soit le pas)', () => {
     // Doute au-dessus de highMax mais faible en €, gros pas d'arrondi → les bornes se rejoignent.
-    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, rawDaysSinceVerification: 6, neverVerified: false, dailyDrift: 1.7, coldStart: false, activityDamped: false };
+    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, rawDaysSinceVerification: 6, neverVerified: false, dailyDrift: 1.7, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null };
     const r = toRange(720, smallEur, cfg); // roundStep 100 : 710→700 et 723→700
     expect(r.isRange).toBe(false);
     expect(r.low).toBe(720);
@@ -242,7 +428,7 @@ describe('makeSubRanges — fourchettes des recos & montants proposés', () => {
   const conf = (uncertaintyEur: number) => ({
     level: 'medium' as const, doubtRatio: 0.2, uncertaintyEur,
     daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false,
-    dailyDrift: 1, coldStart: false, activityDamped: false,
+    dailyDrift: 1, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null,
   });
 
   it('confiance haute (pas de fourchette du Relyka) → sous-montants nets', () => {
@@ -352,7 +538,6 @@ describe('confidenceEngine — le doute est plafonné à la base', () => {
     const res = computeConfidence({
       today: new Date('2026-07-28T00:00:00'),
       lastVerifiedAt: '2026-07-20',
-      lastActivityAt: null,
       // 3 576 €/jour : ordre de grandeur réellement produit par la calibration polluée.
       calibration: { medianAbsGap: 75_100, medianDaysBetween: 21, sampleCount: 1 },
       relyka: 1266,
@@ -368,7 +553,6 @@ describe('confidenceEngine — le doute est plafonné à la base', () => {
     const res = computeConfidence({
       today: new Date('2026-07-28T00:00:00'),
       lastVerifiedAt: '2026-07-20',
-      lastActivityAt: null,
       calibration: { medianAbsGap: 75_100, medianDaysBetween: 21, sampleCount: 1 },
       relyka: 1266,
       floorBase: 2100,
@@ -384,7 +568,6 @@ describe('confidenceEngine — le doute est plafonné à la base', () => {
     const res = computeConfidence({
       today: new Date('2026-07-28T00:00:00'),
       lastVerifiedAt: '2026-07-21',
-      lastActivityAt: null,
       calibration: { medianAbsGap: 120, medianDaysBetween: 7, sampleCount: 3 },
       relyka: 1266,
       floorBase: 2100,

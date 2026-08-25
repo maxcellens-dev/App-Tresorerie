@@ -12,6 +12,7 @@ import InfoDot from '../../ui/InfoDot';
 import type { GlossaryTerm } from '../../../lib/ui/glossary';
 import { semanticText, type AppColors } from '../../../theme/palette';
 import { shortDay } from '../../../lib/finance/pilotageView';
+import { floorToTen } from '../../../lib/finance/currency';
 import type { DetailStyles } from './detailStyles';
 import { fmtAmount } from './detailShared';
 
@@ -143,8 +144,11 @@ export default function RelykaDetail({
       {relykaRange?.isRange && (
         <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 4, lineHeight: 17 }]}>
           {`Ce calcul suppose que TOUTES tes dépenses sont saisies. Tant que ton solde n'est pas vérifié, le tableau de bord annonce ${
-            relykaRange.low > 0
-              ? `un minimum sûr de ${fmtAmount(relykaRange.low)}`
+            /* Le chiffre CITÉ ici doit être celui que le tableau de bord affiche vraiment —
+               dizaine inférieure, comme la carte (cf. PilotageSimple). Sinon ce paragraphe, qui
+               explique justement l'écart entre la carte et le détail, en introduit un nouveau. */
+            floorToTen(relykaRange.low) > 0
+              ? `un minimum sûr de ${fmtAmount(floorToTen(relykaRange.low))}`
               : `ce montant comme un maximum`
           }.`}
           {relykaDoubt

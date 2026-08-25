@@ -83,8 +83,10 @@ export default function AdminHub() {
         { href: '/(tabs)/admin/safe-to-spend', icon: 'calculator-outline', title: 'Formule du Relyka', desc: 'Le calcul, étape par étape', color: '#60a5fa' },
         { href: '/(tabs)/admin/fiscal-rates', icon: 'cash-outline', title: 'Fiscalité', desc: 'Taux par enveloppe (PEA, AV…)', color: '#fbbf24' },
         { href: '/(tabs)/(secondary)/admin/pouls', icon: 'compass-outline', title: 'État des lieux', desc: 'Bilan mensuel · signaux par profil', color: '#ef4444' },
-        { href: '/(tabs)/(secondary)/admin/reliability', icon: 'shield-checkmark-outline', title: 'Fiabilité & confiance', desc: 'Seuils de doute · notifications système', color: '#34d399' },
-        { href: '/(tabs)/(secondary)/admin/banners-preview', icon: 'eye-outline', title: 'Aperçu bandeaux', desc: 'Prochain geste · clôture · confiance (tous les textes)', color: '#f59e0b' },
+        /* « Aperçu bandeaux » a fusionné ici (onglets Simulateur / Bandeaux) : les deux pages
+           montraient la même carte Relyka, l'une avec trois états figés, l'autre avec n'importe
+           quelle situation. */
+        { href: '/(tabs)/(secondary)/admin/reliability', icon: 'shield-checkmark-outline', title: 'Fiabilité & confiance', desc: 'Seuils de doute · simulateur · bandeaux', color: '#34d399' },
       ],
     },
   ];

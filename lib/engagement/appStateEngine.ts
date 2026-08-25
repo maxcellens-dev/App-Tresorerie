@@ -1,14 +1,17 @@
 // Moteur d'état — détermine LA prochaine action utile pour le user à l'ouverture de l'app.
 // Une seule action à la fois (la plus prioritaire). Consommé par le bandeau « prochain geste ».
 // Ne remplace pas le guide « Pour bien démarrer » : il le complète pour le quotidien.
-import { unverifiedSincePhrase } from '../finance/confidenceEngine';
-
+//
+// ⚠️ AUCUN bandeau ne parle du SOLDE ici — ni « Renseigne ton solde », ni « Vérifie ton solde ».
+// La carte « Ton Relyka » porte déjà, à l'endroit exact où on lit le chiffre, le badge
+// « Estimation » / « Solde à vérifier » et son bouton « Mettre à jour ». Doubler ça d'un overlay
+// en haut de l'écran revenait à réclamer une saisie que l'utilisateur a le droit de faire en fin
+// de mois, ou plus tard encore : l'information est disponible, elle n'a pas à être imposée.
 export type AppActionType =
-  | 'setup'          // un réglage de base manque (solde / revenu / charges fixes)
+  | 'setup'          // un réglage de base manque (revenu / charges fixes)
   | 'shared_mode'    // un compte partagé sans mode (question à poser une fois)
   | 'app_lock'       // proposition unique d'activer le verrouillage biométrique
   | 'soft_close'     // un mois précédent en attente de clôture
-  | 'check_balance'  // confiance basse → inviter à vérifier le solde
   | 'joint_low';     // mode Contribution : compte commun bientôt à découvert
 
 export interface AppAction {
@@ -27,7 +30,6 @@ export interface AppAction {
 }
 
 export interface AppStateInputs {
-  hasBalance: boolean;
   hasIncome: boolean;
   hasFixed: boolean;
   /** Mois le plus ancien en attente de clôture (YYYY-MM) ou null. */
@@ -36,16 +38,10 @@ export interface AppStateInputs {
   sharedModePrompt: { accountId: string; name: string } | null;
   /** Proposer le verrouillage biométrique (une seule fois, cf. useAppLockPrompt). */
   offerAppLock?: boolean;
-  confidenceLow: boolean;
-  daysSinceVerification: number;
   /** Compte commun (Contribution) bientôt à découvert, ou null. */
   jointLow: { accountId: string; name: string } | null;
-  /** Texte du reste dispo pour l'état positif (ex. « ~220 € »). */
-  relykaText?: string;
   /** Fonctionnalité clôture active (sinon on n'affiche pas soft_close). */
   closureEnabled?: boolean;
-  /** Compte courant principal → deeplinks « solde » PRÉ-REMPLIS (modal Nouveau Solde ouvert). */
-  mainCheckingId?: string | null;
 }
 
 function monthLabel(key: string): string {
@@ -62,9 +58,6 @@ function monthLabel(key: string): string {
  * Ton : TUTOIEMENT partout (cohérent avec l'app).
  */
 export function getCurrentAction(i: AppStateInputs): AppAction | null {
-  // Deeplink solde : directement le modal « Nouveau Solde » du compte principal si connu.
-  const balanceLink = i.mainCheckingId ? `/(tabs)/comptes/${i.mainCheckingId}?verify=1` : '/(tabs)/comptes';
-
   // 0) Proposition UNIQUE du verrouillage biométrique, dès que la présentation du Pilotage est lue.
   //    EN TÊTE volontairement : elle n'est proposée QU'UNE FOIS et ne revient jamais (drapeau local à
   //    l'appareil) — placée plus bas, un utilisateur ayant en permanence un autre signal (réglage
@@ -78,14 +71,9 @@ export function getCurrentAction(i: AppStateInputs): AppAction | null {
     };
   }
 
-  // 1) Réglages de base manquants (le plus structurant).
-  if (!i.hasBalance) {
-    return {
-      type: 'setup', title: 'Renseigne ton solde',
-      reason: 'tes chiffres seront fiables dès le départ', eta: '(~30 s)',
-      deeplink: balanceLink, dismissKey: 'setup:balance',
-    };
-  }
+  /* 1) Réglages de base manquants (le plus structurant).
+     Le solde n'en fait PAS partie : renseigner un solde de départ reste proposé là où il se saisit
+     (bandeau du compte courant vierge) et signalé par le badge de la carte Relyka — pas en overlay. */
   if (!i.hasIncome) {
     return {
       type: 'setup', title: 'Ajoute ton revenu principal',
@@ -120,16 +108,11 @@ export function getCurrentAction(i: AppStateInputs): AppAction | null {
     };
   }
 
-  // 4) Confiance BASSE → les montants affichés sont des ESTIMATIONS (données probablement plus à
-  //    jour). En confiance MOYENNE, seul le bandeau ambre de la carte Relyka le signale (pas de
-  //    doublon overlay) — et l'état positif est supprimé côté hook.
-  if (i.confidenceLow) {
-    return {
-      type: 'check_balance', title: 'Vérifie ton solde',
-      reason: `tes montants sont des estimations - \ntes données ne sont sans doute plus à jour (solde non vérifié ${unverifiedSincePhrase(i.daysSinceVerification)})`,
-      eta: '(~30 s)', deeplink: balanceLink, dismissKey: 'check_balance',
-    };
-  }
+  /* 4) Confiance basse → PLUS DE BANDEAU. La carte « Ton Relyka » affiche déjà « Estimation »,
+     la fourchette et le bouton « Mettre à jour », et la carte de décisions bascule sur
+     « Vérifier mon solde d'abord ». Réclamer la même chose en overlay ne rendait pas le doute plus
+     lisible, seulement plus insistant — alors que vérifier son solde en fin de mois, ou plus tard,
+     est un choix légitime. */
 
   // 5) Surveillance du compte commun (Contribution).
   if (i.jointLow) {

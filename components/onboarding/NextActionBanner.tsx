@@ -51,7 +51,6 @@ const ICONS: Record<AppActionType, string> = {
   shared_mode: 'people-outline',
   app_lock: 'finger-print',
   soft_close: 'lock-closed-outline',
-  check_balance: 'wallet-outline',
   joint_low: 'warning-outline',
 };
 
@@ -138,17 +137,14 @@ export default function NextActionBanner() {
   const anim = useRef(new Animated.Value(0)).current;
   const lastKey = useRef<string | null>(null);
 
-  // Auto-effacement : état positif ~5 s (marqué « vu ce mois-ci ») ; « Vérifie ton solde » 15 s
-  // (ne reste jamais à l'infini — il reviendra à la prochaine ouverture tant que non vérifié).
+  // Auto-effacement : état positif ~5 s (marqué « vu ce mois-ci »).
+  // (Le bandeau « Vérifie ton solde » et son minuteur de 15 s n'existent plus : le doute est porté
+  //  par le badge « Estimation » de la carte Relyka, jamais par un overlay.)
   useEffect(() => {
     if (!action) return;
     if (action.positive) {
       flagSet(okSeenKey());
       const id = setTimeout(() => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); }, 5000);
-      return () => clearTimeout(id);
-    }
-    if (action.type === 'check_balance') {
-      const id = setTimeout(() => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); }, 15000);
       return () => clearTimeout(id);
     }
     if (action.type === 'joint_low') {

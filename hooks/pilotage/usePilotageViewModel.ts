@@ -17,8 +17,7 @@ import { floorToTen, type RatesMap } from '../../lib/finance/currency';
 import { computeRecommendations, type SmartRecommendation } from '../../lib/finance/recommendationEngine';
 import { buildRecoOptions } from '../../lib/finance/recoInputs';
 import { resolveRecoMode } from '../../lib/finance/recoMode';
-import { buildRecoMessages, buildRelykaMessages, composeGuardMessage } from '../../lib/finance/recoMessages';
-import { unverifiedSincePhrase } from '../../lib/finance/confidenceEngine';
+import { buildRecoMessages, buildRelykaMessages, composeGuardMessage, unverifiedRelykaMessage } from '../../lib/finance/recoMessages';
 import { deriveRelykaConfidence } from './useReliability';
 import type { AppColors } from '../../theme/palette';
 import type { PilotageData } from '../../lib/finance/pilotageEngine';
@@ -253,15 +252,9 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
         ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
         : 'Relyka n\'a pas encore repéré ta rentrée d\'argent : enregistre-la en récurrente pour qu\'il cesse de calculer sans elle.',
     guardMessage: composeGuardMessage(recoList.filter((r) => r.amount > 0)),
-    /* Ancienneté RÉELLE (`rawDays…`) et non celle du calcul, plafonnée à 21 jours : elle faisait
-       écrire « non vérifié depuis quelques jours » à quelqu'un qui n'avait rien vérifié depuis huit
-       mois. Et « jamais vérifié » a sa propre phrase : on n'invente pas une ancienneté qui n'existe
-       pas. Le geste nommé est celui du bouton juste au-dessus (« Mettre à jour »), pas le jargon. */
-    unverifiedMessage:
-      relConf?.result.level !== 'low' ? null
-      : relConf.result.neverVerified || relConf.result.rawDaysSinceVerification == null
-        ? 'Ton solde n\'a jamais été vérifié — mets-le à jour pour que tes montants cessent d\'être des estimations.'
-        : `Solde non vérifié ${unverifiedSincePhrase(relConf.result.rawDaysSinceVerification)} — mets ton solde à jour ou saisis tes dépenses pour l'actualiser.`,
+    /* Phrase PARTAGÉE (lib/recoMessages) avec le simulateur d'administration : elle vivait ici, et
+       l'aperçu admin en affichait fatalement une version d'un autre âge. */
+    unverifiedMessage: relConf ? unverifiedRelykaMessage(relConf.result) : null,
     relykaColor,
     warnColor: colors.orange,
   }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, relConf, relykaColor, colors]);

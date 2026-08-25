@@ -27,7 +27,7 @@ import { resolveRecoMode } from './recoMode';
 import { addRecurrenceToMonth, recurrencePastInMonth, recurrenceOccurrencesBetween, monthlyEquivalent } from './recurrence';
 import { countConsecutiveOverdraftMonths } from './balanceAt';
 import { isoDay, dayOfMonthISO } from '../dateUtils';
-import type { DriftCalibration } from './confidenceEngine';
+import { OBSERVATION_WINDOW_DAYS, type DriftCalibration } from './confidenceEngine';
 import type { Account, FinancialProfile, Project, Profile, RecurrenceRule, TransactionWithDetails } from '../../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -208,7 +208,16 @@ export interface PilotageData {
    */
   consecutive_overdraft_months: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
-  confidence_inputs: { lastVerifiedAt: string | null; lastActivityAt: string | null; calibration: DriftCalibration | null; floorBase: number; variableBase: number };
+  confidence_inputs: {
+    lastVerifiedAt: string | null;
+    /** Jours (ISO) portant une saisie manuelle, fenêtre glissante — mesure l'assiduité. */
+    activityDays: string[];
+    /** Dépenses variables constatées par jour (ISO), même fenêtre — plafonne le doute. */
+    variableSpentByDay: Record<string, number>;
+    calibration: DriftCalibration | null;
+    floorBase: number;
+    variableBase: number;
+  };
   /** Soldes courants projetés en fin de mois sur 6 mois (index 0 = mois courant) — même trajectoire
    *  que l'écran Projection (lib/tresoProjection). Alimente le garde-fou marge des recommandations. */
   projection_balances_6m: number[];
@@ -1161,20 +1170,44 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     : (lastRegulAt ?? oldestAnchor);
   const reliability_calib = ((profile as any)?.reliability_calib ?? null) as DriftCalibration | null;
   const confidence_floor_base = Math.max(avgMonthlyIncome, variable_envelope_initial, 0);
-  // lastActivityAt = dernière SAISIE MANUELLE d'une transaction du mois courant (date de saisie
-  // `created_at`, pas la date de la transaction). Signal de SUIVI ACTIF qui amortit le doute
-  // (confidenceEngine.activityDampening) : un user qui saisit le 20 est plutôt à jour, même si sa
-  // dernière régul date. Exclus : réguls (déjà des vérifs), occurrences matérialisées de
-  // récurrentes (automatiques, pas une action du user), modèles récurrents et brouillons.
-  const currentMonthPrefix = todayStr.slice(0, 7);
-  let lastActivityAt: string | null = null;
+  /* ── SIGNAUX D'OBSERVATION (fenêtre glissante de OBSERVATION_WINDOW_DAYS jours) ────────────────
+     Le doute ne doit pas dépendre de la seule horloge : il mesure ce qui a pu échapper à la saisie.
+     Deux séries JOURNALIÈRES le permettent, consommées par confidenceEngine :
+
+       • `activityDays` — les jours portant au moins une SAISIE MANUELLE (date de saisie
+         `created_at`, pas la date de la transaction) → l'ASSIDUITÉ, qui amortit le doute. Exclus :
+         réguls (ce sont déjà des vérifications), occurrences matérialisées (automatiques, pas un
+         geste du user), modèles récurrents et brouillons. On ne filtre PLUS sur le mois de la
+         transaction : saisir le 2 août les dépenses du 30 juillet est du suivi, pas du bruit.
+
+       • `variableSpentByDay` — les dépenses VARIABLES constatées, par jour de transaction → ce qui
+         a été observé ne peut plus compter comme « ce qui a échappé ». Mêmes prédicats que
+         l'enveloppe (`isBudgetExpense` / `isRecurringTx`) : comparer un dépensé plus large que sa
+         propre référence est exactement l'asymétrie que ce fichier a déjà corrigée une fois.
+
+     Des JOURS bruts plutôt que des totaux : la fenêtre réellement utilisée dépend des réglages
+     admin (que ce moteur ne connaît pas), et proratiser un agrégat aurait faussé le cas même qu'on
+     traite — celui du user assidu. Trente entrées au plus, une seule passe. */
+  const windowStart = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (OBSERVATION_WINDOW_DAYS - 1)));
+  const activityDaySet = new Set<string>();
+  const variableSpentByDay: Record<string, number> = {};
   for (const t of transactions as any[]) {
-    if (t.is_draft || t.materialized_from || (t.is_recurring && t.recurrence_rule)) continue;
-    if (isRegul(t)) continue;
-    if (String(t.date ?? '').slice(0, 7) !== currentMonthPrefix) continue;
-    const created = String(t.created_at ?? '').slice(0, 10);
-    if (created && created <= todayStr && (!lastActivityAt || created > lastActivityAt)) lastActivityAt = created;
+    const isTemplateOrAuto = t.is_draft || t.materialized_from || (t.is_recurring && t.recurrence_rule);
+    if (!isTemplateOrAuto && !isRegul(t)) {
+      const created = String(t.created_at ?? '').slice(0, 10);
+      if (created && created >= windowStart && created <= todayStr) activityDaySet.add(created);
+    }
+    // Dépensé variable du jour — le périmètre EXACT de l'enveloppe, plus les bornes de la fenêtre.
+    if (t.is_draft || t.is_reserved || isRecurringTx(t) || !isBudgetExpense(t)) continue;
+    const d = String(t.date ?? '').slice(0, 10);
+    if (!d || d < windowStart || d > todayStr) continue;
+    const amt = Number(t.amount);
+    // Même règle que `monthVariableSpent` : un montant positif ne se déduit que sur une VRAIE
+    // catégorie de dépense (remboursement) ; sinon c'est une recette / un apport / une régul.
+    if (amt >= 0 && !(t.category && t.category.type === 'expense')) continue;
+    variableSpentByDay[d] = (variableSpentByDay[d] ?? 0) + -amt;
   }
+  const activityDays = [...activityDaySet];
 
   // ── Soldes projetés 6 mois (trajectoire de l'écran Projection, virements épargne/invest inclus)
   // pour le garde-fou marge des recommandations. Overrides SIGNÉS tous mois, format `${id}:${y}:${m}`.
@@ -1292,7 +1325,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     variable_sigma,
     consecutive_overdraft_months,
     confidence_inputs: {
-      lastVerifiedAt, lastActivityAt, calibration: reliability_calib,
+      lastVerifiedAt, activityDays, variableSpentByDay, calibration: reliability_calib,
       floorBase: confidence_floor_base,
       // Base du COLD START : seules les dépenses variables peuvent vraiment être « perdues de vue ».
       variableBase: variable_envelope_initial,

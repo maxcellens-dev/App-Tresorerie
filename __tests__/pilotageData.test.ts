@@ -2,6 +2,9 @@
    donc `react-native`, qui ne s'exécute pas dans une suite Node. C'est précisément ce couplage que
    l'extraction a supprimé. */
 import { computePilotageData, type PilotageInput } from '../lib/finance/pilotageEngine';
+/* Le moteur de CONFIANCE est importé ici exprès : ces deux moteurs ne se rencontraient dans aucun
+   test, alors que c'est leur jonction qui décide de ce que l'écran affiche. */
+import { computeConfidence, toRange, RELIABILITY_DEFAULTS } from '../lib/finance/confidenceEngine';
 
 /**
  * Tests de caractérisation du cœur de calcul du Pilotage (≈800 lignes).
@@ -264,6 +267,138 @@ describe('computePilotageData — régularisations', () => {
       })],
     });
     expect(r.confidence_inputs.lastVerifiedAt).toBe(iso(2026, 4, 2));
+  });
+
+  /* ── SIGNAUX D'OBSERVATION : ce qui permet au doute de baisser quand on saisit ────────────────
+     Sans eux, le doute ne dépend que de l'horloge — et l'app réclame une vérification à quelqu'un
+     qui note tout. C'est le maillon d'intégration : le moteur de confiance a beau savoir s'en
+     servir, il ne verra jamais rien si ces deux séries ne sortent pas d'ici. */
+  describe('signaux d\'observation (assiduité et variable constaté)', () => {
+    const accounts = [account({ id: 'a1', balance: 1000 })];
+
+    it('un jour de saisie manuelle = un jour d\'assiduité (date de SAISIE, pas de transaction)', () => {
+      const r = run({
+        accounts,
+        // Saisie le 14 d'une dépense datée du 2 : c'est du suivi, pas du bruit.
+        transactions: [tx({ account_id: 'a1', date: iso(2026, 6, 2), created_at: iso(2026, 6, 14) })],
+      });
+      expect(r.confidence_inputs.activityDays).toEqual([iso(2026, 6, 14)]);
+    });
+
+    it('ne compte PAS ce que l\'utilisateur n\'a pas saisi lui-même', () => {
+      const r = run({
+        accounts,
+        transactions: [
+          tx({ account_id: 'a1', created_at: iso(2026, 6, 12), is_draft: true }),
+          tx({ account_id: 'a1', created_at: iso(2026, 6, 12), materialized_from: 'tpl-1' }),
+          tx({ account_id: 'a1', created_at: iso(2026, 6, 12), is_recurring: true, recurrence_rule: 'monthly' }),
+          tx({
+            account_id: 'a1', created_at: iso(2026, 6, 12), amount: -80,
+            category_id: null, category: null, note: 'Régularisation',
+          }),
+        ],
+      });
+      expect(r.confidence_inputs.activityDays).toEqual([]);
+    });
+
+    it('les jours hors fenêtre glissante sont ignorés', () => {
+      const r = run({
+        accounts,
+        transactions: [
+          tx({ account_id: 'a1', date: iso(2026, 4, 3), created_at: iso(2026, 4, 3) }),   // > 30 j
+          tx({ account_id: 'a1', date: iso(2026, 6, 10), created_at: iso(2026, 6, 10) }),
+        ],
+      });
+      expect(r.confidence_inputs.activityDays).toEqual([iso(2026, 6, 10)]);
+    });
+
+    it('le variable constaté est ventilé par JOUR de transaction', () => {
+      const r = run({
+        accounts,
+        transactions: [
+          tx({ account_id: 'a1', amount: -30, date: iso(2026, 6, 10) }),
+          tx({ account_id: 'a1', amount: -20, date: iso(2026, 6, 10) }),
+          tx({ account_id: 'a1', amount: -45, date: iso(2026, 6, 12) }),
+        ],
+      });
+      expect(r.confidence_inputs.variableSpentByDay[iso(2026, 6, 10)]).toBeCloseTo(50, 2);
+      expect(r.confidence_inputs.variableSpentByDay[iso(2026, 6, 12)]).toBeCloseTo(45, 2);
+    });
+
+    /* MÊME périmètre que l'enveloppe à laquelle il sera comparé : compter ici une charge récurrente
+       ou un virement d'épargne ferait « observer » un montant que l'enveloppe, elle, n'attend pas —
+       l'asymétrie exacte que ce moteur a déjà eu à corriger sur le dépensé du mois. */
+    it('même définition de « variable » que l\'enveloppe (ni récurrentes, ni virements)', () => {
+      const r = run({
+        accounts: [account({ id: 'a1', balance: 1000 }), account({ id: 'ep', type: 'savings', balance: 0 })],
+        transactions: [
+          tx({ account_id: 'a1', amount: -30, date: iso(2026, 6, 10) }),
+          tx({ account_id: 'a1', amount: -600, date: iso(2026, 6, 10), is_recurring: true, recurrence_rule: 'monthly' }),
+          tx({ account_id: 'a1', amount: -200, date: iso(2026, 6, 10), linked_account_id: 'ep' }),
+        ],
+      });
+      expect(r.confidence_inputs.variableSpentByDay[iso(2026, 6, 10)]).toBeCloseTo(30, 2);
+    });
+
+    it('un remboursement vient en déduction du jour', () => {
+      const r = run({
+        accounts,
+        transactions: [
+          tx({ account_id: 'a1', amount: -80, date: iso(2026, 6, 11) }),
+          tx({ account_id: 'a1', amount: 30, date: iso(2026, 6, 11) }), // remboursement sur dépense
+        ],
+      });
+      expect(r.confidence_inputs.variableSpentByDay[iso(2026, 6, 11)]).toBeCloseTo(50, 2);
+    });
+
+    /* ── BOUT EN BOUT : le moteur de Pilotage nourrit-il VRAIMENT le moteur de confiance ? ────────
+       Les deux moteurs étaient testés séparément, chacun impeccable de son côté — et c'est
+       exactement le genre de découpage qui laisse passer un branchement muet : des signaux produits
+       que personne ne lit, ou lus dans une unité qui ne correspond pas. Ce test rejoue le cas réel
+       de bout en bout : quelqu'un qui saisit ses dépenses tout au long du mois, sans jamais vérifier
+       son solde, doit CESSER de lire « estimation ». */
+    it('suivi continu sans vérification de solde → chiffres nets (cas réel du 25)', () => {
+      /* ⚠️ Les dépenses commencent en MAI, pas au 1ᵉʳ du mois courant : la période douteuse remonte
+         à la dernière vérification (ici l'ouverture du compte, le 21 mai) et se moque des frontières
+         de mois. Un scénario qui ne remplit que le mois courant laisse la tranche la plus ancienne
+         muette — et le doute, à juste titre, ne tombe pas. */
+      const daily: any[] = [];
+      for (let d = 20; d <= 31; d++) {
+        daily.push(tx({ account_id: 'a1', amount: -90, date: iso(2026, 5, d), created_at: iso(2026, 5, d) }));
+      }
+      for (let d = 1; d <= 15; d++) {
+        // ~90 €/jour saisis le jour même : le budget déclaré est largement honoré.
+        daily.push(tx({ account_id: 'a1', amount: -90, date: iso(2026, 6, d), created_at: iso(2026, 6, d) }));
+      }
+      const r = run({
+        accounts: [account({ id: 'a1', balance: 1000, init_date: iso(2026, 5, 21), created_at: iso(2026, 5, 21) })],
+        transactions: daily,
+        // Budget hebdo déclaré 150 € → enveloppe ~650 €/mois, très en dessous du réel : c'est
+        // précisément la configuration qui bloquait l'effacement quand il était plafonné en euros.
+        profile: { id: 'me', currency_code: 'EUR', created_at: iso(2025, 1, 1), weekly_variable_budget: 150 } as any,
+      });
+
+      const ci = r.confidence_inputs;
+      expect(ci.variableBase).toBeGreaterThan(0);
+      expect(Object.keys(ci.variableSpentByDay).length).toBeGreaterThan(10);
+
+      // Dérive prouvée volontairement FORTE (30 €/j) : sans l'effacement, le doute écraserait tout.
+      const conf = computeConfidence({
+        today: NOW,
+        lastVerifiedAt: ci.lastVerifiedAt,
+        activityDays: ci.activityDays,
+        variableSpentByDay: ci.variableSpentByDay,
+        calibration: { medianAbsGap: 600, medianDaysBetween: 20, sampleCount: 4 },
+        relyka: 1012,
+        floorBase: ci.floorBase,
+        variableBase: ci.variableBase,
+        config: RELIABILITY_DEFAULTS,
+      });
+
+      expect(conf.observedRelief).toBeGreaterThan(0);
+      expect(conf.level).toBe('high');
+      expect(toRange(1012, conf, RELIABILITY_DEFAULTS).isRange).toBe(false);
+    });
   });
 });
 

@@ -15,6 +15,7 @@
 import type { SmartRecommendation, RecoType } from './recommendationEngine';
 import { getRecoContextText, type RecoFinancials } from './recoContext';
 import { CURRENCY_SYMBOL } from './currency';
+import { unverifiedSincePhrase } from './confidenceEngine';
 
 export interface RecoMessage {
   key: string;
@@ -59,6 +60,29 @@ export function composeGuardMessage(recos: SmartRecommendation[]): string | null
   // Cas « tout conserver » : message autonome (majuscule initiale).
   const keepNote = recos.find((r) => r.guardNote)?.guardNote;
   return keepNote ? keepNote.charAt(0).toUpperCase() + keepNote.slice(1) : null;
+}
+
+/**
+ * La consigne « solde non vérifié », à partir du seul résultat de confiance.
+ *
+ * Extraite du tableau de bord pour être PARTAGÉE avec le simulateur d'administration : recopiée
+ * là-bas, elle aurait fini par annoncer un geste que l'app ne propose plus — c'est précisément ce
+ * qu'on reproche aux aperçus qui réimplémentent la production.
+ *
+ * `null` hors confiance BASSE : en moyenne, le badge de la carte suffit (pas de doublon).
+ * L'ancienneté employée est la RÉELLE (`rawDaysSinceVerification`), jamais celle du calcul qui
+ * sature à 21 jours — et « jamais vérifié » a sa propre phrase : on n'invente pas une ancienneté.
+ */
+export function unverifiedRelykaMessage(conf: {
+  level: 'high' | 'medium' | 'low';
+  neverVerified: boolean;
+  rawDaysSinceVerification: number | null;
+}): string | null {
+  if (conf.level !== 'low') return null;
+  if (conf.neverVerified || conf.rawDaysSinceVerification == null) {
+    return 'Ton solde n\'a jamais été vérifié — mets-le à jour pour que tes montants cessent d\'être des estimations.';
+  }
+  return `Solde non vérifié ${unverifiedSincePhrase(conf.rawDaysSinceVerification)} — mets ton solde à jour ou saisis tes dépenses pour l'actualiser.`;
 }
 
 /**

@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useResponsive } from '../../hooks/theme/useResponsive';
 import { semanticText } from '../../theme/palette';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, floorToTen } from '../../lib/finance/currency';
 import { verifiedAgoPhrase } from '../../lib/finance/confidenceEngine';
 import { onbGlow } from '../../lib/engagement/onbHighlight';
 import InfoDot from '../ui/InfoDot';
@@ -240,14 +240,19 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             Plancher à 0 (le doute dépasse le Relyka) → on masque la ligne entière : « minimum sûr
             0 € · jusqu'à 1 020 € » sous un « 1 020 € » n'apprend rien et alarme pour rien. Le badge
             « Estimation » et le message « À vérifier » disent déjà ce qu'il y a à dire. */}
-        {p.relykaRange?.isRange && p.relykaRange.low > 0 && (
+        {/* MÊME ARRONDI QUE LE CHIFFRE PRINCIPAL (dizaine inférieure). Le haut de la fourchette EST
+            le Relyka — mais le grand chiffre était arrondi et pas la borne : on lisait « 1 010 € »
+            en grand et « jusqu'à 1 012 € » juste en dessous, soit une fourchette qui dépassait de
+            deux euros le montant qu'elle est censée plafonner. L'arrondi va vers le BAS des deux
+            côtés : le « minimum sûr » ne peut pas être remonté par un affichage. */}
+        {p.relykaRange?.isRange && floorToTen(p.relykaRange.low) > 0 && (
           <View style={styles.rangeRow}>
             <Text style={styles.rangeText}>
-              minimum sûr <Text style={styles.rangeStrong}>{fmt(p.relykaRange.low)}</Text>
+              minimum sûr <Text style={styles.rangeStrong}>{fmt(floorToTen(p.relykaRange.low))}</Text>
             </Text>
             <View style={styles.rangeSep} />
             <Text style={styles.rangeText}>
-              jusqu’à <Text style={styles.rangeStrong}>{fmt(p.relykaRange.high)}</Text> si tout est à jour
+              jusqu’à <Text style={styles.rangeStrong}>{fmt(floorToTen(p.relykaRange.high))}</Text> si tout est à jour
             </Text>
           </View>
         )}

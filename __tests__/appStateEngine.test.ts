@@ -1,10 +1,9 @@
 import { getCurrentAction, type AppStateInputs } from '../lib/engagement/appStateEngine';
 
 const base: AppStateInputs = {
-  hasBalance: true, hasIncome: true, hasFixed: true,
+  hasIncome: true, hasFixed: true,
   pendingClosureMonth: null, sharedModePrompt: null,
-  confidenceLow: false, daysSinceVerification: 0, jointLow: null,
-  relykaText: '220 €', closureEnabled: true, mainCheckingId: null,
+  jointLow: null, closureEnabled: true,
 };
 
 describe('appStateEngine — proposition de verrouillage biométrique', () => {
@@ -18,8 +17,7 @@ describe('appStateEngine — proposition de verrouillage biométrique', () => {
     const noisy: AppStateInputs = {
       ...base,
       offerAppLock: true,
-      hasBalance: false,
-      confidenceLow: true,
+      hasIncome: false,
       pendingClosureMonth: '2026-06',
       jointLow: { accountId: 'a', name: 'Compte commun' },
     };
@@ -35,7 +33,22 @@ describe('appStateEngine — proposition de verrouillage biométrique', () => {
   });
 
   it('une fois traitée, les autres signaux reprennent leur ordre normal', () => {
-    expect(getCurrentAction({ ...base, hasBalance: false })?.type).toBe('setup');
-    expect(getCurrentAction({ ...base, confidenceLow: true })?.type).toBe('check_balance');
+    expect(getCurrentAction({ ...base, hasIncome: false })?.type).toBe('setup');
+    expect(getCurrentAction({ ...base, pendingClosureMonth: '2026-06' })?.type).toBe('soft_close');
+  });
+});
+
+describe('appStateEngine — le SOLDE ne fait jamais l’objet d’un bandeau', () => {
+  /* La carte « Ton Relyka » signale déjà l'estimation et propose la mise à jour, là où le chiffre
+     se lit. Vérifier son solde en fin de mois — ou plus tard — reste le choix de l'utilisateur :
+     aucun overlay ne doit le réclamer. */
+  it("ne propose rien quand aucun solde n'est renseigné", () => {
+    expect(getCurrentAction(base)).toBeNull();
+  });
+
+  it('laisse passer les autres signaux sans jamais parler de solde', () => {
+    const a = getCurrentAction({ ...base, hasFixed: false });
+    expect(a?.type).toBe('setup');
+    expect(a?.title).not.toMatch(/solde/i);
   });
 });
