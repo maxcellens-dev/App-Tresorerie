@@ -13,8 +13,7 @@ import { currencySymbolFor } from '../../../lib/finance/currency';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn, IS_WEB } from '../../../lib/ui/webLayout';
-import { THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
-import { useStyleConfig, orderPresetIds } from '../../../hooks/theme/useStyleConfig';
+import { type AppColors, type ThemeMode } from '../../../theme/palette';
 import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
 import CurrencyPicker from '../../../components/account/CurrencyPicker';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
@@ -104,8 +103,8 @@ function SettingsScreen() {
     }
   }, []);
 
+  // Sert uniquement à la barre d'état (le réglage du thème vit dans l'écran Apparence).
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
-  const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
   const isAdmin = profile?.is_admin ?? false;
   /** Ce que l'utilisateur SOUHAITE (base) — à croiser avec l'autorisation système avant affichage. */
   const wantsNotifs = (profile as any)?.notifications_enabled ?? true;
@@ -124,26 +123,12 @@ function SettingsScreen() {
     }
   };
 
-  // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
-  const { data: styleConfig } = useStyleConfig();
-  const allPresets = useMemo(() => {
-    const hidden = new Set(styleConfig?.hidden_presets ?? []);
-    const native = THEME_PRESETS.map((p) => ({
-      id: p.id,
-      label: p.label,
-      swatch: styleConfig?.custom_accents?.[p.id] ?? p.swatch,
-    }));
-    const extra = (styleConfig?.extra_presets ?? []).map((p) => ({
-      id: p.id,
-      label: p.label,
-      swatch: p.dark,
-    }));
-    const all = [...native, ...extra];
-    const ordered = orderPresetIds(all.map((p) => p.id), styleConfig?.preset_order);
-    return ordered
-      .map((id) => all.find((p) => p.id === id)!)
-      .filter((p) => p && !hidden.has(p.id));
-  }, [styleConfig]);
+  /* ⚠️ LE RÉGLAGE DE L'APPARENCE N'EST PLUS ICI — il a son propre écran (app/(tabs)/(secondary)/
+     apparence.tsx). Une copie complète de sa logique (liste des couleurs, changement de mode et de
+     couleur) survivait pourtant dans ce fichier, plus rendue par personne : du code que rien
+     n'exécutait, mais que les recherches trouvaient — et qui résolvait déjà les couleurs
+     DIFFÉREMMENT de l'écran Apparence. Deux vérités pour un même réglage, dont une invisible : on
+     supprime celle qui ne sert plus. */
 
   // ── Guide "bulles" ──
   const insets = useSafeAreaInsets();
@@ -174,10 +159,6 @@ function SettingsScreen() {
   useEffect(() => {
     setSafetyAmountInput(String(currentSafetyAmount));
   }, [currentSafetyAmount]);
-
-  // ── Thème ──
-  const setMode = (mode: ThemeMode) => updateProfile.mutate({ theme_mode: mode });
-  const setPreset = (preset: ThemePreset) => updateProfile.mutate({ theme_preset: preset });
 
   // ── Sign out ──
   // signOut() se charge de tout (voile, navigation, purge) — cf. AuthContext.
@@ -260,7 +241,7 @@ function SettingsScreen() {
                     style={{ backgroundColor: COLORS.emerald, borderRadius: 8, padding: 6 }}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="checkmark" size={16} color={COLORS.bg} />
+                    <Ionicons name="checkmark" size={16} color={COLORS.onAccent} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -575,7 +556,7 @@ function makeStyles(c: AppColors) {
       paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 12,
     },
     saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
-    saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
+    saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.onAccent },
 
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
@@ -592,25 +573,7 @@ function makeStyles(c: AppColors) {
     },
     rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
 
-    // Apparence
-    segmentRow: { flexDirection: 'row', gap: 8 },
-    segment: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
-    },
-    segmentActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    segmentLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
-    segmentLabelActive: { color: c.bg },
     currencyHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
-    presetRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
-    presetDot: {
-      width: 32, height: 32, borderRadius: 16,
-      alignItems: 'center', justifyContent: 'center',
-      borderWidth: 1, borderColor: c.cardBorder,
-    },
-    presetDotActive: {
-      borderWidth: 2, borderColor: c.text,
-    },
 
     versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
     versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },

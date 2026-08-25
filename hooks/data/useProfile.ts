@@ -74,6 +74,14 @@ export function useProfile(profileId: string | undefined) {
 export function useUpdateProfile(profileId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
+    /* ÉCRITURES EN FILE, PAS EN PARALLÈLE.
+       Plusieurs réglages de profil partent souvent coup sur coup — trois couleurs d'accent essayées
+       en deux secondes dans Apparence, un cosmétique équipé puis retiré. Lancées en parallèle, les
+       requêtes n'arrivent pas forcément dans l'ordre des clics : la base pouvait conserver
+       l'avant-dernier choix, et le `invalidateQueries` de fin ramenait alors à l'écran une couleur
+       que l'utilisateur venait de quitter. Avec un `scope` commun, react-query les exécute l'une
+       après l'autre : le dernier clic est le dernier écrit. */
+    scope: profileId ? { id: `profile-update-${profileId}` } : undefined,
     mutationFn: async (payload: {
       full_name?: string | null;
       avatar_url?: string | null;

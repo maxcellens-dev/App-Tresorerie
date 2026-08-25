@@ -110,7 +110,17 @@ export function useStyleConfig() {
     queryKey: [KEY],
     queryFn: async (): Promise<StyleConfig> => {
       if (!supabase) return STYLE_DEFAULTS;
-      const { data } = await supabase.from('app_config').select('theme').eq('id', 'default').single();
+      /* UNE LECTURE RATÉE N'EST PAS « AUCUNE CONFIGURATION ».
+         L'erreur était ignorée : au moindre incident réseau, la fonction rendait les valeurs par
+         défaut — et react-query les gardait en cache cinq minutes. Résultat : l'application changeait
+         d'apparence toute seule (couleurs d'accent revenues à leurs teintes d'origine, couleurs du
+         pack disparues de la page Apparence, dégradés et polices par défaut), sans un message, et
+         sans rien pour la faire revenir avant l'expiration du cache. On lève : react-query réessaie,
+         et l'écran garde entre-temps la dernière configuration connue.
+         `maybeSingle` : l'absence de ligne de configuration, elle, est un cas normal → valeurs par
+         défaut, ce qui est exactement ce qu'on veut pour une base neuve. */
+      const { data, error } = await supabase.from('app_config').select('theme').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       const style = (data as any)?.theme?.style as Partial<StyleConfig> | undefined;
       return {
         dark:  { ...STYLE_DEFAULTS.dark,  ...(style?.dark  ?? {}) },

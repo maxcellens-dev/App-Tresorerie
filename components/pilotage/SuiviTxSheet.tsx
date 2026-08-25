@@ -131,6 +131,6 @@ function makeStyles(c: AppColors) {
     txSheetClose: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
     txSheetCloseText: { fontSize: 15, fontWeight: '700', color: c.text },
     txSheetEdit: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 13, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald },
-    txSheetEditText: { fontSize: 15, fontWeight: '700', color: c.bg },
+    txSheetEditText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
   });
 }

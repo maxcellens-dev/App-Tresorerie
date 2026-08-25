@@ -856,7 +856,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                 onPress={() => { setError(null); confirm(); }}
                 disabled={busy || (needsAmount && !hasAnyAmount)}
               >
-                {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
+                {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
               </TouchableOpacity>
               {/* Échappatoire assumée : clôturer demande d'avoir ses relevés sous les yeux, ce qui
                   n'est pas toujours le cas au moment où l'app s'ouvre. Sans elle, la seule sortie
@@ -974,7 +974,7 @@ function makeStyles(c: any) {
     seg: { flex: 1, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
     segActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     segText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, textAlign: 'center' },
-    segTextActive: { color: c.bg },
+    segTextActive: { color: c.onAccent },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hint: { fontSize: 12, color: c.textSecondary, marginTop: 10, lineHeight: 17 },
@@ -995,7 +995,7 @@ function makeStyles(c: any) {
     errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
     confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
-    confirmText: { fontSize: 16, fontWeight: '700', color: c.bg },
+    confirmText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     // Volontairement discret : c'est une sortie, pas une action concurrente de la clôture.
     laterBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
     laterText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },

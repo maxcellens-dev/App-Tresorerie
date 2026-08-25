@@ -134,7 +134,7 @@ export default function AdminCategoriesScreen() {
         </KeyboardAwareScrollView>
 
         <TouchableOpacity style={[styles.applyBtn, apply.isPending && { opacity: 0.6 }]} onPress={doApply} disabled={apply.isPending}>
-          {apply.isPending ? <ActivityIndicator color={COLORS.bg} /> : <><Ionicons name="cloud-upload-outline" size={18} color={COLORS.bg} /><Text style={styles.applyLabel}>Appliquer à tous les utilisateurs</Text></>}
+          {apply.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <><Ionicons name="cloud-upload-outline" size={18} color={COLORS.onAccent} /><Text style={styles.applyLabel}>Appliquer à tous les utilisateurs</Text></>}
         </TouchableOpacity>
       </SafeAreaView>
     </View>
@@ -159,6 +159,6 @@ function makeStyles(c: any) {
     addChildText: { color: c.blue, fontSize: 12.5, fontWeight: '600' },
     addParent: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 20 },
     applyBtn: { position: 'absolute', left: 20, right: 20, bottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, paddingVertical: 15, borderRadius: 14 },
-    applyLabel: { color: c.bg, fontSize: 15, fontWeight: '800' },
+    applyLabel: { color: c.onAccent, fontSize: 15, fontWeight: '800' },
   });
 }

@@ -155,8 +155,8 @@ export default function AdminSuggestions() {
                 disabled={addRoadmapIdea.isPending}
               >
                 {addRoadmapIdea.isPending
-                  ? <ActivityIndicator color={COLORS.bg} size="small" />
-                  : <Ionicons name="add" size={22} color={COLORS.bg} />}
+                  ? <ActivityIndicator color={COLORS.onAccent} size="small" />
+                  : <Ionicons name="add" size={22} color={COLORS.onAccent} />}
               </TouchableOpacity>
             </View>
 
@@ -282,7 +282,7 @@ function makeStyles(c: any) {
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
-  chipTextActive: { color: c.bg },
+  chipTextActive: { color: c.onAccent },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 4 },
   subtitle: { fontSize: 13, color: c.textSecondary },
   deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },

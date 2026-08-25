@@ -822,7 +822,7 @@ function AddTransactionScreen() {
                 disabled={addTransaction.isPending || guideNeedsRecurring}
                 accessibilityRole="button"
               >
-                {addTransaction.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
+                {addTransaction.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.submitBtn, styles.submitBtnDraft, (addTransaction.isPending || guideNeedsRecurring) && styles.submitBtnDisabled]}
@@ -893,7 +893,7 @@ function makeStyles(c: any) {
   stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
   stepDotActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  stepDotText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  stepDotText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
   stepBar: { width: 60, height: 2, backgroundColor: c.cardBorder },
   stepBarActive: { backgroundColor: c.emerald },
   stepTitle: { fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 },
@@ -902,7 +902,7 @@ function makeStyles(c: any) {
   typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
   typeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   typeBtnLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
-  typeBtnLabelActive: { color: c.bg },
+  typeBtnLabelActive: { color: c.onAccent },
   refundToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 16 },
   refundLabel: { fontSize: 14, fontWeight: '600', color: c.text },
   refundHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
@@ -910,7 +910,7 @@ function makeStyles(c: any) {
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   toggleLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
-  toggleLabelActive: { color: c.bg },
+  toggleLabelActive: { color: c.onAccent },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
@@ -927,7 +927,7 @@ function makeStyles(c: any) {
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8, alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, lineHeight: 18, color: c.text, textAlign: 'center' },
-  chipTextActive: { color: c.bg, fontWeight: '600' },
+  chipTextActive: { color: c.onAccent, fontWeight: '600' },
   chipTextDisabled: { opacity: 0.5 },
   inputError: { borderColor: c.danger },
   errorBanner: {
@@ -960,7 +960,7 @@ function makeStyles(c: any) {
   },
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontSize: 15, color: c.textSecondary },
-  recurringLabelActive: { color: c.bg, fontWeight: '600' },
+  recurringLabelActive: { color: c.onAccent, fontWeight: '600' },
   // Consigne du guide : carte aux couleurs INVERSÉES (cf. useInvertedColors), comme les autres
   // messages de démarrage — elle doit trancher sur le formulaire, pas s'y fondre.
   recurringGuideHint: {
@@ -986,7 +986,7 @@ function makeStyles(c: any) {
   submitBtnPrimary: { backgroundColor: c.emerald },
   submitBtnDraft: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, lineHeight: 20, fontWeight: '700', color: c.bg, textAlign: 'center' },
+  submitLabel: { fontSize: 16, lineHeight: 20, fontWeight: '700', color: c.onAccent, textAlign: 'center' },
   submitLabelDraft: { fontSize: 16, fontWeight: '600', color: '#94a3b8' },
   calendarBtn: {
     backgroundColor: c.card,

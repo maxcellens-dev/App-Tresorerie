@@ -384,7 +384,7 @@ function CategoriesScreen() {
                 disabled={seedDefaults.isPending}
               >
                 {seedDefaults.isPending ? (
-                  <ActivityIndicator color={COLORS.bg} size="small" />
+                  <ActivityIndicator color={COLORS.onAccent} size="small" />
                 ) : (
                   <Text style={styles.seedBtnLabel}>Charger les catégories par défaut</Text>
                 )}
@@ -558,13 +558,13 @@ function makeStyles(c: any) {
     alignItems: 'center',
     marginBottom: 24,
   },
-  seedBtnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+  seedBtnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
   // ── Onglets Dépenses / Recettes (filtre global de la page) ──
   typeTabs: { flexDirection: 'row', gap: 6, padding: 4, marginBottom: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12 },
   typeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 9 },
   typeTabActive: { backgroundColor: c.emerald },
   typeTabText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
-  typeTabTextActive: { color: c.bg, fontWeight: '800' },
+  typeTabTextActive: { color: c.onAccent, fontWeight: '800' },
   // Styles du modal d'édition (renommer + choisir Fixe/Variable sur une catégorie de dépense).
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   toggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
@@ -578,7 +578,7 @@ function makeStyles(c: any) {
   },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   toggleLabel: { fontSize: 14, color: c.textSecondary },
-  toggleLabelActive: { color: c.bg, fontWeight: '600' },
+  toggleLabelActive: { color: c.onAccent, fontWeight: '600' },
   input: {
     backgroundColor: c.bg,
     borderWidth: 1,
@@ -661,7 +661,7 @@ function makeStyles(c: any) {
   modalBtn: { paddingVertical: 10, paddingHorizontal: 16 },
   modalBtnPrimary: { backgroundColor: c.emerald, borderRadius: 12 },
   modalBtnLabel: { fontSize: 16, color: c.textSecondary },
-  modalBtnLabelPrimary: { color: c.bg, fontWeight: '600' },
+  modalBtnLabelPrimary: { color: c.onAccent, fontWeight: '600' },
 });
 }
 

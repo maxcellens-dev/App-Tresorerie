@@ -78,7 +78,7 @@ export default function AppLockGate() {
       <Text style={styles.title}>Relyka est verrouillée</Text>
       <Text style={styles.sub}>Déverrouille avec {Platform.OS === 'ios' ? 'Face ID / Touch ID' : 'ton empreinte'} ou le code de ton téléphone.</Text>
       <Pressable style={styles.btn} onPress={unlock} accessibilityRole="button">
-        <Ionicons name="finger-print" size={18} color={COLORS.bg} />
+        <Ionicons name="finger-print" size={18} color={COLORS.onAccent} />
         <Text style={styles.btnTxt}>Déverrouiller</Text>
       </Pressable>
     </View>
@@ -100,6 +100,6 @@ function makeStyles(c: any) {
     title: { fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 10 },
     sub: { fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 21, marginBottom: 26, maxWidth: 320 },
     btn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 28 },
-    btnTxt: { fontSize: 15, fontWeight: '800', color: c.bg },
+    btnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

@@ -349,7 +349,7 @@ export default function AddAccountScreen() {
             accessibilityRole="button"
           >
             {addAccount.isPending ? (
-              <ActivityIndicator color={COLORS.bg} />
+              <ActivityIndicator color={COLORS.onAccent} />
             ) : (
               <Text style={styles.submitLabel}>Créer le compte</Text>
             )}
@@ -438,7 +438,7 @@ function makeStyles(c: any) {
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, color: c.text },
-  chipTextActive: { color: c.bg, fontWeight: '600' },
+  chipTextActive: { color: c.onAccent, fontWeight: '600' },
   defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, marginBottom: 8 },
   defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
   defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
@@ -460,7 +460,7 @@ function makeStyles(c: any) {
   btnLabel: { color: c.text, fontWeight: '600' },
   submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
   calendarBtn: {
     backgroundColor: c.card,
     borderWidth: 1,

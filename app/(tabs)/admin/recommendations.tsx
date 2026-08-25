@@ -358,7 +358,7 @@ function makeStyles(c: any) {
   seuilInput: { flex: 1, color: c.text, fontSize: 15, fontWeight: '700', paddingVertical: 9 },
   seuilSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
   seuilSaveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
-  seuilSaveLabel: { color: c.bg, fontWeight: '700', fontSize: 14 },
+  seuilSaveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 16, lineHeight: 20 },

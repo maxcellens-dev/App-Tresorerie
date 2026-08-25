@@ -805,7 +805,7 @@ function CreditAddScreen() {
           )}
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveLabel}>{editId ? 'Enregistrer les modifications' : 'Enregistrer le crédit'}</Text>}
+            {saving ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.saveLabel}>{editId ? 'Enregistrer les modifications' : 'Enregistrer le crédit'}</Text>}
           </TouchableOpacity>
         </KeyboardAwareScrollView>
       </SafeAreaView>
@@ -910,7 +910,7 @@ function makeStyles(c: any) {
     previewK: { fontSize: 13, color: c.textSecondary, flex: 1 },
     previewV: { fontSize: 14, fontWeight: '700', color: c.text },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 22 },
-    saveLabel: { color: c.bg, fontSize: 15, fontWeight: '800' },
+    saveLabel: { color: c.onAccent, fontSize: 15, fontWeight: '800' },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 18 },
     calCard: { backgroundColor: c.cardSolid ?? c.card, borderRadius: 18, padding: 12 },
     calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, paddingBottom: 8 },

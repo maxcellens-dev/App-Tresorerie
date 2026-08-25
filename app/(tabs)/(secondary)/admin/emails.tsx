@@ -291,11 +291,11 @@ export default function AdminEmails() {
           <View style={s.actions}>
             {schedule ? (
               <TouchableOpacity style={[s.primaryBtn, (!canSubmit || busy) && { opacity: 0.45 }]} disabled={!canSubmit || busy} onPress={() => handleSend(false)}>
-                {busy ? <ActivityIndicator color={COLORS.bg} /> : <><Ionicons name="time-outline" size={17} color={COLORS.bg} /><Text style={s.primaryTxt}>Programmer</Text></>}
+                {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <><Ionicons name="time-outline" size={17} color={COLORS.onAccent} /><Text style={s.primaryTxt}>Programmer</Text></>}
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={[s.primaryBtn, (!canSubmit || busy) && { opacity: 0.45 }]} disabled={!canSubmit || busy} onPress={confirmSendNow}>
-                {busy ? <ActivityIndicator color={COLORS.bg} /> : <><Ionicons name="send" size={17} color={COLORS.bg} /><Text style={s.primaryTxt}>Envoyer maintenant</Text></>}
+                {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <><Ionicons name="send" size={17} color={COLORS.onAccent} /><Text style={s.primaryTxt}>Envoyer maintenant</Text></>}
               </TouchableOpacity>
             )}
           </View>
@@ -443,7 +443,7 @@ function makeStyles(c: any) {
     chip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipOn: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
-    chipTxtOn: { color: c.bg },
+    chipTxtOn: { color: c.onAccent },
     countBox: {
       flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10, padding: 12,
       borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '44', backgroundColor: c.emerald + '12',
@@ -458,7 +458,7 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15,
     },
-    primaryTxt: { fontSize: 15.5, fontWeight: '800', color: c.bg },
+    primaryTxt: { fontSize: 15.5, fontWeight: '800', color: c.onAccent },
     hint: { fontSize: 12.5, color: c.textSecondary, marginTop: 6 },
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card,

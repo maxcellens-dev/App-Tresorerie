@@ -13,6 +13,7 @@ import { useMemo } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInvertedColors } from '../../hooks/theme/useInvertedColors';
+import { readableOn } from '../../theme/palette';
 
 export interface GuideStepItem {
   icon: string;
@@ -58,6 +59,9 @@ export default function GuideModal({
   const c = useInvertedColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const accent = iconColor ?? c.emerald;
+  /* Le bouton d'action peut porter la couleur d'accent OU une teinte fournie par l'appelant : on
+     déduit celle du libellé du fond réellement posé, plutôt que de supposer un fond sombre. */
+  const onAccent = readableOn(accent);
 
   if (!visible) return null;
 
@@ -145,8 +149,8 @@ export default function GuideModal({
               activeOpacity={0.85}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaLabel}>{cta.label}</Text>
-              <Ionicons name={(cta.icon ?? 'checkmark') as any} size={18} color={c.bg} />
+              <Text style={[styles.ctaLabel, { color: onAccent }]}>{cta.label}</Text>
+              <Ionicons name={(cta.icon ?? 'checkmark') as any} size={18} color={onAccent} />
             </TouchableOpacity>
           )}
           {!!secondary && (

@@ -289,7 +289,7 @@ function makeStyles(c: any) {
     offerPeriod: { fontSize: 12, fontWeight: '700', color: c.textSecondary },
     offerDesc: { fontSize: 11.5, color: c.textSecondary, lineHeight: 15 },
     bestBadge: { position: 'absolute', top: -9, right: 10, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-    bestBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+    bestBadgeText: { fontSize: 10, fontWeight: '800', color: c.onAccent },
     restoreBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginTop: 4 },
     restoreText: { fontSize: 13, fontWeight: '600', color: c.textSecondary, textDecorationLine: 'underline' },
     legal: { fontSize: 11, color: c.textSecondary, textAlign: 'center', marginTop: 10, lineHeight: 15 },

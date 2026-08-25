@@ -16,6 +16,10 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+
+/** Une suggestion est une idée, pas un dossier : au-delà, c'est une demande d'assistance. */
+const IDEA_MAX = 2000;
 
 
 function useSuggestions(profileId: string | undefined) {
@@ -65,18 +69,25 @@ export default function IdeasScreen() {
   const visibleSuggestions = showArchived ? archivedSuggestions : activeSuggestions;
   const { data: roadmapIdeas = [] } = useRoadmapIdeas();
   const addSuggestion = useAddSuggestion(user?.id);
+  const submit = useSubmitLock();
 
+  /* Même verrou que l'assistance : `disabled={isPending}` n'agit qu'au rendu suivant, donc deux
+     appuis rapprochés envoyaient DEUX fois la même suggestion — visibles en double côté admin. */
   const handleSubmit = async () => {
-    if (!idea.trim()) {
-      Alert.alert('Champ requis', 'Décris ton idée.');
-      return;
-    }
+    const content = idea.trim();
+    if (!content) return; // le bouton est désactivé : on n'ouvre plus une alerte pour le dire
+    if (!submit.acquire()) return;
     try {
-      await addSuggestion.mutateAsync(idea.trim());
+      await addSuggestion.mutateAsync(content);
       setSubmitted(true);
+      // Le brouillon n'est effacé qu'une fois la suggestion réellement partie.
       setIdea('');
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'envoyer.");
+      Alert.alert('Envoi impossible', e instanceof Error
+        ? e.message
+        : 'Vérifie ta connexion — ton texte est conservé.');
+    } finally {
+      submit.release();
     }
   };
 
@@ -114,9 +125,21 @@ export default function IdeasScreen() {
                 multiline
                 numberOfLines={6}
                 textAlignVertical="top"
+                maxLength={IDEA_MAX}
               />
-              <TouchableOpacity style={[styles.btn, addSuggestion.isPending && { opacity: 0.6 }]} onPress={handleSubmit} disabled={addSuggestion.isPending}>
-                {addSuggestion.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.btnText}>Envoyer ma suggestion</Text>}
+              {idea.length > IDEA_MAX - 200 && (
+                <Text style={[styles.counter, idea.length >= IDEA_MAX && { color: COLORS.danger }]}>{idea.length} / {IDEA_MAX}</Text>
+              )}
+              {/* Le bouton se désactive tant que le champ est vide, au lieu d'ouvrir une alerte
+                  « Champ requis » APRÈS l'appui — l'état de l'action se voit, il ne se découvre pas. */}
+              <TouchableOpacity
+                style={[styles.btn, (addSuggestion.isPending || !idea.trim()) && { opacity: 0.5 }]}
+                onPress={handleSubmit}
+                disabled={addSuggestion.isPending || !idea.trim()}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: addSuggestion.isPending || !idea.trim() }}
+              >
+                {addSuggestion.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.btnText}>Envoyer ma suggestion</Text>}
               </TouchableOpacity>
             </View>
           )}
@@ -172,10 +195,7 @@ export default function IdeasScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
-  backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   card: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
@@ -187,7 +207,7 @@ function makeStyles(c: any) {
     paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, color: c.text, minHeight: 120, marginBottom: 16,
   },
   btn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  btnText: { fontSize: 14, fontWeight: '700', color: c.bg },
+  btnText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
   successCard: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.emerald + '40',
     padding: 24, marginBottom: 16, alignItems: 'center', gap: 12,
@@ -203,7 +223,6 @@ function makeStyles(c: any) {
   ideaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
   ideaText: { flex: 1, fontSize: 13, color: c.text },
   ideaDate: { fontSize: 11, color: c.textSecondary },
-  voteBadge: { backgroundColor: c.emerald + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  voteText: { fontSize: 11, fontWeight: '700', color: c.emerald },
+  counter: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textAlign: 'right', marginTop: -10, marginBottom: 10 },
 });
 }

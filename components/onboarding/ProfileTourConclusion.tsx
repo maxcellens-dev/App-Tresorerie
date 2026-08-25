@@ -283,7 +283,7 @@ export default function ProfileTourConclusion() {
 
           <TouchableOpacity style={styles.cta} onPress={() => guide.done('g2_profile_shown')} activeOpacity={0.85}>
             <Text style={styles.ctaText}>C’est parti</Text>
-            <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
+            <Ionicons name="arrow-forward" size={18} color={COLORS.onAccent} />
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -353,6 +353,6 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: c.emerald, borderRadius: 16, paddingVertical: 15,
     },
-    ctaText: { fontSize: 15.5, fontWeight: '800', color: c.bg },
+    ctaText: { fontSize: 15.5, fontWeight: '800', color: c.onAccent },
   });
 }

@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
-import { QueryClient, QueryClientProvider, MutationCache, useQueryClient, onlineManager } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache, useQueryClient, onlineManager, focusManager } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 import { prefetchPilotageData } from '../hooks/pilotage/usePilotageData';
 import { hydrateThemeCache } from '../lib/platform/themeBoot';
@@ -93,6 +93,21 @@ if (typeof NetInfo?.addEventListener === 'function') {
       setOnline(true); // natif indisponible → on considère « en ligne »
       return () => {};
     }
+  });
+}
+
+/* ── L'APP EN ARRIÈRE-PLAN NE DOIT PLUS INTERROGER LE SERVEUR ────────────────────────────────
+   Plusieurs écrans se rafraîchissent tout seuls (`refetchInterval`) : les pastilles « non lu » de
+   l'assistance toutes les 30 s — depuis l'en-tête, donc dans TOUTE l'app —, la liste des demandes
+   toutes les 20 s, un fil ouvert toutes les 8 s. react-query suspend ces minuteurs quand la fenêtre
+   n'est plus au premier plan… à condition qu'on lui dise ce qu'est le premier plan. Sur mobile, il
+   n'en sait rien par défaut : les requêtes continuaient donc de partir, téléphone en poche et écran
+   éteint — du réseau et de la batterie dépensés pour un écran que personne ne regarde.
+   Au retour, react-query rafraîchit ce qui a vieilli : rien n'est perdu, c'est même plus à jour. */
+if (Platform.OS !== 'web') {
+  focusManager.setEventListener((handleFocus) => {
+    const sub = AppState.addEventListener('change', (state) => handleFocus(state === 'active'));
+    return () => sub.remove();
   });
 }
 

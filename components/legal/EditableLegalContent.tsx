@@ -105,6 +105,6 @@ function makeStyles(c: any) {
     cancelBtn: { paddingVertical: 11, paddingHorizontal: 18, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
     cancelText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
     saveBtn: { paddingVertical: 11, paddingHorizontal: 18, borderRadius: 10, backgroundColor: c.emerald },
-    saveText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    saveText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
   });
 }

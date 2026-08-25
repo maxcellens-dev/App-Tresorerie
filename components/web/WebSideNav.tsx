@@ -183,7 +183,7 @@ export default function WebSideNav() {
             accessibilityRole="button"
             style={({ hovered }: any) => [styles.quickBtn, hovered && styles.quickBtnHover]}
           >
-            <Ionicons name={quickOpen ? 'close' : 'add'} size={18} color={COLORS.bg} />
+            <Ionicons name={quickOpen ? 'close' : 'add'} size={18} color={COLORS.onAccent} />
             <Text style={styles.quickBtnText}>Nouvelle opération</Text>
           </Pressable>
         </View>
@@ -249,7 +249,7 @@ function makeStyles(c: any) {
       ...(pointer as any), ...(transition as any),
     },
     quickBtnHover: { ...(shadow(2) as any), opacity: 0.94 },
-    quickBtnText: { color: c.bg, fontSize: 14, fontWeight: '700' },
+    quickBtnText: { color: c.onAccent, fontSize: 14, fontWeight: '700' },
     quickMenu: {
       position: 'absolute', top: 48, left: 14, right: 14,
       backgroundColor: c.cardSolid, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,

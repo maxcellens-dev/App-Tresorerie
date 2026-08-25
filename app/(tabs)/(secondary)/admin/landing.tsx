@@ -531,7 +531,7 @@ function makeStyles(c: any) {
     presetChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10 },
     presetTxt: { fontSize: 12, fontWeight: '600', color: c.text },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
     msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
   });
 }

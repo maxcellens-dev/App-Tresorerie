@@ -65,6 +65,6 @@ function makeStyles(c: AppColors) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14,
     },
-    varModeSaveText: { fontSize: 13, fontWeight: '800', color: c.bg },
+    varModeSaveText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
   });
 }

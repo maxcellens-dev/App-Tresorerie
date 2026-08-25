@@ -145,7 +145,7 @@ export default function WelcomeScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.primaryLabel}>{L.mobileCtaPrimaryLabel}</Text>
-                  <Ionicons name="arrow-forward" size={20} color={COLORS.bg} />
+                  <Ionicons name="arrow-forward" size={20} color={COLORS.onAccent} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.secondaryBtn}
@@ -331,7 +331,7 @@ function makeStyles(c: any, width: number) {
   primaryLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: c.bg,
+    color: c.onAccent,
   },
   secondaryBtn: {
     backgroundColor: 'transparent',

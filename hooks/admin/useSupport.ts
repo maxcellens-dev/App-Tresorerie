@@ -48,46 +48,63 @@ export function useMySupportRequests(profileId: string | undefined) {
   });
 }
 
-export function useCreateSupportRequest(profileId: string | undefined, profileEmail?: string | null) {
+/** Longueurs acceptées par le serveur (cf. migration 212). Le client borne AVANT d'envoyer, pour
+ *  que la limite se voie en tapant plutôt que sous forme de refus après coup. */
+export const SUPPORT_MAX_BODY = 5000;
+export const SUPPORT_MAX_SUBJECT = 150;
+
+export function useCreateSupportRequest(profileId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ subject, body }: { subject: string; body: string }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: req, error } = await supabase
-        .from('support_requests')
-        .insert({ profile_id: profileId, profile_email: profileEmail ?? null, subject: subject.trim() || 'Demande d’assistance', status: 'open', admin_unread: true, user_unread: false })
-        .select('*')
-        .single();
+      /* UNE SEULE OPÉRATION, côté serveur (migration 212).
+         On enchaînait deux écritures : la demande, puis son premier message. Un échec de la seconde
+         laissait une demande SANS message — un fil vide, visible par l'utilisateur comme par
+         l'équipe, que rien ne permettait d'expliquer ni de rattraper. La fonction serveur fait les
+         deux dans la même transaction, et pose elle-même l'identité de l'auteur (le client ne
+         choisit plus ni l'adresse e-mail affichée à l'équipe, ni les drapeaux « non lu »). */
+      const { data, error } = await supabase.rpc('create_support_request', {
+        p_subject: subject.trim().slice(0, SUPPORT_MAX_SUBJECT),
+        p_body: body.trim().slice(0, SUPPORT_MAX_BODY),
+      });
       if (error) throw error;
-      const { error: msgErr } = await supabase
-        .from('support_messages')
-        .insert({ request_id: (req as any).id, sender_role: 'user', author_id: profileId, body: body.trim() });
-      if (msgErr) throw msgErr;
+      const req = (Array.isArray(data) ? data[0] : data) as SupportRequest;
       // Notifie les admins (événementiel, respecte leurs préférences push).
       const excerpt = body.trim().slice(0, 160);
       notifyAdminsEvent('support', `Assistance — ${(subject.trim() || 'nouvelle demande')}`, excerpt)
         .catch(() => {});
-      return req as SupportRequest;
+      return req;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['support_requests'] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
     },
   });
 }
 
 // ── Côté admin ──────────────────────────────────────────────────
 
+/** Au-delà, on ne charge plus : la liste d'administration est faite pour être traitée, pas archivée. */
+export const SUPPORT_ADMIN_PAGE = 200;
+
 export function useAllSupportRequests(enabled = true) {
   return useQuery({
     queryKey: ['support_requests', 'all'],
-    queryFn: async (): Promise<SupportRequest[]> => {
-      if (!supabase) return [];
-      const { data, error } = await supabase
+    queryFn: async (): Promise<{ rows: SupportRequest[]; total: number }> => {
+      if (!supabase) return { rows: [], total: 0 };
+      /* PLAFOND EXPLICITE. La requête ramenait TOUTES les demandes de TOUS les utilisateurs, toutes
+         les vingt secondes, et l'écran les rendait d'un bloc. Ça tient tant qu'elles se comptent en
+         dizaines ; avec quelques milliers d'utilisateurs, chaque rafraîchissement devient un
+         transfert inutile et la page se fige au rendu. On prend les plus récentes — celles qui
+         attendent une réponse — et on dit franchement combien il y en a en tout. */
+      const { data, error, count } = await supabase
         .from('support_requests')
-        .select('*')
-        .order('last_message_at', { ascending: false });
+        .select('*', { count: 'exact' })
+        .order('last_message_at', { ascending: false })
+        .limit(SUPPORT_ADMIN_PAGE);
       if (error) throw error;
-      return (data ?? []) as SupportRequest[];
+      return { rows: (data ?? []) as SupportRequest[], total: count ?? (data?.length ?? 0) };
     },
     enabled,
     refetchInterval: 20000,
@@ -135,20 +152,20 @@ export function useAddSupportMessage() {
   return useMutation({
     mutationFn: async ({ requestId, role, authorId, body }: { requestId: string; role: 'user' | 'admin'; authorId?: string; body: string }) => {
       if (!supabase) throw new Error('Backend indisponible');
+      /* `sender_role` et `author_id` sont envoyés pour rester lisibles côté client, mais le serveur
+         les REMPLACE par ce qu'il déduit du compte appelant (migration 212) : on ne peut plus écrire
+         un message signé « Assistance » depuis un compte ordinaire. */
       const { error } = await supabase
         .from('support_messages')
-        .insert({ request_id: requestId, sender_role: role, author_id: authorId ?? null, body: body.trim() });
+        .insert({ request_id: requestId, sender_role: role, author_id: authorId ?? null, body: body.trim().slice(0, SUPPORT_MAX_BODY) });
       if (error) throw error;
-      // Met à jour la demande : horodatage + drapeaux de lecture + réouverture si fermée.
-      const patch: Record<string, any> = {
-        last_message_at: new Date().toISOString(),
-        status: 'open',
-        ...(role === 'user' ? { admin_unread: true } : { user_unread: true }),
-      };
-      await supabase.from('support_requests').update(patch).eq('id', requestId);
-      // PAS de push ici : une seule notification par conversation (à la CRÉATION de la demande, cf.
-      // useCreateSupportRequest → notifyAdminsEvent). Les messages suivants (user ou admin) ne poussent
-      // pas — l'in-app se met à jour via les drapeaux « non lus » (admin_unread / user_unread).
+      /* HORODATAGE, RÉOUVERTURE ET DRAPEAU « NON LU » : POSÉS PAR LE SERVEUR.
+         Ils étaient écrits ici, par une mise à jour dont personne ne lisait le résultat. Quand elle
+         échouait — règle d'accès, réseau coupé entre les deux appels — le message partait quand même
+         mais son destinataire n'était jamais prévenu : pas de pastille, et la demande restait au
+         fond de la liste avec sa vieille date. Un déclencheur s'en charge désormais, dans la même
+         transaction que l'insertion du message.
+         PAS de push non plus : une seule notification par conversation, à sa création. */
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['support_messages', vars.requestId] });
@@ -187,13 +204,22 @@ export function useDeleteSupportRequest() {
   });
 }
 
-/** Supprime en masse toutes les demandes clôturées (admin). */
+/**
+ * Supprime les demandes clôturées DÉSIGNÉES (admin).
+ *
+ * ⚠️ La version précédente effaçait `WHERE status = 'closed'` — c'est-à-dire TOUTES les demandes
+ * clôturées de la base. Or le bouton annonce un nombre calculé sur ce qui est affiché à l'écran
+ * (une page de résultats) : on confirmait « supprimer 12 demandes » et on en supprimait cinq cents,
+ * définitivement, sans qu'aucun écran ne l'ait montré. On supprime donc exactement ce qui a été
+ * annoncé, et rien d'autre.
+ */
 export function useDeleteClosedSupportRequests() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (ids: string[]) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { error } = await supabase.from('support_requests').delete().eq('status', 'closed');
+      if (!ids.length) return;
+      const { error } = await supabase.from('support_requests').delete().in('id', ids);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['support_requests'] }); },
@@ -207,8 +233,13 @@ export function useMarkSupportRead() {
     mutationFn: async ({ requestId, side }: { requestId: string; side: 'user' | 'admin' }) => {
       if (!supabase) return;
       const patch = side === 'user' ? { user_unread: false } : { admin_unread: false };
-      await supabase.from('support_requests').update(patch).eq('id', requestId);
+      // L'erreur était ignorée : la pastille « non lu » restait alors indéfiniment, sur une
+      // conversation pourtant ouverte et lue. On la remonte — react-query réessaie.
+      const { error } = await supabase.from('support_requests').update(patch).eq('id', requestId);
+      if (error) throw error;
     },
+    // Une pastille qui ne s'efface pas n'est pas un incident : on retente, sans rien afficher.
+    retry: 2,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['support_requests'] });
       qc.invalidateQueries({ queryKey: ['unread_badges'] });

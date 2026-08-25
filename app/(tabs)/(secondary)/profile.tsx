@@ -21,6 +21,10 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useCosmetics } from '../../../hooks/theme/useCosmetics';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+
+/** Le nom s'affiche chez les AUTRES (comptes partagés, projets, crédits) : il faut une borne. */
+const NAME_MAX = 60;
 
 
 function ProfileScreen() {
@@ -28,22 +32,33 @@ function ProfileScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, realUser, isImpersonating, signOut } = useAuth();
   const goBack = useNavBack();
   const { data: profile, refetch } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
   const { avatarFrameColor, profileTitle } = useCosmetics(user?.id);
   const fileInputRef = useRef<any>(null);
+  const saveLock = useSubmitLock();
+  const deleteLock = useSubmitLock();
+
+  /* ── « CONNECTÉ EN TANT QUE » : LA PAGE LA PLUS DANGEREUSE DE L'APP ─────────────────────────
+     Cet écran affiche les données du compte VISITÉ, mais ses actions ne visaient pas toutes la
+     même personne :
+       • le nom et la photo partaient sur le profil visité (la politique d'accès l'autorise pour un
+         administrateur) — on modifiait donc les informations de quelqu'un d'autre ;
+       • le nom était AUSSI recopié dans le compte d'authentification de l'ADMINISTRATEUR ;
+       • et surtout « Supprimer mon compte » appelle une fonction serveur qui s'appuie sur
+         l'identité RÉELLE de l'appelant : un administrateur qui croyait supprimer le compte
+         consulté supprimait LE SIEN, avec toutes ses données, sans retour possible.
+     En consultation, on regarde : plus aucune écriture ne part d'ici. */
+  const readOnly = isImpersonating;
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [passwordLoading, setPasswordLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const copyPublicCode = async () => {
     const code = (profile as any)?.public_code;
@@ -64,11 +79,24 @@ function ProfileScreen() {
   const infoRef = useRef<View>(null);
   const pwdRef = useRef<View>(null);
 
+  /* ── LE NOM QU'ON EST EN TRAIN DE TAPER NE DOIT PAS ÊTRE REMPLACÉ ───────────────────────────
+     Cet effet dépendait de l'OBJET `profile` entier : il se rejouait donc dès que le profil
+     CHANGEAIT, quelle qu'en soit la raison, et réécrivait le champ « Nom » avec la valeur
+     enregistrée — au milieu de la frappe.
+     Le scénario tient en trois gestes, tous sur cette page : je tape mon nom, je change ma photo
+     (ce qui modifie le profil), mon nom redevient l'ancien — et « Enregistrer » sauvegarde
+     l'ancien. Même effet pour un réglage modifié ailleurs ou une synchronisation temps réel.
+     On ne dépend plus que des VALEURS utilisées, et on ne recopie le nom que tant que l'utilisateur
+     n'y a pas touché (`nameTouched`). */
+  const [nameTouched, setNameTouched] = useState(false);
+  const serverName = profile?.full_name ?? user?.user_metadata?.full_name ?? '';
+  const serverAvatar = profile?.avatar_url ?? '';
   useEffect(() => {
-    setFullName(profile?.full_name ?? user?.user_metadata?.full_name ?? '');
+    if (!nameTouched) setFullName(serverName);
     setEmail(user?.email ?? profile?.email ?? '');
-    setAvatarUrl(profile?.avatar_url ?? '');
-  }, [profile, user]);
+    setAvatarUrl(serverAvatar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverName, serverAvatar, user?.email, profile?.email, nameTouched]);
 
   async function handlePickAndUpload() {
     if (!user?.id) return;
@@ -79,10 +107,13 @@ function ProfileScreen() {
     const ImagePicker = await import('expo-image-picker');
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Accès refusé', "Autorisez l'accès à la galerie pour choisir une photo.");
+      // Tutoiement : c'est la règle de l'app, cette phrase était restée au vouvoiement.
+      Alert.alert('Accès refusé', "Autorise l'accès à tes photos pour choisir une image.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1] });
+    // `mediaTypes: ['images']` — `MediaTypeOptions` est déprécié et disparaîtra d'une prochaine
+    // version d'expo-image-picker ; la forme tableau est celle attendue aujourd'hui.
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1] });
     if (result.canceled || !result.assets?.[0]?.uri) return;
     await doUpload({ uri: result.assets[0].uri });
   }
@@ -95,34 +126,43 @@ function ProfileScreen() {
   }
 
   async function doUpload(source: string | File | { uri: string }) {
-    if (!user?.id) return;
+    if (!user?.id || readOnly) return;
     setAvatarLoading(true);
     try {
       const { data, mime } = await compressAvatarToWebP(source);
-      // uploadAvatar purge l'ancien fichier et renvoie déjà une URL anti-cache.
+      // uploadAvatar écrit la nouvelle image PUIS retire les restes, et rend une URL anti-cache.
       const url = await uploadAvatar(user.id, data, mime);
       await updateProfile.mutateAsync({ avatar_url: url });
       setAvatarUrl(url);
       await refetch?.();
-      Alert.alert('Photo', 'Photo de profil enregistrée (max 30 Ko, WebP).');
+      // Confirmation discrète, sur la page : une boîte de dialogue à valider pour une photo
+      // enregistrée coupait le geste pour ne rien apprendre — l'image a changé, ça se voit.
+      setSaveMsg({ text: 'Photo de profil enregistrée.', ok: true });
+      setTimeout(() => setSaveMsg(null), 3000);
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'importer l'image.");
+      Alert.alert('Image refusée', e instanceof Error ? e.message : "Impossible d'importer cette image.");
     } finally {
       setAvatarLoading(false);
     }
   }
 
   async function handleRemoveAvatar() {
-    if (!user?.id) return;
+    if (!user?.id || readOnly) return;
     const doRemove = async () => {
       setAvatarLoading(true);
       try {
-        await deleteAvatar(user.id);
+        /* LE PROFIL D'ABORD, LE FICHIER ENSUITE — même raison que pour l'envoi.
+           On effaçait le fichier en premier : si la mise à jour du profil échouait juste après,
+           `avatar_url` continuait de pointer vers une image qui n'existait plus, et l'avatar
+           apparaissait cassé dans l'en-tête, le menu et le profil. Dans l'autre sens, un échec de
+           suppression du fichier ne laisse qu'un fichier orphelin, invisible et sans conséquence
+           (le prochain envoi le remplacera). */
         await updateProfile.mutateAsync({ avatar_url: null });
         setAvatarUrl('');
-        refetch?.();
+        try { await deleteAvatar(user.id); } catch { /* orphelin sans effet visible */ }
+        await refetch?.();
       } catch (e: unknown) {
-        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
+        Alert.alert('Suppression impossible', e instanceof Error ? e.message : 'Réessaie dans un instant.');
       } finally {
         setAvatarLoading(false);
       }
@@ -134,69 +174,73 @@ function ProfileScreen() {
   }
 
   async function handleSaveProfile() {
-    const trimmedName = fullName.trim();
+    if (readOnly) return;
+    const trimmedName = fullName.trim().slice(0, NAME_MAX);
+    if (!saveLock.acquire()) return;
+    setSaveMsg(null);
     try {
       await updateProfile.mutateAsync({
         full_name: trimmedName || null,
         avatar_url: avatarUrl.trim() || null,
       });
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
-      return;
-    }
-    if (user && trimmedName && supabase) {
-      await supabase.auth.updateUser({ data: { full_name: trimmedName } });
-    }
-    Alert.alert('Profil', 'Modifications enregistrées.');
-  }
-
-  async function handleChangePassword() {
-    const newP = newPassword.trim();
-    const conf = confirmPassword.trim();
-    if (newP.length < 6) {
-      Alert.alert('Mot de passe', 'Le nouveau mot de passe doit faire au moins 6 caractères.');
-      return;
-    }
-    if (newP !== conf) {
-      Alert.alert('Mot de passe', 'La confirmation ne correspond pas.');
-      return;
-    }
-    setPasswordLoading(true);
-    try {
-      if (supabase) {
-        const { error } = await supabase.auth.updateUser({ password: newP });
-        if (error) throw error;
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        Alert.alert('Mot de passe', 'Mot de passe mis à jour.');
+      /* Le nom est recopié dans le compte d'authentification (il sert d'en-tête aux e-mails).
+         Cette écriture N'ÉTAIT PAS vérifiée : quand elle échouait, on annonçait quand même
+         « Modifications enregistrées ». Elle reste secondaire — le profil fait foi — donc on ne
+         fait pas échouer l'enregistrement pour elle, mais on ne l'ignore plus non plus. */
+      if (trimmedName && supabase) {
+        const { error } = await supabase.auth.updateUser({ data: { full_name: trimmedName } });
+        if (error) console.warn('[profil] nom non recopié dans le compte de connexion :', error.message);
       }
+      setNameTouched(false); // ce qui est à l'écran est désormais ce qui est enregistré
+      setSaveMsg({ text: 'Modifications enregistrées.', ok: true });
+      setTimeout(() => setSaveMsg(null), 3000);
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de changer le mot de passe.');
+      setSaveMsg({
+        text: e instanceof Error ? e.message : "Impossible d'enregistrer. Vérifie ta connexion.",
+        ok: false,
+      });
     } finally {
-      setPasswordLoading(false);
+      saveLock.release();
     }
   }
 
   async function handleDeleteAccount() {
+    /* GARDE-FOU D'IDENTITÉ. `delete_own_account` supprime le compte de l'appelant RÉEL. En
+       consultation, ce n'est pas celui qui est affiché à l'écran : l'administrateur supprimerait le
+       sien en croyant supprimer celui du compte visité. On refuse, et on le dit. */
+    if (readOnly) {
+      Alert.alert(
+        'Impossible en consultation',
+        "Tu es connecté en tant qu'un autre utilisateur. Cette action supprimerait TON compte, pas le sien. Quitte le mode consultation d'abord.",
+      );
+      return;
+    }
     if (deleteConfirmText.trim().toLowerCase() !== 'supprimer') {
       Alert.alert('Confirmation requise', 'Saisis le mot « supprimer » pour confirmer.');
       return;
     }
     if (!supabase) return;
+    if (!deleteLock.acquire()) return;
     setDeleteLoading(true);
     try {
-      // Nettoyer le storage AVANT de supprimer le compte (le RPC ne touche pas au bucket).
-      if (user?.id) { try { await deleteAvatar(user.id); } catch { /* best-effort */ } }
+      /* LE COMPTE D'ABORD, LA PHOTO ENSUITE.
+         La photo était effacée AVANT l'appel : quand la suppression du compte échouait (réseau,
+         contrainte en base), on gardait son compte mais on avait perdu son avatar, sans que rien ne
+         l'explique. Le nettoyage du fichier est un à-côté — il se fait une fois le compte
+         réellement supprimé, et son échec n'a plus d'importance. */
       const { error } = await supabase.rpc('delete_own_account');
       if (error) throw error;
+      if (user?.id) { try { await deleteAvatar(user.id); } catch { /* le compte est parti : sans importance */ } }
       setShowDeleteModal(false);
-      // signOut() navigue vers l'accueil et purge, sous voile (cf. AuthContext).
+      /* Pas de `setDeleteLoading(false)` après : `signOut()` démonte cet écran, et écrire dans son
+         état après coup ne fait que produire un avertissement. */
       await signOut();
+      return;
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer le compte.');
-    } finally {
+      Alert.alert('Suppression impossible', e instanceof Error ? e.message : 'Réessaie dans un instant.');
       setDeleteLoading(false);
+    } finally {
+      deleteLock.release();
     }
   }
 
@@ -266,6 +310,17 @@ function ProfileScreen() {
           )}
         />
         <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {readOnly && (
+            <View style={styles.notice}>
+              <Ionicons name="eye-outline" size={16} color={COLORS.textSecondary} />
+              <Text style={styles.noticeText}>
+                Consultation seule : tu regardes le profil de {profile?.email || 'cet utilisateur'}
+                {realUser?.email ? `, connecté avec ${realUser.email}` : ''}. Rien n'est modifiable
+                d'ici — et « Supprimer mon compte » viserait le tien.
+              </Text>
+            </View>
+          )}
+
           <View style={styles.avatarSection} ref={avatarRef}>
             <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
               {avatarUrl ? (
@@ -284,16 +339,16 @@ function ProfileScreen() {
             )}
             <View style={styles.avatarActions}>
               <TouchableOpacity
-                style={[styles.avatarBtn, avatarLoading && styles.avatarBtnDisabled]}
+                style={[styles.avatarBtn, (avatarLoading || readOnly) && styles.avatarBtnDisabled]}
                 onPress={handlePickAndUpload}
-                disabled={avatarLoading}
+                disabled={avatarLoading || readOnly}
                 accessibilityRole="button"
               >
                 {avatarLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.bg} />
+                  <ActivityIndicator size="small" color={COLORS.onAccent} />
                 ) : (
                   <>
-                    <Ionicons name={avatarUrl ? 'camera' : 'cloud-upload'} size={20} color={COLORS.bg} />
+                    <Ionicons name={avatarUrl ? 'camera' : 'cloud-upload'} size={20} color={COLORS.onAccent} />
                     <Text style={styles.avatarBtnLabel}>{avatarUrl ? 'Remplacer' : 'Importer'}</Text>
                   </>
                 )}
@@ -302,9 +357,9 @@ function ProfileScreen() {
                   texte interdit comme enfant d'une View (erreur bruyante sur le web). */}
               {!!avatarUrl && (
                 <TouchableOpacity
-                  style={[styles.avatarBtnDanger, avatarLoading && styles.avatarBtnDisabled]}
+                  style={[styles.avatarBtnDanger, (avatarLoading || readOnly) && styles.avatarBtnDisabled]}
                   onPress={handleRemoveAvatar}
-                  disabled={avatarLoading}
+                  disabled={avatarLoading || readOnly}
                   accessibilityRole="button"
                 >
                   <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
@@ -317,11 +372,17 @@ function ProfileScreen() {
           <View ref={infoRef}>
             <Text style={styles.label}>Nom</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, readOnly && styles.inputReadOnly]}
               value={fullName}
-              onChangeText={setFullName}
+              onChangeText={(v) => { setNameTouched(true); setFullName(v); }}
+              editable={!readOnly}
+              /* Ce nom est recopié chez les autres : il s'affiche auprès des participants d'un
+                 compte partagé, d'un projet commun ou d'un crédit. Sans limite, une saisie de
+                 plusieurs milliers de caractères débordait sur LEURS écrans, pas seulement ici. */
+              maxLength={NAME_MAX}
               placeholder="Ton nom"
               placeholderTextColor={COLORS.textSecondary}
+              accessibilityLabel="Ton nom"
             />
 
             <Text style={styles.label}>E-mail</Text>
@@ -335,13 +396,20 @@ function ProfileScreen() {
             <Text style={styles.hint}>L'e-mail est géré par la connexion.</Text>
           </View>
 
+          {/* Le résultat s'affiche SUR la page, à côté du bouton. Une boîte de dialogue « Profil —
+              Modifications enregistrées » à valider pour un simple changement de nom coupait le
+              geste ; et l'échec, lui, ne se voyait qu'au même endroit. */}
+          {!!saveMsg && (
+            <Text style={[styles.saveMsg, { color: saveMsg.ok ? COLORS.green : COLORS.danger }]}>{saveMsg.text}</Text>
+          )}
           <TouchableOpacity
-            style={[styles.submitBtn, updateProfile.isPending && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, (updateProfile.isPending || readOnly) && styles.submitBtnDisabled]}
             onPress={handleSaveProfile}
-            disabled={updateProfile.isPending}
+            disabled={updateProfile.isPending || readOnly}
             accessibilityRole="button"
+            accessibilityState={{ disabled: updateProfile.isPending || readOnly, busy: updateProfile.isPending }}
           >
-            {updateProfile.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer le profil</Text>}
+            {updateProfile.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.submitLabel}>Enregistrer le profil</Text>}
           </TouchableOpacity>
 
           {/* Accès rapides : mes données + changement de mot de passe */}
@@ -376,13 +444,20 @@ function ProfileScreen() {
               La suppression de ton compte efface définitivement toutes tes données : comptes, transactions, projets, objectifs, catégories et profil. Cette action est irréversible.
             </Text>
             <TouchableOpacity
-              style={styles.deleteAccountBtn}
+              style={[styles.deleteAccountBtn, readOnly && { opacity: 0.45 }]}
               onPress={() => { setDeleteConfirmText(''); setShowDeleteModal(true); }}
+              disabled={readOnly}
               accessibilityRole="button"
+              accessibilityState={{ disabled: readOnly }}
             >
               <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
               <Text style={styles.deleteAccountLabel}>Supprimer mon compte</Text>
             </TouchableOpacity>
+            {readOnly && (
+              <Text style={styles.dangerText}>
+                Indisponible en consultation : cette action porterait sur ton propre compte.
+              </Text>
+            )}
           </View>
         </KeyboardAwareScrollView>
 
@@ -397,9 +472,13 @@ function ProfileScreen() {
               <Text style={styles.modalText}>
                 Toutes tes données seront <Text style={{ fontWeight: '700', color: COLORS.danger }}>définitivement supprimées</Text> et ne pourront pas être récupérées.
               </Text>
+              {/* Tutoiement : « saisissez » était le dernier vouvoiement de l'écran. */}
               <Text style={styles.modalText}>
-                Pour confirmer, saisissez <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimer</Text> ci-dessous.
+                Pour confirmer, saisis <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimer</Text> ci-dessous.
               </Text>
+              {/* On rappelle QUEL compte part : la modale ne le disait pas, et c'est la seule
+                  action de l'app qu'on ne peut pas annuler. */}
+              {!!email && <Text style={styles.modalAccount}>{email}</Text>}
               <TextInput
                 style={styles.modalInput}
                 value={deleteConfirmText}
@@ -443,14 +522,13 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', padding: 4, marginRight: 12 },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 18 },
+  noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+  saveMsg: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 10, lineHeight: 18 },
+  modalAccount: { fontSize: 13, fontWeight: '700', color: c.text, textAlign: 'center' },
   idChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   idChipLabel: { fontSize: 10, fontWeight: '800', color: c.textSecondary, letterSpacing: 0.5 },
   idChipCode: { fontSize: 12, fontWeight: '700', color: c.text, letterSpacing: 0.5 },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
@@ -490,9 +568,8 @@ function makeStyles(c: any) {
     borderRadius: 12,
   },
   avatarBtnDisabled: { opacity: 0.6 },
-  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: c.bg },
+  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: c.onAccent },
   avatarBtnLabelDanger: { fontSize: 14, fontWeight: '600', color: c.danger },
-  avatarHint: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
@@ -509,9 +586,7 @@ function makeStyles(c: any) {
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 20 },
   submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
-  section: { marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 16 },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
   linksCard: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden', marginTop: 4 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
   linkLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },

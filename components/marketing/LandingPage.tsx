@@ -126,7 +126,7 @@ export default function LandingPage() {
             <View style={styles.heroBtns}>
               <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.85} style={styles.heroPrimary}>
                 <Text style={styles.heroPrimaryText}>{cfg.ctaPrimaryLabel}</Text>
-                <Ionicons name="arrow-forward" size={20} color={COLORS.bg} />
+                <Ionicons name="arrow-forward" size={20} color={COLORS.onAccent} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.heroSecondary}>
                 <Text style={styles.heroSecondaryText}>{cfg.ctaSecondaryLabel}</Text>
@@ -190,7 +190,7 @@ export default function LandingPage() {
             <View style={styles.heroBtns}>
               <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.85} style={styles.heroPrimary}>
                 <Text style={styles.heroPrimaryText}>{cfg.ctaPrimaryLabel}</Text>
-                <Ionicons name="arrow-forward" size={20} color={COLORS.bg} />
+                <Ionicons name="arrow-forward" size={20} color={COLORS.onAccent} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.heroSecondary}>
                 <Text style={styles.heroSecondaryText}>{cfg.ctaSecondaryLabel}</Text>
@@ -225,7 +225,7 @@ export default function LandingPage() {
       {/* Édition réservée admin (visible si connecté en admin) */}
       {isAdmin && (
         <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/(tabs)/(secondary)/admin/landing' as any)} activeOpacity={0.85}>
-          <Ionicons name="create-outline" size={18} color={COLORS.bg} />
+          <Ionicons name="create-outline" size={18} color={COLORS.onAccent} />
           <Text style={styles.editBtnText}>Éditer la page</Text>
         </TouchableOpacity>
       )}
@@ -248,7 +248,7 @@ function makeStyles(c: any, wide: boolean) {
     ghostBtn: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10 },
     ghostBtnText: { fontSize: 14, fontWeight: '700', color: c.text },
     solidBtn: { backgroundColor: c.emerald, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10 },
-    solidBtnText: { fontSize: 14, fontWeight: '800', color: c.bg },
+    solidBtnText: { fontSize: 14, fontWeight: '800', color: c.onAccent },
 
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 0 },
@@ -265,7 +265,7 @@ function makeStyles(c: any, wide: boolean) {
     heroSubtitle: { fontSize: wide ? 19 : 16, lineHeight: wide ? 29 : 24, color: c.textSecondary, fontWeight: '500', marginBottom: 30, maxWidth: 560 },
     heroBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, alignItems: 'center' },
     heroPrimary: { backgroundColor: c.emerald, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 28, borderRadius: 14, shadowColor: c.emerald, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 6 },
-    heroPrimaryText: { fontSize: 17, fontWeight: '800', color: c.bg },
+    heroPrimaryText: { fontSize: 17, fontWeight: '800', color: c.onAccent },
     heroSecondary: { paddingVertical: 16, paddingHorizontal: 24, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder },
     heroSecondaryText: { fontSize: 17, fontWeight: '700', color: c.text },
 
@@ -309,6 +309,6 @@ function makeStyles(c: any, wide: boolean) {
     footerCopy: { fontSize: 12, color: c.textSecondary, marginTop: 12 },
 
     editBtn: { position: 'absolute', bottom: 24, right: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.emerald, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 999, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 8 },
-    editBtnText: { fontSize: 14, fontWeight: '800', color: c.bg },
+    editBtnText: { fontSize: 14, fontWeight: '800', color: c.onAccent },
   });
 }

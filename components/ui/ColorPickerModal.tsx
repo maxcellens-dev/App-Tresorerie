@@ -4,13 +4,19 @@
  * Utilisé par le Style Editor : clic sur une pastille → ouvre ce sélecteur.
  */
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Platform, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Platform, PanResponder, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
-const SV_W = 248, SV_H = 188, HUE_W = 26;
+/* Dimensions MAXIMALES du sélecteur. La largeur réelle est calculée à partir de l'écran (cf.
+   `svW` plus bas) : figées, ces valeurs faisaient déborder le carré et la barre de teinte hors de
+   la fenêtre sur les petits téléphones (≈320 px de large) — la barre de teinte se retrouvait
+   partiellement hors écran, donc impossible à attraper du pouce. */
+const SV_W_MAX = 248, SV_H_MAX = 188, HUE_W = 26;
+/** Marges à retrancher : padding de l'overlay (24×2), padding de la carte (18×2), écart (12). */
+const CARD_MAX = 340, OVERLAY_PAD = 24, CARD_PAD = 18, GAP = 12;
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 const isValidHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
 
@@ -53,6 +59,15 @@ export default function ColorPickerModal({
 }) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { width: winW, height: winH } = useWindowDimensions();
+  // Le sélecteur s'adapte à la place réellement disponible, sans jamais dépasser sa taille de confort.
+  const svW = Math.max(140, Math.min(SV_W_MAX, Math.min(CARD_MAX, winW - OVERLAY_PAD * 2) - CARD_PAD * 2 - HUE_W - GAP));
+  const svH = Math.max(120, Math.min(SV_H_MAX, winH - 360));
+  /* Les gestes sont créés UNE fois (useRef) : ils ne verraient jamais un changement de taille.
+     On leur donne donc les dimensions courantes par référence — sinon une rotation d'écran
+     désalignerait le doigt et le curseur. */
+  const dims = useRef({ w: svW, h: svH });
+  dims.current = { w: svW, h: svH };
   const [h, setH] = useState(0);
   const [s, setS] = useState(1);
   const [v, setV] = useState(1);
@@ -102,16 +117,16 @@ export default function ColorPickerModal({
     onPanResponderMove: (e) => updateSV(e.nativeEvent.locationX, e.nativeEvent.locationY),
   })).current;
   const updateSV = (x: number, y: number) => {
-    setS(clamp(x, 0, SV_W) / SV_W);
-    setV(1 - clamp(y, 0, SV_H) / SV_H);
+    setS(clamp(x, 0, dims.current.w) / dims.current.w);
+    setV(1 - clamp(y, 0, dims.current.h) / dims.current.h);
   };
 
   // Glissement sur la barre de teinte.
   const huePan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: (e) => setH(clamp(e.nativeEvent.locationY, 0, SV_H) / SV_H * 360),
-    onPanResponderMove: (e) => setH(clamp(e.nativeEvent.locationY, 0, SV_H) / SV_H * 360),
+    onPanResponderGrant: (e) => setH(clamp(e.nativeEvent.locationY, 0, dims.current.h) / dims.current.h * 360),
+    onPanResponderMove: (e) => setH(clamp(e.nativeEvent.locationY, 0, dims.current.h) / dims.current.h * 360),
   })).current;
 
   const hueColor = hsvToHex(h, 1, 1);
@@ -130,18 +145,18 @@ export default function ColorPickerModal({
 
           {/* Carré SV + barre de teinte */}
           <View style={styles.pickerRow}>
-            <View style={styles.svBox} {...svPan.panHandlers}>
+            <View style={[styles.svBox, { width: svW, height: svH }]} {...svPan.panHandlers}>
               <View style={[StyleSheet.absoluteFill, { backgroundColor: hueColor, borderRadius: 10 }]} />
               <LinearGradient colors={['#FFFFFF', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 10 }]} />
               <LinearGradient colors={['rgba(0,0,0,0)', '#000000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: 10 }]} />
-              <View pointerEvents="none" style={[styles.svThumb, { left: s * SV_W - 8, top: (1 - v) * SV_H - 8 }]} />
+              <View pointerEvents="none" style={[styles.svThumb, { left: s * svW - 8, top: (1 - v) * svH - 8 }]} />
             </View>
-            <View style={styles.hueBox} {...huePan.panHandlers}>
+            <View style={[styles.hueBox, { height: svH }]} {...huePan.panHandlers}>
               <LinearGradient
                 colors={['#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#0000FF', '#FF00FF', '#FF0000']}
                 style={[StyleSheet.absoluteFill, { borderRadius: 8 }]}
               />
-              <View pointerEvents="none" style={[styles.hueThumb, { top: (h / 360) * SV_H - 3 }]} />
+              <View pointerEvents="none" style={[styles.hueThumb, { top: (h / 360) * svH - 3 }]} />
             </View>
           </View>
 
@@ -190,13 +205,13 @@ export default function ColorPickerModal({
 function makeStyles(c: any) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24, paddingBottom: 90 },
-    card: { width: '100%', maxWidth: 340, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 18, gap: 14 },
+    card: { width: '100%', maxWidth: CARD_MAX, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: CARD_PAD, gap: 14 },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     title: { fontSize: 16, fontWeight: '800', color: c.text },
-    pickerRow: { flexDirection: 'row', gap: 12, alignSelf: 'center' },
-    svBox: { width: SV_W, height: SV_H, borderRadius: 10 },
+    pickerRow: { flexDirection: 'row', gap: GAP, alignSelf: 'center' },
+    svBox: { borderRadius: 10 },
     svThumb: { position: 'absolute', width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff', backgroundColor: 'transparent', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 2 },
-    hueBox: { width: HUE_W, height: SV_H, borderRadius: 8 },
+    hueBox: { width: HUE_W, borderRadius: 8 },
     hueThumb: { position: 'absolute', left: -2, right: -2, height: 6, borderRadius: 3, borderWidth: 2, borderColor: '#fff', backgroundColor: 'transparent' },
     previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     preview: { width: 46, height: 46, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
@@ -208,6 +223,7 @@ function makeStyles(c: any) {
     rgbInput: { flex: 1, minWidth: 0, paddingVertical: 9, color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hexInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 15, fontWeight: '700', letterSpacing: 1, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-    confirmText: { fontSize: 15, fontWeight: '800', color: c.bg },
+    // `onAccent` : lisible même quand l'accent courant est une teinte claire (cf. AppColors).
+    confirmText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

@@ -222,7 +222,7 @@ function makeStyles(c: any) {
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, marginTop: 14 },
     saveBtnDisabled: { opacity: 0.5 },
-    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: '#fff' },
+    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
     savedTxt: { fontSize: 12.5, color: c.emerald, fontWeight: '600', textAlign: 'center', marginTop: 8 },
     errorTxt: { fontSize: 12.5, color: c.red, fontWeight: '600', textAlign: 'center', marginTop: 8 },
   });

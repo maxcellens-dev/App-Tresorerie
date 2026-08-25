@@ -218,10 +218,10 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
             accessibilityRole="button"
           >
             {updateAccount.isPending ? (
-              <ActivityIndicator color={COLORS.bg} />
+              <ActivityIndicator color={COLORS.onAccent} />
             ) : saved ? (
               <View style={styles.submitDone}>
-                <Ionicons name="checkmark" size={18} color={COLORS.bg} />
+                <Ionicons name="checkmark" size={18} color={COLORS.onAccent} />
                 <Text style={styles.submitLabel}>Enregistré</Text>
               </View>
             ) : (
@@ -270,7 +270,7 @@ function makeStyles(c: AppColors) {
     chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipText: { fontSize: 14, color: c.text },
-    chipTextActive: { color: c.bg, fontWeight: '600' },
+    chipTextActive: { color: c.onAccent, fontWeight: '600' },
     infoRow: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       backgroundColor: c.card, padding: 14, borderRadius: 10,
@@ -283,7 +283,7 @@ function makeStyles(c: AppColors) {
     submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     submitBtnBusy: { opacity: 0.75 },
     submitDone: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+    submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     closeBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 20, borderWidth: 1, borderColor: c.danger, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     closeBtnLabel: { fontSize: 16, fontWeight: '600', color: c.danger },
   });

@@ -168,7 +168,7 @@ export default function AdminConseils() {
               onPress={() => editing && save.mutate(editing)}
               disabled={!editMsg.trim() || save.isPending}
             >
-              {save.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveBtnText}>Enregistrer</Text>}
+              {save.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.saveBtnText}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAwareOverlay>
@@ -207,6 +207,6 @@ function makeStyles(c: any) {
     textArea: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, fontSize: 13, color: c.text, minHeight: 120, marginBottom: 14 },
     activeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
     saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-    saveBtnText: { fontSize: 15, fontWeight: '800', color: c.bg },
+    saveBtnText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

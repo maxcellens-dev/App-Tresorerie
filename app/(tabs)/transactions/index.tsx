@@ -1464,7 +1464,7 @@ function makeStyles(c: any) {
     backgroundColor: c.emerald,
     borderColor: c.emerald,
   },
-  filterCountText: { fontSize: 11.5, fontWeight: '800', color: c.bg, includeFontPadding: false },
+  filterCountText: { fontSize: 11.5, fontWeight: '800', color: c.onAccent, includeFontPadding: false },
   // ── Panneau « Filtres » (déplié sur place, sous la ligne de période) ──
   filterPanel: {
     backgroundColor: c.card,
@@ -1501,7 +1501,7 @@ function makeStyles(c: any) {
   filterCatTextActive: { color: c.emerald, fontWeight: '700' },
   filterEmptyText: { fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
   filterDoneBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
-  filterDoneText: { fontSize: 14.5, fontWeight: '800', color: c.bg },
+  filterDoneText: { fontSize: 14.5, fontWeight: '800', color: c.onAccent },
   accountFilterChip: {
     height: 36,
     paddingHorizontal: 14,
@@ -1526,7 +1526,7 @@ function makeStyles(c: any) {
     textAlignVertical: 'center',
   },
   accountFilterChipTextActive: {
-    color: c.bg,
+    color: c.onAccent,
     fontWeight: '600',
   },
   periodLabel: {

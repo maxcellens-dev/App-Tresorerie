@@ -12,8 +12,8 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { supabase } from '../../../lib/platform/supabase';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -66,12 +66,10 @@ export default function ChangePasswordScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
+        {/* En-tête normalisé, comme les autres pages secondaires (le bouton « Retour » maison
+            n'avait ni la même taille ni le même espacement que partout ailleurs). */}
+        <ScreenHeader title="Changer de mot de passe" onBack={goBack} />
         <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Changer de mot de passe</Text>
         <Text style={styles.sub}>Choisis un nouveau mot de passe pour ton compte.</Text>
 
         <Text style={styles.label}>Nouveau mot de passe (min. {PASSWORD_MIN_LENGTH} caractères)</Text>
@@ -101,13 +99,10 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 6 },
     sub: { fontSize: 13, color: c.textSecondary, marginBottom: 24, lineHeight: 18 },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 6 },
-    btnLabel: { fontSize: 16, fontWeight: '700', color: '#fff' },
+    btnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
   });
 }

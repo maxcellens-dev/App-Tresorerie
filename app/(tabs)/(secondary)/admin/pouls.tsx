@@ -227,7 +227,7 @@ export default function AdminPouls() {
               disabled={!dirty || saveCfg.isPending}
             >
               {saveCfg.isPending
-                ? <ActivityIndicator color={COLORS.bg} size="small" />
+                ? <ActivityIndicator color={COLORS.onAccent} size="small" />
                 : <Text style={styles.saveTxt}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
@@ -294,14 +294,14 @@ function makeStyles(c: AppColors) {
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 12,
     },
     orderBadge: { width: 19, height: 19, borderRadius: 999, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
-    orderTxt: { fontSize: 10.5, fontWeight: '800', color: c.bg },
+    orderTxt: { fontSize: 10.5, fontWeight: '800', color: c.onAccent },
     signalTxt: { flex: 1, fontSize: 13, color: c.textSecondary },
     alwaysTxt: { fontSize: 10, fontWeight: '700', color: c.textSecondary, fontStyle: 'italic' },
     actions: { flexDirection: 'row', gap: 10, marginTop: 26 },
     resetBtn: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
     resetTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
     saveBtn: { flex: 2, alignItems: 'center', paddingVertical: 14, borderRadius: 12, backgroundColor: c.emerald },
-    saveTxt: { fontSize: 15, fontWeight: '800', color: c.bg },
+    saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
     saved: { fontSize: 12.5, color: c.emerald, textAlign: 'center', marginTop: 10, fontWeight: '700' },
   });
 }

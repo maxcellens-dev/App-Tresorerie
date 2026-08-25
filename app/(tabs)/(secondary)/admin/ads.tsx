@@ -365,7 +365,7 @@ function makeStyles(c: any) {
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginBottom: 8 },
     addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
     msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
   });
 }

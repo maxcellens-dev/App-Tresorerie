@@ -354,10 +354,10 @@ function MesDonneesScreen() {
 
           <TouchableOpacity style={[styles.exportBtn, (busy || loading) && { opacity: 0.6 }]} onPress={handleExport} disabled={busy || loading} activeOpacity={0.85}>
             {busy ? (
-              <ActivityIndicator color={COLORS.bg} />
+              <ActivityIndicator color={COLORS.onAccent} />
             ) : (
               <>
-                <Ionicons name={done ? 'checkmark-circle' : 'download-outline'} size={20} color={COLORS.bg} />
+                <Ionicons name={done ? 'checkmark-circle' : 'download-outline'} size={20} color={COLORS.onAccent} />
                 <Text style={styles.exportText}>{done ? 'Export généré !' : 'Exporter mes données'}</Text>
               </>
             )}
@@ -388,7 +388,7 @@ function makeStyles(c: any) {
     bullet: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     bulletText: { flex: 1, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
     exportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 16 },
-    exportText: { fontSize: 16, fontWeight: '700', color: c.bg },
+    exportText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     note: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 16, textAlign: 'center' },
   });
 }

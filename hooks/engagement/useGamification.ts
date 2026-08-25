@@ -39,6 +39,10 @@ function dayKey(d: Date): string {
 export interface UserBadge { badge_key: string; unlocked_at: string; celebrated_at: string | null }
 export interface InventoryItem { item_key: string; qty: number }
 
+/** Replis à référence stable (cf. le retour du hook). */
+const EMPTY_BADGES: UserBadge[] = [];
+const EMPTY_INVENTORY: InventoryItem[] = [];
+
 /** Graine d'un compte qui n'a encore aucune ligne de gamification. */
 function seedState(userId: string): GamificationState {
   return { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
@@ -356,8 +360,11 @@ export function useGamification(userId: string | undefined) {
 
   return {
     state: stateQuery.data,
-    badges: badgesQuery.data ?? [],
-    inventory: inventoryQuery.data ?? [],
+    /* Replis à référence STABLE : un `?? []` littéral rend un tableau neuf à chaque rendu, ce qui
+       invalide en permanence les `useMemo` des écrans qui en dépendent (grille de cosmétiques
+       d'Apparence, listes de la boutique) tant que les données ne sont pas arrivées. */
+    badges: badgesQuery.data ?? EMPTY_BADGES,
+    inventory: inventoryQuery.data ?? EMPTY_INVENTORY,
     config,
     isLoading: stateQuery.isLoading,
     /* Un écran ne doit pas afficher « 0 relyk, 0 succès » tant qu'il ne SAIT pas.
@@ -365,6 +372,14 @@ export function useGamification(userId: string | undefined) {
        ne sont pas là, on attend ; si l'une échoue, on le dit. */
     isReady: stateQuery.isSuccess && badgesQuery.isSuccess && !!config,
     isError: stateQuery.isError || badgesQuery.isError,
+    /* L'INVENTAIRE A SON PROPRE ÉTAT, et il compte autant que les autres.
+       `inventory` vaut `[]` tant qu'il n'est pas chargé ET si la lecture échoue : un écran qui s'en
+       contente annonce « tu ne possèdes rien » à quelqu'un qui a tout acheté (cadres, flammes,
+       titres, pack couleurs), et le laisse dans cet état si le réseau a coupé. Il faut donc pouvoir
+       distinguer « vide » de « pas encore lu » et de « pas lisible ». */
+    inventoryReady: inventoryQuery.isSuccess,
+    inventoryError: inventoryQuery.isError,
+    refetchInventory: () => { void inventoryQuery.refetch(); },
     refetch: () => {
       stateQuery.refetch();
       badgesQuery.refetch();

@@ -143,7 +143,7 @@ export default function AccountModeSection({ account }: { account: Account }) {
               <Text style={styles.previewCancelText}>Annuler</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.previewOk} onPress={confirmMode} disabled={setMode.isPending}>
-              {setMode.isPending ? <ActivityIndicator color={COLORS.bg} size="small" /> : <Text style={styles.previewOkText}>Valider</Text>}
+              {setMode.isPending ? <ActivityIndicator color={COLORS.onAccent} size="small" /> : <Text style={styles.previewOkText}>Valider</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -182,6 +182,6 @@ function makeStyles(c: any) {
     previewCancel: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
     previewCancelText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
     previewOk: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: c.emerald },
-    previewOkText: { fontSize: 13, fontWeight: '800', color: c.bg },
+    previewOkText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
   });
 }

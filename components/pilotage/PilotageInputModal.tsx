@@ -124,6 +124,6 @@ export function makeStyles(c: AppColors) {
     varModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     varModalCancelText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
     varModalSave: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
-    varModalSaveText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+    varModalSaveText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
   });
 }

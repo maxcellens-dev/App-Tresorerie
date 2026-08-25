@@ -455,6 +455,6 @@ function makeStyles(c: any) {
     cancel: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     cancelText: { fontSize: 14.5, fontWeight: '700', color: c.textSecondary },
     save: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
-    saveText: { fontSize: 14.5, fontWeight: '800', color: c.bg },
+    saveText: { fontSize: 14.5, fontWeight: '800', color: c.onAccent },
   });
 }

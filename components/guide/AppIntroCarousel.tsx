@@ -318,7 +318,7 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
                   comptes — le libellé ne doit donc pas promettre un formulaire (c'est le bouton du
                   tableau de bord qui y emmène). */}
               <Text style={styles.ctaLabel}>{last ? 'Commencer' : 'Continuer'}</Text>
-              <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
+              <Ionicons name="arrow-forward" size={18} color={COLORS.onAccent} />
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -618,7 +618,7 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
       backgroundColor: c.emerald, borderRadius: 16, paddingVertical: 16,
     },
-    ctaLabel: { fontSize: 16, fontWeight: '800', color: c.bg },
+    ctaLabel: { fontSize: 16, fontWeight: '800', color: c.onAccent },
 
     /* ── Maquettes ── */
     mockCard: {

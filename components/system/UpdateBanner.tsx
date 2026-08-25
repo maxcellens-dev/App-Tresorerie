@@ -172,7 +172,7 @@ function makeStyles(c: any) {
     title: { fontSize: 13.5, fontWeight: '800', color: c.text },
     text: { fontSize: 11.5, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
     updateBtn: { backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
-    updateText: { fontSize: 12.5, fontWeight: '800', color: c.bg },
+    updateText: { fontSize: 12.5, fontWeight: '800', color: c.onAccent },
     close: { padding: 2 },
   });
 }

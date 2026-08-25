@@ -37,28 +37,66 @@ export default function AdminAssistance() {
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
-  const { data: profile } = useProfile(user?.id);
+  const { data: profile, isSuccess: profileLoaded } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
 
-  const { data: requests = [], isLoading, refetch } = useAllSupportRequests(!!isAdmin);
+  const { data, isLoading, isError, refetch } = useAllSupportRequests(!!isAdmin);
+  const requests = data?.rows ?? [];
+  const total = data?.total ?? 0;
   const deleteRequest = useDeleteSupportRequest();
   const deleteClosed = useDeleteClosedSupportRequests();
   const [filter, setFilter] = useState<Filter>('open');
   const [open, setOpen] = useState<SupportRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  /** Dernière action de suppression : succès ou échec, dit à l'écran (c'était muet). */
+  const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const closedCount = requests.filter((r) => r.status === 'closed').length;
+  const closedIds = requests.filter((r) => r.status === 'closed').map((r) => r.id);
+  const closedCount = closedIds.length;
 
   const filtered = useMemo(() => {
     const list = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
-    // Demandes avec message non lu en premier, puis par date.
-    return [...list].sort((a, b) => Number(b.admin_unread) - Number(a.admin_unread) || b.last_message_at.localeCompare(a.last_message_at));
+    // Demandes avec message non lu en premier, puis par date. `?? ''` : une date absente faisait
+    // planter la comparaison et vidait toute la page.
+    return [...list].sort((a, b) =>
+      Number(b.admin_unread) - Number(a.admin_unread)
+      || (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''));
   }, [requests, filter]);
 
   const openCount = requests.filter((r) => r.status === 'open').length;
   const unreadCount = requests.filter((r) => r.admin_unread).length;
 
   const onRefresh = async () => { setRefreshing(true); try { await refetch(); } finally { setRefreshing(false); } };
+
+  const say = (text: string, ok: boolean) => {
+    setActionMsg({ text, ok });
+    setTimeout(() => setActionMsg(null), ok ? 3000 : 6000);
+  };
+  const removeOne = (r: SupportRequest) => deleteRequest.mutate(r.id, {
+    onSuccess: () => say('Demande supprimée.', true),
+    onError: (e: any) => say(`Suppression impossible : ${e?.message ?? 'réessaie'}`, false),
+  });
+  // On ne supprime QUE les demandes réellement listées à l'écran (cf. useDeleteClosedSupportRequests).
+  const removeClosed = () => deleteClosed.mutate(closedIds, {
+    onSuccess: () => say(`${closedIds.length} demande${closedIds.length > 1 ? 's' : ''} supprimée${closedIds.length > 1 ? 's' : ''}.`, true),
+    onError: (e: any) => say(`Suppression impossible : ${e?.message ?? 'réessaie'}`, false),
+  });
+
+  /* Tant que le profil n'a pas répondu, on ne SAIT pas si la personne est administratrice —
+     `is_admin` vaut `false` par défaut. L'écran affichait donc « Accès réservé » à un
+     administrateur pendant tout le chargement, avant de se raviser. */
+  if (!profileLoaded) {
+    return (
+      <View style={styles.root}>
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+        <ScreenGradient />
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Assistance" onBack={goBack} />
+          <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 32 }} />
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   if (!isAdmin) {
     return (
@@ -82,7 +120,18 @@ export default function AdminAssistance() {
 
         <Text style={styles.subtitle}>
           {openCount} demande{openCount > 1 ? 's' : ''} en cours{unreadCount > 0 ? ` · ${unreadCount} non lue${unreadCount > 1 ? 's' : ''}` : ''}.
+          {/* La liste est plafonnée : on le DIT, sinon « 200 demandes » passe pour un total. */}
+          {total > requests.length ? ` ${requests.length} affichées sur ${total}.` : ''}
         </Text>
+
+        {isError && (
+          <Text style={[styles.empty, { color: COLORS.danger, marginTop: 0, marginBottom: 12 }]}>
+            Les demandes n'ont pas pu être chargées. Tire vers le bas pour réessayer.
+          </Text>
+        )}
+        {actionMsg && (
+          <Text style={[styles.actionMsg, { color: actionMsg.ok ? COLORS.green : COLORS.danger }]}>{actionMsg.text}</Text>
+        )}
 
         <View style={styles.filterRow}>
           {(['open', 'closed', 'all'] as Filter[]).map((f) => (
@@ -98,7 +147,7 @@ export default function AdminAssistance() {
           <TouchableOpacity
             style={styles.bulkDeleteBtn}
             activeOpacity={0.7}
-            onPress={() => confirmThen(`Supprimer définitivement ${closedCount} demande${closedCount > 1 ? 's' : ''} clôturée${closedCount > 1 ? 's' : ''} ?`, () => deleteClosed.mutate())}
+            onPress={() => confirmThen(`Supprimer définitivement ${closedCount} demande${closedCount > 1 ? 's' : ''} clôturée${closedCount > 1 ? 's' : ''} ?`, removeClosed)}
           >
             <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
             <Text style={styles.bulkDeleteText}>Supprimer les clôturées ({closedCount})</Text>
@@ -129,7 +178,7 @@ export default function AdminAssistance() {
                   style={styles.cardDeleteBtn}
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  onPress={() => confirmThen(`Supprimer la demande « ${r.subject} » de ${r.profile_email || 'cet utilisateur'} ?`, () => deleteRequest.mutate(r.id))}
+                  onPress={() => confirmThen(`Supprimer la demande « ${r.subject} » de ${r.profile_email || 'cet utilisateur'} ?`, () => removeOne(r))}
                 >
                   <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                 </TouchableOpacity>
@@ -165,7 +214,7 @@ function makeStyles(c: any) {
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
     chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
-    chipTextActive: { color: c.bg },
+    chipTextActive: { color: c.onAccent },
     scroll: { flex: 1 },
     empty: { color: c.textSecondary, textAlign: 'center', marginTop: 32, fontSize: 14 },
     reqCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10 },
@@ -175,5 +224,6 @@ function makeStyles(c: any) {
     reqMeta: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
     unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.danger },
     text: { color: c.text, padding: 20 },
+    actionMsg: { fontSize: 12.5, fontWeight: '700', marginBottom: 10 },
   });
 }

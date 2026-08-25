@@ -14,6 +14,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useAdminUnreadBreakdown } from '../../../../hooks/admin/useUnreadBadges';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { readableOn } from '../../../../theme/palette';
 
 
 export default function AdminHub() {
@@ -150,7 +151,9 @@ export default function AdminHub() {
                     activeOpacity={0.7}
                   >
                     <View style={[styles.iconBox, { backgroundColor: item.color }]}>
-                      <Ionicons name={item.icon as any} size={20} color={COLORS.bg} />
+                      {/* Chaque entrée porte SA couleur : la teinte du symbole se déduit d'elle,
+                          sinon un fond clair rend le symbole invisible en thème clair. */}
+                      <Ionicons name={item.icon as any} size={20} color={readableOn(item.color)} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>

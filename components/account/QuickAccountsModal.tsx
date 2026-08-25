@@ -203,13 +203,13 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
             accessibilityRole="button"
           >
             {busy ? (
-              <ActivityIndicator color={COLORS.bg} />
+              <ActivityIndicator color={COLORS.onAccent} />
             ) : (
               <>
                 <Text style={styles.ctaLabel}>
                   {rows.length > 1 ? `Créer mes ${rows.length} comptes` : 'Créer mon compte'}
                 </Text>
-                <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
+                <Ionicons name="arrow-forward" size={18} color={COLORS.onAccent} />
               </>
             )}
           </TouchableOpacity>
@@ -267,6 +267,6 @@ function makeStyles(c: any) {
       backgroundColor: c.emerald, borderRadius: 16, paddingVertical: 15,
     },
     ctaOff: { opacity: 0.45 },
-    ctaLabel: { fontSize: 15.5, fontWeight: '800', color: c.bg },
+    ctaLabel: { fontSize: 15.5, fontWeight: '800', color: c.onAccent },
   });
 }

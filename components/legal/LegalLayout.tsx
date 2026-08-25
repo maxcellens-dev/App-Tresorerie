@@ -205,7 +205,7 @@ function makeStyles(c: any) {
     siteHeaderBtns: { flexDirection: 'row', alignItems: 'center', gap: 14 },
     siteNavLink: { fontSize: 15, fontWeight: '600', color: c.textSecondary, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     siteCta: { backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    siteCtaText: { fontSize: 14, fontWeight: '700', color: c.bg },
+    siteCtaText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
 
     // Site body
     siteBody: { flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 24 },

@@ -931,7 +931,7 @@ function EditTransactionScreen() {
               disabled={updateTx.isPending}
               accessibilityRole="button"
             >
-              {updateTx.isPending ? <ActivityIndicator color={COLORS.bg} /> : (
+              {updateTx.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : (
                 <Text style={styles.submitLabel}>
                   {tx?.is_draft ? (isExpense ? 'Valider la dépense' : 'Valider la recette') : 'Enregistrer'}
                 </Text>
@@ -1115,7 +1115,7 @@ function makeStyles(c: any) {
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   toggleLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
-  toggleLabelActive: { color: c.bg },
+  toggleLabelActive: { color: c.onAccent },
   refundToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 16 },
   refundLabel: { fontSize: 14, fontWeight: '600', color: c.text },
   refundHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
@@ -1149,19 +1149,19 @@ function makeStyles(c: any) {
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, color: c.text },
-  chipTextActive: { color: c.bg, fontWeight: '600' },
+  chipTextActive: { color: c.onAccent, fontWeight: '600' },
   recurringSection: { marginTop: 8, marginBottom: 16 },
   recurringInfoBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
   recurringInfoText: { flex: 1, fontSize: 13, lineHeight: 18, color: c.textSecondary },
   recurringToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 12 },
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontSize: 15, color: c.textSecondary },
-  recurringLabelActive: { color: c.bg, fontWeight: '600' },
+  recurringLabelActive: { color: c.onAccent, fontWeight: '600' },
   instanceModeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   instanceModeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center' },
   instanceModeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   instanceModeLabel: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
-  instanceModeLabelActive: { color: c.bg, fontWeight: '600' },
+  instanceModeLabelActive: { color: c.onAccent, fontWeight: '600' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 10 },
   futureBlock: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
@@ -1169,7 +1169,7 @@ function makeStyles(c: any) {
   submitBtnPrimary: { backgroundColor: c.emerald },
   submitBtnDraft: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
   submitLabelDraft: { fontSize: 16, fontWeight: '600', color: '#94a3b8' },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingVertical: 14 },
   deleteLabel: { fontSize: 15, color: c.danger, fontWeight: '600' },

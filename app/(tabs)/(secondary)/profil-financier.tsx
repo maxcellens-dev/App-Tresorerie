@@ -216,7 +216,7 @@ function ProfilFinancierScreen() {
               </Text>
               <TouchableOpacity style={styles.cta} onPress={() => router.push('/(tabs)/comptes' as any)} activeOpacity={0.85}>
                 <Text style={styles.ctaText}>Voir mes comptes</Text>
-                <Ionicons name="arrow-forward" size={17} color={COLORS.bg} />
+                <Ionicons name="arrow-forward" size={17} color={COLORS.onAccent} />
               </TouchableOpacity>
             </View>
           </KeyboardAwareScrollView>
@@ -639,7 +639,7 @@ function makeStyles(c: any) {
     amountInput: { flex: 1, fontSize: 24, fontWeight: '800', color: c.text, padding: 0 },
     amountUnit: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 13, paddingVertical: 12, alignItems: 'center' },
-    saveBtnText: { fontSize: 14.5, fontWeight: '800', color: c.bg },
+    saveBtnText: { fontSize: 14.5, fontWeight: '800', color: c.onAccent },
 
     note: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,
@@ -653,6 +653,6 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: c.emerald, borderRadius: 15, paddingVertical: 14, marginTop: 4,
     },
-    ctaText: { fontSize: 15, fontWeight: '800', color: c.bg },
+    ctaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

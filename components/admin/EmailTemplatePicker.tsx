@@ -104,7 +104,7 @@ export default function EmailTemplatePicker({ onApply }: Props) {
           onPress={() => selected && onApply({ subject: selected.subject, body: selected.body })}
           activeOpacity={0.85}
         >
-          <Ionicons name="arrow-down" size={14} color={COLORS.bg} />
+          <Ionicons name="arrow-down" size={14} color={COLORS.onAccent} />
           <Text style={styles.applyTxt}>Utiliser</Text>
         </TouchableOpacity>
       </View>
@@ -208,7 +208,7 @@ export default function EmailTemplatePicker({ onApply }: Props) {
               )}
             </ScrollView>
             <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={commit} disabled={save.isPending}>
-              {save.isPending ? <ActivityIndicator color={COLORS.bg} size="small" /> : <Text style={styles.saveTxt}>Enregistrer</Text>}
+              {save.isPending ? <ActivityIndicator color={COLORS.onAccent} size="small" /> : <Text style={styles.saveTxt}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAwareOverlay>
@@ -231,7 +231,7 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.emerald,
       borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11,
     },
-    applyTxt: { fontSize: 13, fontWeight: '800', color: c.bg },
+    applyTxt: { fontSize: 13, fontWeight: '800', color: c.onAccent },
     list: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.card, overflow: 'hidden' },
     item: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
     itemPicked: { backgroundColor: c.emerald + '12' },
@@ -262,6 +262,6 @@ function makeStyles(c: any) {
     textarea: { minHeight: 160, textAlignVertical: 'top', fontSize: 12.5, lineHeight: 18 },
     noteBuiltin: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 10 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
-    saveTxt: { fontSize: 15, fontWeight: '800', color: c.bg },
+    saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

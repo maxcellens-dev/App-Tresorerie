@@ -177,7 +177,7 @@ function SimulationSection({ userId }: { userId: string }) {
           onPress={() => target && direction && trigger(target, direction === 'upgrade' ? 'automatic_upgrade' : 'automatic_downgrade')}
         >
           {simulate.isPending
-            ? <ActivityIndicator color={COLORS.bg} size="small" />
+            ? <ActivityIndicator color={COLORS.onAccent} size="small" />
             : <Text style={styles.saveBtnText}>Déclencher la transition</Text>}
         </TouchableOpacity>
       </View>
@@ -307,7 +307,7 @@ function MessagesSection({ userId }: { userId: string }) {
                   disabled={updateMsg.isPending}
                 >
                   {updateMsg.isPending
-                    ? <ActivityIndicator color={COLORS.bg} size="small" />
+                    ? <ActivityIndicator color={COLORS.onAccent} size="small" />
                     : <Text style={styles.saveBtnText}>Sauvegarder</Text>}
                 </TouchableOpacity>
               </View>
@@ -442,7 +442,7 @@ function AllocationsSection({ userId }: { userId: string }) {
                   disabled={draftTotal !== 100 || updateAlloc.isPending}
                 >
                   {updateAlloc.isPending
-                    ? <ActivityIndicator color={COLORS.bg} size="small" />
+                    ? <ActivityIndicator color={COLORS.onAccent} size="small" />
                     : <Text style={styles.saveBtnText}>Sauvegarder</Text>}
                 </TouchableOpacity>
               </View>
@@ -828,7 +828,7 @@ function MatrixSection({ userId }: { userId: string }) {
                   disabled={updateConfig.isPending}
                 >
                   {updateConfig.isPending
-                    ? <ActivityIndicator color={COLORS.bg} size="small" />
+                    ? <ActivityIndicator color={COLORS.onAccent} size="small" />
                     : <Text style={styles.saveBtnText}>Sauvegarder</Text>}
                 </TouchableOpacity>
               </View>
@@ -967,7 +967,7 @@ function GlobalSection({ userId }: { userId: string }) {
         disabled={saveSavings.isPending}
       >
         {saveSavings.isPending
-          ? <ActivityIndicator color={COLORS.bg} size="small" />
+          ? <ActivityIndicator color={COLORS.onAccent} size="small" />
           : <Text style={styles.saveBtnText}>Enregistrer les seuils d'épargne</Text>}
       </TouchableOpacity>
     </View>
@@ -1039,7 +1039,7 @@ function makeStyles(c: any) {
   },
   tabActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   tabText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-  tabTextActive: { color: c.bg },
+  tabTextActive: { color: c.onAccent },
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
@@ -1155,6 +1155,6 @@ function makeStyles(c: any) {
     backgroundColor: c.emerald, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  saveBtnText: { color: c.bg, fontWeight: '700', fontSize: 14 },
+  saveBtnText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
 });
 }

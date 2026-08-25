@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAvoidingView, KeyboardEvents } from 'react-native-keyboard-controller';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../../hooks/admin/useSupport';
+import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest, SUPPORT_MAX_BODY } from '../../hooks/admin/useSupport';
+import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
 import { sheetWidth } from '../../lib/ui/appLayout';
 
 interface Props {
@@ -36,6 +37,8 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const markRead = useMarkSupportRead();
   const setStatus = useSetSupportStatus();
   const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const submit = useSubmitLock();
   const scrollRef = useRef<ScrollView>(null);
   // Clavier : KeyboardAvoidingView de react-native-keyboard-controller (voir le JSX). La lib attache
   // son écouteur à la fenêtre du Modal (ModalAttachedWatcher) → hauteur juste, bandeaux compris.
@@ -47,20 +50,48 @@ export default function SupportThreadModal({ visible, requestId, subject, status
     return () => sub.remove();
   }, []);
 
-  // Marque la demande comme lue à l'ouverture (efface le drapeau du rôle courant).
+  /* Marque la demande comme lue à l'ouverture ET à l'arrivée d'un message pendant qu'on la lit.
+     Sans la seconde partie, une réponse reçue fil ouvert rallumait la pastille « non lu » sous les
+     yeux de la personne en train de la lire — et elle y restait jusqu'à une réouverture. */
+  const unreadForMe = role === 'user' ? liveRequest?.user_unread : liveRequest?.admin_unread;
   useEffect(() => {
-    if (visible && requestId) markRead.mutate({ requestId, side: role });
+    if (!visible || !requestId) return;
+    if (unreadForMe === false) return; // déjà à jour : pas d'écriture inutile
+    markRead.mutate({ requestId, side: role });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, requestId]);
+  }, [visible, requestId, unreadForMe, messages.length]);
 
   useEffect(() => {
     if (messages.length) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [messages.length]);
 
-  const send = () => {
-    if (!text.trim() || !requestId) return;
-    addMessage.mutate({ requestId, role, authorId, body: text.trim() });
-    setText('');
+  /**
+   * ENVOI D'UN MESSAGE — le brouillon n'est effacé qu'une fois le message parti.
+   *
+   * Avant : `mutate(...)` puis `setText('')` dans la foulée. Le champ était donc vidé AVANT toute
+   * confirmation, et l'erreur n'était nulle part : un envoi qui échouait (réseau coupé, demande
+   * supprimée entre-temps) faisait disparaître le message qu'on venait d'écrire — parfois long,
+   * parfois le seul endroit où il existait. Rien à l'écran ne le signalait ; on croyait avoir
+   * envoyé.
+   *
+   * Le verrou est synchrone : `disabled={isPending}` ne s'applique qu'au rendu suivant, donc deux
+   * appuis rapprochés envoyaient deux fois le même message.
+   */
+  const send = async () => {
+    const body = text.trim();
+    if (!body || !requestId) return;
+    if (!submit.acquire()) return;
+    setError(null);
+    try {
+      await addMessage.mutateAsync({ requestId, role, authorId, body });
+      setText('');
+    } catch (e: any) {
+      setError(e?.message?.includes('trop long')
+        ? `Message trop long (maximum ${SUPPORT_MAX_BODY} caractères).`
+        : "Le message n'est pas parti. Vérifie ta connexion — ton texte est conservé.");
+    } finally {
+      submit.release();
+    }
   };
 
   const isClosed = liveStatus === 'closed';
@@ -111,8 +142,11 @@ export default function SupportThreadModal({ visible, requestId, subject, status
                       {!mine && (
                         <Text style={styles.bubbleAuthor}>{m.sender_role === 'admin' ? 'Assistance' : 'Utilisateur'}</Text>
                       )}
-                      <Text style={[styles.bubbleText, mine && { color: '#fff' }]}>{m.body}</Text>
-                      <Text style={[styles.bubbleTime, mine && { color: 'rgba(255,255,255,0.7)' }]}>{formatTime(m.created_at)}</Text>
+                      {/* La bulle « moi » est peinte à la couleur d'accent, qui est CHOISIE par
+                          l'utilisateur (Apparence) : un texte blanc en dur y devenait illisible dès
+                          que la teinte était claire — jaune, cyan, lime. */}
+                      <Text style={[styles.bubbleText, mine && { color: COLORS.onAccent }]}>{m.body}</Text>
+                      <Text style={[styles.bubbleTime, mine && { color: COLORS.onAccent, opacity: 0.7 }]}>{formatTime(m.created_at)}</Text>
                     </View>
                   </View>
                 );
@@ -124,18 +158,20 @@ export default function SupportThreadModal({ visible, requestId, subject, status
               la saisie reste au-dessus de la barre de navigation, clavier fermé comme ouvert.
               (useSafeAreaInsets lirait le provider de la fenêtre PRINCIPALE : toujours faux ici.) */}
           <SafeAreaView edges={['bottom']}>
+            {!!error && <Text style={styles.error}>{error}</Text>}
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
                 value={text}
-                onChangeText={setText}
+                onChangeText={(v) => { setText(v); if (error) setError(null); }}
                 placeholder={isClosed ? 'Répondre rouvre la demande…' : 'Ton message…'}
                 placeholderTextColor={COLORS.textSecondary}
                 multiline
+                maxLength={SUPPORT_MAX_BODY}
                 onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
               />
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="Envoyer" style={[styles.sendBtn, (!text.trim() || addMessage.isPending) && { opacity: 0.5 }]} onPress={send} disabled={!text.trim() || addMessage.isPending}>
-                <Ionicons name="send" size={18} color={COLORS.bg} />
+                <Ionicons name="send" size={18} color={COLORS.onAccent} />
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -169,6 +205,7 @@ function makeStyles(c: any) {
     bubbleAuthor: { fontSize: 11, fontWeight: '700', color: c.emerald },
     bubbleText: { fontSize: 14, color: c.text, lineHeight: 19 },
     bubbleTime: { fontSize: 10, color: c.textSecondary, marginTop: 2, alignSelf: 'flex-end' },
+    error: { fontSize: 12.5, fontWeight: '600', color: c.danger, paddingHorizontal: 14, paddingTop: 10, lineHeight: 17 },
     inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 12, borderTopWidth: 1, borderColor: c.cardBorder },
     input: { flex: 1, maxHeight: 120, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, paddingHorizontal: 14, paddingVertical: Platform.OS === 'web' ? 10 : 8, fontSize: 15, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },

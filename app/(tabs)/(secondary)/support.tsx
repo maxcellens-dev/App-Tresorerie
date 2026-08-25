@@ -5,6 +5,7 @@ import { useMemo } from 'react';
  */
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -80,10 +81,11 @@ export default function SupportScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Support</Text>
+        {/* En-tête NORMALISÉ, comme les autres pages secondaires : cette page avait gardé son
+            propre bouton « Retour » et son titre, avec un espacement et une taille qui ne
+            correspondaient à aucune autre — c'est le genre d'écart qu'on ne voit qu'en passant
+            d'un écran à l'autre. */}
+        <ScreenHeader title="Support" onBack={goBack} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {sections.map((sec) => (
@@ -91,7 +93,15 @@ export default function SupportScreen() {
               <Text style={styles.sectionTitle}>{sec.title}</Text>
               <View style={styles.card}>
                 {sec.items.map((it, i) => (
-                  <TouchableOpacity key={it.label} style={[styles.row, i === sec.items.length - 1 && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={it.onPress}>
+                  <TouchableOpacity
+                    key={it.label}
+                    style={[styles.row, i === sec.items.length - 1 && { borderBottomWidth: 0 }]}
+                    activeOpacity={0.7}
+                    onPress={it.onPress}
+                    accessibilityRole="button"
+                    accessibilityLabel={it.badge ? `${it.label}, ${it.badge} non lu${it.badge > 1 ? 's' : ''}` : it.label}
+                    accessibilityHint={it.external ? 'Ouvre un site extérieur à l’application' : undefined}
+                  >
                     <Ionicons name={it.icon as any} size={20} color={it.color} />
                     <Text style={[styles.rowLabel, it.italic && { fontStyle: 'italic', fontSize: 13, color: COLORS.textSecondary }]}>{it.label}</Text>
                     {!!it.badge && it.badge > 0 && (
@@ -115,9 +125,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
     sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden', marginBottom: 20 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },

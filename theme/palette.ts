@@ -58,6 +58,22 @@ export interface AppColors {
   currentMonth: string;
   /** Couleur de fond de l'entête (rgba — opacité configurable via Style Editor). */
   headerBg: string;
+  /**
+   * Couleur de TEXTE à poser SUR un aplat d'accent (bouton plein, pastille, segment actif).
+   *
+   * Les écrans utilisaient `bg` : ça marche en sombre (accent coloré sur noir), mais pas en clair —
+   * le fond y est un crème très pâle, et une couleur d'accent claire (jaune, lime, cyan…) donnait
+   * un texte crème sur fond clair, à la limite de l'invisible. Or la couleur d'accent est choisie
+   * LIBREMENT dans Apparence (couleur personnalisée Premium, presets du pack) : on ne peut pas
+   * supposer qu'elle contraste. Ici on choisit, entre le fond et l'encre du thème, celle qui se lit
+   * réellement sur l'accent — donc `bg` en sombre (rendu inchangé) et l'encre en clair.
+   */
+  onAccent: string;
+  /**
+   * Accent utilisé comme couleur de TEXTE ou d'ICÔNE sur le fond de l'app (lien, valeur mise en
+   * avant). Identique à `accent` quand il se lit ; assombri/éclairci juste ce qu'il faut sinon.
+   */
+  accentText: string;
   [key: string]: string;
 }
 
@@ -127,15 +143,30 @@ const MODE_BASE: Record<ThemeMode, {
   },
 };
 
-/** Couleur d'accent par preset natif (légère variation par mode). */
+/**
+ * Couleur d'accent par preset natif.
+ *
+ * ⚠️ LES IDENTIFIANTS NE SE RENOMMENT PAS. `noir` et `blanc` sont des restes d'une époque où ces
+ * deux teintes étaient effectivement du noir et du blanc ; ils sont aujourd'hui enregistrés tels
+ * quels dans `profiles.theme_preset` chez les utilisateurs qui les ont choisis. Les changer
+ * reviendrait à effacer leur couleur. Seuls le LIBELLÉ et la teinte suivent la réalité — d'où
+ * l'écart entre la clé et le nom, qui est voulu.
+ *
+ * Ces deux-là ont été renommés « Rose » et « Cyan » : l'administration les avait remplacés par ces
+ * teintes dans l'éditeur de style, et la page Apparence continuait d'annoncer « Noir » pour une
+ * pastille rose et « Blanc » pour une cyan (nom lu à voix haute par les lecteurs d'écran, et affiché
+ * tel quel dans l'éditeur). La valeur par défaut ci-dessous a été alignée sur la teinte réellement
+ * configurée : nom, valeur par défaut et couleur appliquée disent enfin la même chose, y compris si
+ * quelqu'un réinitialise les surcharges.
+ */
 const PRESET_ACCENT: Record<string, { dark: string; light: string; label: string; emoji: string }> = {
   emerald: { dark: '#00B67A', light: '#009963', label: 'Émeraude', emoji: '🟢' },
   ocean:   { dark: '#0075FF', light: '#0066E0', label: 'Océan',    emoji: '🔵' },
   violet:  { dark: '#9B5CF6', light: '#7C3AED', label: 'Violet',   emoji: '🟣' },
   coral:   { dark: '#FF6B6B', light: '#E0342A', label: 'Corail',   emoji: '🔴' },
   amber:   { dark: '#FF9500', light: '#D97706', label: 'Ambre',    emoji: '🟠' },
-  noir:    { dark: '#D4D4D4', light: '#1A1A1A', label: 'Noir',     emoji: '⚫' },
-  blanc:   { dark: '#FFFFFF', light: '#9CA3AF', label: 'Blanc',    emoji: '⚪' },
+  noir:    { dark: '#FF3366', light: '#FF3366', label: 'Rose',     emoji: '🩷' },
+  blanc:   { dark: '#00B9CF', light: '#00B9CF', label: 'Cyan',     emoji: '🩵' },
 };
 
 export const NATIVE_PRESET_IDS = Object.keys(PRESET_ACCENT);
@@ -211,6 +242,59 @@ function blendOverHex(fgHex: string, bgHex: string, alpha: number): string {
   const mix = (f: number, b: number) => Math.round(f * a + b * (1 - a));
   const hex2 = (n: number) => n.toString(16).padStart(2, '0');
   return `#${hex2(mix(fr, br))}${hex2(mix(fg, bgc))}${hex2(mix(fb, bb))}`;
+}
+
+// ── Lisibilité (WCAG) ─────────────────────────────────────────────────────────────────────────
+// La couleur d'accent est choisie par l'UTILISATEUR (couleur personnalisée Premium) ou par l'admin
+// (presets du pack) : rien ne garantit qu'elle contraste avec le fond ou avec le texte qu'on pose
+// dessus. Ces trois fonctions servent à ne jamais afficher un libellé illisible sans pour autant
+// interdire une couleur.
+
+/** Luminance relative WCAG d'un #RRGGBB (0 = noir, 1 = blanc). Repli : gris moyen. */
+export function relativeLuminance(hex: string): number {
+  const m = /^#?([0-9A-Fa-f]{6})$/.exec(hex || '');
+  if (!m) return 0.5;
+  const n = parseInt(m[1], 16);
+  const chan = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * chan((n >> 16) & 255) + 0.7152 * chan((n >> 8) & 255) + 0.0722 * chan(n & 255);
+}
+
+/** Rapport de contraste WCAG entre deux couleurs (1 = identiques, 21 = noir/blanc). */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a), lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** Des deux couleurs proposées, celle qui se lit le mieux sur `bgHex`. */
+function mostReadable(bgHex: string, a: string, b: string): string {
+  return contrastRatio(bgHex, a) >= contrastRatio(bgHex, b) ? a : b;
+}
+
+/**
+ * Blanc ou presque-noir — celui qui se lit sur `hex`.
+ *
+ * Pour une marque posée sur un aplat de couleur LIBRE (la coche d'une pastille de couleur, par
+ * exemple) : une coche blanche en dur devenait invisible dès que la pastille était claire.
+ */
+export function readableOn(hex: string): string {
+  return mostReadable(hex, '#FFFFFF', '#111111');
+}
+
+/**
+ * Rend `hex` lisible SUR `overHex` : tant que le contraste reste sous `target`, on le rapproche par
+ * paliers de `towardHex` (l'encre du thème). La teinte est conservée le plus possible — on ne
+ * remplace pas la couleur choisie, on l'ajuste seulement du strict nécessaire.
+ */
+function ensureReadable(hex: string, overHex: string, towardHex: string, target = 3.2): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  let out = hex;
+  for (let i = 0; i < 8 && contrastRatio(out, overHex) < target; i++) {
+    out = blendHex(out, towardHex, 0.12);
+  }
+  return out;
 }
 
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
@@ -322,6 +406,9 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     selected:     isLight ? '#EFF6FF' : '#0A1A2E',
     currentMonth: isLight ? '#EFF6FF' : '#0A1A2E',
     headerBg,
+    // Lisibilité garantie quelle que soit la couleur d'accent choisie (cf. AppColors.onAccent).
+    onAccent: mostReadable(accent, bg, ink),
+    accentText: ensureReadable(accent, bg, ink),
   } as AppColors;
 }
 

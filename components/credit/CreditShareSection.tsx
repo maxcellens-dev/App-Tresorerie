@@ -122,7 +122,7 @@ export default function CreditShareSection({ credit }: { credit: Credit }) {
         ))}
       </View>
       <TouchableOpacity style={styles.inviteBtn} onPress={doInvite} disabled={invite.isPending}>
-        <Ionicons name="person-add-outline" size={16} color={COLORS.bg} />
+        <Ionicons name="person-add-outline" size={16} color={COLORS.onAccent} />
         <Text style={styles.inviteLabel}>Inviter</Text>
       </TouchableOpacity>
     </View>
@@ -155,6 +155,6 @@ function makeStyles(c: any) {
     roleChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
     roleChipTextActive: { color: c.text, fontWeight: '700' },
     inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, paddingVertical: 11, borderRadius: 12, marginTop: 10 },
-    inviteLabel: { color: c.bg, fontWeight: '700', fontSize: 14 },
+    inviteLabel: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
   });
 }

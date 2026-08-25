@@ -65,3 +65,23 @@ export function parentRoute(path: string | null | undefined): string | null {
   while (parts.length > 0 && PASSTHROUGH_SEGMENTS.has(parts[parts.length - 1])) parts.pop();
   return parts.length > 0 ? '/' + parts.join('/') : null;
 }
+
+/**
+ * Filtre une destination reçue en PARAMÈTRE D'URL (`?origin=…`) : on ne renvoie que des chemins
+ * internes, jamais une adresse extérieure.
+ *
+ * Plusieurs écrans acceptent une destination de retour fournie par l'appelant. Sur le web, ce
+ * paramètre est dans l'URL, donc modifiable par n'importe qui : un lien
+ * `…/apparence?origin=https://exemple.test` (ou `//exemple.test`, que les navigateurs traitent
+ * comme une adresse externe) envoyait l'utilisateur hors de l'app au clic sur « Retour » — une
+ * page de connexion imitée n'aurait plus qu'à se présenter. On n'accepte donc qu'un chemin
+ * commençant par un seul `/`, sans schéma ni saut de ligne.
+ */
+export function safeInternalRoute(value: string | string[] | null | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== 'string') return null;
+  const path = raw.trim();
+  if (!path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return null;
+  if (/[\r\n\t]/.test(path) || /^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
+  return path;
+}

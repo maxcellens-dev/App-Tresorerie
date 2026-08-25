@@ -324,7 +324,7 @@ function AccountsListScreen() {
                 style={styles.welcomeBannerBtn}
                 onPress={() => { setWelcomeDismissed(true); setShowCreateType(true); }}
               >
-                <Ionicons name="add" size={16} color={COLORS.bg} />
+                <Ionicons name="add" size={16} color={COLORS.onAccent} />
                 <Text style={styles.welcomeBannerBtnLabel}>Ajouter mon premier compte</Text>
               </TouchableOpacity>
             </View>
@@ -467,7 +467,7 @@ function AccountsListScreen() {
             activeOpacity={0.85}
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={18} color={COLORS.bg} />
+            <Ionicons name="add" size={18} color={COLORS.onAccent} />
             <Text style={styles.addAccountBtnLabel}>Ajouter un compte</Text>
           </TouchableOpacity>
 
@@ -651,7 +651,7 @@ function makeStyles(c: any) {
     marginTop: 14, marginHorizontal: 16,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
-  addAccountBtnLabel: { color: c.bg, fontWeight: '800', fontSize: 14 },
+  addAccountBtnLabel: { color: c.onAccent, fontWeight: '800', fontSize: 14 },
   // Air entre l'en-tête et la liste (et logement de la bannière maison, souvent vide).
   tabTopGap: { paddingHorizontal: 24, paddingTop: 16 },
   totalsFilterRow: { flexDirection: 'row', gap: 4, marginBottom: 8, marginTop: 4 },
@@ -769,7 +769,7 @@ function makeStyles(c: any) {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 12,
   },
-  welcomeBannerBtnLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
+  welcomeBannerBtnLabel: { fontSize: 14, fontWeight: '700', color: c.onAccent },
 });
 }
 

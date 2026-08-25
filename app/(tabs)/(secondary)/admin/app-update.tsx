@@ -38,6 +38,9 @@ export default function AdminAppUpdate() {
   const [rateAndroid, setRateAndroid] = useState('');
   const [rateIos, setRateIos] = useState('');
   const [instagram, setInstagram] = useState('');
+  // Disponibilité affichée sur la page Assistance (elle était écrite en dur dans l'écran).
+  const [supportHours, setSupportHours] = useState('');
+  const [supportDelay, setSupportDelay] = useState('');
   const [aboutSaved, setAboutSaved] = useState(false);
 
   useEffect(() => {
@@ -49,6 +52,8 @@ export default function AdminAppUpdate() {
     setRateAndroid(flags.about_rate_url_android ?? '');
     setRateIos(flags.about_rate_url_ios ?? '');
     setInstagram(flags.about_instagram_url ?? '');
+    setSupportHours(flags.support_hours ?? '');
+    setSupportDelay(flags.support_response_time ?? '');
   }, [flags]);
 
   const saveUpdateConfig = () => {
@@ -67,6 +72,8 @@ export default function AdminAppUpdate() {
       about_rate_url_android: rateAndroid.trim() || undefined,
       about_rate_url_ios: rateIos.trim() || undefined,
       about_instagram_url: instagram.trim() || undefined,
+      support_hours: supportHours.trim() || undefined,
+      support_response_time: supportDelay.trim() || undefined,
     }, { onSuccess: () => { setAboutSaved(true); setTimeout(() => setAboutSaved(false), 1500); } });
   };
 
@@ -111,7 +118,7 @@ export default function AdminAppUpdate() {
 
               <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={saveUpdateConfig} disabled={save.isPending} activeOpacity={0.85}>
                 {save.isPending
-                  ? <ActivityIndicator color={COLORS.bg} size="small" />
+                  ? <ActivityIndicator color={COLORS.onAccent} size="small" />
                   : <Text style={styles.saveBtnText}>{updateSaved ? 'Enregistré ✓' : 'Enregistrer la version'}</Text>}
               </TouchableOpacity>
               <Text style={styles.updateHint}>
@@ -122,10 +129,12 @@ export default function AdminAppUpdate() {
 
           {!isLoading && (
             <View style={styles.updateCard}>
-              <Text style={styles.cardTitle}>À propos (page Support)</Text>
+              <Text style={styles.cardTitle}>À propos & assistance (page Support)</Text>
               <Text style={styles.cardDesc}>
-                Les deux boutons de la section « À propos » : noter l'app sur le store, et suivre le compte Instagram.
-                Un champ laissé vide masque le bouton correspondant (sauf « Noter » sur Android, qui retombe sur la fiche Play).
+                Les deux boutons de la section « À propos » (noter l'app, Instagram) et la
+                disponibilité affichée sur la page Assistance.
+                Un champ laissé vide masque la ligne correspondante (sauf « Noter » sur Android, qui retombe sur la fiche Play) —
+                mieux vaut ne rien annoncer qu'annoncer un horaire ou un délai qu'on ne tient pas.
               </Text>
 
               <Text style={styles.inputLabel}>Lien « Noter » Android</Text>
@@ -134,12 +143,18 @@ export default function AdminAppUpdate() {
               <Text style={styles.inputLabel}>Lien « Noter » iOS</Text>
               <TextInput style={styles.input} value={rateIos} onChangeText={setRateIos} placeholder="https://apps.apple.com/app/id…?action=write-review" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
 
+              <Text style={styles.inputLabel}>Horaires de l'assistance</Text>
+              <TextInput style={styles.input} value={supportHours} onChangeText={setSupportHours} placeholder="Lundi - vendredi : 9h - 18h" placeholderTextColor={COLORS.textSecondary} />
+
+              <Text style={styles.inputLabel}>Délai de réponse annoncé</Text>
+              <TextInput style={styles.input} value={supportDelay} onChangeText={setSupportDelay} placeholder="Réponse sous 24 h en moyenne" placeholderTextColor={COLORS.textSecondary} />
+
               <Text style={styles.inputLabel}>Lien Instagram</Text>
               <TextInput style={styles.input} value={instagram} onChangeText={setInstagram} placeholder="https://www.instagram.com/…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
 
               <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={saveAboutConfig} disabled={save.isPending} activeOpacity={0.85}>
                 {save.isPending
-                  ? <ActivityIndicator color={COLORS.bg} size="small" />
+                  ? <ActivityIndicator color={COLORS.onAccent} size="small" />
                   : <Text style={styles.saveBtnText}>{aboutSaved ? 'Enregistré ✓' : 'Enregistrer les liens'}</Text>}
               </TouchableOpacity>
               <Text style={styles.updateHint}>
@@ -165,7 +180,7 @@ function makeStyles(c: any) {
     inputLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary, marginTop: 12, marginBottom: 5 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
-    saveBtnText: { color: c.bg, fontWeight: '800', fontSize: 14 },
+    saveBtnText: { color: c.onAccent, fontWeight: '800', fontSize: 14 },
     updateHint: { fontSize: 11, color: c.textSecondary, marginTop: 10, lineHeight: 15, fontStyle: 'italic' },
   });
 }

@@ -505,7 +505,7 @@ function makeStyles(c: any) {
     promptCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     keyTag: { fontSize: 11, fontWeight: '800', color: c.emerald, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
-    saveTxt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
+    saveTxt: { color: c.onAccent, fontWeight: '800', fontSize: 13.5 },
     addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
     miniBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     miniTxt: { color: '#fff', fontWeight: '700', fontSize: 12.5 },
@@ -531,7 +531,7 @@ function makeStyles(c: any) {
     ghostBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8 },
     ghostTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
     primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, marginTop: 12 },
-    primaryTxt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
+    primaryTxt: { color: c.onAccent, fontWeight: '800', fontSize: 13.5 },
     text: { color: c.text, padding: 20 },
   });
 }

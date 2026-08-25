@@ -97,7 +97,7 @@ function makeStyles(c: any) {
       ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
     },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
-    saveLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
     msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
   });
 }

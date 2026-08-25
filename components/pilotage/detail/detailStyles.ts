@@ -76,7 +76,7 @@ export function makeDetailStyles(c: AppColors) {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14,
   },
-  varModeSaveText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  varModeSaveText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
   detailRowLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   detailRowSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },

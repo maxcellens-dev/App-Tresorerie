@@ -241,7 +241,7 @@ function makeStyles(c: any) {
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
     btnDisabled: { opacity: 0.6 },
-    btnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+    btnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     note: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 18 },
   });
 }

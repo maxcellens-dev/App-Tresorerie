@@ -30,17 +30,20 @@ async function listUserFiles(userId: string): Promise<string[]> {
 }
 
 /**
- * Vide le dossier de l'utilisateur (tous fichiers). Best-effort : on combine la liste
- * réelle ET les deux noms canoniques au cas où la liste échouerait (RLS/latence).
+ * Vide le dossier de l'utilisateur. Best-effort : on combine la liste réelle ET les deux noms
+ * canoniques au cas où la liste échouerait (RLS/latence).
+ *
+ * `keepPath` — chemin à ÉPARGNER : sert au remplacement d'avatar, où l'on vient d'écrire le
+ * nouveau fichier et où seuls les restes doivent partir (cf. uploadAvatar).
  */
-async function purgeUserFolder(userId: string): Promise<void> {
+async function purgeUserFolder(userId: string, keepPath?: string): Promise<void> {
   if (!supabase) return;
   const listed = await listUserFiles(userId);
   const paths = Array.from(new Set([
     ...listed,
     getAvatarPath(userId, 'webp'),
     getAvatarPath(userId, 'jpg'),
-  ]));
+  ])).filter((p) => p !== keepPath);
   if (paths.length === 0) return;
   await supabase.storage.from(BUCKET).remove(paths);
 }
@@ -60,15 +63,23 @@ export async function uploadAvatar(
   const ext = mime === 'image/webp' ? 'webp' : 'jpg';
   const path = getAvatarPath(userId, ext);
 
-  // Purge complète du dossier avant le nouvel upload → aucun orphelin.
-  await purgeUserFolder(userId);
-
+  /* ── ON ÉCRIT LA NOUVELLE PHOTO AVANT D'EFFACER L'ANCIENNE ─────────────────────────────────
+     La purge se faisait EN PREMIER. Entre les deux, l'utilisateur n'avait plus de photo du tout :
+     un envoi qui échouait (réseau coupé, fichier refusé) laissait `profiles.avatar_url` pointant
+     vers un fichier supprimé — avatar cassé dans l'en-tête, le menu et le profil, et l'ancienne
+     image définitivement perdue alors qu'on voulait seulement la remplacer.
+     `upsert: true` écrase le fichier de MÊME extension, donc l'ordre inverse ne laisse aucun
+     doublon ; le ménage ci-dessous ne concerne que les restes d'une autre extension ou d'un
+     nommage plus ancien. */
   const body = data instanceof Blob ? data : new Uint8Array(data);
   const { error } = await supabase.storage.from(BUCKET).upload(path, body, {
     contentType: mime,
     upsert: true,
   });
   if (error) throw error;
+
+  // Ménage APRÈS coup : tout ce qui n'est pas le fichier qu'on vient d'écrire.
+  await purgeUserFolder(userId, path);
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const base = urlData.publicUrl;

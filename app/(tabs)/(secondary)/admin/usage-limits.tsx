@@ -126,7 +126,7 @@ function makeStyles(c: any) {
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'right', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 12, marginTop: 18 },
     saveBtnDisabled: { opacity: 0.5 },
-    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: '#fff' },
+    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
     savedTxt: { fontSize: 12.5, color: c.emerald, fontWeight: '600', textAlign: 'center', marginTop: 8 },
     errorTxt: { fontSize: 12.5, color: c.red, fontWeight: '600', textAlign: 'center', marginTop: 8 },
   });

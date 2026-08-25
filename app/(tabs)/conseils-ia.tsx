@@ -823,7 +823,7 @@ function ConseilsIaScreen() {
             </Text>
             <TouchableOpacity style={s.skipRow} activeOpacity={0.7} onPress={() => setConfirmSkip((v) => !v)}>
               <View style={[s.skipBox, confirmSkip && { backgroundColor: c.emerald, borderColor: c.emerald }]}>
-                {confirmSkip && <Ionicons name="checkmark" size={14} color={c.bg} />}
+                {confirmSkip && <Ionicons name="checkmark" size={14} color={c.onAccent} />}
               </View>
               <Text style={s.skipTxt}>Ne plus me demander : envoyer directement les prochaines fois</Text>
             </TouchableOpacity>
@@ -948,7 +948,7 @@ function makeStyles(c: any) {
     packCredits: { fontSize: 15.5, fontWeight: '800', color: c.text },
     packUnit: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
     packPrice: { minWidth: 74, alignItems: 'center', backgroundColor: c.emerald, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14 },
-    packPriceTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
+    packPriceTxt: { fontSize: 14, fontWeight: '800', color: c.onAccent },
     payLegal: { fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 14, lineHeight: 15 },
     payClose: { alignItems: 'center', paddingVertical: 12, marginTop: 6 },
     payCloseTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
@@ -962,7 +962,7 @@ function makeStyles(c: any) {
     analysisTxt: { flex: 1, fontSize: 14.5, fontWeight: '700', color: c.text },
     bubbleUserWrap: { alignItems: 'flex-end' },
     bubbleUser: { maxWidth: '85%', backgroundColor: c.emerald, borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10 },
-    bubbleUserTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    bubbleUserTxt: { color: c.onAccent, fontSize: 14, fontWeight: '600' },
     bubbleAssistant: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, borderBottomLeftRadius: 4, padding: 14 },
     // Rapport en cartes : pas de bulle-conteneur (chaque section EST une carte), juste l'espace.
     reportWrap: { marginRight: 8 },

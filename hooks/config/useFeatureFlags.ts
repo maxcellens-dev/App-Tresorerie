@@ -42,6 +42,17 @@ export interface FeatureFlags {
   /** « Nous suivre sur Instagram ». Vide → la ligne n'apparaît pas. */
   about_instagram_url?: string;
   /**
+   * Disponibilité de l'assistance, affichée sur la page Assistance. Deux textes libres, édités dans
+   * Admin › Mise à jour de l'app.
+   *
+   * Ils étaient écrits EN DUR dans l'écran (« Lundi - Vendredi : 9h00 - 18h00 », « Temps de réponse
+   * moyen : 24h ») : un engagement pris envers chaque utilisateur, qu'il fallait republier l'app
+   * pour corriger — et que rien ne garantissait. Vides, les lignes ne s'affichent pas : ne rien
+   * promettre vaut mieux que promettre à tort.
+   */
+  support_hours?: string;
+  support_response_time?: string;
+  /**
    * Partage de comptes PERSO (inviter un autre user en consultation/écriture sur un compte perso).
    * Ne concerne PAS les comptes joints dédiés (toujours actifs). Global, géré en admin.
    * OFF (Soft) : on masque le bouton « Partager » et le serveur refuse les NOUVELLES invitations sur
@@ -69,7 +80,16 @@ export function useFeatureFlags() {
     queryKey: [KEY],
     queryFn: async (): Promise<FeatureFlags> => {
       if (!supabase) return {};
-      const { data } = await supabase.from('app_config').select('features').eq('id', 'default').single();
+      /* UNE LECTURE RATÉE N'EST PAS « AUCUN DRAPEAU ».
+         L'erreur était ignorée : un incident réseau rendait `{}`, et react-query considérait la
+         requête RÉUSSIE. Conséquences en cascade — l'offre Premium passait pour désactivée (donc
+         `usePlan().isPremium` à faux pour un abonné, et l'écran Apparence considérait la couleur
+         personnalisée comme un droit perdu), plus aucun bandeau de mise à jour, coupure globale
+         réputée inactive. On lève : react-query réessaie, `isSuccess` reste faux, et les écrans qui
+         attendent une réponse (cf. usePlan().isResolved) savent qu'ils ne savent pas.
+         `maybeSingle` : pas de ligne de configuration = cas normal → aucun drapeau, c'est exact. */
+      const { data, error } = await supabase.from('app_config').select('features').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       return (((data as any)?.features) ?? {}) as FeatureFlags;
     },
     // Flags = visibilité de fonctionnalités : on veut une propagation quasi immédiate quand l'admin

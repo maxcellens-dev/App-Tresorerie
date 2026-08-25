@@ -267,7 +267,7 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TextInput style={[s.input, { flex: 1 }]} value={newName} onChangeText={setNewName} placeholder="Ex. Bêta-testeurs" placeholderTextColor={COLORS.textSecondary} maxLength={40} />
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Créer le groupe" style={[s.createBtn, !newName.trim() && { opacity: 0.5 }]} onPress={() => createGroup.mutate()} disabled={!newName.trim() || createGroup.isPending}>
-              {createGroup.isPending ? <ActivityIndicator size="small" color={COLORS.bg} /> : <Ionicons name="add" size={20} color={COLORS.bg} />}
+              {createGroup.isPending ? <ActivityIndicator size="small" color={COLORS.onAccent} /> : <Ionicons name="add" size={20} color={COLORS.onAccent} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -469,7 +469,7 @@ function makeStyles(c: any) {
     tab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', backgroundColor: c.card },
     tabOn: { backgroundColor: c.emerald, borderColor: c.emerald },
     tabTxt: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
-    tabTxtOn: { color: c.bg },
+    tabTxtOn: { color: c.onAccent },
 
     searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
     searchInput: { flex: 1, color: c.text, fontSize: 14, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },

@@ -664,7 +664,7 @@ function ProjectsScreen() {
             </Text>
             <TouchableOpacity style={[styles.infoModalBtn, { backgroundColor: COLORS.primary }]} onPress={() => setShowInfo(false)} activeOpacity={0.85}>
               <Text style={styles.infoModalBtnText}>J'ai compris</Text>
-              <Ionicons name="checkmark" size={18} color={COLORS.bg} />
+              <Ionicons name="checkmark" size={18} color={COLORS.onAccent} />
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -730,7 +730,7 @@ function ProjectsScreen() {
             </Text>
             {!!rwErr &&<Text style={{ color: COLORS.danger, fontSize: 12.5, marginBottom: 10 }}>{rwErr}</Text>}
             <TouchableOpacity style={[styles.rwCreateCta, (!rwName.trim() || rwBusy) && { opacity: 0.5 }]} onPress={onCreateRw} disabled={!rwName.trim() || rwBusy} activeOpacity={0.85}>
-              {rwBusy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.rwCreateCtaText}>Créer le projet</Text>}
+              {rwBusy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.rwCreateCtaText}>Créer le projet</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAwareOverlay>
@@ -997,7 +997,7 @@ function makeStyles(c: any) {
   rwInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 14, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   rwEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
   rwCreateCta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  rwCreateCtaText: { fontSize: 15, fontWeight: '800', color: c.bg },
+  rwCreateCtaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   archiveToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1301,7 +1301,7 @@ function makeStyles(c: any) {
   infoModalTitle: { fontSize: 19, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 10 },
   infoModalText: { fontSize: 14, lineHeight: 21, color: c.textSecondary, textAlign: 'center', marginBottom: 20 },
   infoModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28, width: '100%' },
-  infoModalBtnText: { fontSize: 15, fontWeight: '700', color: c.bg },
+  infoModalBtnText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
   archivedToggle: {
     flexDirection: 'row',
     alignItems: 'center',

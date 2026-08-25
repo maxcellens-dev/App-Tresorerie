@@ -91,7 +91,7 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
       <View style={s.sectionRow}>
         <Text style={s.sectionLabel}>Envois récurrents</Text>
         <TouchableOpacity style={s.addBtn} onPress={() => setDraft({ ...EMPTY })} activeOpacity={0.8}>
-          <Ionicons name="add" size={17} color={COLORS.bg} />
+          <Ionicons name="add" size={17} color={COLORS.onAccent} />
           <Text style={s.addBtnTxt}>Ajouter</Text>
         </TouchableOpacity>
       </View>
@@ -236,7 +236,7 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
               </Text>
             </ScrollView>
             <TouchableOpacity style={[s.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={commit} disabled={save.isPending}>
-              {save.isPending ? <ActivityIndicator color={COLORS.bg} size="small" /> : <Text style={s.saveTxt}>Enregistrer</Text>}
+              {save.isPending ? <ActivityIndicator color={COLORS.onAccent} size="small" /> : <Text style={s.saveTxt}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAwareOverlay>
@@ -250,7 +250,7 @@ function makeStyles(c: any) {
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 26, marginBottom: 8 },
     sectionLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.emerald, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-    addBtnTxt: { color: c.bg, fontWeight: '800', fontSize: 12.5 },
+    addBtnTxt: { color: c.onAccent, fontWeight: '800', fontSize: 12.5 },
     hint: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 8 },
     card: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 8 },
     cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
@@ -277,9 +277,9 @@ function makeStyles(c: any) {
     chipSmall: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipOn: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipTxt: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
-    chipTxtOn: { color: c.bg, fontWeight: '800' },
+    chipTxtOn: { color: c.onAccent, fontWeight: '800' },
     note: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 14 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
-    saveTxt: { fontSize: 15, fontWeight: '800', color: c.bg },
+    saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

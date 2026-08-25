@@ -492,7 +492,7 @@ function TransferScreen() {
             accessibilityRole="button"
           >
             {addTransaction.isPending ? (
-              <ActivityIndicator color={COLORS.bg} />
+              <ActivityIndicator color={COLORS.onAccent} />
             ) : (
               <Text style={styles.submitLabel}>Effectuer le virement</Text>
             )}
@@ -556,7 +556,7 @@ function makeStyles(c: any) {
   stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
   stepDotActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  stepDotText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  stepDotText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
   stepBar: { width: 60, height: 2, backgroundColor: c.cardBorder },
   stepBarActive: { backgroundColor: c.emerald },
   stepTitle: { fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 },
@@ -598,9 +598,9 @@ function makeStyles(c: any) {
   },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, color: c.text },
-  chipTextActive: { color: c.bg, fontWeight: '600' },
+  chipTextActive: { color: c.onAccent, fontWeight: '600' },
   chipSubtext: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
-  chipSubtextActive: { color: c.bg },
+  chipSubtextActive: { color: c.onAccent },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   /* Périodicité : les quatre choix tiennent sur UNE ligne quel que soit l'écran. */
   periodRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
@@ -618,7 +618,7 @@ function makeStyles(c: any) {
   },
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontSize: 15, color: c.textSecondary },
-  recurringLabelActive: { color: c.bg, fontWeight: '600' },
+  recurringLabelActive: { color: c.onAccent, fontWeight: '600' },
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 16 },
   text: { color: c.text, marginBottom: 16 },
   btn: {
@@ -639,7 +639,7 @@ function makeStyles(c: any) {
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, lineHeight: 20, fontWeight: '700', color: c.bg, textAlign: 'center' },
+  submitLabel: { fontSize: 16, lineHeight: 20, fontWeight: '700', color: c.onAccent, textAlign: 'center' },
   calendarBtn: {
     backgroundColor: c.card,
     borderWidth: 1,

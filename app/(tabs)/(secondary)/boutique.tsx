@@ -17,6 +17,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useGamification } from '../../../hooks/engagement/useGamification';
 import { useGamificationConfig } from '../../../hooks/engagement/useGamificationConfig';
+import { useStyleConfig } from '../../../hooks/theme/useStyleConfig';
 import { usePlan } from '../../../hooks/config/usePlan';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
@@ -89,11 +90,29 @@ function BoutiqueScreen() {
      Relyka, qui ne dépendent pas de la monnaie, continuent d'être présentés. */
   const gamificationOff = !!config && config.identity.enabled === false;
 
+  /* NE PAS VENDRE CE QU'ON NE PEUT PAS LIVRER.
+     Le « Pack couleurs » débloque les couleurs d'accent supplémentaires définies dans l'éditeur de
+     style. Si l'administration n'en a défini aucune, l'article restait pourtant en rayon à 200
+     relyks : on payait, et il ne se passait strictement rien — aucune couleur de plus dans
+     Apparence, et l'article devenant « acquis », impossible de recommencer ou de se faire
+     rembourser. Tant qu'il n'y a rien à livrer, l'article n'est pas proposé. */
+  const { data: styleConfig } = useStyleConfig();
+  const accentPackDeliverable = (styleConfig?.extra_presets?.length ?? 0) > 0;
+
   // Articles regroupés par catégorie (dans l'ordre défini). Un article sans catégorie retombe sur
   // « Apparence » — la catégorie « Séries » n'existe plus (gels et rachat de série ont disparu
   // avec la remise à zéro : la flamme ne redescend plus).
+  const accentPackCount = styleConfig?.extra_presets?.length ?? 0;
+  const sellableShop = (config?.shop ?? [])
+    .filter((s) => s.type !== 'accent_pack' || accentPackDeliverable)
+    /* La description du pack annonçait « 7 couleurs » en dur, alors que le nombre réellement livré
+       est celui des couleurs définies dans l'éditeur de style : en ajouter ou en retirer une
+       transformait la fiche produit en promesse fausse. On annonce ce qui sera livré. */
+    .map((s) => (s.type === 'accent_pack'
+      ? { ...s, description: `${accentPackCount} couleur${accentPackCount > 1 ? 's' : ''} d'accent supplémentaire${accentPackCount > 1 ? 's' : ''} pour personnaliser ton espace.` }
+      : s));
   const shopByCategory = SHOP_CATEGORY_ORDER
-    .map((cat) => ({ cat, items: (config?.shop ?? []).filter((s) => (s.category ?? 'apparence') === cat) }))
+    .map((cat) => ({ cat, items: sellableShop.filter((s) => (s.category ?? 'apparence') === cat) }))
     .filter((g) => g.items.length > 0);
   const visibleGroups = catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter);
 
@@ -557,7 +576,7 @@ function makeStyles(c: any) {
     gemPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     gemText: { fontSize: 14, fontWeight: '800', color: c.text },
     adminGemBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-    adminGemBtnText: { fontSize: 13, fontWeight: '800', color: '#fff' },
+    adminGemBtnText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
     tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
@@ -614,6 +633,6 @@ function makeStyles(c: any) {
     modalCancel: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13 },
     modalCancelText: { fontSize: 14, fontWeight: '700', color: c.text },
     modalConfirm: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13 },
-    modalConfirmText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+    modalConfirmText: { fontSize: 14, fontWeight: '800', color: c.onAccent },
   });
 }

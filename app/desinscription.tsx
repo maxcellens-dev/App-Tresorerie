@@ -82,6 +82,6 @@ function makeStyles(c: any) {
     title: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
     text: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 21 },
     btn: { marginTop: 8, backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 22 },
-    btnText: { fontSize: 15, fontWeight: '800', color: c.bg },
+    btnText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

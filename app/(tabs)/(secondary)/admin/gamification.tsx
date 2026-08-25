@@ -298,7 +298,7 @@ function makeStyles(c: any) {
     catChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     catChipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     catChipText: { fontSize: 12, color: c.text, fontWeight: '600' },
-    catChipTextActive: { color: c.bg },
+    catChipTextActive: { color: c.onAccent },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 80 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12, gap: 4 },
@@ -322,7 +322,7 @@ function makeStyles(c: any) {
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10 },
     addBtnText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-    saveLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
     msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
   });
 }

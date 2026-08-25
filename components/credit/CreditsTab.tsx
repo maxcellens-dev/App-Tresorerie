@@ -393,7 +393,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
       )}
 
       <TouchableOpacity style={styles.addBtn} onPress={() => setShowType(true)} accessibilityRole="button">
-        <Ionicons name="add" size={18} color={COLORS.bg} />
+        <Ionicons name="add" size={18} color={COLORS.onAccent} />
         <Text style={styles.addBtnLabel}>Ajouter un crédit</Text>
       </TouchableOpacity>
 
@@ -479,7 +479,7 @@ function makeStyles(c: any) {
     emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text },
     emptyText: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 12, marginTop: 14 },
-    addBtnLabel: { color: c.bg, fontWeight: '800', fontSize: 14 },
+    addBtnLabel: { color: c.onAccent, fontWeight: '800', fontSize: 14 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
     card: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 12 },
     cardTitle: { fontSize: 18, fontWeight: '800', color: c.text },

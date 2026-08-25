@@ -274,7 +274,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
               </ScrollView>
               {createError && <Text style={styles.createErrorText}>{createError}</Text>}
               <TouchableOpacity style={[styles.createSubmit, creating && { opacity: 0.6 }]} onPress={handleCreate} disabled={creating} activeOpacity={0.8}>
-                {creating ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.createSubmitText}>Ajouter</Text>}
+                {creating ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.createSubmitText}>Ajouter</Text>}
               </TouchableOpacity>
             </Pressable>
           </KeyboardAwareOverlay>
@@ -322,7 +322,7 @@ function makeStyles(c: any) {
   iconCell: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' },
   createErrorText: { fontSize: 12, color: c.danger, marginTop: 6 },
   createSubmit: { marginTop: 14, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-  createSubmitText: { fontSize: 15, fontWeight: '800', color: c.bg },
+  createSubmitText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   searchInput: {
     flex: 1, fontSize: 15, color: c.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),

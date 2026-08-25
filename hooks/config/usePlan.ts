@@ -71,6 +71,15 @@ export function usePlan(userId: string | undefined) {
     premiumEnabled,
     isPremium,
     /**
+     * Le DROIT Premium du compte, indépendamment de l'activation globale de l'offre.
+     *
+     * À utiliser dès qu'on RETIRE quelque chose à l'utilisateur (remettre une couleur d'accent par
+     * défaut, par exemple) : `isPremium` tombe aussi quand l'administrateur désactive l'offre pour
+     * tout le monde, et on effacerait alors le réglage d'abonnés parfaitement à jour. Pour
+     * simplement masquer une fonctionnalité, `isPremium` reste le bon test.
+     */
+    hasEntitlement,
+    /**
      * Le plan est-il CONNU, ou seulement supposé ?
      *
      * Tant que les drapeaux et le profil ne sont pas revenus, `isPremium` vaut `false` — la valeur

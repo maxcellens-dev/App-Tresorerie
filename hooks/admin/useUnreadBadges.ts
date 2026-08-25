@@ -18,7 +18,11 @@ export function useUserUnreadCount(profileId: string | undefined) {
         .select('id', { count: 'exact', head: true })
         .eq('profile_id', profileId)
         .eq('user_unread', true);
-      if (error) return 0;
+      /* L'erreur rendait `0` : la pastille disparaissait au moindre incident réseau, et react-query
+         mettait ce « zéro » en cache comme un succès. Quelqu'un qui attend une réponse de
+         l'assistance ne voyait donc plus qu'elle est arrivée. On lève : la requête est retentée, et
+         la dernière valeur connue reste affichée entre-temps. */
+      if (error) throw error;
       return count ?? 0;
     },
     enabled: !!profileId,
@@ -27,59 +31,60 @@ export function useUserUnreadCount(profileId: string | undefined) {
   return data ?? 0;
 }
 
-/** Cumul admin : demandes d'assistance non lues + idées non lues + tickets IA ouverts.
- *  Respecte les préférences PAR ADMIN (admin_notification_prefs.in_app) : un type désactivé
- *  n'alimente plus le badge de CET admin. Sans ligne de préférence → in-app activé (défaut). */
-export function useAdminUnreadCount(isAdmin: boolean, profileId?: string) {
-  const { data } = useQuery({
-    queryKey: ['unread_badges', 'admin', profileId],
-    queryFn: async (): Promise<number> => {
-      if (!supabase) return 0;
-      // Préférences in-app de CET admin (défaut : tout activé).
-      const wants: Record<string, boolean> = { support: true, suggestion: true, ai_ticket: true, crash: true };
-      if (profileId) {
-        const { data: prefs } = await supabase
-          .from('admin_notification_prefs').select('kind, in_app').eq('profile_id', profileId);
-        for (const p of (prefs ?? []) as any[]) wants[p.kind] = !!p.in_app;
-      }
-      const [reqs, ideas, aiTickets, crashes] = await Promise.all([
-        wants.support ? supabase.from('support_requests').select('id', { count: 'exact', head: true }).eq('admin_unread', true) : Promise.resolve({ count: 0 } as any),
-        wants.suggestion ? supabase.from('suggestions').select('id', { count: 'exact', head: true }).eq('admin_unread', true) : Promise.resolve({ count: 0 } as any),
-        wants.ai_ticket ? supabase.from('ai_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open') : Promise.resolve({ count: 0 } as any),
-        wants.crash ? supabase.from('client_errors').select('id', { count: 'exact', head: true }).eq('resolved', false) : Promise.resolve({ count: 0 } as any),
-      ]);
-      return (reqs.count ?? 0) + (ideas.count ?? 0) + (aiTickets.count ?? 0) + (crashes.count ?? 0);
-    },
-    enabled: isAdmin,
-    refetchInterval: 30000,
-  });
-  return data ?? 0;
+export interface AdminUnreadBreakdown { support: number; suggestion: number; ai_ticket: number; crash: number }
+const EMPTY_BREAKDOWN: AdminUnreadBreakdown = { support: 0, suggestion: 0, ai_ticket: 0, crash: 0 };
+
+/**
+ * Détail des non-lus d'un administrateur, par type.
+ *
+ * ⚠️ UNE SEULE ÉCRITURE de cette règle. Le cumul de l'en-tête et le détail des boutons de la page
+ * Admin en avaient chacun leur copie, mot pour mot : quatre comptages, les mêmes préférences, les
+ * mêmes valeurs par défaut. Deux copies d'une règle métier finissent toujours par diverger — un
+ * type ajouté d'un côté, un badge qui compte autre chose que ce que la page affiche.
+ *
+ * Respecte les préférences PAR ADMIN (`admin_notification_prefs.in_app`) : un type désactivé
+ * n'alimente plus le badge de CET administrateur. Sans ligne de préférence → activé (défaut).
+ */
+async function fetchAdminUnread(profileId?: string): Promise<AdminUnreadBreakdown> {
+  if (!supabase) return EMPTY_BREAKDOWN;
+  const wants: Record<string, boolean> = { support: true, suggestion: true, ai_ticket: true, crash: true };
+  if (profileId) {
+    const { data: prefs, error } = await supabase
+      .from('admin_notification_prefs').select('kind, in_app').eq('profile_id', profileId);
+    if (error) throw error;
+    for (const p of (prefs ?? []) as any[]) wants[p.kind] = !!p.in_app;
+  }
+  const head = (table: string, col: string, val: any) =>
+    supabase!.from(table).select('id', { count: 'exact', head: true }).eq(col, val);
+  const [reqs, ideas, aiTickets, crashes] = await Promise.all([
+    wants.support ? head('support_requests', 'admin_unread', true) : Promise.resolve({ count: 0 } as any),
+    wants.suggestion ? head('suggestions', 'admin_unread', true) : Promise.resolve({ count: 0 } as any),
+    wants.ai_ticket ? head('ai_tickets', 'status', 'open') : Promise.resolve({ count: 0 } as any),
+    wants.crash ? head('client_errors', 'resolved', false) : Promise.resolve({ count: 0 } as any),
+  ]);
+  return {
+    support: reqs.count ?? 0,
+    suggestion: ideas.count ?? 0,
+    ai_ticket: aiTickets.count ?? 0,
+    crash: crashes.count ?? 0,
+  };
 }
 
-/** Détail des non-lus admin PAR TYPE → badge sur chaque bouton de la page Admin (assistance / idées /
- *  conseils IA). Respecte les préférences in-app de l'admin (comme le cumul de l'en-tête). */
-export function useAdminUnreadBreakdown(isAdmin: boolean, profileId?: string) {
+/** Cumul admin affiché dans l'en-tête (somme du détail ci-dessous — jamais recalculé autrement). */
+export function useAdminUnreadCount(isAdmin: boolean, profileId?: string) {
+  const b = useAdminUnreadBreakdown(isAdmin, profileId);
+  return b.support + b.suggestion + b.ai_ticket + b.crash;
+}
+
+/** Détail par type → badge sur chaque bouton de la page Admin (assistance / idées / conseils IA). */
+export function useAdminUnreadBreakdown(isAdmin: boolean, profileId?: string): AdminUnreadBreakdown {
   const { data } = useQuery({
     queryKey: ['unread_badges', 'admin_breakdown', profileId],
     enabled: isAdmin && !!supabase,
     refetchInterval: 30000,
-    queryFn: async (): Promise<{ support: number; suggestion: number; ai_ticket: number; crash: number }> => {
-      if (!supabase) return { support: 0, suggestion: 0, ai_ticket: 0, crash: 0 };
-      const wants: Record<string, boolean> = { support: true, suggestion: true, ai_ticket: true, crash: true };
-      if (profileId) {
-        const { data: prefs } = await supabase.from('admin_notification_prefs').select('kind, in_app').eq('profile_id', profileId);
-        for (const p of (prefs ?? []) as any[]) wants[p.kind] = !!p.in_app;
-      }
-      const [reqs, ideas, aiTickets, crashes] = await Promise.all([
-        wants.support ? supabase.from('support_requests').select('id', { count: 'exact', head: true }).eq('admin_unread', true) : Promise.resolve({ count: 0 } as any),
-        wants.suggestion ? supabase.from('suggestions').select('id', { count: 'exact', head: true }).eq('admin_unread', true) : Promise.resolve({ count: 0 } as any),
-        wants.ai_ticket ? supabase.from('ai_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open') : Promise.resolve({ count: 0 } as any),
-        wants.crash ? supabase.from('client_errors').select('id', { count: 'exact', head: true }).eq('resolved', false) : Promise.resolve({ count: 0 } as any),
-      ]);
-      return { support: reqs.count ?? 0, suggestion: ideas.count ?? 0, ai_ticket: aiTickets.count ?? 0, crash: crashes.count ?? 0 };
-    },
+    queryFn: () => fetchAdminUnread(profileId),
   });
-  return data ?? { support: 0, suggestion: 0, ai_ticket: 0, crash: 0 };
+  return data ?? EMPTY_BREAKDOWN;
 }
 
 export type AdminNotifKind = 'support' | 'suggestion' | 'ai_ticket' | 'crash';

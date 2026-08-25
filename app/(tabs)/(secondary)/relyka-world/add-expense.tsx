@@ -546,7 +546,7 @@ export default function AddRwExpense() {
             )}
 
             <TouchableOpacity style={[styles.cta, !canSave && { opacity: 0.5 }]} onPress={onSave} disabled={!canSave} activeOpacity={0.85}>
-              {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.ctaText}>{editing ? 'Enregistrer' : 'Sauvegarder'}</Text>}
+              {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.ctaText}>{editing ? 'Enregistrer' : 'Sauvegarder'}</Text>}
             </TouchableOpacity>
             {editing && (
               <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.8}>
@@ -595,7 +595,7 @@ function makeStyles(c: any) {
     chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
     chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    chipTextActive: { color: c.bg },
+    chipTextActive: { color: c.onAccent },
 
     // En-tête de section : le libellé à gauche, la bascule de mode à droite.
     sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, marginBottom: 8 },
@@ -620,7 +620,7 @@ function makeStyles(c: any) {
     tallyBtnText: { fontSize: 12, fontWeight: '800', color: c.emerald },
 
     cta: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
-    ctaText: { fontSize: 15, fontWeight: '800', color: c.bg },
+    ctaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
     deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 10, borderRadius: 12, backgroundColor: c.danger + '14' },
     deleteBtnText: { fontSize: 14, fontWeight: '700', color: c.danger },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },

@@ -536,7 +536,7 @@ export default function AdminNotifications() {
             <Text style={styles.fieldLabel}>Cible</Text>
             {renderTargetChips(sendTarget, setSendTarget)}
             <TouchableOpacity style={[styles.sendBtn, !canSend && { opacity: 0.5 }]} onPress={confirmSend} disabled={!canSend} activeOpacity={0.85}>
-              {sendMutation.isPending ? <ActivityIndicator size="small" color={COLORS.bg} /> : <Ionicons name="paper-plane-outline" size={16} color={COLORS.bg} />}
+              {sendMutation.isPending ? <ActivityIndicator size="small" color={COLORS.onAccent} /> : <Ionicons name="paper-plane-outline" size={16} color={COLORS.onAccent} />}
               <Text style={styles.sendBtnText}>Envoyer ({targetLabelOf(sendTarget, groups)})</Text>
             </TouchableOpacity>
             {msg && <Text style={[styles.msg, { color: msg.startsWith('Échec') ? COLORS.danger : COLORS.emerald }]}>{msg}</Text>}
@@ -546,7 +546,7 @@ export default function AdminNotifications() {
           <View style={styles.sectionRow}>
             <Text style={styles.sectionLabel}>Notifications planifiées</Text>
             <TouchableOpacity style={styles.addBtn} onPress={openNew} activeOpacity={0.8}>
-              <Ionicons name="add" size={18} color={COLORS.bg} />
+              <Ionicons name="add" size={18} color={COLORS.onAccent} />
               <Text style={styles.addBtnText}>Ajouter</Text>
             </TouchableOpacity>
           </View>
@@ -695,7 +695,7 @@ export default function AdminNotifications() {
               <TextInput style={styles.input} value={form.timeOfDay} onChangeText={(v) => setForm((f) => ({ ...f, timeOfDay: v.replace(/[^0-9:]/g, '') }))} placeholder="09:00" placeholderTextColor={COLORS.textSecondary} maxLength={5} />
 
               <TouchableOpacity style={[styles.sendBtn, saveSchedule.isPending && { opacity: 0.5 }]} onPress={() => saveSchedule.mutate()} disabled={saveSchedule.isPending} activeOpacity={0.85}>
-                {saveSchedule.isPending ? <ActivityIndicator size="small" color={COLORS.bg} /> : <Ionicons name="checkmark" size={16} color={COLORS.bg} />}
+                {saveSchedule.isPending ? <ActivityIndicator size="small" color={COLORS.onAccent} /> : <Ionicons name="checkmark" size={16} color={COLORS.onAccent} />}
                 <Text style={styles.sendBtnText}>{form.id ? 'Enregistrer' : 'Créer la planification'}</Text>
               </TouchableOpacity>
               <Text style={styles.note}>
@@ -721,7 +721,7 @@ function makeStyles(c: any) {
     tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 9 },
     tabActive: { backgroundColor: c.emerald },
     tabText: { fontSize: 13.5, fontWeight: '700', color: c.textSecondary },
-    tabTextActive: { color: c.bg },
+    tabTextActive: { color: c.onAccent },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 8 },
     /* Notifications automatiques (système) */
     sysIntro: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
@@ -732,7 +732,7 @@ function makeStyles(c: any) {
     crashDesc: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
     crashInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: c.text, marginBottom: 6 },
     crashSave: { backgroundColor: c.emerald, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 2 },
-    crashSaveTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    crashSaveTxt: { color: c.onAccent, fontSize: 13, fontWeight: '700' },
     sysHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sysTitle: { fontSize: 14, fontWeight: '800', color: c.text, flex: 1, marginRight: 10 },
     sysId: { fontSize: 11, fontFamily: 'monospace', color: c.emerald, marginTop: 2 },
@@ -752,9 +752,9 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 13, marginTop: 14,
     },
-    sendBtnText: { fontSize: 15, fontWeight: '700', color: c.bg },
+    sendBtnText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12 },
-    addBtnText: { fontSize: 13, fontWeight: '700', color: c.bg },
+    addBtnText: { fontSize: 13, fontWeight: '700', color: c.onAccent },
     diagBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     diagBtnText: { fontSize: 13, fontWeight: '700', color: c.text },
     clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12, borderWidth: 1, borderColor: c.danger + '44', backgroundColor: c.danger + '12' },
@@ -784,6 +784,6 @@ function makeStyles(c: any) {
     chipSm: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
     chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    chipTextActive: { color: c.bg },
+    chipTextActive: { color: c.onAccent },
   });
 }

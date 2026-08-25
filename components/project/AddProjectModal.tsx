@@ -1414,7 +1414,7 @@ function makeStyles(c: any) {
   stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background, borderWidth: 1, borderColor: c.border },
   stepDotActive: { backgroundColor: c.primary, borderColor: c.primary },
   stepDotText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
-  stepDotTextActive: { color: '#fff' },
+  stepDotTextActive: { color: c.onAccent },
   stepLine: { width: 28, height: 2, backgroundColor: c.border, marginHorizontal: 4 },
   stepLineActive: { backgroundColor: c.primary },
   stepTitle: { fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center', marginBottom: 14 },

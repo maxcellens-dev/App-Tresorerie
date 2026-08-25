@@ -77,7 +77,13 @@ l'inscription échoue quand même.
 
 - ⬜ `npx tsc --noEmit` et `npx jest` au vert.
 - ⬜ **Migrations SQL appliquées AVANT de publier l'OTA/le binaire** : du code qui appelle une RPC
-  absente casse en production. Dernières en date : `176`, `177`.
+  absente casse en production. Dernières en date :
+  - **`212` (intégrité de l'assistance)** — elle crée `create_support_request`, que l'écran
+    Assistance appelle désormais pour créer une demande. Publier l'OTA d'abord rendrait l'envoi de
+    demande impossible pour tout le monde. **Ordre impératif.**
+  - **`213` (suppression de compte)** — deux clés étrangères vers `auth.users` sans règle de
+    suppression empêchaient les comptes administrateurs de se supprimer. Indépendante de l'OTA :
+    elle peut être jouée avant ou après, mais la suppression reste cassée tant qu'elle ne l'est pas.
 - ⬜ `runtimeVersion` : ne le bumper **que** si le natif change (cf. note `versioning-and-ota`) — sinon
   l'OTA n'atteint plus les installations existantes.
 - ⬜ AAB vérifié 16 Ko : `node scripts/check-16kb.js`.

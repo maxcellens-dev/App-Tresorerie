@@ -30,6 +30,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { safeInternalRoute } from '../../../lib/ui/navHistory';
 import { useAccounts } from '../../../hooks/data/useAccounts';
 import { useAddTransaction, useTransactions } from '../../../hooks/data/useTransactions';
 import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
@@ -55,7 +56,10 @@ export default function BalanceUpdateScreen() {
      poussé depuis un AUTRE onglet (bouton « + » du Pilotage, des Transactions…), donc la pile
      « comptes » ne contient que lui — il n'y a rien à dépiler. On revient sur la route réellement
      précédente (navHistory), avec l'origine transmise par l'appelant en repli. */
-  const goBack = useNavBack(params.origin || '/(tabs)/pilotage');
+  /* La destination vient de l'URL, donc de n'importe qui sur le web : on n'accepte qu'un chemin
+     interne (cf. safeInternalRoute), sinon « Retour » pourrait faire sortir de l'application. */
+  const backTo = safeInternalRoute(params.origin) ?? '/(tabs)/pilotage';
+  const goBack = useNavBack(backTo);
 
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: transactions = [] } = useTransactions(user?.id);
@@ -152,7 +156,7 @@ export default function BalanceUpdateScreen() {
       recalibrate.mutate();
       // Le profil, lui, suit tout seul : l'observateur global voit les soldes bouger
       // (components/LiveProfileSync).
-      router.replace((params.origin || '/(tabs)/pilotage') as any);
+      router.replace(backTo as any);
     } catch (e: unknown) {
       Alert.alert('Un souci', e instanceof Error ? e.message : "Impossible d'enregistrer.");
     } finally {
@@ -290,12 +294,12 @@ export default function BalanceUpdateScreen() {
             activeOpacity={0.85}
           >
             {saving
-              ? <ActivityIndicator color={COLORS.bg} />
+              ? <ActivityIndicator color={COLORS.onAccent} />
               : <>
                   <Text style={styles.ctaLabel}>
                     Valider {gaps.length > 1 ? `${gaps.length} comptes` : ''}
                   </Text>
-                  <Ionicons name="checkmark" size={18} color={COLORS.bg} />
+                  <Ionicons name="checkmark" size={18} color={COLORS.onAccent} />
                 </>}
           </TouchableOpacity>
           <Text style={styles.foot}>
@@ -396,7 +400,7 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
       backgroundColor: c.emerald, borderRadius: 16, paddingVertical: 16,
     },
-    ctaLabel: { fontSize: 16, fontWeight: '800', color: c.bg },
+    ctaLabel: { fontSize: 16, fontWeight: '800', color: c.onAccent },
     foot: { fontSize: 12, color: c.textSecondary, textAlign: 'center' },
   });
 }

@@ -805,7 +805,7 @@ function AccountDetailScreen() {
                   <Text style={styles.apportCur}>{CURRENCY_SYMBOL}</Text>
                   {apportBaseDirty && (
                     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider l'apport" style={styles.apportSave} onPress={saveApportBase}>
-                      <Ionicons name="checkmark" size={16} color={COLORS.bg} />
+                      <Ionicons name="checkmark" size={16} color={COLORS.onAccent} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1613,7 +1613,7 @@ function makeStyles(c: any) {
   },
   tabBtnActive: { backgroundColor: c.emerald },
   tabLabel: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
-  tabLabelActive: { color: c.bg },
+  tabLabelActive: { color: c.onAccent },
 
   balanceCard: {
     backgroundColor: c.card,

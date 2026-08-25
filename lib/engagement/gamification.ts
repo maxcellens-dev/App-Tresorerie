@@ -97,8 +97,11 @@ export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
   gems: 'diamond-outline',
 };
 
-/** Les 7 couleurs d'accent premium débloquées par l'achat « accent_pack » (ou Premium). */
-export const ACCENT_PACK_COLORS = ['#FF2D55', '#FF6B6B', '#FFCC00', '#06D6A0', '#00C7BE', '#5856D6', '#C77DFF'];
+/* ⚠️ `ACCENT_PACK_COLORS` (7 teintes en dur) a été RETIRÉ : rien ne s'en servait, et il laissait
+   croire que le « Pack couleurs » livrait ces couleurs-là. En réalité l'achat débloque les couleurs
+   définies dans l'éditeur de style (`app_config.theme.style.extra_presets`) — c'est cette liste,
+   et elle seule, qui décide de ce que l'utilisateur reçoit. La boutique s'y réfère pour annoncer le
+   nombre exact et pour ne pas mettre l'article en rayon quand il n'y a rien à livrer. */
 
 // ── Cosmétiques équipables ──────────────────────────────────────────────────
 // Chaque cosmétique acheté (type 'cosmetic', stocké en inventaire) occupe UN emplacement.
@@ -183,6 +186,32 @@ export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
 };
 
 export type EquippedCosmetics = Partial<Record<CosmeticSlot, string>>;
+
+/**
+ * Ne garde que les cosmétiques équipés qui sont RÉELLEMENT possédés.
+ *
+ * `equipped_cosmetics` vit sur le profil, l'inventaire dans sa propre table : les deux peuvent
+ * diverger (article retiré du catalogue, ligne d'inventaire nettoyée). L'effet restait alors
+ * appliqué partout — cadre autour de l'avatar, titre sous le pseudo — sans que l'article
+ * n'apparaisse dans Apparence : impossible de l'enlever, et rien n'expliquait sa présence.
+ *
+ * ⚠️ `inventoryKnown` : à `false` (inventaire en cours de lecture, ou illisible), on ne filtre RIEN.
+ * Une liste vide ne veut pas dire « ne possède rien » — filtrer sur cette base ferait disparaître
+ * tous les cosmétiques de tout le monde à chaque démarrage.
+ */
+export function keepOwnedCosmetics(
+  equipped: EquippedCosmetics,
+  ownedKeys: string[],
+  inventoryKnown: boolean,
+): EquippedCosmetics {
+  if (!inventoryKnown) return equipped;
+  const owned = new Set(ownedKeys);
+  const out: EquippedCosmetics = {};
+  for (const [slot, key] of Object.entries(equipped)) {
+    if (key && owned.has(key)) out[slot as CosmeticSlot] = key;
+  }
+  return out;
+}
 
 export interface ShopItem {
   key: string;

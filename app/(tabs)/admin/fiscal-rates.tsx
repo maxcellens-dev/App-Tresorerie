@@ -132,6 +132,6 @@ function makeStyles(c: any) {
       paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, minHeight: 64,
     },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-    saveBtnText: { color: c.bg, fontWeight: '700', fontSize: 14 },
+    saveBtnText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
   });
 }

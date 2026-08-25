@@ -69,7 +69,7 @@ export default function OnboardingHintBanner() {
             {next ? (
               <TouchableOpacity style={styles.nextBtn} onPress={openChecklist} activeOpacity={0.85}>
                 <Text style={styles.nextBtnText}>Suivant</Text>
-                <Ionicons name="arrow-forward" size={14} color={COLORS.bg} />
+                <Ionicons name="arrow-forward" size={14} color={COLORS.onAccent} />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
@@ -87,7 +87,7 @@ export default function OnboardingHintBanner() {
     <View style={styles.wrap} pointerEvents="box-none">
       <View style={styles.card} {...pan.panHandlers}>
         <View style={[styles.iconCircle, { backgroundColor: COLORS.emerald }]}>
-          <Ionicons name="bulb" size={16} color={COLORS.bg} />
+          <Ionicons name="bulb" size={16} color={COLORS.onAccent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.step}>Étape {idx + 1}/{ob.total}</Text>
@@ -123,7 +123,7 @@ function makeStyles(c: any) {
     title: { fontSize: 13, fontWeight: '800', color: c.text },
     hint: { fontSize: 12, color: c.textSecondary, marginTop: 1, lineHeight: 16 },
     nextBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-    nextBtnText: { fontSize: 12, fontWeight: '800', color: c.bg },
+    nextBtnText: { fontSize: 12, fontWeight: '800', color: c.onAccent },
     close: { padding: 4 },
   });
 }

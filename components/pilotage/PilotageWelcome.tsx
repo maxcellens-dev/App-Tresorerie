@@ -16,6 +16,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useInvertedColors } from '../../hooks/theme/useInvertedColors';
+import { readableOn } from '../../theme/palette';
 
 /** L'étape en cours, telle que le parcours la voit (cf. contexts/GuideContext). */
 export type WelcomeStep = 'accounts' | 'checking' | 'savings' | 'recurring';
@@ -76,6 +77,10 @@ export default function PilotageWelcome({ step, compact, firstName, onPress }: P
   const copy = STEP_COPY[step];
   const isAccounts = step !== 'recurring';
   const accent = isAccounts ? COLORS.emerald : COLORS.orange;
+  /* Le fond du bouton change selon l'étape (accent ou orange) : la couleur du libellé ne peut donc
+     pas être `onAccent`, qui n'est calculée que pour l'accent. On la déduit du fond réellement
+     posé — sans quoi le texte devient illisible dès que la teinte est claire (thème clair). */
+  const onAccent = readableOn(accent);
   const hello = firstName ? `Bienvenue ${firstName},` : 'Bienvenue,';
   // Index du jalon en cours : tout ce qui précède est acquis.
   const currentMilestone = Math.max(0, MILESTONES.findIndex((m) => m.steps.includes(step)));
@@ -132,8 +137,8 @@ export default function PilotageWelcome({ step, compact, firstName, onPress }: P
       </View>
 
       <TouchableOpacity style={[styles.cta, { backgroundColor: accent }]} onPress={onPress} activeOpacity={0.85} accessibilityRole="button">
-        <Ionicons name="add" size={20} color={COLORS.bg} />
-        <Text style={styles.ctaLabel}>{copy.cta}</Text>
+        <Ionicons name="add" size={20} color={onAccent} />
+        <Text style={[styles.ctaLabel, { color: onAccent }]}>{copy.cta}</Text>
       </TouchableOpacity>
     </View>
   );
