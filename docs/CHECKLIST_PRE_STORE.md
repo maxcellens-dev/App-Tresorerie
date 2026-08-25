@@ -72,6 +72,9 @@ l'inscription échoue quand même.
 
 ## 6. Avant chaque publication
 
+> **⚠️ D'ABORD : `npm run check:session`** (`ota` ou `build` en argument). Rien ne part avant qu'il
+> soit au vert — c'est ce qui empêche de déconnecter tout le monde. Voir la section 7.
+
 - ⬜ `npx tsc --noEmit` et `npx jest` au vert.
 - ⬜ **Migrations SQL appliquées AVANT de publier l'OTA/le binaire** : du code qui appelle une RPC
   absente casse en production. Dernières en date : `176`, `177`.
@@ -79,3 +82,48 @@ l'inscription échoue quand même.
   l'OTA n'atteint plus les installations existantes.
 - ⬜ AAB vérifié 16 Ko : `node scripts/check-16kb.js`.
 - ⬜ Coupure globale (kill switch) testée sur le build final : c'est le dernier recours en cas d'incident.
+
+---
+
+## 7. Ne PAS déconnecter les utilisateurs (à chaque OTA, à chaque build)
+
+Une mise à jour qui oblige les gens à se reconnecter est un incident : leurs données sont derrière
+l'authentification, et rien à l'écran n'explique ce qui s'est passé. Ça ne se voit **jamais** en
+développement (l'app y est réinstallée sans arrêt) — seulement en production, après coup.
+
+**La commande, avant chaque publication, sans exception :**
+
+```bash
+npm run check:session ota     # avant eas update   (ou directement : npm run ota)
+npm run check:session build   # avant eas build    (déjà enchaîné par npm run build:android/ios)
+```
+
+Ce qu'elle refuse de laisser passer, et pourquoi c'est fatal :
+
+| Contrôle | Effet si ça passe |
+|---|---|
+| URL du projet Supabase modifiée | La clé de session est dérivée de l'URL (`sb-<ref>-auth-token`) → **100 % des sessions perdues** |
+| `storageKey` posé à la main | Même effet, en une ligne |
+| `persistSession` / `autoRefreshToken` désactivés | Reconnexion à chaque ouverture / au bout d'une heure |
+| Stockage natif qui ne lit plus les formats hérités (`.__i`, `.__n`, AsyncStorage) | Les installations existantes ne retrouvent plus leur session |
+| Écriture qui efface avant de réécrire | Une interruption (app tuée, OTA appliquée au lancement) laisse un jeu de morceaux illisible |
+| `AsyncStorage.clear()` égaré | Emporte la session avec le reste |
+| Rechargement OTA piloté depuis le JS | Ferme l'app en plein démarrage, éventuellement pendant l'écriture de la session |
+| `runtimeVersion` bumpée + publication OTA | L'OTA **n'atteint personne** (il ne sert que les runtimes identiques) |
+
+Si un changement est **volontaire** (nouveau projet Supabase, nouveau runtime), on l'enregistre
+sciemment : `node scripts/check-session-safety.js --accept` — et on prévient les utilisateurs.
+
+**Ce qui garantit le reste, côté code** (à ne pas défaire) :
+
+- `lib/platform/secureStorage.ts` — l'écriture passe par une **nouvelle génération** de morceaux et
+  ne bascule l'index qu'à la fin (écriture unique = atomique). Il n'existe aucun instant où la
+  session n'est pas lisible. Repli sur AsyncStorage si le coffre natif est absent (OTA vers une
+  ancienne build) ou en panne. Couvert par `__tests__/sessionStorage.test.ts`.
+- `lib/auth/sessionWatchdog.ts` — si une session disparaît alors qu'il y en avait une au lancement
+  précédent, l'incident est remonté au Centre de sécurité avec les versions **d'avant et d'après**
+  (donc : OTA ou nouvelle build ?) et l'état du coffre. **Après chaque publication, regarder le
+  Centre de sécurité** : « Session perdue au démarrage » = régression à traiter tout de suite.
+- `contexts/AuthContext.tsx` — une session « nulle » non sollicitée n'est jamais crue sur parole :
+  on redemande un rafraîchissement au serveur, et on ne déconnecte que s'il refuse (hors-ligne : on
+  garde la session).

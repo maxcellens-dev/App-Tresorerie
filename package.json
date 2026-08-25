@@ -10,8 +10,10 @@
     "web": "npx expo start --web",
     "fix-packages": "npx expo install --fix",
     "version:bump": "node scripts/bump-version.js",
-    "build:android": "node scripts/bump-version.js && eas build --profile production --platform android",
-    "build:ios": "node scripts/bump-version.js && eas build --profile production --platform ios",
+    "check:session": "node scripts/check-session-safety.js",
+    "ota": "node scripts/check-session-safety.js ota && eas update --branch production",
+    "build:android": "node scripts/check-session-safety.js build && node scripts/bump-version.js && eas build --profile production --platform android",
+    "build:ios": "node scripts/check-session-safety.js build && node scripts/bump-version.js && eas build --profile production --platform ios",
     "test": "jest",
     "audit": "npm audit --omit=dev"
   },

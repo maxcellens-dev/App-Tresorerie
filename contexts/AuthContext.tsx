@@ -12,6 +12,7 @@ import { supabase } from '../lib/platform/supabase';
 import { clearCachedUserTheme } from '../lib/platform/themeBoot';
 import { parseAuthLink } from '../lib/auth/authDeepLink';
 import { isUnreachableServerError } from '../lib/auth/authErrors';
+import { clearSessionMark, markSessionAlive, reportSessionLossIfUnexpected } from '../lib/auth/sessionWatchdog';
 
 type AuthState = {
   user: User | null;
@@ -66,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOutInFlight = useRef(false);
 
   const updateState = useCallback((session: Session | null) => {
+    // Marqueur local « une session existait » — c'est lui qui permet de CONSTATER une déconnexion
+    // subie au prochain démarrage (cf. lib/auth/sessionWatchdog). Aucun jeton n'y est écrit.
+    if (session?.user?.id) markSessionAlive(session.user.id);
     setState({
       user: session?.user ?? null,
       session: session ?? null,
@@ -126,10 +130,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Session initiale (persistée)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      updateState(session);
-    });
+    /* Session initiale (persistée).
+       ⚠️ Le `catch` n'est pas décoratif : si la lecture du stockage lève (coffre Keychain/Keystore
+       inaccessible), la promesse est rejetée, `loading` resterait à `true` POUR TOUJOURS et l'app
+       ne dépasserait jamais le splash. On retombe alors sur « pas de session » — l'app reste
+       utilisable — et le veilleur ci-dessous remonte l'incident. */
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        updateState(session);
+        // Aucune session au démarrage alors qu'il y en avait une au lancement précédent = perte
+        // subie (mise à jour, coffre en panne, écriture interrompue). On la remonte, sinon elle
+        // reste invisible : l'app affiche l'accueil et rien ne distingue ça d'un simple visiteur.
+        if (!session) void reportSessionLossIfUnexpected();
+      })
+      .catch(() => {
+        setState({ user: null, session: null, loading: false });
+        void reportSessionLossIfUnexpected();
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       // Diagnostic (dev) : permet de voir quel événement survient au retour en avant-plan
@@ -176,6 +193,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSigningOut(true);
     setSignOutSettled(false);
     explicitSignOut.current = true; // autorise le vidage de session sur le SIGNED_OUT qui suit
+    // Déconnexion VOULUE ou EXPLIQUÉE : au prochain démarrage, l'absence de session est normale.
+    clearSessionMark();
     setImpersonatedUserId(null);
     setImpersonatedEmail(null);
     /* PIÈGE À RÉINITIALISATION — ce drapeau devait tomber ici aussi.
