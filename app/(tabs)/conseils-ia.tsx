@@ -379,7 +379,7 @@ function ConseilsIaScreen() {
     if (roGuard.blocked()) return;
     Alert.alert('Supprimer la conversation', `« ${conv.title} » sera définitivement supprimée.`, [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: () => delConv.mutate(conv.id) },
+      { text: 'Supprimer', style: 'destructive', onPress: () => delConv.mutate(conv.id, { onError: (e: unknown) => Alert.alert('Un souci', e instanceof Error ? e.message : "La conversation n'a pas pu être supprimée.") }) },
     ]);
   };
 
@@ -397,7 +397,8 @@ function ConseilsIaScreen() {
       confirmText: 'Renommer',
     });
     const clean = (t ?? '').trim().slice(0, 80);
-    if (clean && clean !== conv.title) renameConv.mutate({ id: conv.id, title: clean });
+    // Échec muet : le nom revenait à l'ancien au rafraîchissement suivant, sans explication.
+    if (clean && clean !== conv.title) renameConv.mutate({ id: conv.id, title: clean }, { onError: (e: unknown) => Alert.alert('Un souci', e instanceof Error ? e.message : "Le nom n'a pas pu être modifié.") });
   };
 
   // Supprime la conversation courante (bouton corbeille de l'en-tête).

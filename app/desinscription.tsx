@@ -49,7 +49,7 @@ export default function UnsubscribeScreen() {
                 (mot de passe, changement d’adresse) continueront d’arriver — ils te servent à
                 garder la main sur ton compte.
               </Text>
-              <Text style={s.text}>Tu peux revenir sur ce choix à tout moment dans Paramètres → E-mails.</Text>
+              <Text style={s.text}>Tu peux revenir sur ce choix à tout moment dans Paramètres → Notifications → « E-mails d’information ».</Text>
             </>
           )}
           {state === 'error' && (
@@ -58,7 +58,7 @@ export default function UnsubscribeScreen() {
               <Text style={s.title}>Lien invalide</Text>
               <Text style={s.text}>
                 Ce lien de désinscription n’est plus valable. Tu peux couper les e-mails depuis
-                l’application : Paramètres → E-mails.
+                l’application : Paramètres → Notifications → « E-mails d’information ».
               </Text>
             </>
           )}

@@ -111,10 +111,16 @@ export default function RelykaWorldDetail() {
        ses totaux. Aucune dépense n'est réécrite — chacune garde la devise dans laquelle elle a été
        réellement payée, et c'est l'affichage qui convertit. D'où l'édition permise à tout moment,
        même sur un projet déjà bien avancé. */
-    await updateProject.mutateAsync({
-      name: editName.trim(), description: editDesc.trim(), emoji: editEmoji, currency: editCurrency,
-    });
-    setShowEdit(false);
+    /* Sans garde, un échec d'écriture remontait en rejet non traité : la modale restait ouverte,
+       le bouton redevenait actif, et rien ne disait pourquoi le nom n'avait pas changé. */
+    try {
+      await updateProject.mutateAsync({
+        name: editName.trim(), description: editDesc.trim(), emoji: editEmoji, currency: editCurrency,
+      });
+      setShowEdit(false);
+    } catch (e: any) {
+      Alert.alert('Un souci', e?.message ?? "Le projet n'a pas pu être modifié. Vérifie ta connexion, puis réessaie.");
+    }
   };
 
   const nameOf = (pid: string) => participants.find((p) => p.id === pid)?.display_name ?? '?';
@@ -312,8 +318,12 @@ export default function RelykaWorldDetail() {
   };
   const onAddFreeName = async () => {
     if (!freeName.trim()) return;
-    await addParticipant.mutateAsync(freeName.trim());
-    setFreeName('');
+    try {
+      await addParticipant.mutateAsync(freeName.trim());
+      setFreeName('');
+    } catch (e: any) {
+      Alert.alert('Un souci', e?.message ?? "Ce participant n'a pas pu être ajouté.");
+    }
   };
 
   // ── Édition d'un participant NON INSCRIT (renommer + inviter par ID pour qu'il prenne sa place) ──
@@ -354,18 +364,18 @@ export default function RelykaWorldDetail() {
       : 'Le projet et ses dépenses seront supprimés pour tous les participants (aucune dépense n\'a encore impacté de compte).';
     Alert.alert('Supprimer le projet', msg, [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteProject.mutateAsync(projectId!); goBack(); } },
+      { text: 'Supprimer', style: 'destructive', onPress: async () => { try { await deleteProject.mutateAsync(projectId!); goBack(); } catch (e: any) { Alert.alert('Un souci', e?.message ?? "Le projet n'a pas pu être supprimé."); } } },
     ]);
   };
 
   const onToggleArchive = () => {
     if (isArchived) {
-      setArchived.mutate({ projectId: projectId!, archived: false });
+      setArchived.mutate({ projectId: projectId!, archived: false }, { onError: (e: any) => Alert.alert('Un souci', e?.message ?? "Le projet n'a pas pu être désarchivé.") });
       return;
     }
     Alert.alert('Archiver le projet', 'Le projet sera masqué de la liste active mais conservé tel quel (dépenses, transactions et historique intacts). Tu pourras le désarchiver à tout moment.', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Archiver', onPress: async () => { await setArchived.mutateAsync({ projectId: projectId!, archived: true }); goBack(); } },
+      { text: 'Archiver', onPress: async () => { try { await setArchived.mutateAsync({ projectId: projectId!, archived: true }); goBack(); } catch (e: any) { Alert.alert('Un souci', e?.message ?? "Le projet n'a pas pu être archivé."); } } },
     ]);
   };
 
@@ -618,7 +628,7 @@ export default function RelykaWorldDetail() {
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityLabel={`Annuler l'invitation de ${p.display_name}`}
-                      onPress={() => cancelInvitation.mutate(p.id)}
+                      onPress={() => cancelInvitation.mutate(p.id, { onError: (e: any) => Alert.alert('Un souci', e?.message ?? "L'invitation n'a pas pu être annulée.") })}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Ionicons name="close-circle-outline" size={19} color={COLORS.orange} />

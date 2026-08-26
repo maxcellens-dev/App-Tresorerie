@@ -1,7 +1,12 @@
 import { useMemo } from 'react';
 /**
- * Support — assistance, idées, confidentialité, mentions légales, revoir le guide.
+ * Support — assistance, idées, confidentialité, mentions légales, liens externes administrés.
  * Déplacé depuis Paramètres.
+ *
+ * ⚠️ Ce commentaire annonçait aussi « revoir le guide ». Cette entrée n'existe nulle part dans
+ * l'application : le parcours de démarrage ne se rejoue pas (les drapeaux `g2_*` ne sont jamais
+ * remis à zéro côté utilisateur). On ne promet donc plus une ligne qui n'est pas là — si la
+ * relance du parcours redevient un besoin, c'est ici qu'elle a sa place.
  */
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';

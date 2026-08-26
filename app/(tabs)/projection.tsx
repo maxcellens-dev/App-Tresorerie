@@ -554,13 +554,23 @@ function ProjectionBody() {
   // Sauvegarde des hypothèses (debounced) — inclut l'épargne « perso » (§P5).
   // Le payload le plus récent est tenu dans un ref → il peut être FLUSHÉ à la sortie de l'écran
   // (sinon quitter la Projection < 500 ms après une saisie annulait le timer → dernière saisie perdue).
+  /* Sauvegarde AUTOMATIQUE et silencieuse : quand elle échoue, les hypothèses réglées à la main
+     restent à l'écran comme si elles étaient enregistrées, puis disparaissent à la visite suivante.
+     Un bandeau discret suffit : on n'interrompt pas quelqu'un toutes les 500 ms avec une boîte de
+     dialogue, mais on ne le laisse pas croire que c'est rangé. */
+  const [assumptionsSaveFailed, setAssumptionsSaveFailed] = useState(false);
+  const saveOpts = React.useMemo(() => ({
+    onSuccess: () => setAssumptionsSaveFailed(false),
+    onError: () => setAssumptionsSaveFailed(true),
+  }), []);
+
   const latestPayloadRef = React.useRef<any>(null);
   latestPayloadRef.current = { hypos, years, savingsMonthlyPerso, savingsInitial, savingsSource: pickedSource };
   useEffect(() => {
     if (!loaded) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveAssumptions.mutate(latestPayloadRef.current);
+      saveAssumptions.mutate(latestPayloadRef.current, saveOpts);
       saveTimerRef.current = null;
     }, 500);
     // Pas de clearTimeout ici : un changement de deps re-planifie déjà le timer (ligne ci-dessus).
@@ -665,6 +675,16 @@ function ProjectionBody() {
       <OnboardingHintBanner />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
         <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {assumptionsSaveFailed && (
+            <View style={styles.saveWarnRow}>
+              <Ionicons name="cloud-offline-outline" size={15} color={COLORS.orange} />
+              <Text style={styles.saveWarnText}>
+                Tes hypothèses ne sont pas enregistrées (connexion). Elles restent affichées ici,
+                mais seront perdues en quittant la page.
+              </Text>
+            </View>
+          )}
 
           {/* Onglets */}
           <View style={styles.tabs} ref={tabsRef}>
@@ -1609,6 +1629,8 @@ function makeStyles(c: any) {
     pageTitle: { fontSize: 26, fontWeight: '800', color: c.text, marginBottom: 4 },
     pageSub: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 16 },
 
+    saveWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14', borderRadius: 12, padding: 11, marginBottom: 14 },
+    saveWarnText: { flex: 1, fontSize: 12, color: c.orange, lineHeight: 17 },
     tabs: { flexDirection: 'row', gap: 6, marginBottom: 18 },
     tab: {
       flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,

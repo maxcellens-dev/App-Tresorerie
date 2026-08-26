@@ -17,8 +17,12 @@ import CurrencyPicker from '../../../components/account/CurrencyPicker';
 import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 
+/** Le nom du compte s'affiche chez les AUTRES membres d'un compte partagé : il lui faut une borne. */
+const ACCOUNT_NAME_MAX = 40;
 
 const TYPES = [
   { value: 'checking', label: 'Courant' },
@@ -37,6 +41,12 @@ export default function AddAccountScreen() {
   const addAccount = useAddAccount(user?.id);
   const { guard } = useUsageGuard(user?.id);
   const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
+  /* Verrou SYNCHRONE. `addAccount.isPending` ne devient vrai qu'une fois la mutation LANCÉE — or
+     `guard('account')` fait un aller-retour réseau AVANT : pendant tout ce temps le bouton reste
+     actif, et deux appuis créaient DEUX comptes identiques (avec deux soldes initiaux). */
+  const submitLock = useSubmitLock();
+  /* Consultation admin : ce compte serait créé sur le profil visité (la politique d'accès l'autorise). */
+  const roGuard = useReadOnlyGuard();
 
   const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
@@ -110,8 +120,12 @@ export default function AddAccountScreen() {
       return;
     }
 
+    if (roGuard.blocked()) return;
+    // Verrou posé AVANT le premier `await` : c'est la seule position qui ferme la fenêtre.
+    if (!submitLock.acquire()) return;
+
     // Limite d'usage (comptes) — message amont ; le serveur reste le vrai garde-fou.
-    if (!(await guard('account'))) return;
+    if (!(await guard('account'))) { submitLock.release(); return; }
 
     try {
       const created = await addAccount.mutateAsync({
@@ -134,8 +148,11 @@ export default function AddAccountScreen() {
       } else {
         router.back();
       }
+      /* Succès : on NE relâche PAS le verrou — l'écran se ferme, et le relâcher rouvrirait la porte
+         pendant l'animation de sortie (même règle que l'écran Crédit). */
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : "Impossible d'enregistrer.", []);
+      submitLock.release(); // réessai possible après un échec
     }
   }
 
@@ -179,6 +196,7 @@ export default function AddAccountScreen() {
             value={name}
             onChangeText={(v) => { setName(v); clearFieldError('name'); }}
             onFocus={handleFocus}
+            maxLength={ACCOUNT_NAME_MAX}
             placeholder="Ex. Compte courant"
             placeholderTextColor={COLORS.textSecondary}
           />

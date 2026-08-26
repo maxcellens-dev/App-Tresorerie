@@ -46,6 +46,8 @@ import CalendarWithPicker from '../transaction/CalendarWithPicker';
 import CategoryPicker, { useSubCategoriesGrouped } from '../transaction/CategoryPicker';
 import KeyboardAwareScrollView from '../layout/KeyboardAwareScrollView';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useProjects, useAddProject, useUpdateProject, useDeleteProjectDissociating, useCheckProjectTransactions } from '../../hooks/data/useProjects';
 import { useUsageGuard } from '../../hooks/config/useUsageLimits';
 import { useAccounts } from '../../hooks/data/useAccounts';
@@ -194,6 +196,12 @@ export default function AddProjectModal() {
   const addProjectMutation = useAddProject(user?.id || '');
   const { guard } = useUsageGuard(user?.id);
   const updateProjectMutation = useUpdateProject(user?.id || '');
+  /* Verrou SYNCHRONE. `isPending` ne devient vrai qu'une fois la mutation lancée — or `guard()`
+     fait un aller-retour réseau AVANT : le bouton restait actif pendant ce temps, et deux appuis
+     créaient DEUX projets identiques (avec leurs deux échéanciers). */
+  const submitLock = useSubmitLock();
+  /* Consultation admin : ce projet serait créé/modifié/supprimé sur le compte visité. */
+  const roGuard = useReadOnlyGuard();
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts(user?.id || '');
   const { data: categories = [] } = useCategories(user?.id);
   const expenseGroups = useSubCategoriesGrouped(categories, 'expense');
@@ -548,8 +556,12 @@ export default function AddProjectModal() {
       router.back();
     };
 
+    if (roGuard.blocked()) return;
+    // Verrou posé AVANT le premier `await` : c'est la seule position qui ferme la fenêtre.
+    if (!submitLock.acquire()) return;
+
     // Limite d'usage (projets) — création uniquement ; le serveur reste le vrai garde-fou.
-    if (!editingProject && !(await guard('project'))) return;
+    if (!editingProject && !(await guard('project'))) { submitLock.release(); return; }
 
     const common = {
       name: form.name,
@@ -570,6 +582,18 @@ export default function AddProjectModal() {
       ponctuel_entries: ponctuelList,
     };
 
+    /* ── UN ÉCHEC D'ÉCRITURE DOIT SE VOIR ──────────────────────────────────────────────────────
+       Ces deux mutations n'avaient QUE `onSuccess` : quand l'enregistrement échouait (réseau,
+       refus du serveur, limite d'usage), le rouage s'arrêtait et il ne se passait rien du tout —
+       l'écran restait sur le formulaire, sans message. On ne pouvait pas savoir si le projet
+       existait, et un second essai créait un doublon quand la première écriture était en fait
+       passée. Le bandeau d'erreur du formulaire existait déjà : on s'en sert.
+       `failOn` ramène aussi sur l'onglet du projet, là où le bouton se retrouve. */
+    const onWriteError = (e: unknown) => {
+      submitLock.release(); // réessai possible
+      failOn(2, e instanceof Error ? e.message : "Le projet n'a pas pu être enregistré. Vérifie ta connexion, puis réessaie.");
+    };
+
     if (editingProject) {
       updateProjectMutation.mutate(
         {
@@ -577,7 +601,7 @@ export default function AddProjectModal() {
           ...common,
           target_date: form.allocation_type === 'date' ? form.target_date : null,
         },
-        { onSuccess: resetForm }
+        { onSuccess: resetForm, onError: onWriteError }
       );
     } else {
       addProjectMutation.mutate(
@@ -588,7 +612,7 @@ export default function AddProjectModal() {
           linked_account_id: (common.linked_account_id ?? undefined) || undefined,
           target_date: form.allocation_type === 'date' ? form.target_date : undefined,
         },
-        { onSuccess: resetForm }
+        { onSuccess: resetForm, onError: onWriteError }
       );
     }
   };
@@ -603,7 +627,7 @@ export default function AddProjectModal() {
   };
 
   const runDeleteDissociating = () => {
-    if (!editingProject) return;
+    if (!editingProject || roGuard.blocked()) return;
     setDeleteConfirmState(null);
     deleteDissociatingMutation.mutate(editingProject.id, {
       onSuccess: () => { handleClose(); },

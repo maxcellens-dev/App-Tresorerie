@@ -74,6 +74,12 @@ function AccountsListScreen() {
       ],
     );
   };
+  /* Répondre à une invitation était MUET en cas d'échec : la carte restait à l'écran, sans un mot.
+     On retouchait « Accepter », toujours rien — impossible de savoir si l'invitation était expirée,
+     déjà traitée ailleurs, ou si c'était le réseau. */
+  const onInviteError = (e: unknown) =>
+    Alert.alert('Un souci', e instanceof Error ? e.message : "L'invitation n'a pas pu être traitée. Réessaie dans un instant.");
+
   // Choix du type de compte à la création (comme les projets) : personnel ou partagé/joint.
   const [showCreateType, setShowCreateType] = useState(false);
   // #6 — onglets de la page : « Comptes » (actuel) / « Crédits » (module crédit).
@@ -434,7 +440,7 @@ function AccountsListScreen() {
                   </View>
                   <TouchableOpacity
                     style={styles.inviteDecline}
-                    onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: false })}
+                    onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: false }, { onError: onInviteError })}
                     disabled={respondInvite.isPending || isImpersonating}
                     accessibilityRole="button"
                     accessibilityLabel={`Refuser l'invitation de ${inv.from_name}`}
@@ -443,7 +449,7 @@ function AccountsListScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.inviteAccept}
-                    onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: true })}
+                    onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: true }, { onError: onInviteError })}
                     disabled={respondInvite.isPending || isImpersonating}
                     accessibilityRole="button"
                     accessibilityLabel={`Accepter l'invitation de ${inv.from_name}`}

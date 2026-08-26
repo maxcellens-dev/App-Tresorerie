@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import type { Account, Transaction, TransactionWithDetails, RecurrenceRule } from '../../types/database';
 import { appChoice, appPrompt } from '../../lib/ui/appDialog';
-import { convertAmount } from '../../lib/finance/currency';
+import { convertAmount, currencySymbolFor } from '../../lib/finance/currency';
 import { formatDateFrench } from '../../lib/dateUtils';
 import { buildProjectTransactions, projectMode } from '../../lib/finance/projectTx';
 import { isRegul } from '../../lib/finance/regul';
@@ -60,8 +60,8 @@ function balanceContribution(opts: { amount: number; date: string; is_draft?: bo
 async function regulOnSameDay(
   accountId: string,
   date: string,
-  cachedTxs?: Array<{ account_id: string; date: string; category_id?: string | null; note?: string | null; account?: { name?: string } | null }> | null,
-): Promise<{ accountName: string; balance: number | null } | null> {
+  cachedTxs?: Array<{ account_id: string; date: string; category_id?: string | null; regul_target?: number | null; note?: string | null; account?: { name?: string; currency?: string | null } | null }> | null,
+): Promise<{ accountName: string; balance: number | null; currency: string } | null> {
   if (!supabase) return null;
   // CACHE-FIRST : si la liste des transactions est déjà en cache (cas normal — l'écran de saisie
   // la charge), on décide localement, sans aller-retour réseau. Une régul créée à l'instant sur un
@@ -69,28 +69,45 @@ async function regulOnSameDay(
   // réconciliation, le recalcul du solde reste déterministe).
   // Le solde ACTUEL est nécessaire pour montrer les deux résultats possibles dans le dialogue :
   // c'est cette comparaison qui permet de trancher sans refaire le calcul de tête.
-  const balanceOf = async (): Promise<number | null> => {
-    const { data: acc, error: accErr } = await supabase!.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+  const accountOf = async (): Promise<{ name: string; balance: number | null; currency: string } | null> => {
+    const { data: acc, error: accErr } = await supabase!.from('accounts').select('name, balance, currency').eq('id', accountId).maybeSingle();
     if (accErr) throw accErr;
-    return acc ? { name: (acc as any).name, balance: Number((acc as any).balance) }.balance : null;
+    if (!acc) return null;
+    return { name: (acc as any).name ?? 'ce compte', balance: Number((acc as any).balance), currency: (acc as any).currency || 'EUR' };
   };
+
+  /* ⚠️ CE FILTRE NE RECONNAISSAIT PLUS AUCUNE RÉGULARISATION.
+     Il exigeait `category_id == null` — la façon dont on repérait une régul AVANT la migration 175.
+     Depuis, toute régul créée par l'app est RANGÉE dans une catégorie (« Régularisation Solde »,
+     cf. lib/finance/regul) et porte le marqueur `regul_target`. La condition était donc toujours
+     fausse, et la question « Déjà comptée dans ce solde ? » ne se posait plus jamais : quelqu'un
+     qui mettait son solde à jour le 15, puis saisissait une dépense oubliée datée du 15, la voyait
+     retranchée UNE SECONDE FOIS du solde qu'il venait pourtant de confirmer.
+     On réutilise la définition UNIQUE de l'app (`isRegul`, lib/finance/regul) plutôt que d'en
+     recopier une variante ici : c'est cette recopie qui avait divergé. */
   if (Array.isArray(cachedTxs)) {
-    const hit = cachedTxs.find((t) =>
-      t.account_id === accountId && t.date === date && t.category_id == null &&
-      (/gul/i.test(t.note ?? '') || t.note === 'Ajustement de solde'));
+    const hit = cachedTxs.find((t) => t.account_id === accountId && t.date === date && isRegul(t));
     if (!hit) return null;
-    return { accountName: hit.account?.name ?? 'ce compte', balance: await balanceOf() };
+    const acc = await accountOf();
+    return {
+      accountName: hit.account?.name ?? acc?.name ?? 'ce compte',
+      balance: acc?.balance ?? null,
+      currency: hit.account?.currency || acc?.currency || 'EUR',
+    };
   }
-  const { data } = await supabase.from('transactions').select('id')
-    .eq('account_id', accountId).eq('date', date).is('category_id', null)
-    .or('note.ilike.%gul%,note.eq.Ajustement de solde')
+  const { data, error } = await supabase.from('transactions').select('id')
+    .eq('account_id', accountId).eq('date', date)
+    .or('regul_target.not.is.null,note.ilike.%gul%,note.eq.Ajustement de solde')
     .limit(1).maybeSingle();
+  // Une lecture EN ÉCHEC n'est pas « aucune régul ce jour-là » : on lève plutôt que de laisser
+  // passer une opération qui aurait dû poser la question (l'appelant décide quoi en faire).
+  if (error) throw error;
   if (!data) return null;
-  const { data: acc, error: accErr } = await supabase.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
-  if (accErr) throw accErr;
+  const acc = await accountOf();
   return {
-    accountName: (acc as any)?.name ?? 'ce compte',
-    balance: acc ? Number((acc as any).balance) : null,
+    accountName: acc?.name ?? 'ce compte',
+    balance: acc?.balance ?? null,
+    currency: acc?.currency ?? 'EUR',
   };
 }
 
@@ -557,7 +574,9 @@ export function useAddTransaction(profileId: string | undefined) {
                déjà dedans) ; « Nouvelle opération » l'applique. Une carte par option, validée d'un
                seul tap — au lieu de deux boutons qui obligent à refaire le calcul de tête. */
             const bal = conflict.balance;
-            const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' €';
+            // Devise du COMPTE concerné (le solde y est libellé), et non un € codé en dur : ce dialogue
+            // sert à comparer deux soldes, un mauvais symbole y rend la comparaison trompeuse.
+            const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + currencySymbolFor(conflict.currency);
             const dateLbl = formatDateFrench(input.date);
             const choice = await appChoice({
               title: 'Déjà comptée dans ce solde ?',
@@ -1357,7 +1376,9 @@ export function useAskRegulCoverage(profileId: string | undefined) {
     if (!conflict) return undefined;
 
     const bal = conflict.balance;
-    const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' €';
+    // Devise du COMPTE concerné (le solde y est libellé), et non un € codé en dur : ce dialogue
+            // sert à comparer deux soldes, un mauvais symbole y rend la comparaison trompeuse.
+            const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + currencySymbolFor(conflict.currency);
     const dateLbl = formatDateFrench(date);
     const choice = await appChoice({
       title: 'Déjà comptée dans ce solde ?',

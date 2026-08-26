@@ -198,7 +198,7 @@ function TreasuryPlanBody() {
   const [simplified, setSimplified] = useState(false);
   React.useEffect(() => { if (tresoProfile) setSimplified(Boolean((tresoProfile as any).treso_simplified)); }, [tresoProfile]);
   const toggleSimplified = () => {
-    if (readOnly.blocked()) return; const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }); };
+    if (readOnly.blocked()) return; const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }, { onError: () => { setSimplified(!v); Alert.alert('Un souci', "Ce réglage n'a pas pu être enregistré. Vérifie ta connexion, puis réessaie."); } }); };
 
   // ── Guide "bulles" ──
   const navRowRef = React.useRef<any>(null);
@@ -287,7 +287,8 @@ function TreasuryPlanBody() {
     if (!user?.id || !categoriesQuery.isSuccess || categories.length > 0 || hasSeededRef.current) return;
     if (readOnly.readOnly) return;
     hasSeededRef.current = true;
-    seedDefaultCategories.mutate();
+    // Échec → on autorise une nouvelle tentative (le verrou partagé du hook se libère aussi).
+    seedDefaultCategories.mutate(undefined, { onError: () => { hasSeededRef.current = false; } });
   }, [user?.id, categoriesQuery.isSuccess, categories.length, readOnly.readOnly]);
 
   // Solde réel des comptes courants = point de départ du solde cumulatif

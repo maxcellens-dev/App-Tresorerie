@@ -21,6 +21,19 @@ describe('isRegul — identification unifiée', () => {
     expect(isRegul(null)).toBe(false);
     expect(isRegul({})).toBe(false);
   });
+
+  /* ── LA FORME MODERNE : CATÉGORISÉE ET MARQUÉE ─────────────────────────────────────────────
+     Depuis la migration 175, une régularisation est RANGÉE dans une catégorie (« Frais variables ›
+     Régularisation Solde » ou « Autres recettes › … ») et porte `regul_target`. Plusieurs endroits
+     du code la cherchaient encore à l'ancienne — « une transaction SANS catégorie » — et ne la
+     trouvaient donc plus jamais. C'est ce qui avait désarmé la question « Déjà comptée dans ce
+     solde ? » posée à la saisie (hooks/useTransactions → regulOnSameDay). Ce test fige la règle :
+     une catégorie présente n'enlève RIEN au fait que c'est une régul. */
+  it('reconnaît une régul CATÉGORISÉE (forme depuis la migration 175)', () => {
+    expect(isRegul({ regul_target: 1840, category_id: 'cat-42', category: { name: 'Régularisation Solde' } })).toBe(true);
+    // Et même si un jour le libellé de catégorie change : le marqueur suffit.
+    expect(isRegul({ regul_target: -12.5, category_id: 'cat-7', category: { name: 'Frais variables' }, note: null })).toBe(true);
+  });
 });
 
 // ── Ancre de solde initial ≠ écart constaté ───────────────────────────────────────────────────

@@ -942,12 +942,23 @@ function PilotageScreen() {
         onSave={async () => {
           if (blockedByImpersonation()) { setShowVariableModal(false); return; }
           const weekly = parseFloat(weeklyVariableInput.replace(',', '.')) || 0;
+          /* ── UNE ÉTAPE DU GUIDE NE SE FRANCHIT QUE SI SA VALEUR EST PARTIE ────────────────────
+             L'échec ne partait qu'en console : la modale se fermait, ET l'étape 3 était marquée
+             franchie. Le parcours passait donc à l'étape 4, se terminait, et le Relyka se calculait
+             SANS aucune estimation de dépenses variables — précisément le montant que cette modale
+             présente comme obligatoire (« Cette somme sera déduite de ton Relyka »). Et comme le
+             drapeau, lui, pouvait très bien s'enregistrer une seconde plus tard, la question ne
+             revenait jamais. La modale voisine (marge de sécurité) signalait déjà ses échecs :
+             les deux se comportent maintenant pareil. */
           try {
             /* La copie dénormalisée q9 est synchronisée PAR LE HOOK (useUpdateProfile).
                Elle était recopiée ici, si bien que le même réglage fait depuis « Profil financier »
                ne la mettait pas à jour. Un seul endroit, les deux écrans alignés. */
             await updateProfileVar.mutateAsync({ weekly_variable_budget: weekly > 0 ? weekly : null });
-          } catch (e) { console.warn('[pilotage] maj budget variable échouée:', e); }
+          } catch (e) {
+            reportWriteError('Ton budget variable')(e);
+            return; // la modale RESTE ouverte, la saisie est conservée, l'étape n'est pas franchie
+          }
           setShowVariableModal(false);
           if (requireVariable && weekly > 0) userGuide.done('g2_variable');
         }}
@@ -987,9 +998,16 @@ function PilotageScreen() {
              (useUpdateProfile.onMutate écrit la nouvelle marge dans le cache avant le réseau) et
              son succès invalide déjà `pilotage_data`. On attendait ici, en plus, un rechargement
              COMPLET du tableau de bord dont on ne lisait même pas le résultat. */
-          updateProfileVar.mutate({ safety_margin_amount: val }, { onError: reportWriteError('Ta marge de sécurité') });
+          /* L'étape ne se franchit qu'à l'écriture RÉUSSIE : marquée au tap, elle terminait le
+             parcours alors que la marge n'était pas enregistrée — et le garde-fou des
+             recommandations travaillait ensuite sur une marge que personne n'avait choisie.
+             La modale se ferme quand même tout de suite (mise à jour optimiste) : en cas d'échec,
+             le message le dit et l'étape 4 se représentera. */
+          updateProfileVar.mutate({ safety_margin_amount: val }, {
+            onSuccess: () => { if (requireMargin) userGuide.done('g2_margin'); },
+            onError: reportWriteError('Ta marge de sécurité'),
+          });
           setShowMarginModal(false);
-          if (requireMargin) userGuide.done('g2_margin');
         }}
         colors={COLORS}
       />

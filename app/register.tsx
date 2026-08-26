@@ -274,6 +274,18 @@ export default function RegisterScreen() {
                   ℹ️ Tu recevras un e-mail pour confirmer ton adresse. C'est elle qui te permettra de
                   réinitialiser ton mot de passe si tu l'oublies.
                 </Text>
+                {/* ── LE MOMENT DU CONSENTEMENT ──────────────────────────────────────────────────
+                    C'est ICI qu'on demande de créer un compte et de confier des données bancaires,
+                    et c'est le seul écran de tout le parcours d'entrée où ces deux textes avaient
+                    leur place — ils n'étaient atteignables QUE depuis le pied de page de la version
+                    bureau du site. Sur un téléphone, on s'inscrivait sans avoir jamais pu ouvrir la
+                    politique de confidentialité. */}
+                <Text style={styles.legalNote}>
+                  En créant un compte, tu acceptes nos{' '}
+                  <Text style={styles.legalLink} onPress={() => router.push('/legal' as any)}>mentions légales</Text>
+                  {' '}et notre{' '}
+                  <Text style={styles.legalLink} onPress={() => router.push('/confidentialite' as any)}>politique de confidentialité</Text>.
+                </Text>
               </>
             )}
             <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')} accessibilityRole="button">
@@ -323,6 +335,8 @@ function makeStyles(c: any) {
   btnDisabled: { opacity: 0.6 },
   btnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
   emailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
+  legalNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 17, marginTop: 14, textAlign: 'center' },
+  legalLink: { color: c.accentText ?? c.emerald, fontWeight: '700', textDecorationLine: 'underline' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 22 },
   dividerLine: { flex: 1, height: 1, backgroundColor: c.cardBorder },
   dividerText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },

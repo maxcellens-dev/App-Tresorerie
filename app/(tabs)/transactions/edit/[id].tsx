@@ -25,6 +25,7 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
 import { useKeyboardAwareScroll } from '../../../../hooks/platform/useKeyboardAwareScroll';
+import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
 import { notePlaceholder } from '../../../../lib/finance/txPlaceholders';
 import { appAlert } from '../../../../lib/ui/appDialog';
 import PageLoader from '../../../../components/layout/PageLoader';
@@ -60,6 +61,9 @@ function EditTransactionScreen() {
   const [errorFields, setErrorFields] = useState<string[]>([]);
   const [showRecDelete, setShowRecDelete] = useState(false);
   const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
+  /* Consultation admin : modifier ou supprimer écrirait sur le compte visité (la politique
+     d'accès l'autorise pour un administrateur). On regarde, on n'écrit pas. */
+  const roGuard = useReadOnlyGuard();
 
   function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
     setConfirmModal(opts);
@@ -238,6 +242,7 @@ function EditTransactionScreen() {
 
   async function handleSubmitWithDraft(isDraft = false) {
     if (!id || !tx) return;
+    if (roGuard.blocked()) return;
     setFormError(null);
     setErrorFields([]);
 
@@ -461,6 +466,7 @@ function EditTransactionScreen() {
    */
   async function applyWithScope(scope: EditScope) {
     if (!id || !tx) return;
+    if (roGuard.blocked()) return;
     setScopeAsk(null);
     const num = parseFloat(amount.replace(',', '.'));
     const finalAmount = isExpense ? (isRefund ? Math.abs(num) : -Math.abs(num)) : Math.abs(num);
@@ -543,6 +549,7 @@ function EditTransactionScreen() {
   }
 
   function handleDelete() {
+    if (roGuard.blocked()) return;
     if (!id) return;
     if (closureLockDate && tx && tx.date <= closureLockDate) {
       showConfirm({ title: 'Période clôturée', message: 'Cette transaction appartient à un mois clôturé et ne peut plus être supprimée.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });

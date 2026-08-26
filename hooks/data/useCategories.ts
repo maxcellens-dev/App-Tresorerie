@@ -34,11 +34,45 @@ export function useCategories(profileId: string | undefined) {
   return query;
 }
 
+/**
+ * Comptes dont l'amorçage a déjà été LANCÉ pendant cette session.
+ *
+ * ⚠️ TROIS endroits différents sèment le jeu de catégories par défaut quand un compte n'en a
+ * aucune : le parcours de démarrage (contexts/GuideContext), la page Catégories, et le Plan de
+ * trésorerie. Chacun avait son propre drapeau « une seule fois », local à son composant — donc
+ * aveugle aux deux autres. Or ils lisent la MÊME requête : tant que l'insertion du premier n'a pas
+ * été relue, la liste reste vide pour les autres, qui concluent « ce compte n'a pas de catégories »
+ * et rejouent tout le jeu. La table n'a aucune contrainte d'unicité : on obtenait chaque catégorie
+ * et chaque sous-catégorie EN DOUBLE, définitivement. Il suffisait d'ouvrir le Plan de trésorerie
+ * pendant que le guide amorçait.
+ * Le verrou vit donc ICI, avec l'écriture qu'il protège — un seul endroit, tous les appelants
+ * couverts, y compris ceux qu'on ajoutera demain.
+ */
+const seedingProfiles = new Set<string>();
+
 export function useSeedDefaultCategories(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       if (!supabase || !profileId) throw new Error('Non connecté');
+      if (seedingProfiles.has(profileId)) return; // un autre écran l'a déjà lancé
+      seedingProfiles.add(profileId);
+      try {
+        await seedFor(supabase, profileId);
+      } catch (e) {
+        seedingProfiles.delete(profileId); // échec → une nouvelle tentative reste possible
+        throw e;
+      }
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
+}
+
+/** L'amorçage lui-même (référentiel admin si disponible, sinon template code). */
+async function seedFor(supabase: NonNullable<typeof import('../../lib/platform/supabase').supabase>, profileId: string) {
       // Seed depuis le RÉFÉRENTIEL admin (base_categories) si disponible → les copies sont liées (base_id)
       // pour recevoir les futures propagations. Repli sur le template code si le référentiel est vide.
       const { data: baseCats } = await supabase.from('base_categories').select('*').eq('is_active', true);
@@ -80,12 +114,6 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
         const { error } = await supabase.from('categories').insert({ profile_id: profileId, name: item.name, type: item.type, parent_id: parentIds[item.parentName], is_default: true, is_variable: item.is_variable ?? false, sort_order: item.sort_order });
         if (error) throw error;
       }
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: [KEY, profileId] });
-      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
-    },
-  });
 }
 
 export function useAddCategory(profileId: string | undefined) {

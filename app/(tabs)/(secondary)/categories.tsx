@@ -43,6 +43,17 @@ import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverla
 /** Clé du champ « nouvelle catégorie parente » (admin) — aucun id réel ne peut la valoir. */
 const ROOT_ADD = '__root__';
 
+/** Longueur maximale d'un nom de catégorie : il s'affiche partout (saisie, filtres, reporting). */
+const CATEGORY_NAME_MAX = 40;
+
+/**
+ * Comptes déjà amorcés pendant cette session, au niveau du MODULE et non du composant.
+ * Le drapeau vivait dans un `useRef` : il repartait à zéro à chaque montage de l'écran. Quitter la
+ * page puis y revenir pendant que l'amorçage était encore en vol relançait donc un second jeu
+ * complet de catégories par défaut, en double.
+ */
+const seededProfiles = new Set<string>();
+
 function groupCategories(categories: Category[]) {
   const parents = categories.filter((c) => !c.parent_id);
   const byParent: Record<string, Category[]> = {};
@@ -62,10 +73,12 @@ function CategoriesScreen() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
-  const { data: categories = [], isLoading } = useCategories(user?.id);
+  /* `isSuccess` (et non « la liste est vide ») : voir l'amorçage automatique plus bas. `isError`
+     permet de dire qu'on ne SAIT PAS, au lieu d'annoncer « aucune catégorie ». */
+  const { data: categories = [], isLoading, isSuccess, isError, refetch } = useCategories(user?.id);
   const seedDefaults = useSeedDefaultCategories(user?.id);
   const addCategory = useAddCategory(user?.id);
   const updateCategory = useUpdateCategory(user?.id);
@@ -90,11 +103,32 @@ function CategoriesScreen() {
   const [editError, setEditError] = useState<string | null>(null);
   const hasSeeded = useRef(false);
 
+  /* ── « CONNECTÉ EN TANT QUE » : ON REGARDE, ON NE TOUCHE PAS ─────────────────────────────────
+     Créer, renommer, réordonner ou SUPPRIMER une catégorie écrit sur le compte visité (la politique
+     d'accès l'autorise pour un administrateur). Une suppression y détacherait les transactions de
+     quelqu'un d'autre de leur catégorie, sans retour possible. Même règle que Mon profil,
+     Apparence, Profil financier et Paramètres. */
+  const readOnly = isImpersonating;
+
+  /* ── AMORÇAGE AUTOMATIQUE : SEULEMENT SUR UNE LECTURE RÉUSSIE ────────────────────────────────
+     La condition était « pas en chargement et liste vide ». Or une lecture EN ÉCHEC (coupure
+     réseau, jeton pas encore prêt) laisse elle aussi `isLoading` à faux et la liste à vide : l'écran
+     concluait « ce compte n'a pas de catégories » et REJOUAIT le jeu par défaut par-dessus celui
+     qui existe déjà en base — la table n'a aucune contrainte d'unicité, on se retrouvait donc avec
+     chaque catégorie et chaque sous-catégorie EN DOUBLE, à vie, et sans moyen simple de faire le
+     tri (les transactions restent accrochées à l'exemplaire d'origine).
+     `isSuccess` est la seule preuve que le vide est réel. Et on ne sème jamais sur le compte de
+     quelqu'un d'autre en mode consultation. */
   useEffect(() => {
-    if (!user?.id || categories.length > 0 || hasSeeded.current || isLoading) return;
+    const uid = user?.id;
+    if (!uid || !isSuccess || categories.length > 0 || hasSeeded.current || seededProfiles.has(uid) || isImpersonating) return;
     hasSeeded.current = true;
-    seedDefaults.mutate();
-  }, [user?.id, categories.length, isLoading]);
+    seededProfiles.add(uid);
+    seedDefaults.mutate(undefined, {
+      // Échec → on autorise une nouvelle tentative (bouton manuel ou prochaine visite).
+      onError: () => { seededProfiles.delete(uid); hasSeeded.current = false; },
+    });
+  }, [user?.id, isSuccess, categories.length, isImpersonating]);
 
   /** Ouvre (ou ferme) le champ de création, en repartant toujours d'un champ vide. */
   function openAdd(parentId: string | null) {
@@ -115,9 +149,12 @@ function CategoriesScreen() {
    * sous-catégorie sans icône affiche une étiquette générique et n'aide personne à s'y retrouver.
    */
   async function handleAdd(parentId: string | null) {
+    if (readOnly) return;
     const trimmed = newName.trim();
     if (!trimmed) {
-      setAddError('Le nom est obligatoire.');
+      // Un champ qui ne contient que des espaces N'EST PAS rempli : `trim()` le dit, le message
+      // aussi (« Le nom est obligatoire » laissait croire à un bug quand on avait tapé « ␣␣ »).
+      setAddError('Le nom est obligatoire (les espaces seuls ne comptent pas).');
       return;
     }
     setAddError(null);
@@ -142,9 +179,9 @@ function CategoriesScreen() {
   }
 
   async function handleSaveEdit() {
-    if (!editModal) return;
+    if (!editModal || readOnly) return;
     if (!editName.trim()) {
-      setEditError('Le nom est obligatoire.');
+      setEditError('Le nom est obligatoire (les espaces seuls ne comptent pas).');
       return;
     }
     setEditError(null);
@@ -169,6 +206,7 @@ function CategoriesScreen() {
   }
 
   async function handleMove(parents: Category[], index: number, direction: 'up' | 'down') {
+    if (readOnly) return;
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= parents.length) return;
     const a = parents[index];
@@ -188,6 +226,7 @@ function CategoriesScreen() {
   // Réordonne une sous-catégorie DANS son parent (§P2). Les enfants partageant souvent le même
   // sort_order (seed), on réassigne des valeurs séquentielles distinctes pour fiabiliser l'ordre.
   async function handleMoveChild(children: Category[], index: number, direction: 'up' | 'down') {
+    if (readOnly) return;
     const target = direction === 'up' ? index - 1 : index + 1;
     if (target < 0 || target >= children.length) return;
     const reordered = [...children];
@@ -205,27 +244,47 @@ function CategoriesScreen() {
    * Le bouton correspondant n'est donc PAS affiché à l'utilisateur : proposer une action qui
    * répond invariablement « impossible » n'est pas une protection, c'est une impasse.
    */
-  const canDelete = (c: Category) => isAdmin || !c.is_default;
+  const canDelete = (c: Category) => !readOnly && (isAdmin || !c.is_default);
 
   async function handleDelete(c: Category) {
+    if (readOnly) return;
     // Filet de sécurité : le bouton est masqué, mais la règle reste portée par la fonction.
     if (c.is_default && !isAdmin) {
       Alert.alert('Action impossible', 'Les catégories par défaut ne peuvent pas être supprimées. Tu peux les renommer.');
       return;
     }
-    // Blocage si des transactions utilisent cette (sous-)catégorie (§P3) : on demande à l'utilisateur
-    // de d'abord les recatégoriser. Inclut la catégorie + ses éventuelles sous-catégories.
-    if (supabase) {
+    /* Blocage si des transactions utilisent cette (sous-)catégorie (§P3) : on demande d'abord de
+       les recatégoriser. Inclut la catégorie + ses éventuelles sous-catégories.
+
+       ⚠️ L'ERREUR DE LECTURE ÉTAIT AVALÉE. `const { count } = await …` ignorait `error` : sur une
+       coupure réseau, `count` valait `null`, le test `(count ?? 0) > 0` était donc faux, et la
+       suppression PARTAIT — alors qu'on venait précisément d'échouer à vérifier qu'elle était sûre.
+       Or `transactions.category_id` est en `ON DELETE SET NULL` : les transactions concernées
+       perdaient leur catégorie en silence, sans rien pour les retrouver. On ne supprime pas ce
+       qu'on n'a pas pu vérifier.
+
+       `.eq('profile_id', …)` : la politique d'accès des transactions comporte une branche
+       « OU administrateur » ; sans ce filtre, un compte administrateur comptait les lignes de TOUS
+       les utilisateurs (cf. la règle « une policy n'est pas un filtre de liste »). */
+    if (supabase && user?.id) {
       const childIds = categories.filter((x) => x.parent_id === c.id).map((x) => x.id);
       const ids = [c.id, ...childIds];
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('transactions')
         .select('id', { count: 'exact', head: true })
+        .eq('profile_id', user.id)
         .in('category_id', ids);
+      if (error) {
+        Alert.alert(
+          'Vérification impossible',
+          "Impossible de vérifier si des transactions utilisent cette catégorie. Par sécurité, rien n'a été supprimé — réessaie quand la connexion sera revenue.",
+        );
+        return;
+      }
       if ((count ?? 0) > 0) {
         Alert.alert(
           'Suppression impossible',
-          `« ${c.name} » est utilisée par ${count} transaction${(count ?? 0) > 1 ? 's' : ''}. Retirez d'abord cette catégorie de ces transactions (modifiez-les ou changez leur catégorie) avant de pouvoir la supprimer.`
+          `« ${c.name} » est utilisée par ${count} transaction${(count ?? 0) > 1 ? 's' : ''}. Retire d'abord cette catégorie de ces transactions (modifie-les ou change leur catégorie) avant de pouvoir la supprimer.`
         );
         return;
       }
@@ -269,13 +328,13 @@ function CategoriesScreen() {
         <View style={styles.groupHead}>
           <Text style={styles.groupTitle} numberOfLines={1}>{p.name}</Text>
           <View style={styles.rowActions}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter cette catégorie" onPress={() => handleMove(parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={[styles.actionBtn, idx === 0 && styles.actionBtnDisabled]}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter cette catégorie" onPress={() => handleMove(parents, idx, 'up')} hitSlop={8} disabled={readOnly || idx === 0} style={[styles.actionBtn, (readOnly || idx === 0) && styles.actionBtnDisabled]}>
               <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre cette catégorie" onPress={() => handleMove(parents, idx, 'down')} hitSlop={8} disabled={idx === parents.length - 1} style={[styles.actionBtn, idx === parents.length - 1 && styles.actionBtnDisabled]}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre cette catégorie" onPress={() => handleMove(parents, idx, 'down')} hitSlop={8} disabled={readOnly || idx === parents.length - 1} style={[styles.actionBtn, (readOnly || idx === parents.length - 1) && styles.actionBtnDisabled]}>
               <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Renommer ${p.name}`}>
+            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} disabled={readOnly} style={[styles.actionBtn, readOnly && styles.actionBtnDisabled]} accessibilityLabel={`Renommer ${p.name}`}>
               <Ionicons name="pencil" size={17} color={COLORS.textSecondary} />
             </TouchableOpacity>
             {canDelete(p) && (
@@ -291,18 +350,18 @@ function CategoriesScreen() {
         )}
         {children.map((c, ci, arr) => (
           <View key={c.id} style={[styles.childRow, ci === arr.length - 1 && styles.childRowLast]}>
-            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7} accessibilityLabel={`Icône de ${c.name}`}>
+            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} disabled={readOnly} style={[styles.catIconBtn, readOnly && styles.actionBtnDisabled]} activeOpacity={0.7} accessibilityLabel={`Icône de ${c.name}`}>
               <Ionicons name={iconForCategory(c) as any} size={17} color={COLORS.emerald} />
             </TouchableOpacity>
             <Text style={styles.childName} numberOfLines={1}>{c.name}</Text>
             <View style={styles.rowActions}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter cette sous-catégorie" onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={[styles.actionBtn, ci === 0 && styles.actionBtnDisabled]}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter cette sous-catégorie" onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={readOnly || ci === 0} style={[styles.actionBtn, (readOnly || ci === 0) && styles.actionBtnDisabled]}>
                 <Ionicons name="chevron-up" size={15} color={COLORS.textSecondary} />
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre cette sous-catégorie" onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={[styles.actionBtn, ci === arr.length - 1 && styles.actionBtnDisabled]}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre cette sous-catégorie" onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={readOnly || ci === arr.length - 1} style={[styles.actionBtn, (readOnly || ci === arr.length - 1) && styles.actionBtnDisabled]}>
                 <Ionicons name="chevron-down" size={15} color={COLORS.textSecondary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Renommer ${c.name}`}>
+              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} disabled={readOnly} style={[styles.actionBtn, readOnly && styles.actionBtnDisabled]} accessibilityLabel={`Renommer ${c.name}`}>
                 <Ionicons name="pencil" size={16} color={COLORS.textSecondary} />
               </TouchableOpacity>
               {canDelete(c) && (
@@ -330,6 +389,7 @@ function CategoriesScreen() {
               placeholderTextColor={COLORS.textSecondary}
               autoFocus
               returnKeyType="done"
+              maxLength={CATEGORY_NAME_MAX}
               onSubmitEditing={() => handleAdd(p.id)}
               editable={!addCategory.isPending}
             />
@@ -342,8 +402,8 @@ function CategoriesScreen() {
                 : <Ionicons name="checkmark" size={20} color={COLORS.emerald} />}
             </TouchableOpacity>
           </View>
-        ) : (
-          <TouchableOpacity style={styles.addTrigger} onPress={() => openAdd(p.id)} activeOpacity={0.7}>
+        ) : !readOnly && (
+          <TouchableOpacity style={styles.addTrigger} onPress={() => openAdd(p.id)} activeOpacity={0.7} accessibilityRole="button">
             <Ionicons name="add" size={17} color={COLORS.emerald} />
             <Text style={styles.addTriggerText}>Ajouter une sous-catégorie</Text>
           </TouchableOpacity>
@@ -377,11 +437,39 @@ function CategoriesScreen() {
           <Text style={styles.hint}>Connecte-toi pour gérer tes catégories.</Text>
         ) : (
           <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {categories.length === 0 && !isLoading && (
+            {readOnly && (
+              <View style={styles.notice}>
+                <Ionicons name="eye-outline" size={16} color={COLORS.textSecondary} />
+                <Text style={styles.noticeText}>
+                  Consultation seule : tu es connecté en tant qu'un autre utilisateur. Ses catégories
+                  ne peuvent pas être modifiées d'ici.
+                </Text>
+              </View>
+            )}
+
+            {/* LECTURE EN ÉCHEC ≠ « AUCUNE CATÉGORIE ». La page affichait le même écran vide dans
+                les deux cas, bouton « Charger les catégories par défaut » compris — proposé à
+                quelqu'un qui a déjà les siennes, il en aurait créé un second jeu. */}
+            {isError && (
+              <TouchableOpacity
+                style={[styles.notice, { borderColor: COLORS.danger }]}
+                onPress={() => refetch()}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
+                <Ionicons name="refresh-outline" size={16} color={COLORS.danger} />
+                <Text style={[styles.noticeText, { color: COLORS.danger }]}>
+                  Tes catégories n'ont pas pu être chargées. Touche ici pour réessayer.
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {isSuccess && categories.length === 0 && !readOnly && (
               <TouchableOpacity
                 style={styles.seedBtn}
                 onPress={() => seedDefaults.mutate()}
                 disabled={seedDefaults.isPending}
+                accessibilityRole="button"
               >
                 {seedDefaults.isPending ? (
                   <ActivityIndicator color={COLORS.onAccent} size="small" />
@@ -422,7 +510,9 @@ function CategoriesScreen() {
                 {grouped.parents.length === 0 ? (
                   <View style={styles.groupCard}>
                     <Text style={styles.empty}>
-                      {activeType === 'expense' ? 'Aucune catégorie de dépense.' : 'Aucune catégorie de recette.'}
+                      {isError
+                        ? 'Impossible de savoir : tes catégories n’ont pas pu être chargées.'
+                        : activeType === 'expense' ? 'Aucune catégorie de dépense.' : 'Aucune catégorie de recette.'}
                     </Text>
                   </View>
                 ) : (
@@ -432,7 +522,7 @@ function CategoriesScreen() {
 
                 {/* Créer une catégorie PARENTE : réservé à l'admin, comme avant (l'option « Aucune »
                     de l'ancien formulaire ne s'affichait que pour lui). */}
-                {isAdmin && (
+                {isAdmin && !readOnly && (
                   addingIn === ROOT_ADD ? (
                     <View style={[styles.groupCard, styles.rootAddCard]}>
                       <TextInput
@@ -443,6 +533,7 @@ function CategoriesScreen() {
                         placeholderTextColor={COLORS.textSecondary}
                         autoFocus
                         returnKeyType="done"
+                        maxLength={CATEGORY_NAME_MAX}
                         onSubmitEditing={() => handleAdd(null)}
                         editable={!addCategory.isPending}
                       />
@@ -486,6 +577,7 @@ function CategoriesScreen() {
               placeholderTextColor={COLORS.textSecondary}
               autoFocus
               returnKeyType="done"
+              maxLength={CATEGORY_NAME_MAX}
               onSubmitEditing={handleSaveEdit}
             />
             {editModal !== null && editModal.type === 'expense' && !editModal.parent_id ? (
@@ -514,12 +606,19 @@ function CategoriesScreen() {
               <TouchableOpacity style={styles.modalBtn} onPress={() => { setEditModal(null); setEditError(null); }}>
                 <Text style={styles.modalBtnLabel}>Annuler</Text>
               </TouchableOpacity>
+              {/* `bulkUpdateVariable` fait partie de l'enregistrement (Fixe ↔ Variable propagé aux
+                  sous-catégories) : sans lui dans la condition, le bouton redevenait actionnable
+                  pendant la propagation, et un second appui relançait tout. */}
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
+                style={[styles.modalBtn, styles.modalBtnPrimary, (updateCategory.isPending || bulkUpdateVariable.isPending) && { opacity: 0.6 }]}
                 onPress={handleSaveEdit}
-                disabled={updateCategory.isPending || !editName.trim()}
+                disabled={updateCategory.isPending || bulkUpdateVariable.isPending || !editName.trim()}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: updateCategory.isPending || bulkUpdateVariable.isPending || !editName.trim() }}
               >
-                <Text style={[styles.modalBtnLabel, styles.modalBtnLabelPrimary]}>Enregistrer</Text>
+                {(updateCategory.isPending || bulkUpdateVariable.isPending)
+                  ? <ActivityIndicator size="small" color={COLORS.onAccent} />
+                  : <Text style={[styles.modalBtnLabel, styles.modalBtnLabelPrimary]}>Enregistrer</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -533,7 +632,12 @@ function CategoriesScreen() {
         title={iconModal ? `Icône · ${iconModal.name}` : 'Choisir une icône'}
         onClose={() => setIconModal(null)}
         onSelect={(icon) => {
-          if (iconModal) updateCategory.mutate({ id: iconModal.id, name: iconModal.name, type: iconModal.type, icon });
+          if (!iconModal || readOnly) return;
+          // L'échec était muet : l'icône revenait à l'ancienne au rafraîchissement suivant.
+          updateCategory.mutate(
+            { id: iconModal.id, name: iconModal.name, type: iconModal.type, icon },
+            { onError: (e: unknown) => Alert.alert('Erreur', e instanceof Error ? e.message : "L'icône n'a pas pu être enregistrée.") },
+          );
         }}
       />
     </View>
@@ -548,6 +652,9 @@ function makeStyles(c: any) {
   pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
+  // Bandeau d'information / d'erreur, en tête de liste (mêmes valeurs que les autres écrans).
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 14 },
+  noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   hint: { color: c.textSecondary },

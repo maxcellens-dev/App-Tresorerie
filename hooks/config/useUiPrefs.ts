@@ -26,16 +26,28 @@ export function useUiPrefs(userId: string | undefined) {
   const { data: profile } = useProfile(userId);
   const prefs = (profile?.ui_prefs ?? {}) as UiPrefs;
 
-  /** Fusionne `next` dans ui_prefs (lecture du cache le plus frais → pas d'écrasement croisé). */
-  const patch = async (next: Partial<UiPrefs>) => {
-    if (!supabase || !userId) return;
+  /**
+   * Fusionne `next` dans ui_prefs (lecture du cache le plus frais → pas d'écrasement croisé).
+   *
+   * Renvoie `true` si le réglage est bien parti, `false` sinon. Le résultat était jeté : l'écran
+   * affichait sa coche de confirmation même quand l'écriture avait échoué, et le cache revenait à
+   * l'ancienne valeur une seconde plus tard, sans un mot. Les appelants qui n'en font rien ne
+   * changent pas de comportement ; ceux qui confirment quelque chose à l'utilisateur peuvent
+   * désormais dire la vérité.
+   */
+  const patch = async (next: Partial<UiPrefs>): Promise<boolean> => {
+    if (!supabase || !userId) return false;
     const cached = qc.getQueryData<Profile>(['profile', userId]);
     const current = (cached?.ui_prefs ?? {}) as UiPrefs;
     const merged: UiPrefs = { ...current, ...next };
     // Optimiste : met à jour le cache tout de suite (UI réactive + lectures suivantes cohérentes).
     qc.setQueryData<Profile>(['profile', userId], (old) => (old ? { ...old, ui_prefs: merged } : old));
     const { error } = await supabase.from('profiles').update({ ui_prefs: merged, updated_at: new Date().toISOString() }).eq('id', userId);
-    if (error) qc.invalidateQueries({ queryKey: ['profile', userId] }); // rollback via refetch
+    if (error) {
+      qc.invalidateQueries({ queryKey: ['profile', userId] }); // rollback via refetch
+      return false;
+    }
+    return true;
   };
 
   return { prefs, patch };
@@ -46,7 +58,7 @@ export function usePilotageTips(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
   return {
     enabled: prefs.pilotage_tips_enabled !== false,
-    setEnabled: (v: boolean) => patch({ pilotage_tips_enabled: v }),
+    setEnabled: (v: boolean): void => { void patch({ pilotage_tips_enabled: v }); },
   };
 }
 
@@ -55,7 +67,7 @@ export function useCalculatorEnabledPref(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
   return {
     enabled: prefs.calculator_enabled !== false,
-    setEnabled: (v: boolean) => patch({ calculator_enabled: v }),
+    setEnabled: (v: boolean): void => { void patch({ calculator_enabled: v }); },
   };
 }
 
@@ -83,7 +95,7 @@ export function useCalculatorPagesPref(userId: string | undefined) {
     : null;
   return {
     pages: stored ?? DEFAULT_CALCULATOR_PAGES,
-    setPages: (v: CalculatorPageId[]) => patch({ calculator_pages: v }),
+    setPages: (v: CalculatorPageId[]): void => { void patch({ calculator_pages: v }); },
   };
 }
 
@@ -92,7 +104,7 @@ export function useProjectionHorizon(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
   return {
     horizon: (prefs.projection_horizon === 12 ? 12 : 6) as 6 | 12,
-    setHorizon: (v: 6 | 12) => patch({ projection_horizon: v }),
+    setHorizon: (v: 6 | 12): void => { void patch({ projection_horizon: v }); },
   };
 }
 
@@ -102,7 +114,7 @@ export function useReportingPeriod(userId: string | undefined) {
   const p = prefs.reporting_period;
   return {
     period: (p === 3 || p === 12 ? p : 6) as 3 | 6 | 12,
-    setPeriod: (v: 3 | 6 | 12) => patch({ reporting_period: v }),
+    setPeriod: (v: 3 | 6 | 12): void => { void patch({ reporting_period: v }); },
   };
 }
 
@@ -111,7 +123,7 @@ export function useAccountsTotalsFilter(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
   return {
     filter: (prefs.accounts_totals_filter ?? 'all') as 'all' | 'perso' | 'shared',
-    setFilter: (v: 'all' | 'perso' | 'shared') => patch({ accounts_totals_filter: v }),
+    setFilter: (v: 'all' | 'perso' | 'shared'): void => { void patch({ accounts_totals_filter: v }); },
   };
 }
 
@@ -124,19 +136,18 @@ export function useRecoDismissals(userId: string | undefined) {
   // Lit l'état le plus frais depuis le cache au moment de l'ajout (évite d'écraser un ajout proche).
   const readFresh = () => freshDismissals((qc.getQueryData<Profile>(['profile', userId])?.ui_prefs ?? {}) as UiPrefs);
 
-  const addIgnored = (type: RecoType, amount: number) => {
+  const addIgnored = (type: RecoType, amount: number): void => {
     const f = readFresh();
-    patch({ reco_dismissals: { ...f, ignored: { ...f.ignored, [type]: Math.round(amount) } } });
+    void patch({ reco_dismissals: { ...f, ignored: { ...f.ignored, [type]: Math.round(amount) } } });
   };
-  const addCompleted = (type: RecoType) => {
+  const addCompleted = (type: RecoType): void => {
     const f = readFresh();
     if (f.completed.includes(type)) return;
-    patch({ reco_dismissals: { ...f, completed: [...f.completed, type] } });
+    void patch({ reco_dismissals: { ...f, completed: [...f.completed, type] } });
   };
   /** Relancer les recommandations : efface masquages (ignorées + complétées) du mois courant. */
-  const resetDismissals = () => {
+  const resetDismissals = () =>
     patch({ reco_dismissals: { month: monthKey(), ignored: {}, completed: [] } });
-  };
 
   return { ignored: current.ignored, completed: current.completed, addIgnored, addCompleted, resetDismissals };
 }

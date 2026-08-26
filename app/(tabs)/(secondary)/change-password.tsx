@@ -12,8 +12,10 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
+import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/platform/supabase';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -35,12 +37,22 @@ export default function ChangePasswordScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
+  const { isImpersonating } = useAuth();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const submit = useSubmitLock();
 
+  /* ── GARDE-FOU D'IDENTITÉ — la même que « Supprimer mon compte » et « Changer d'adresse » ─────
+     `supabase.auth.updateUser` agit sur la session RÉELLE, jamais sur le compte affiché à l'écran.
+     En « connecté en tant que », un administrateur venu ici depuis le profil consulté changeait
+     donc SON PROPRE mot de passe en croyant changer celui de la personne visitée — sans le moindre
+     signe, et sans possibilité de revenir en arrière une fois l'ancien oublié. Les deux autres
+     actions de compte portaient déjà ce garde-fou ; celle-ci était la seule à ne pas l'avoir. */
+  const readOnly = isImpersonating;
+
   async function save() {
+    if (readOnly) return;
     const pwEval = evaluatePassword(password);
     if (!pwEval.valid) { showAlert('Mot de passe trop faible', pwEval.firstError ?? 'Choisis un mot de passe plus robuste.'); return; }
     if (password !== confirm) { showAlert('Confirmation', 'Les deux mots de passe ne correspondent pas.'); return; }
@@ -70,6 +82,16 @@ export default function ChangePasswordScreen() {
             n'avait ni la même taille ni le même espacement que partout ailleurs). */}
         <ScreenHeader title="Changer de mot de passe" onBack={goBack} />
         <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        {readOnly ? (
+          <View style={styles.notice}>
+            <Ionicons name="eye-outline" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.noticeText}>
+              Consultation seule : le changement porterait sur TON mot de passe, pas sur celui du
+              compte que tu consultes. Quitte le mode consultation d'abord.
+            </Text>
+          </View>
+        ) : (
+        <>
         <Text style={styles.sub}>Choisis un nouveau mot de passe pour ton compte.</Text>
 
         <Text style={styles.label}>Nouveau mot de passe (min. {PASSWORD_MIN_LENGTH} caractères)</Text>
@@ -89,6 +111,8 @@ export default function ChangePasswordScreen() {
         >
           <Text style={styles.btnLabel}>{loading ? 'Mise à jour…' : 'Mettre à jour'}</Text>
         </TouchableOpacity>
+        </>
+        )}
         </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
@@ -100,6 +124,8 @@ function makeStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     sub: { fontSize: 13, color: c.textSecondary, marginBottom: 24, lineHeight: 18 },
+    notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14 },
+    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 6 },

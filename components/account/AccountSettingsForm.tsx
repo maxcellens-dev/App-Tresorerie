@@ -14,6 +14,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useUpdateAccount, useCloseAccount, useSetDefaultAccount } from '../../hooks/data/useAccounts';
 import { useFiscalEnvelopeRates } from '../../hooks/data/useFiscalEnvelopes';
 import { useAppColors } from '../../hooks/theme/useAppColors';
@@ -22,6 +23,9 @@ import type { Account, AccountType } from '../../types/database';
 import AccountShareSection from './AccountShareSection';
 import AccountImpactSection from './AccountImpactSection';
 import AccountModeSection from './AccountModeSection';
+
+/** Le nom du compte s'affiche chez les AUTRES membres d'un compte partagé : il lui faut une borne. */
+const ACCOUNT_NAME_MAX = 40;
 
 const TYPES: Array<{ value: AccountType; label: string }> = [
   { value: 'checking', label: 'Courant' },
@@ -45,6 +49,10 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
   const closeAccount = useCloseAccount(user?.id);
   const setDefaultAccount = useSetDefaultAccount(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
+  /* Consultation admin : renommer, changer le type, désigner le compte principal ou FERMER le
+     compte écrivent tous sur le compte visité (la politique d'accès l'autorise). Une fermeture y
+     archiverait — voire supprimerait — le compte de quelqu'un d'autre. */
+  const roGuard = useReadOnlyGuard();
 
   const [name, setName] = useState(account.name);
   const [type, setType] = useState(account.type);
@@ -70,6 +78,7 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
   };
 
   async function handleSubmit() {
+    if (roGuard.blocked()) return;
     setFormError(null);
     setNameError(false);
     const trimmed = name.trim();
@@ -110,11 +119,12 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
   };
 
   function handleClose() {
+    if (roGuard.blocked()) return;
     const isJoint = !!(account as any).is_joint;
     Alert.alert(
       isJoint ? 'Fermer le compte joint' : 'Fermer le compte',
       isJoint
-        ? "Ce compte joint sera fermé pour TOUS les membres. S'il contient des écritures, il sera archivé (plus utilisable) ; vide, il sera supprimé. Pour le supprimer définitivement, supprimez d'abord toutes ses transactions. Confirmer ?"
+        ? "Ce compte joint sera fermé pour TOUS les membres. S'il contient des écritures, il sera archivé (plus utilisable) ; vide, il sera supprimé. Pour le supprimer définitivement, supprime d'abord toutes ses transactions. Confirmer ?"
         : "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Tu ne pourras plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
       [
         { text: 'Annuler', style: 'cancel' },
@@ -138,7 +148,8 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
         onChangeText={(v) => { setName(v); setNameError(false); setFormError(null); }}
         placeholder="Ex. Compte courant"
         placeholderTextColor={COLORS.textSecondary}
-        editable={account._role === 'owner'}
+        maxLength={ACCOUNT_NAME_MAX}
+        editable={account._role === 'owner' && !roGuard.readOnly}
       />
 
       <Text style={styles.label}>Type</Text>
@@ -182,7 +193,7 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
       {type === 'checking' && account._role === 'owner' && !account.is_joint && (
         <TouchableOpacity
           style={styles.defaultRow}
-          onPress={() => setDefaultAccount.mutate(account.is_default ? null : account.id)}
+          onPress={() => { if (roGuard.blocked()) return; setDefaultAccount.mutate(account.is_default ? null : account.id); }}
           disabled={setDefaultAccount.isPending}
           activeOpacity={0.7}
           accessibilityRole="checkbox"

@@ -3,7 +3,8 @@ import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch, Linking, Alert } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,10 +52,31 @@ export default withDeferredMount(SettingsScreen);
 function SettingsScreen() {
   const router = useRouter();
   const goBack = useNavBack();
-  const { user, signOut } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
   const currencySymbol = currencySymbolFor(profile?.currency_code);
+
+  /* ── « CONNECTÉ EN TANT QUE » : ON REGARDE, ON NE TOUCHE PAS ─────────────────────────────────
+     Tous les réglages de cette page s'écrivent dans `profiles` (devise de référence, prudence,
+     notifications, e-mails) ou dans `profiles.ui_prefs` (conseils, calculatrice, recommandations
+     masquées). Or la politique d'accès autorise un administrateur à écrire sur n'importe quel
+     profil : consulter le compte de quelqu'un pour l'aider et effleurer un interrupteur suffisait
+     à CHANGER POUR DE BON son réglage — sans confirmation, sans trace, et sans que rien à l'écran
+     ne le laisse deviner. C'est la même règle que Mon profil, Apparence et Profil financier, qui
+     la portaient déjà chacun de leur côté : cette page était la dernière à ne pas l'avoir. */
+  const readOnly = isImpersonating;
+
+  /* Une écriture peut échouer (réseau coupé, refus du serveur). La mise à jour optimiste fait alors
+     marche arrière toute seule : l'interrupteur revient à sa position précédente, sans un mot — on
+     croit à un bug de l'application. On le dit. */
+  const [saveError, setSaveError] = useState(false);
+  /** Écrit un réglage de profil — refusé en consultation, et jamais en silence en cas d'échec. */
+  const saveProfile = useCallback((patch: Parameters<typeof updateProfile.mutate>[0]) => {
+    if (readOnly) return;
+    setSaveError(false);
+    updateProfile.mutate(patch, { onError: () => setSaveError(true) });
+  }, [readOnly, updateProfile]);
 
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -62,27 +84,35 @@ function SettingsScreen() {
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled, pages: calculatorPages, setPages: setCalculatorPages } = useCalculator();
   const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
   const { resetDismissals } = useRecoDismissals(user?.id);
-  const [recosReset, setRecosReset] = useState(false);
+  /** Retour du bouton « Relancer les recommandations » : idle → done (3 s) ou error. */
+  const [recosReset, setRecosReset] = useState<'idle' | 'done' | 'error'>('idle');
   /** Résultat du diagnostic push (admin uniquement, natif). */
   const [pushDiag, setPushDiag] = useState<string | null>(null);
   /** Autorisation SYSTÈME de notifier — relue au retour des réglages de l'OS. */
   const pushPerm = usePushPermission();
   const { data: recoThresholds } = useRecoThresholds();
-  const { data: financialProfile } = useFinancialProfile(user?.id);
+  const { data: financialProfile, isSuccess: fpLoaded } = useFinancialProfile(user?.id);
 
-  // Ordre de déduction des recos selon la prudence active (Auto → dérivé du profil financier).
-  // Affiché sous le sélecteur pour expliquer dans quel ordre les recos sont grignotées en cas de
-  // dépassement des dépenses variables.
+  /* Ordre de déduction des recos selon la prudence active (Auto → dérivé du profil financier).
+     Affiché sous le sélecteur pour expliquer dans quel ordre les recos sont grignotées en cas de
+     dépassement des dépenses variables.
+
+     ⚠️ En mode « Auto », cet ordre DÉPEND du profil financier. Tant que celui-ci n'a pas répondu,
+     `resolveProfileId(undefined)` retombe sur P0, donc sur l'ordre « prudent » : la page affichait
+     un ordre affirmatif, faux pour la plupart des comptes, qui changeait sous les yeux une seconde
+     plus tard. On n'affiche l'ordre qu'une fois qu'on le connaît — et immédiatement quand la
+     prudence est réglée à la main, puisqu'elle suffit alors à le déterminer. */
+  const prudenceLevel = ((profile as any)?.prudence_level ?? null) as number | null;
+  const deductionOrderKnown = prudenceLevel != null || fpLoaded;
   const deductionOrder = useMemo(() => {
     const mode = resolveConsumptionMode(
-      ((profile as any)?.prudence_level ?? null) as number | null,
+      prudenceLevel,
       financialProfile?.profile_id as FinancialProfileId | undefined,
       recoThresholds?.auto_profile_map,
     );
     return getConsumptionOrder(mode, recoThresholds?.consumption_orders);
-  }, [profile, financialProfile, recoThresholds]);
+  }, [prudenceLevel, financialProfile, recoThresholds]);
 
-  const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
   const [safetyAmountInput, setSafetyAmountInput] = useState('');
 
   // Verrouillage de l'app (biométrie / code appareil) — réglage LOCAL à cet appareil.
@@ -108,7 +138,11 @@ function SettingsScreen() {
   const isAdmin = profile?.is_admin ?? false;
   /** Ce que l'utilisateur SOUHAITE (base) — à croiser avec l'autorisation système avant affichage. */
   const wantsNotifs = (profile as any)?.notifications_enabled ?? true;
-  const { data: featureFlags } = useFeatureFlags();
+  /* `isSuccess` : tant que la configuration n'a pas RÉPONDU, on ne sait pas s'il existe une version
+     plus récente — et on ne peut donc affirmer ni l'un ni l'autre (cf. le message d'« À jour »
+     ci-dessous, qui promettait « tu es bien sur la dernière version » sur la foi d'une lecture qui
+     n'était pas revenue, ou qui avait échoué). */
+  const { data: featureFlags, isSuccess: flagsLoaded } = useFeatureFlags();
   const closureEnabled = Boolean(featureFlags?.monthly_closure_enabled);
   // Bouton « Mise à jour » : compare la version installée à la dernière publiée (config admin).
   const updateAvailable = !!featureFlags?.latest_version && isNewerVersion(featureFlags.latest_version, APP_VERSION);
@@ -117,7 +151,14 @@ function SettingsScreen() {
       const url = Platform.OS === 'ios'
         ? (featureFlags?.update_url_ios || 'https://apps.apple.com/')
         : (featureFlags?.update_url_android || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`);
-      Linking.openURL(url).catch(() => {});
+      /* L'échec d'ouverture était avalé : on appuyait sur « Nouvelle version disponible » et il ne
+         se passait RIEN — ni store, ni message. Un lien de store mal saisi en administration suffit
+         à produire ce cas. */
+      Linking.openURL(url).catch(() => {
+        Alert.alert('Ouverture impossible', "Le store n'a pas pu être ouvert. Cherche « Relyka » dans ton magasin d'applications pour installer la mise à jour.");
+      });
+    } else if (!flagsLoaded) {
+      Alert.alert('Vérification impossible', `Impossible de vérifier les mises à jour pour l'instant. Ta version installée est la v${APP_VERSION}.`);
     } else {
       Alert.alert('À jour', `Tu es bien sur la dernière version (v${APP_VERSION}).`);
     }
@@ -130,8 +171,6 @@ function SettingsScreen() {
      DIFFÉREMMENT de l'écran Apparence. Deux vérités pour un même réglage, dont une invisible : on
      supprime celle qui ne sert plus. */
 
-  // ── Guide "bulles" ──
-  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   // Scroll auto vers la section « Affichage & aides » quand on arrive via la roue crantée du bandeau conseils.
   const params = useLocalSearchParams<{ scrollTo?: string }>();
@@ -143,34 +182,41 @@ function SettingsScreen() {
     const t = setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, displaySectionY.current - 16), animated: true }), 350);
     return () => clearTimeout(t);
   }, [params.scrollTo]);
-  const categoriesRowRef = useRef<any>(null);
   const marginRowRef = useRef<any>(null);
-  const monProfilRowRef = useRef<any>(null);
-
 
   // ── Safety margin (montant en €) ──
   const handleSafetyAmountSave = useCallback(() => {
     const val = Math.max(0, parseFloat(safetyAmountInput.replace(',', '.')) || 0);
     setSafetyAmountInput(String(val));
-    updateProfile.mutate({ safety_margin_amount: val });
-  }, [safetyAmountInput, updateProfile]);
+    saveProfile({ safety_margin_amount: val });
+  }, [safetyAmountInput, saveProfile]);
 
   const currentSafetyAmount = profile?.safety_margin_amount ?? 0;
   useEffect(() => {
     setSafetyAmountInput(String(currentSafetyAmount));
   }, [currentSafetyAmount]);
 
-  // ── Sign out ──
-  // signOut() se charge de tout (voile, navigation, purge) — cf. AuthContext.
-  function handleSignOut() { signOut(); }
+  /** Relancer les recommandations — on ne coche que si l'effacement est RÉELLEMENT parti. */
+  const handleResetRecos = useCallback(async () => {
+    if (readOnly) return;
+    const ok = await resetDismissals();
+    setRecosReset(ok ? 'done' : 'error');
+    if (ok) setTimeout(() => setRecosReset('idle'), 3000);
+  }, [readOnly, resetDismissals]);
 
   if (!user) {
+    /* Repli défensif (session expirée, ouverture directe de l'adresse sur le web). Il s'affichait
+       sur un fond nu, sans en-tête ni moyen de repartir ailleurs que par « Se connecter » : on lui
+       donne la même mise en page que le reste de la page. */
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={[]}>
+        <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
+        <ScreenGradient />
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Paramètres" onBack={goBack} />
           <Text style={styles.text}>Connecte-toi pour accéder aux paramètres.</Text>
           <View style={{ marginTop: 16, gap: 12 }}>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('/login')}>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('/login')} accessibilityRole="button">
               <Text style={styles.saveBtnLabel}>Se connecter</Text>
             </TouchableOpacity>
           </View>
@@ -184,14 +230,36 @@ function SettingsScreen() {
       <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
+        {/* En-tête PARTAGÉ (ScreenHeader), et HORS du défilement : cette page recopiait son propre
+            « ← Retour » avec ses propres tailles, à l'intérieur du ScrollView — il disparaissait dès
+            qu'on descendait dans la liste des réglages, alors qu'il reste fixe partout ailleurs. */}
+        <ScreenHeader title="Paramètres" onBack={goBack} />
 
         <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* Header */}
-          <TouchableOpacity style={styles.backRow} onPress={goBack}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.pageTitle}>Paramètres</Text>
+          {/* Consultation d'un autre compte : on le dit AVANT que quiconque touche à un
+              interrupteur — sinon un simple clic changerait vraiment le réglage de la personne
+              visitée (même règle que Mon profil et Apparence). */}
+          {readOnly && (
+            <View style={styles.notice}>
+              <Ionicons name="eye-outline" size={16} color={COLORS.textSecondary} />
+              <Text style={styles.noticeText}>
+                Consultation seule : tu es connecté en tant qu'un autre utilisateur. Aucun réglage de
+                cette page ne sera modifié sur son compte.
+              </Text>
+            </View>
+          )}
+
+          {/* Un réglage qui n'est pas parti doit se voir : sans ça, l'interrupteur revient tout seul
+              à sa position précédente et on croit que l'application « ne marche pas ». */}
+          {saveError && (
+            <View style={[styles.notice, { borderColor: COLORS.danger }]}>
+              <Ionicons name="cloud-offline-outline" size={16} color={COLORS.danger} />
+              <Text style={[styles.noticeText, { color: COLORS.danger }]}>
+                Ton réglage n'a pas pu être enregistré. Vérifie ta connexion, puis réessaie.
+              </Text>
+            </View>
+          )}
 
           {/* ── Gestion ── */}
           <Text style={styles.sectionTitle}>Gestion</Text>
@@ -268,8 +336,11 @@ function SettingsScreen() {
                   return (
                     <TouchableOpacity
                       key={opt.label}
-                      onPress={() => updateProfile.mutate({ prudence_level: opt.value })}
-                      style={{ borderWidth: 1, borderColor: active ? COLORS.emerald : COLORS.cardBorder, backgroundColor: active ? COLORS.emerald + '1A' : 'transparent', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
+                      onPress={() => saveProfile({ prudence_level: opt.value })}
+                      disabled={readOnly}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active, disabled: readOnly }}
+                      style={[{ borderWidth: 1, borderColor: active ? COLORS.emerald : COLORS.cardBorder, backgroundColor: active ? COLORS.emerald + '1A' : 'transparent', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }, readOnly && styles.disabled]}
                       activeOpacity={0.85}
                     >
                       <Text style={{ fontSize: 12.5, fontWeight: '700', color: active ? COLORS.emerald : COLORS.textSecondary }}>{opt.label}</Text>
@@ -278,9 +349,10 @@ function SettingsScreen() {
                 })}
               </View>
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
-                Détermine si tes revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de ton Relyka — le montant que tu peux allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur l'argent déja encaissé.
+                Détermine si tes revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de ton Relyka — le montant que tu peux allouer aux recommandations.{'\n'}Plus tu es prudent, plus on se base sur l'argent déjà encaissé.
               </Text>
-              {/* Ordre de déduction : dans quel ordre les recos sont grignotées si vous dépassez vos dépenses variables. */}
+              {/* Ordre de déduction : dans quel ordre les recos sont grignotées en cas de dépassement des dépenses variables. */}
+              {deductionOrderKnown && (
               <View style={{ paddingLeft: 30, gap: 6, marginTop: 2 }}>
                 <Text style={{ color: COLORS.textSecondary, fontSize: 11 }}>
                   Si tu dépasses tes dépenses variables habituelles, tes recommandations diminuent dans cet ordre :
@@ -299,23 +371,26 @@ function SettingsScreen() {
                   ))}
                 </View>
               </View>
+              )}
             </View>
           </View>
 
           {/* ── Paramétrage (catégories + devise de référence) ── */}
           <Text style={styles.sectionTitle}>Paramétrage</Text>
           <View style={styles.card}>
-            <TouchableOpacity ref={categoriesRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
               <Ionicons name="pie-chart-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Gérer les catégories</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
               <Text style={styles.rowLabel}>Devise de référence</Text>
-              <CurrencyPicker
-                value={profile?.currency_code ?? 'EUR'}
-                onChange={(code) => updateProfile.mutate({ currency_code: code })}
-              />
+              <View style={readOnly ? styles.disabled : undefined} pointerEvents={readOnly ? 'none' : 'auto'}>
+                <CurrencyPicker
+                  value={profile?.currency_code ?? 'EUR'}
+                  onChange={(code) => saveProfile({ currency_code: code })}
+                />
+              </View>
               <Text style={styles.currencyHint}>Devise de tes totaux (Vue d'ensemble, Pilotage, Projection…). Chaque compte garde sa propre devise ; les totaux y sont convertis au taux du jour (≈ si plusieurs devises).</Text>
             </View>
           </View>
@@ -327,8 +402,10 @@ function SettingsScreen() {
               <Ionicons name="bulb-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Afficher les conseils</Text>
               <Switch
+                accessibilityLabel="Afficher les conseils"
                 value={tipsEnabled}
                 onValueChange={setTipsEnabled}
+                disabled={readOnly}
                 trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
                 thumbColor="#ffffff"
               />
@@ -337,25 +414,37 @@ function SettingsScreen() {
               Affiche le bandeau de conseils en haut de la page Pilotage. Désactive-le pour un écran plus épuré.
             </Text>
             <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+            {/* La coche ne s'allume QUE si l'effacement est réellement parti, et elle s'éteint au
+                bout de quelques secondes : affichée en dur et pour toujours, elle confirmait une
+                remise à zéro même quand l'écriture avait échoué — et elle restait ensuite à
+                l'écran, laissant croire que le bouton n'était plus actionnable. */}
             <TouchableOpacity
-              style={[styles.row, { borderBottomWidth: 0 }]}
-              onPress={() => { resetDismissals(); setRecosReset(true); }}
+              style={[styles.row, { borderBottomWidth: 0 }, readOnly && styles.disabled]}
+              onPress={handleResetRecos}
+              disabled={readOnly}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: readOnly }}
               activeOpacity={0.7}
             >
               <Ionicons name="refresh-outline" size={20} color={COLORS.emerald} />
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Relancer les recommandations</Text>
-              {recosReset && <Ionicons name="checkmark-circle" size={20} color={COLORS.emerald} />}
+              {recosReset === 'done' && <Ionicons name="checkmark-circle" size={20} color={COLORS.emerald} />}
+              {recosReset === 'error' && <Ionicons name="alert-circle" size={20} color={COLORS.danger} />}
             </TouchableOpacity>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Réaffiche dans le Pilotage toutes les recommandations ignorées ce mois-ci (selon ta situation actuelle).
+            <Text style={{ color: recosReset === 'error' ? COLORS.danger : COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              {recosReset === 'error'
+                ? "Les recommandations n'ont pas pu être relancées. Vérifie ta connexion, puis réessaie."
+                : 'Réaffiche dans le Pilotage toutes les recommandations ignorées ce mois-ci (selon ta situation actuelle).'}
             </Text>
             <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
               <Ionicons name="calculator-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Afficher la calculatrice</Text>
               <Switch
+                accessibilityLabel="Afficher la calculatrice"
                 value={calculatorEnabled}
                 onValueChange={setCalculatorEnabled}
+                disabled={readOnly}
                 trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
                 thumbColor="#ffffff"
               />
@@ -374,10 +463,13 @@ function SettingsScreen() {
                         style={[
                           { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: COLORS.cardBorder },
                           on && { backgroundColor: COLORS.emerald + '18', borderColor: COLORS.emerald },
+                          readOnly && styles.disabled,
                         ]}
                         onPress={() => setCalculatorPages(on ? calculatorPages.filter((id) => id !== p.id) : [...calculatorPages, p.id])}
+                        disabled={readOnly}
                         activeOpacity={0.8}
-                        accessibilityRole="button"
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: on, disabled: readOnly }}
                       >
                         <Text style={{ fontSize: 12.5, fontWeight: on ? '700' : '600', color: on ? COLORS.emerald : COLORS.textSecondary }}>{p.label}</Text>
                       </TouchableOpacity>
@@ -410,8 +502,10 @@ function SettingsScreen() {
               <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>E-mails d’information</Text>
               <Switch
+                accessibilityLabel="E-mails d’information"
                 value={(profile as any)?.email_opt_in ?? true}
-                onValueChange={(v) => updateProfile.mutate({ email_opt_in: v })}
+                onValueChange={(v) => saveProfile({ email_opt_in: v })}
+                disabled={readOnly}
                 trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
                 thumbColor="#ffffff"
               />
@@ -433,13 +527,16 @@ function SettingsScreen() {
                   <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
                   <Text style={styles.rowLabel}>Notifications sur le téléphone</Text>
                   <Switch
+                    accessibilityLabel="Notifications sur le téléphone"
                     value={wantsNotifs && pushPerm.granted}
+                    disabled={readOnly}
                     onValueChange={async (v) => {
-                      if (!v) { updateProfile.mutate({ notifications_enabled: false }); return; }
+                      if (readOnly) return;
+                      if (!v) { saveProfile({ notifications_enabled: false }); return; }
                       // Activer = obtenir l'autorisation système AVANT d'enregistrer le souhait.
-                      if (pushPerm.granted) { updateProfile.mutate({ notifications_enabled: true }); return; }
+                      if (pushPerm.granted) { saveProfile({ notifications_enabled: true }); return; }
                       const res = await pushPerm.request();
-                      if (res === 'granted') { updateProfile.mutate({ notifications_enabled: true }); return; }
+                      if (res === 'granted') { saveProfile({ notifications_enabled: true }); return; }
                       /* Refus définitif : l'app ne peut plus rien demander, seul l'OS décide. On
                          n'enregistre PAS le souhait — sinon l'interrupteur se rallumerait sans que
                          la moindre notification puisse passer, et on retomberait sur le mensonge. */
@@ -511,6 +608,7 @@ function SettingsScreen() {
                   <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} />
                   <Text style={styles.rowLabel}>Verrouiller l'app</Text>
                   <Switch
+                    accessibilityLabel="Verrouiller l’app"
                     value={appLockOn}
                     onValueChange={toggleAppLock}
                     trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
@@ -523,18 +621,46 @@ function SettingsScreen() {
                 <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
               </>
             )}
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={checkUpdate} activeOpacity={0.7}>
-              <Ionicons name={updateAvailable ? 'arrow-up-circle' : 'checkmark-circle-outline'} size={20} color={updateAvailable ? COLORS.emerald : COLORS.textSecondary} />
+            {/* Trois états, pas deux : « à jour » est une AFFIRMATION, elle demande d'avoir lu la
+                dernière version publiée. Tant que la lecture n'est pas revenue (ou qu'elle a
+                échoué), on affiche la version installée sans rien promettre.
+                Tutoiement : « appuyez pour l'installer » était le dernier vouvoiement de l'écran. */}
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={checkUpdate} activeOpacity={0.7} accessibilityRole="button">
+              <Ionicons name={updateAvailable ? 'arrow-up-circle' : flagsLoaded ? 'checkmark-circle-outline' : 'help-circle-outline'} size={20} color={updateAvailable ? COLORS.emerald : COLORS.textSecondary} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Mise à jour</Text>
                 <Text style={{ color: updateAvailable ? COLORS.emerald : COLORS.textSecondary, fontSize: 12, marginTop: 1 }}>
-                  {updateAvailable ? 'Nouvelle version disponible · appuyez pour l\'installer' : `Version installée v${APP_VERSION}`}
+                  {updateAvailable
+                    ? 'Nouvelle version disponible · touche pour l\'installer'
+                    : flagsLoaded
+                      ? `À jour · version installée v${APP_VERSION}`
+                      : `Version installée v${APP_VERSION}`}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
           </>)}
+
+          {/* ── INFORMATIONS ────────────────────────────────────────────────────────────────────
+              Confidentialité et mentions légales n'étaient atteignables QUE depuis la page Support.
+              Or c'est dans les Paramètres qu'on va les chercher — et les magasins d'applications
+              demandent que la politique de confidentialité soit accessible DEPUIS l'app.
+              On pointe DIRECTEMENT sur les deux textes : l'ancien écran « À propos » qui les
+              regroupait n'était ouvert par aucun lien et a été supprimé. */}
+          <Text style={styles.sectionTitle}>Informations</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} accessibilityRole="button" onPress={() => router.push('/confidentialite' as any)}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#60a5fa" />
+              <Text style={styles.rowLabel}>Confidentialité</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} accessibilityRole="button" onPress={() => router.push('/legal' as any)}>
+              <Ionicons name="document-text-outline" size={20} color="#a78bfa" />
+              <Text style={styles.rowLabel}>Mentions légales</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </KeyboardAwareScrollView>
       </SafeAreaView>
 
@@ -550,7 +676,11 @@ function makeStyles(c: AppColors) {
     scrollContent: { paddingBottom: 100 },
     text: { color: c.text },
 
-    fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
+    // Bandeau d'information / d'erreur, en tête de page (mêmes valeurs que l'écran Apparence).
+    notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 14 },
+    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+    /** Réglage inopérant en consultation : il doit se VOIR inerte, pas seulement l'être. */
+    disabled: { opacity: 0.45 },
     input: {
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
       paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 12,
@@ -558,9 +688,6 @@ function makeStyles(c: AppColors) {
     saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
     saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.onAccent },
 
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    pageTitle: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
     sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
     card: {
       backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
@@ -574,12 +701,5 @@ function makeStyles(c: AppColors) {
     rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
 
     currencyHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
-
-    versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
-    versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
-
-    signOutBtn: { backgroundColor: c.card, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 8 },
-    signOutLabel: { fontSize: 15, fontWeight: '600', color: c.text },
-    footer: { fontSize: 11, color: c.textSecondary, textAlign: 'center', marginTop: 12, marginBottom: 40 },
   });
 }

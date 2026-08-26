@@ -184,6 +184,20 @@ export default function WelcomeScreen() {
             </View>
           )}
 
+          {/* Textes légaux — ils n'existaient QUE dans le pied de page de la version bureau du site
+              (components/marketing/LandingPage). Sur un téléphone, et sur un navigateur étroit, on
+              arrivait donc sur l'écran d'inscription sans avoir jamais pu ouvrir la politique de
+              confidentialité : ni ici, ni sur « Se connecter », ni sur « Créer un compte ». */}
+          <View style={styles.legalRow}>
+            <TouchableOpacity onPress={() => router.push('/confidentialite' as any)} accessibilityRole="link" hitSlop={8}>
+              <Text style={styles.legalLink}>Confidentialité</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSep}>·</Text>
+            <TouchableOpacity onPress={() => router.push('/legal' as any)} accessibilityRole="link" hitSlop={8}>
+              <Text style={styles.legalLink}>Mentions légales</Text>
+            </TouchableOpacity>
+          </View>
+
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
@@ -313,6 +327,9 @@ function makeStyles(c: any, width: number) {
   },
   // Badge Play Store + réseaux : côte à côte s'il y a la place, l'un sous l'autre sinon.
   storeBadgeRow: { marginTop: 28, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 14 },
+  legalRow: { marginTop: 22, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  legalLink: { fontSize: 12, color: c.textSecondary, textDecorationLine: 'underline' },
+  legalSep: { fontSize: 12, color: c.textSecondary },
   primaryBtn: {
     backgroundColor: c.emerald,
     paddingVertical: 16,

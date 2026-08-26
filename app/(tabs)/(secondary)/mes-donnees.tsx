@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Share, ActivityIndicator } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -13,8 +13,9 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/data/useProfile';
 import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
 import { useQuestionnaireAnswers } from '../../../hooks/pilotage/useFinancialProfile';
-import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
+import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
 import { todayISO } from '../../../lib/dateUtils';
 import { supabase } from '../../../lib/platform/supabase';
 import { effectiveSharedMode } from '../../../lib/finance/perimeter';
@@ -61,20 +62,57 @@ function MesDonneesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
-  const router = useRouter();
   const goBack = useNavBack();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { data: profile, isLoading: pLoading } = useProfile(user?.id);
   const { data: accounts = [], isLoading: aLoading } = useAllAccounts(user?.id);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
   const { data: answers } = useQuestionnaireAnswers(user?.id);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  /** L'export a échoué : on le DIT (il ne partait qu'en console). */
+  const [error, setError] = useState<string | null>(null);
 
-  const totalBalance = useMemo(() => accounts.reduce((s, a) => s + Number(a.balance), 0), [accounts]);
+  /* ── CONSULTATION D'UN AUTRE COMPTE ──────────────────────────────────────────────────────────
+     `user` est l'utilisateur EFFECTIF : en « connecté en tant que », ce bouton fabriquerait un
+     fichier contenant TOUTES les données financières de la personne visitée et le déposerait sur
+     l'appareil de l'administrateur. La portabilité RGPD appartient au titulaire du compte. */
+  const readOnly = isImpersonating;
+
+  /* ── MULTI-DEVISES ───────────────────────────────────────────────────────────────────────────
+     Chaque compte garde sa devise native ; les TOTAUX se lisent dans la devise de référence
+     (profiles.currency_code), exactement comme la page Comptes. Le total de l'export additionnait
+     des soldes bruts, toutes devises confondues : « 3 200 » pouvait mélanger des euros et des
+     yens, sans que le fichier ne dise jamais dans quelle devise était chaque compte. */
+  const refCode = profile?.currency_code ?? 'EUR';
+  const refSymbol = currencySymbolFor(refCode);
+  const toRef = (v: number, cur?: string | null): number | null =>
+    convertAmount(v, cur || 'EUR', refCode, rates);
+  const mixedCurrencies = useMemo(
+    () => new Set(accounts.map((a: any) => a.currency || 'EUR')).size > 1,
+    [accounts],
+  );
+  /** Total converti. `null` si un taux manque : mieux vaut « ? » qu'un nombre faux. */
+  const totalBalance = useMemo(() => {
+    let sum = 0;
+    for (const a of accounts as any[]) {
+      const raw = Number(a.balance);
+      if (!Number.isFinite(raw)) continue;
+      const conv = toRef(raw, a.currency);
+      if (conv == null) return null;
+      sum += conv;
+    }
+    return sum;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, refCode, rates]);
 
   /** Export RGPD EXHAUSTIF : toutes les données personnelles sont récupérées AU MOMENT de l'export
    *  (comptes perso + partagés/joints, membres, transactions, crédits, projets, clôtures,
-   *  réservations, cumuls, échéances modifiées, gamification). */
+   *  réservations, cumuls, échéances modifiées, gamification).
+   *
+   *  ⚠️ UNE LECTURE EN ÉCHEC N'EST PAS « AUCUNE DONNÉE ». Chaque résultat était lu en `?? []` :
+   *  une seule requête refusée (réseau, jeton expiré) produisait un fichier qui annonçait
+   *  « TRANSACTIONS (0) » — un export RGPD amputé, présenté comme complet. On lève. */
   const fetchAllData = async () => {
     if (!supabase || !user?.id) return null;
     const uid = user.id;
@@ -94,6 +132,12 @@ function MesDonneesScreen() {
       supabase.from('user_gamification').select('*').eq('profile_id', uid).maybeSingle(),
       supabase.from('user_badges').select('badge_key, unlocked_at').eq('profile_id', uid),
     ]);
+    const parts = { tx, members, credits, creditEvents, projects, objectives, closures, reservations, preSavings, overrides, gami, badges };
+    for (const [name, res] of Object.entries(parts)) {
+      if ((res as any)?.error) {
+        throw new Error(`Certaines de tes données n'ont pas pu être lues (${name}). L'export a été interrompu pour ne pas te livrer un fichier incomplet.`);
+      }
+    }
     return {
       tx: tx.data ?? [], members: members.data ?? [], credits: credits.data ?? [], creditEvents: creditEvents.data ?? [],
       projects: projects.data ?? [], objectives: objectives.data ?? [], closures: closures.data ?? [],
@@ -116,26 +160,35 @@ function MesDonneesScreen() {
     rows.push({ type: 'data', cells: ['Nom', profile?.full_name ?? ''] });
     rows.push({ type: 'data', cells: ['Email', profile?.email ?? user?.email ?? ''] });
     rows.push({ type: 'data', cells: ['Profil financier', PROFILE_LABELS[(profile as any)?.financial_profile] ?? (profile as any)?.financial_profile ?? ''] });
-    rows.push({ type: 'data', cells: ['Marge de sécurité (' + CURRENCY_SYMBOL + ')', { amount: Number(profile?.safety_margin_amount ?? 0) }] });
-    rows.push({ type: 'data', cells: ['Devise', (profile as any)?.currency_code ?? 'EUR'] });
+    rows.push({ type: 'data', cells: ['Marge de sécurité (' + refSymbol + ')', { amount: Number(profile?.safety_margin_amount ?? 0) }] });
+    rows.push({ type: 'data', cells: ['Devise de référence', refCode] });
     rows.push({ type: 'data', cells: ['Allocation épargne (%)', { amount: Number((profile as any)?.allocation_save_percent ?? 0) }] });
     rows.push({ type: 'data', cells: ['Allocation investissement (%)', { amount: Number((profile as any)?.allocation_invest_percent ?? 0) }] });
     rows.push({ type: 'data', cells: ['Allocation plaisir (%)', { amount: Number((profile as any)?.allocation_enjoy_percent ?? 0) }] });
     rows.push({ type: 'data', cells: ['Allocation conserver (%)', { amount: Number((profile as any)?.allocation_keep_percent ?? 0) }] });
     rows.push({ type: 'spacer', cells: [''] });
 
-    // COMPTES : perso + joints + reçus (rôle), avec ma part (%) et le mode « périmètre quotidien ».
+    /* COMPTES : perso + joints + reçus (rôle), avec ma part (%), le mode « périmètre quotidien » et
+       — c'est nouveau — la DEVISE de chaque compte. Le solde reste dans sa devise native (c'est le
+       montant réel du compte) ; seul le TOTAL est converti dans la devise de référence, et il est
+       marqué « ≈ » dès que plusieurs devises sont en jeu. Sans cela, la colonne « Solde » mêlait
+       des devises sans le dire, et le total les additionnait comme si elles étaient identiques. */
     rows.push({ type: 'section', cells: ['COMPTES (personnels, joints & partagés)'] });
-    rows.push({ type: 'colhead', cells: ['Nom', 'Type · Partage · Part · Mode', 'Solde (' + CURRENCY_SYMBOL + ')'] });
+    rows.push({ type: 'colhead', cells: ['Nom', 'Type · Partage · Part · Mode', 'Solde (devise du compte)'] });
     accounts.forEach((a: any) => {
       const share = a.is_joint ? 'Joint' : a._role === 'owner' ? 'Perso' : a._role === 'read' ? 'Reçu (consultation)' : 'Reçu (écriture)';
       const pct = a._impact_pct != null ? ` · ${a._impact_pct} %` : '';
       const mode = (a.is_joint || a._role !== 'owner')
         ? ` · ${effectiveSharedMode(a.shared_mode) === 'contribution' ? 'Contribution' : 'Suivi quotidien'}`
         : '';
-      rows.push({ type: 'data', cells: [a.name, `${ACCOUNT_TYPE_LABELS[a.type] ?? a.type} · ${share}${pct}${mode}`, { amount: Number(a.balance) }] });
+      const cur = a.currency || 'EUR';
+      rows.push({ type: 'data', cells: [`${a.name} (${cur})`, `${ACCOUNT_TYPE_LABELS[a.type] ?? a.type} · ${share}${pct}${mode}`, { amount: Number(a.balance) }] });
     });
-    rows.push({ type: 'total', cells: ['', 'TOTAL', { amount: totalBalance }] });
+    const totalLabel = `TOTAL${mixedCurrencies ? ' ≈' : ''} (${refCode})`;
+    rows.push({
+      type: 'total',
+      cells: ['', totalLabel, totalBalance == null ? 'taux de conversion indisponible' : { amount: totalBalance }],
+    });
     rows.push({ type: 'spacer', cells: [''] });
 
     if (d.members.length > 0) {
@@ -148,7 +201,9 @@ function MesDonneesScreen() {
     }
 
     rows.push({ type: 'section', cells: [`TRANSACTIONS (${d.tx.length})`] });
-    rows.push({ type: 'colhead', cells: ['Date · Compte · Libellé', 'Catégorie · Récurrence', 'Montant (' + CURRENCY_SYMBOL + ')'] });
+    // Une transaction est dans la devise de SON compte (cf. migration 087) : l'en-tête ne peut donc
+    // pas afficher un symbole unique sans mentir dès qu'un compte est dans une autre devise.
+    rows.push({ type: 'colhead', cells: ['Date · Compte · Libellé', 'Catégorie · Récurrence', 'Montant (devise du compte)'] });
     d.tx.forEach((t: any) => {
       const rec = t.is_recurring ? ` · récurrent (${t.recurrence_rule ?? ''})` : '';
       const draft = t.is_draft ? ' · brouillon' : '';
@@ -171,7 +226,7 @@ function MesDonneesScreen() {
 
     if (d.projects.length > 0 || d.objectives.length > 0) {
       rows.push({ type: 'section', cells: ['PROJETS & OBJECTIFS'] });
-      rows.push({ type: 'colhead', cells: ['Nom', 'Détail', 'Montant (' + CURRENCY_SYMBOL + ')'] });
+      rows.push({ type: 'colhead', cells: ['Nom', 'Détail', 'Montant (' + refSymbol + ')'] });
       d.projects.forEach((p: any) => {
         rows.push({ type: 'data', cells: [p.name, `Projet · ${p.status}${p.target_date ? ` · échéance ${p.target_date}` : ''} · ${Number(p.monthly_allocation ?? 0)} €/mois`, { amount: Number(p.target_amount ?? 0) }] });
       });
@@ -197,7 +252,7 @@ function MesDonneesScreen() {
 
     if (d.closures.length > 0) {
       rows.push({ type: 'section', cells: ['CLÔTURES MENSUELLES'] });
-      rows.push({ type: 'colhead', cells: ['Mois', 'Statut', 'Surplus (' + CURRENCY_SYMBOL + ')'] });
+      rows.push({ type: 'colhead', cells: ['Mois', 'Statut', 'Surplus (' + refSymbol + ')'] });
       d.closures.forEach((cl: any) => {
         rows.push({ type: 'data', cells: [cl.month_key, cl.status === 'estimated' ? 'Estimé' : 'Confirmé', { amount: Number(cl.surplus ?? 0) }] });
       });
@@ -206,7 +261,7 @@ function MesDonneesScreen() {
 
     if (d.reservations.length > 0 || d.preSavings.length > 0) {
       rows.push({ type: 'section', cells: ['RÉSERVATIONS & CUMULS'] });
-      rows.push({ type: 'colhead', cells: ['Libellé', 'Type', 'Montant (' + CURRENCY_SYMBOL + ')'] });
+      rows.push({ type: 'colhead', cells: ['Libellé', 'Type', 'Montant (' + refSymbol + ')'] });
       d.reservations.forEach((r: any) => {
         rows.push({ type: 'data', cells: [r.libelle ?? 'Réservation', `Réservé · ${String(r.created_at ?? '').slice(0, 10)}`, { amount: Number(r.montant ?? 0) }] });
       });
@@ -282,11 +337,15 @@ function MesDonneesScreen() {
     URL.revokeObjectURL(url);
   };
 
+  /* L'échec ne partait QU'EN CONSOLE : le rouage tournait, s'arrêtait, et il ne se passait rien —
+     pas de fichier, pas de message. Sur un export de données personnelles, c'est le pire des cas :
+     on croit que ses données ont été refusées, ou pire, qu'elles n'existent plus. */
   const handleExport = async () => {
-    setBusy(true); setDone(false);
+    if (readOnly || busy) return;
+    setBusy(true); setDone(false); setError(null);
     try {
       const data = await fetchAllData();
-      if (!data) throw new Error('Non connecté');
+      if (!data) throw new Error('Tu n’es plus connecté. Reconnecte-toi puis relance l’export.');
       const rows = buildRows(data);
       // Date LOCALE : `toISOString()` datait l'export de la veille dès 22 h en France.
       const dateStr = todayISO();
@@ -294,12 +353,15 @@ function MesDonneesScreen() {
         await exportXlsx(rows, `mes-donnees-tresorerie-${dateStr}.xlsx`);
       } else {
         const csv = csvFrom(rows);
-        await Share.share({ message: '﻿' + csv, title: `mes-donnees-tresorerie-${dateStr}.csv` });
+        const res = await Share.share({ message: '﻿' + csv, title: `mes-donnees-tresorerie-${dateStr}.csv` });
+        // Partage annulé : rien n'a échoué, mais rien n'a été exporté non plus — pas de « ! ».
+        if (res.action === Share.dismissedAction) { setBusy(false); return; }
       }
       setDone(true);
       setTimeout(() => setDone(false), 3000);
     } catch (e) {
       console.warn('[mes-donnees] export échoué:', e);
+      setError(e instanceof Error ? e.message : "L'export n'a pas pu être généré. Vérifie ta connexion, puis réessaie.");
     } finally {
       setBusy(false);
     }
@@ -312,17 +374,23 @@ function MesDonneesScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
-        <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Mes données</Text>
-        </View>
+        {/* En-tête PARTAGÉ, comme les autres pages secondaires : cette page recopiait le sien, avec
+            un bouton « Retour » d'une autre taille et sans rôle d'accessibilité. */}
+        <ScreenHeader title="Mes données" onBack={goBack} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <Text style={styles.subtitle}>
             Exporte l'ensemble des données personnelles te concernant dans un fichier compatible Excel.
           </Text>
+
+          {readOnly && (
+            <View style={styles.notice}>
+              <Ionicons name="eye-outline" size={16} color={COLORS.textSecondary} />
+              <Text style={styles.noticeText}>
+                Consultation seule : l'export produirait un fichier contenant les données de la
+                personne dont tu consultes le compte. Il n'appartient qu'à elle de le demander.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Contenu de l'export</Text>
@@ -352,7 +420,21 @@ function MesDonneesScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={[styles.exportBtn, (busy || loading) && { opacity: 0.6 }]} onPress={handleExport} disabled={busy || loading} activeOpacity={0.85}>
+          {!!error && (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={16} color={COLORS.danger} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.exportBtn, (busy || loading || readOnly) && { opacity: 0.6 }]}
+            onPress={handleExport}
+            disabled={busy || loading || readOnly}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy || loading || readOnly, busy }}
+          >
             {busy ? (
               <ActivityIndicator color={COLORS.onAccent} />
             ) : (
@@ -379,10 +461,11 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
-    backBtn: { padding: 4, marginRight: 12 },
-    title: { fontSize: 24, fontWeight: '700', color: c.text },
     subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 20, lineHeight: 20 },
+    notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 16 },
+    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+    errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 12, marginBottom: 14 },
+    errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 18 },
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 18, gap: 14, marginBottom: 20 },
     cardTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 2 },
     bullet: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },

@@ -1,6 +1,14 @@
 /**
  * Sélecteur de devise — bouton qui ouvre un modal avec recherche.
- * Ne change que le symbole d'affichage (aucune conversion).
+ *
+ * ⚠️ LE CATALOGUE EST PLUS LARGE QUE LA TABLE DES TAUX.
+ * `CURRENCIES` liste une centaine de devises ; `currency_rates` (migration 087, rafraîchie
+ * quotidiennement depuis la BCE) n'en couvre qu'une quarantaine. Choisir une devise absente de la
+ * table ne produisait AUCUN signe : la conversion renvoyait `null`, et les écrans qui additionnent
+ * (Comptes, Pilotage, Projection) retombaient alors sur le montant BRUT en l'affichant avec le
+ * nouveau symbole — « 1 240 ₨ » pour 1 240 €. Un chiffre faux, plausible, jamais signalé.
+ * On ne retire pas ces devises (le symbole seul a du sens pour beaucoup de gens), mais on DIT
+ * lesquelles n'ont pas de taux, dans la liste comme sous le bouton.
  */
 import { useMemo, useState } from 'react';
 import {
@@ -9,6 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCIES, currencySymbolFor } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
@@ -25,6 +34,15 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
   const sheetPad = useSheetBottomPadding(20);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+
+  /* `isSuccess` : tant que les taux ne sont pas revenus, on n'affirme RIEN — signaler « pas de
+     taux » sur une lecture en cours reviendrait à alarmer sur toutes les devises à l'ouverture. */
+  const { data: rates, isSuccess: ratesLoaded } = useCurrencyRates();
+  const hasRate = (code: string) => {
+    const r = rates?.[code];
+    return typeof r === 'number' && r > 0;
+  };
+  const flagMissing = (code: string) => ratesLoaded && !hasRate(code);
 
   const current = CURRENCIES.find((c) => c.code === value);
 
@@ -48,6 +66,18 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
         </View>
         <Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} />
       </TouchableOpacity>
+
+      {/* La devise choisie n'a pas de taux : les montants s'afficheront avec son symbole, mais
+          aucune conversion ne sera faite. Mieux vaut le dire que laisser lire un total faux. */}
+      {flagMissing(value) && (
+        <View style={styles.warnRow}>
+          <Ionicons name="warning-outline" size={14} color={COLORS.orange} />
+          <Text style={styles.warnText}>
+            Aucun taux de change connu pour cette devise : les montants garderont son symbole, mais
+            ne seront pas convertis. Les totaux mêlant plusieurs devises resteront approximatifs.
+          </Text>
+        </View>
+      )}
 
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
         <KeyboardAwareOverlay style={styles.overlay} scroll={false}>
@@ -78,15 +108,22 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
               style={styles.list}
               renderItem={({ item }) => {
                 const active = item.code === value;
+                const noRate = flagMissing(item.code);
                 return (
                   <TouchableOpacity
                     style={[styles.row, active && styles.rowActive]}
                     onPress={() => { onChange(item.code); setOpen(false); setSearch(''); }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`${item.name} (${item.code})${noRate ? ', sans taux de conversion' : ''}`}
                   >
                     <Text style={styles.rowSymbol}>{item.symbol}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowName}>{item.name}</Text>
-                      <Text style={styles.rowCode}>{item.code}</Text>
+                      <Text style={styles.rowCode}>
+                        {item.code}
+                        {noRate && <Text style={styles.rowNoRate}>{'  ·  sans taux de conversion'}</Text>}
+                      </Text>
                     </View>
                     {active && <Ionicons name="checkmark-circle" size={20} color={COLORS.emerald} />}
                   </TouchableOpacity>
@@ -135,5 +172,8 @@ function makeStyles(c: any) {
     rowSymbol: { fontSize: 16, fontWeight: '700', color: c.text, minWidth: 40 },
     rowName: { fontSize: 15, color: c.text },
     rowCode: { fontSize: 12, color: c.textSecondary },
+    rowNoRate: { fontSize: 12, color: c.orange, fontWeight: '600' },
+    warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14' },
+    warnText: { flex: 1, fontSize: 11.5, lineHeight: 16, color: c.orange },
   });
 }

@@ -6,9 +6,10 @@
  * Le % détermine la fraction de l'activité du compte qui compte dans l'app du participant.
  */
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useAccountMembers, useSetAccountImpact } from '../../hooks/data/useSharedAccounts';
 import { effectiveImpactPct, autoEqualPct } from '../../lib/finance/sharedImpact';
 import type { Account } from '../../types/database';
@@ -20,6 +21,8 @@ export default function AccountImpactSection({ account }: { account: Account }) 
   const setImpact = useSetAccountImpact(account.id);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  /* Consultation admin : ce pourcentage pondère les chiffres de la personne visitée. */
+  const roGuard = useReadOnlyGuard();
 
   const isShared = !!account.is_joint || account._role !== 'owner' || members.length > 0;
   if (!isShared) return null;
@@ -34,10 +37,20 @@ export default function AccountImpactSection({ account }: { account: Account }) 
   ];
 
   const save = (memberId: string | null) => {
+    if (roGuard.blocked()) { setEditing(null); return; }
     const t = draft.trim();
     const pct = t === '' ? null : Math.max(0, Math.min(100, Math.round(Number(t.replace(',', '.')))));
     if (t !== '' && Number.isNaN(pct as number)) { setEditing(null); return; }
-    setImpact.mutate({ memberId, pct });
+    /* Un échec était MUET : la ligne repassait en lecture, affichant l'ancienne part comme si de
+       rien n'était. Or ce pourcentage pondère les soldes, les dépenses et les virements de ce
+       compte dans TOUT le reste de l'app (Relyka, Suivi du mois, Projection) — croire qu'on est
+       passé à 50 % alors qu'on est resté à 100 % fausse tous les chiffres. */
+    setImpact.mutate({ memberId, pct }, {
+      onError: (e: unknown) => Alert.alert(
+        'Part non enregistrée',
+        e instanceof Error ? e.message : "Cette part n'a pas pu être enregistrée. Vérifie ta connexion, puis réessaie.",
+      ),
+    });
     setEditing(null);
   };
 

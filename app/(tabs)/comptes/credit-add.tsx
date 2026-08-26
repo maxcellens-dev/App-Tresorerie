@@ -31,6 +31,7 @@ import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScr
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
 import { sanitizeAmountInput, sanitizeRateInput } from '../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'immobilier', label: 'Immobilier', icon: 'home-outline' },
@@ -160,6 +161,8 @@ function CreditAddScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const submitLock = useSubmitLock();
+  /* Consultation admin : ce crédit serait créé ou modifié sur le compte visité. */
+  const roGuard = useReadOnlyGuard();
 
   // Édition : pré-remplir le formulaire une fois le crédit chargé.
   const [prefilled, setPrefilled] = useState(false);
@@ -304,6 +307,7 @@ function CreditAddScreen() {
   };
 
   const save = async () => {
+    if (roGuard.blocked()) return;
     setError(null);
     const C = num(principal), n = parseInt(duration, 10);
     if (editId && !editing) return setError("Ce crédit n'est plus accessible. Reviens à la liste et actualise-la.");

@@ -30,6 +30,8 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 import { safeInternalRoute } from '../../../lib/ui/navHistory';
 import { useAccounts } from '../../../hooks/data/useAccounts';
 import { useAddTransaction, useTransactions } from '../../../hooks/data/useTransactions';
@@ -68,6 +70,14 @@ export default function BalanceUpdateScreen() {
 
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  /* Verrou SYNCHRONE. `saving` est un état React : il ne désactive le bouton qu'au rendu SUIVANT,
+     et cet écran attend le réseau une fois PAR COMPTE. Deux appuis rapprochés sur « Valider »
+     passaient donc tous les deux et écrivaient DEUX jeux de régularisations — c'est-à-dire un écart
+     compté deux fois, donc un solde faux et une dérive recalibrée sur du vent. */
+  const submitLock = useSubmitLock();
+  /* Consultation admin : ces régularisations partiraient sur le compte visité (la politique d'accès
+     l'autorise), et recalibreraient SA fiabilité. On regarde, on n'écrit pas. */
+  const roGuard = useReadOnlyGuard();
 
   /* ── DATE DE RELEVÉ, obligatoire ───────────────────────────────────────────────────────────────
      Cet écran datait TOUJOURS la régularisation d'aujourd'hui. Or le geste est le même que le
@@ -136,7 +146,16 @@ export default function BalanceUpdateScreen() {
   async function submit() {
     if (!user?.id || gaps.length === 0) return;
     if (!dateValid) { Alert.alert('Date manquante', 'Indique la date à laquelle tu as relevé ce solde.'); return; }
+    if (roGuard.blocked()) return;
+    if (!submitLock.acquire()) return;
     setSaving(true);
+    /* ── ÉCHEC AU MILIEU D'UNE SÉRIE : ON DIT CE QUI EST DÉJÀ PARTI ────────────────────────────
+       Les comptes sont écrits l'un après l'autre. Quand le troisième échouait, le message disait
+       seulement « Impossible d'enregistrer » : l'utilisateur recommençait toute la saisie, et les
+       deux premiers comptes recevaient une SECONDE régularisation — leur écart compté deux fois.
+       On énumère donc ce qui a abouti, et on retire ces comptes du formulaire pour que le nouvel
+       essai ne porte que sur ce qui manque. */
+    const done: string[] = [];
     try {
       for (const g of gaps) {
         // Écart nul = l'utilisateur CONFIRME son solde. C'est une vraie vérification (ancre à
@@ -152,14 +171,31 @@ export default function BalanceUpdateScreen() {
           is_recurring: false,
           regul_target: g.target,
         });
+        done.push(g.account.id);
       }
       recalibrate.mutate();
       // Le profil, lui, suit tout seul : l'observateur global voit les soldes bouger
       // (components/LiveProfileSync).
       router.replace(backTo as any);
     } catch (e: unknown) {
-      Alert.alert('Un souci', e instanceof Error ? e.message : "Impossible d'enregistrer.");
+      // Ce qui est passé reste passé : on vide ces champs pour ne pas le réécrire au second essai.
+      if (done.length > 0) {
+        setInputs((prev) => {
+          const next = { ...prev };
+          for (const accId of done) delete next[accId];
+          return next;
+        });
+        recalibrate.mutate();
+      }
+      const names = done.map((accId) => checking.find((a: any) => a.id === accId)?.name).filter(Boolean).join(', ');
+      Alert.alert(
+        'Un souci',
+        (done.length > 0
+          ? `${done.length === 1 ? 'Ce compte a bien été mis à jour' : 'Ces comptes ont bien été mis à jour'} : ${names}.\n\nLa suite n'est pas passée : `
+          : '') + (e instanceof Error ? e.message : "impossible d'enregistrer."),
+      );
     } finally {
+      submitLock.release();
       setSaving(false);
     }
   }

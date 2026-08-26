@@ -28,6 +28,8 @@ import { useInvertedColors } from '../../../hooks/theme/useInvertedColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
 import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
+import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 import { notePlaceholder } from '../../../lib/finance/txPlaceholders';
 import { useProjects } from '../../../hooks/data/useProjects';
 import { useProjectAttach } from '../../../hooks/data/useProjectAttach';
@@ -140,6 +142,14 @@ function AddTransactionScreen() {
   // Saisie en 2 étapes (style banque) : étape 1 = qui/quoi, étape 2 = quand/récurrence.
   const [step, setStep] = useState<1 | 2>(1);
   const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
+  /* Verrou SYNCHRONE. La mutation ne démarre qu'APRÈS `askRegulCoverage` (qui peut poser une
+     question à l'écran, donc attendre plusieurs secondes) : pendant tout ce temps
+     `addTransaction.isPending` est faux, le bouton reste actif, et deux appuis enregistraient DEUX
+     transactions — le double d'une dépense, sans que rien ne le signale. */
+  const submitLock = useSubmitLock();
+  /* Consultation admin : cette transaction serait écrite sur le compte visité (la politique d'accès
+     l'autorise pour un administrateur). On regarde, on n'écrit pas. */
+  const roGuard = useReadOnlyGuard();
   // Projet sélectionné pour rattacher la saisie (null = pas de rattachement).
   const [attachProjectId, setAttachProjectId] = useState<string | null>(null);
 
@@ -443,6 +453,12 @@ function AddTransactionScreen() {
        Elle porte sur l'opération en cours et attend une décision — posée dans la mutation (qui
        tourne en arrière-plan), elle surgissait une fois l'utilisateur DÉJÀ revenu sur la liste,
        par-dessus un autre écran, voire par-dessus un modal du guide. */
+    if (roGuard.blocked()) return;
+    /* Verrou posé AVANT le premier `await` : c'est la seule position qui ferme réellement la
+       fenêtre de double saisie. On ne le relâche PAS en cas de succès — l'écran est quitté juste
+       après (navigation optimiste), et le relâcher rouvrirait la porte pendant la sortie. */
+    if (!submitLock.acquire()) return;
+
     const regulCoveredAnswer = await askRegulCoverage(accountId, date, note || null, finalAmount);
 
     // ── NAVIGATION OPTIMISTE : on rend la main TOUT DE SUITE (retour à l'écran d'origine), la
@@ -536,6 +552,9 @@ function AddTransactionScreen() {
     else router.back();
 
     finish().catch((e: unknown) => {
+      /* L'écriture a échoué APRÈS le retour à l'écran d'origine : on relâche le verrou pour que
+         l'utilisateur puisse réellement réessayer depuis une nouvelle saisie. */
+      submitLock.release();
       // Limite d'usage serveur : le backstop global affiche déjà le dialog convivial → pas de doublon.
       if (parseUsageLimitError(e)) return;
       void appAlert({

@@ -67,6 +67,10 @@ function ProjectsScreen() {
   const { data: profile } = useProfile(user?.id);
   // Consultation admin : cet écran ne doit rien écrire sur le compte visité (useReadOnlyGuard).
   const readOnly = useReadOnlyGuard();
+  /* Répondre à une invitation était muet en cas d'échec : la carte restait à l'écran, sans un mot,
+     et on ne pouvait pas savoir si l'invitation était expirée ou si c'était le réseau. */
+  const onRwInviteError = (e: unknown) =>
+    Alert.alert('Un souci', e instanceof Error ? e.message : "L'invitation n'a pas pu être traitée. Réessaie dans un instant.");
   // Relyka World (projets partagés) — affichés dans cette même page.
   const { data: rwProjects = [] } = useRwProjects(user?.id);
   const { data: rwInvitations = [], error: rwInvitesError } = useRwInvitations(user?.id);
@@ -542,8 +546,8 @@ function ProjectsScreen() {
                         <Text style={styles.rwProjName} numberOfLines={1}>{inv.project_name}</Text>
                         <Text style={styles.rwProjSub} numberOfLines={1}>Invitation de {inv.from_name}</Text>
                       </View>
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.rwInvDecline} onPress={() => { if (readOnly.blocked()) return; respondInvite.mutate({ inviteId: inv.id, accept: false }); }}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Accepter l'invitation" style={styles.rwInvAccept} onPress={() => { if (readOnly.blocked()) return; respondInvite.mutate({ inviteId: inv.id, accept: true }); }}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.rwInvDecline} onPress={() => { if (readOnly.blocked()) return; respondInvite.mutate({ inviteId: inv.id, accept: false }, { onError: onRwInviteError }); }}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Accepter l'invitation" style={styles.rwInvAccept} onPress={() => { if (readOnly.blocked()) return; respondInvite.mutate({ inviteId: inv.id, accept: true }, { onError: onRwInviteError }); }}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
                     </View>
                   ))}
                   {/* Projets partagés (Relyka World) — actifs uniquement */}

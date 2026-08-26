@@ -37,6 +37,7 @@ import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
 import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
 
 function TransferScreen() {
@@ -58,6 +59,8 @@ function TransferScreen() {
   const { data: allTransactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const submitLock = useSubmitLock();
+  /* Consultation admin : les deux jambes du virement partiraient sur le compte visité. */
+  const roGuard = useReadOnlyGuard();
   const deleteTransaction = useDeleteTransaction(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
   const releaseReserved = useReleaseReservedByProject(user?.id);
@@ -152,6 +155,7 @@ function TransferScreen() {
   }
 
   async function handleSubmit() {
+    if (roGuard.blocked()) return;
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num <= 0) {
       Alert.alert('Montant invalide', 'Saisis un montant positif.');

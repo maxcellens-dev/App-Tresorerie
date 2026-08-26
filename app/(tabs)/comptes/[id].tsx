@@ -51,6 +51,7 @@ import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
 
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
@@ -259,8 +260,12 @@ function AccountDetailScreen() {
      plus/moins-value, intérêts). Toutes créent une TRANSACTION : les rejouer en crée une de plus.
      Les drapeaux `…Loading` ne désactivent le bouton qu'au rendu SUIVANT — cf. useSubmitLock. */
   const submitLock = useSubmitLock();
+  /* Consultation admin : régul, apport, plus-value et intérêts écrivent tous une transaction sur
+     le compte visité (la politique d'accès l'autorise). On regarde, on n'écrit pas. */
+  const roGuard = useReadOnlyGuard();
 
   async function handleBalance() {
+    if (roGuard.blocked()) return;
     const newBalance = parseFloat(balanceInput.replace(',', '.'));
     if (Number.isNaN(newBalance)) {
       Alert.alert('Solde invalide', 'Saisis un solde valide.');
@@ -298,6 +303,7 @@ function AccountDetailScreen() {
   }
 
   async function handleApport() {
+    if (roGuard.blocked()) return;
     const num = parseFloat(apportAmount.replace(',', '.'));
     if (Number.isNaN(num) || num <= 0) {
       Alert.alert('Montant invalide', 'Saisis un montant positif.');
@@ -345,6 +351,7 @@ function AccountDetailScreen() {
   const apportActuel = account ? computeContributed(account, transactions as any) : null;
 
   async function saveApportBase() {
+    if (roGuard.blocked()) return;
     if (!id) return;
     const v = parseFloat(apportBase.replace(',', '.'));
     if (Number.isNaN(v)) { Alert.alert('Montant invalide', 'Saisis un montant valide.'); return; }
@@ -357,6 +364,7 @@ function AccountDetailScreen() {
   }
 
   async function handleGainLoss() {
+    if (roGuard.blocked()) return;
     let num: number;
     if (gainLossMode === 'amount') {
       num = parseFloat(gainLossAmount.replace(',', '.'));
@@ -418,6 +426,7 @@ function AccountDetailScreen() {
   }
 
   async function handleInterest() {
+    if (roGuard.blocked()) return;
     let num: number;
     if (interestMode === 'amount') {
       num = parseFloat(interestAmount.replace(',', '.'));

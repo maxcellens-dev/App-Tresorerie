@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useFeatureFlags } from '../../hooks/config/useFeatureFlags';
 import {
   useAccountMembers, useInviteToAccount, useSetMemberRole, useRemoveMember, useRenameMember,
@@ -20,6 +21,8 @@ import type { Account } from '../../types/database';
 
 export default function AccountShareSection({ account }: { account: Account }) {
   const COLORS = useAppColors();
+  /* Consultation admin : ces écritures portent sur le compte visité et sur l'accès de tiers. */
+  const roGuard = useReadOnlyGuard();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: flags } = useFeatureFlags();
   const { data: members = [] } = useAccountMembers(account.id);
@@ -52,10 +55,17 @@ export default function AccountShareSection({ account }: { account: Account }) {
     }
   };
 
+  /* Ces trois écritures touchent l'ACCÈS de quelqu'un d'autre au compte (retirer, renommer,
+     passer de consultation à écriture). Elles étaient muettes en cas d'échec : la liste revenait
+     à son état précédent, et on croyait avoir retiré un accès qui était toujours là. */
+  const onShareError = (fallback: string) => (e: unknown) =>
+    Alert.alert('Un souci', e instanceof Error ? e.message : fallback);
+
   const confirmRemove = (memberId: string, label: string) => {
+    if (roGuard.blocked()) return;
     Alert.alert('Retirer l’accès', `Retirer ${label} de ce compte ?`, [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Retirer', style: 'destructive', onPress: () => removeMember.mutate(memberId) },
+      { text: 'Retirer', style: 'destructive', onPress: () => removeMember.mutate(memberId, { onError: onShareError("L'accès n'a pas pu être retiré.") }) },
     ]);
   };
 
@@ -86,7 +96,7 @@ export default function AccountShareSection({ account }: { account: Account }) {
                     placeholder="Nom"
                     placeholderTextColor={COLORS.textSecondary}
                   />
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider le nouveau nom" onPress={() => { rename.mutate({ memberId: m.id, name: editName }); setEditingId(null); }}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider le nouveau nom" onPress={() => { rename.mutate({ memberId: m.id, name: editName }, { onError: onShareError("Le nom n'a pas pu être modifié.") }); setEditingId(null); }}>
                     <Ionicons name="checkmark" size={20} color={COLORS.text} />
                   </TouchableOpacity>
                 </View>
@@ -110,7 +120,7 @@ export default function AccountShareSection({ account }: { account: Account }) {
             {m.user_id && (
               <TouchableOpacity
                 style={styles.roleBadge}
-                onPress={() => setRole.mutate({ memberId: m.id, role: m.role === 'read' ? 'write' : 'read' })}
+                onPress={() => setRole.mutate({ memberId: m.id, role: m.role === 'read' ? 'write' : 'read' }, { onError: onShareError("Le mode d'accès n'a pas pu être changé.") })}
                 disabled={setRole.isPending}
               >
                 <Text style={styles.roleBadgeText}>{m.role === 'read' ? 'Consultation' : 'Écriture'}</Text>

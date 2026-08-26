@@ -53,11 +53,10 @@ function TabsHeader({ desktop = false }: { desktop?: boolean }) {
     '(tabs)/tresorerie': 'Plan de trésorerie',
     '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
-    '(tabs)/(secondary)/about': 'À propos',
     '(tabs)/(secondary)/admin': 'Admin',
   };
 
-  const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
+  const customHeaderPages = ['parametres', 'categories', 'admin'];
   // Toute page admin porte « Admin » dans la barre du haut : son propre nom est déjà le grand
   // titre de la page (ScreenHeader). Sans ce repli, les sous-pages non listées ci-dessus
   // affichaient « Relyka » — un libellé sans rapport avec la page consultée.

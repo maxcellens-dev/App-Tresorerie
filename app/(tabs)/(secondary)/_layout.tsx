@@ -17,7 +17,6 @@ export default function SecondaryLayout() {
       <Stack.Screen name="mes-donnees" />
       <Stack.Screen name="cloture" />
       <Stack.Screen name="categories" />
-      <Stack.Screen name="about" />
       <Stack.Screen name="assistance" />
       <Stack.Screen name="ideas" />
       <Stack.Screen name="succes" />

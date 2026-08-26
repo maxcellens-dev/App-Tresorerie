@@ -18,10 +18,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAccounts, useAddAccount } from '../../hooks/data/useAccounts';
 import { useProfile } from '../../hooks/data/useProfile';
+import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { currencySymbolFor } from '../../lib/finance/currency';
 import { appAlert } from '../../lib/ui/appDialog';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
+
+/** Le nom du compte s'affiche chez les AUTRES membres d'un compte partagé : il lui faut une borne. */
+const ACCOUNT_NAME_MAX = 40;
 
 /** Propositions ajoutables en un tap (mêmes intitulés que le démarrage). */
 const PRESETS: { key: string; label: string; type: string; hint: string; icon: string }[] = [
@@ -50,6 +55,13 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
   const { data: profile } = useProfile(userId);
   const { data: accounts = [] } = useAccounts(userId);
   const addAccount = useAddAccount(userId);
+  /* Verrou SYNCHRONE. `busy` est un état React : il ne ferme le bouton qu'au rendu SUIVANT, et ici
+     chaque compte part en un aller-retour réseau séparé. Deux appuis rapprochés lançaient donc DEUX
+     lots complets — et comme les noms en double sont suffixés (« Livret A 2 »), on se retrouvait
+     avec une liste de comptes fantômes qu'il fallait fermer un par un. */
+  const submitLock = useSubmitLock();
+  /* Consultation admin : ces comptes seraient créés sur le profil visité. */
+  const roGuard = useReadOnlyGuard();
 
   const currency = profile?.currency_code ?? 'EUR';
   const symbol = currencySymbolFor(currency);
@@ -75,9 +87,18 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
 
   async function save() {
     if (!canSave) return;
+    if (roGuard.blocked()) return;
+    if (!submitLock.acquire()) return;
     setBusy(true);
     setProgress({ done: 0, total: rows.length });
     let created = 0;
+    /* ── ÉCHEC AU MILIEU DU LOT : ON GARDE CE QUI EST PASSÉ ────────────────────────────────────
+       Les comptes partent l'un après l'autre. Quand le quatrième échouait, le message disait
+       seulement « Impossible de créer ces comptes » — au pluriel, alors que trois venaient d'être
+       créés — et le formulaire gardait ses SEPT lignes. Réessayer recréait les trois premiers, cette
+       fois suffixés (« Compte courant 2 ») puisque les doublons de nom sont refusés : on repartait
+       avec le double de comptes, tous à moitié faux.
+       On retire donc les lignes réellement créées avant de rendre la main. */
     try {
       // Compte principal : seulement si l'utilisateur n'en a pas déjà un.
       let needsDefault = !accounts.some((a: any) => a.type === 'checking' && a.is_default);
@@ -102,8 +123,18 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
       onCreated?.(created);
       onClose();
     } catch (e: any) {
-      appAlert({ title: 'Un souci', message: e?.message ?? "Impossible de créer ces comptes." });
+      if (created > 0) {
+        setRows((prev) => prev.slice(created)); // ce qui est créé ne doit pas repartir
+        onCreated?.(created);
+      }
+      appAlert({
+        title: 'Un souci',
+        message: (created > 0
+          ? `${created} compte${created > 1 ? 's ont' : ' a'} bien été créé${created > 1 ? 's' : ''}. La suite n'est pas passée : `
+          : '') + (e?.message ?? "impossible de créer ces comptes."),
+      });
     } finally {
+      submitLock.release();
       setBusy(false);
     }
   }
@@ -157,6 +188,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
                   onChangeText={(v) => setRows((prev) => prev.map((x, j) => (j === i ? { ...x, label: v } : x)))}
                   placeholder="Nom du compte"
                   placeholderTextColor={COLORS.textSecondary}
+                  maxLength={ACCOUNT_NAME_MAX}
                   selectionColor={COLORS.emerald}
                 />
                 {/* Montant + devise dans une boîte de largeur FIXE : le nom (flexible) s'y adapte.

@@ -93,11 +93,31 @@ export default function LandingPage() {
             <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, appNameFontStyle]}>{cfg.brandName}</Text>
           </View>
+          {/* ⚠️ CES LIENS ÉTAIENT UN RÉGLAGE FANTÔME. `navLinks` existe dans la configuration,
+              a des valeurs par défaut qui pointent vers des ancres RÉELLES de cette page
+              (`features`, `stats`, `final`), `goAnchor` sait déjà les résoudre et les styles
+              `nav`/`navLink` sont écrits — mais rien ne les rendait. La page de présentation
+              n'avait donc AUCUNE navigation : on ne pouvait que faire défiler.
+              Affichés seulement en large : sur un en-tête étroit ils écraseraient les boutons. */}
+          {wide && cfg.navLinks.length > 0 && (
+            <View style={styles.nav}>
+              {cfg.navLinks.map((l, i) => (
+                <TouchableOpacity
+                  key={`${l.label}-${i}`}
+                  onPress={() => goAnchor(l)}
+                  activeOpacity={0.7}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.navLink}>{l.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <View style={styles.headerBtns}>
-            <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.ghostBtn}>
+            <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.ghostBtn} accessibilityRole="link">
               <Text style={styles.ghostBtnText}>{cfg.ctaSecondaryLabel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.85} style={styles.solidBtn}>
+            <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.85} style={styles.solidBtn} accessibilityRole="link">
               <Text style={styles.solidBtnText}>{cfg.ctaPrimaryLabel}</Text>
             </TouchableOpacity>
           </View>
@@ -162,8 +182,10 @@ export default function LandingPage() {
           <Text style={styles.sectionTitle}>{cfg.featuresTitle}</Text>
           <Text style={styles.sectionSubtitle}>{cfg.featuresSubtitle}</Text>
           <View style={styles.featuresGrid}>
-            {cfg.features.map((f) => (
-              <View key={f.title} style={styles.featureCard}>
+            {/* Clé = libellé + rang : ces textes sont éditables en administration, et deux
+                cartes portant le même titre produisaient deux clés React identiques. */}
+            {cfg.features.map((f, i) => (
+              <View key={`${f.title}-${i}`} style={styles.featureCard}>
                 <View style={styles.featureIcon}><Ionicons name={(f.icon || 'sparkles') as any} size={24} color={COLORS.emerald} /></View>
                 <Text style={styles.featureTitle}>{f.title}</Text>
                 <Text style={styles.featureText}>{f.text}</Text>
@@ -174,8 +196,8 @@ export default function LandingPage() {
 
         {/* ── Statistiques ── */}
         <View nativeID="stats" style={styles.statsBand}>
-          {cfg.stats.map((s) => (
-            <View key={s.label} style={styles.statItem}>
+          {cfg.stats.map((s, i) => (
+            <View key={`${s.label}-${i}`} style={styles.statItem}>
               <Text style={styles.statValue}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
@@ -209,8 +231,8 @@ export default function LandingPage() {
             <SocialLinks config={cfg.socials} color={COLORS.textSecondary} style={{ marginTop: 6 }} />
           )}
           <View style={styles.footerLinks}>
-            {cfg.footerLinks.map((l) => (
-              <TouchableOpacity key={l.label} onPress={() => goAnchor(l)} activeOpacity={0.7}>
+            {cfg.footerLinks.map((l, i) => (
+              <TouchableOpacity key={`${l.label}-${i}`} onPress={() => goAnchor(l)} activeOpacity={0.7} accessibilityRole="link">
                 <Text style={styles.footerLink}>{l.label}</Text>
               </TouchableOpacity>
             ))}

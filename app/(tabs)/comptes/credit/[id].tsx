@@ -26,6 +26,7 @@ import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAware
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../../lib/finance/currency';
 import { sanitizeAmountInput, sanitizeRateInput, parseAmountInput } from '../../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../../hooks/platform/useSubmitLock';
+import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
 
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
@@ -58,6 +59,8 @@ export default function CreditDetailScreen() {
   const [evtAmount, setEvtAmount] = useState('');
   const [evtDate, setEvtDate] = useState(todayISO());
   const submitLock = useSubmitLock();
+  /* Consultation admin : événements, échéances et suppression écrivent sur le compte visité. */
+  const roGuard = useReadOnlyGuard();
 
   /* Mise en avant de l'échéance d'où l'on vient (`?period=`) : on fait défiler jusqu'à ELLE et on
      la surligne. Le surlignage RESTE (il ne clignote pas puis disparaît) tant qu'on n'a pas touché
@@ -128,7 +131,7 @@ export default function CreditDetailScreen() {
   // Enregistre DIRECTEMENT les overrides manuels d'UNE échéance (via le modal). Une valeur vide efface
   // l'override de cette colonne. Persiste immédiatement dans schedule_overrides.
   const saveRow = async (period: number, fields: { p?: string; i?: string; int?: string; cap?: string; rd?: string }) => {
-    if (!credit) return;
+    if (!credit || roGuard.blocked()) return;
     const next: Record<string, any> = { ...(credit.schedule_overrides ?? {}) };
     const cur: any = { ...(next[String(period)] ?? {}) };
     for (const key of ['p', 'i', 'int', 'cap', 'rd'] as const) {
@@ -139,10 +142,18 @@ export default function CreditDetailScreen() {
       if (v != null) cur[key] = v;
     }
     if (Object.keys(cur).length === 0) delete next[String(period)]; else next[String(period)] = cur;
-    await update.mutateAsync({ id: credit.id, schedule_overrides: Object.keys(next).length ? next : null } as any);
+    /* La modale appelle `onSave` sans attendre : une erreur remontait en rejet non traité, et
+       l'échéance revenait à sa valeur d'origine sans un mot — on croyait sa correction perdue par
+       l'app, alors qu'elle n'était simplement pas partie. */
+    try {
+      await update.mutateAsync({ id: credit.id, schedule_overrides: Object.keys(next).length ? next : null } as any);
+    } catch (e: unknown) {
+      Alert.alert('Échéance non modifiée', e instanceof Error ? e.message : 'Vérifie ta connexion, puis réessaie.');
+    }
   };
 
   const saveEvent = async () => {
+    if (roGuard.blocked()) return;
     const v = parseAmountInput(evtAmount);
     if (v == null || v <= 0 || !id) return;
     /* VERROU SYNCHRONE. Un événement de crédit n'est PAS idempotent : `credit_events` n'a aucune
@@ -202,6 +213,7 @@ export default function CreditDetailScreen() {
   const cCoutTotal = cCoutPret + amort.totalInsurance + cExtraFees;
 
   const confirmDelete = () => {
+    if (roGuard.blocked()) return;
     Alert.alert('Supprimer le crédit', `Supprimer « ${credit.label} » ?`, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: async () => { await del.mutateAsync(credit.id); router.back(); } },
@@ -314,7 +326,7 @@ export default function CreditDetailScreen() {
                 <Text style={styles.evtLabel}>
                   {formatDateFrench(e.date)} · {e.kind === 'early_repayment' ? `Remb. anticipé ${fmt(Number(e.amount))}` : `Taux → ${e.new_rate}%`}
                 </Text>
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => delEvent.mutate({ id: e.id, credit_id: id! })}><Ionicons name="close" size={16} color={COLORS.danger} /></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => { if (roGuard.blocked()) return; delEvent.mutate({ id: e.id, credit_id: id! }, { onError: (err: unknown) => Alert.alert('Un souci', err instanceof Error ? err.message : "L'événement n'a pas pu être supprimé.") }); }}><Ionicons name="close" size={16} color={COLORS.danger} /></TouchableOpacity>
               </View>
             ))}
           </View>
@@ -397,7 +409,7 @@ export default function CreditDetailScreen() {
           {/* Activer / désactiver (utile pour une simulation : compté ou non en projection/tréso).
               PROPRIÉTAIRE uniquement : c'est une mise hors circuit du crédit pour tout le monde. */}
           {isOwner && (
-          <TouchableOpacity style={styles.toggleBtn} onPress={() => update.mutate({ id: credit.id, is_active: !credit.is_active })} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.toggleBtn} onPress={() => { if (roGuard.blocked()) return; update.mutate({ id: credit.id, is_active: !credit.is_active }, { onError: (err: unknown) => Alert.alert('Un souci', err instanceof Error ? err.message : "Le crédit n'a pas pu être modifié.") }); }} activeOpacity={0.8}>
             <Ionicons name={credit.is_active ? 'pause-circle-outline' : 'play-circle-outline'} size={18} color={COLORS.blue} />
             <Text style={styles.toggleLabel}>{credit.is_active ? 'Désactiver (retirer de la projection/tréso)' : 'Activer (compter en projection/tréso)'}</Text>
           </TouchableOpacity>

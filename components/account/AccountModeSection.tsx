@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMySharedMode, useSetSharedMode } from '../../hooks/data/useSharedMode';
 import { useAllTransactions } from '../../hooks/data/useTransactions';
@@ -29,6 +30,8 @@ const OPTIONS: { mode: SharedMode; icon: string; title: string; desc: string }[]
 
 export default function AccountModeSection({ account }: { account: Account }) {
   const COLORS = useAppColors();
+  /* Consultation admin : ces écritures portent sur le compte visité et sur l'accès de tiers. */
+  const roGuard = useReadOnlyGuard();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
 
@@ -52,7 +55,7 @@ export default function AccountModeSection({ account }: { account: Account }) {
   };
 
   const confirmMode = () => {
-    if (!pendingMode) return;
+    if (!pendingMode || roGuard.blocked()) return;
     setMode.mutate({ accountId: account.id, mode: pendingMode }, {
       onError: (e: any) => Alert.alert('Mode du compte', e?.message ?? 'Impossible de changer le mode.'),
       onSuccess: () => setPendingMode(null),
