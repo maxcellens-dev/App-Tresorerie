@@ -9,8 +9,6 @@ import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useStyleConfig, getGradientStops } from '../../hooks/theme/useStyleConfig';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProfile } from '../../hooks/data/useProfile';
 
 /** Convertit 0-1 en composante hex alpha "00"-"FF". */
 function toHexAlpha(a: number): string {
@@ -21,10 +19,13 @@ function toHexAlpha(a: number): string {
 export default function ScreenGradient() {
   const COLORS = useAppColors();
   const { data: styleConfig } = useStyleConfig();
-  const { user } = useAuth();
-  const { data: profile } = useProfile(user?.id);
 
-  const mode = (profile?.theme_mode ?? 'dark') as 'dark' | 'light';
+  /* Même source que l'entête (HeaderWithProfile) : le mode de la palette RÉELLEMENT appliquée.
+     Lu depuis `profiles.theme_mode`, il valait « sombre » tant que le profil n'était pas revenu —
+     donc au démarrage et hors-ligne — alors que l'app était déjà peinte en clair : le corps prenait
+     les paliers du mode sombre. Les deux composants doivent lire la même chose, sinon une couture
+     apparaît entre la barre du haut et le corps de la page. */
+  const mode = COLORS.mode as 'dark' | 'light';
   const cfg = mode === 'light' ? styleConfig?.light : styleConfig?.dark;
 
   const enabled = cfg?.gradient_enabled ?? true;

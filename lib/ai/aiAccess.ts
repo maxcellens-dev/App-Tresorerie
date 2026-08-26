@@ -27,6 +27,16 @@ export interface AiQuotaLike {
 export interface AiAccessInput {
   /** Droit Premium ACTIF (abonnement + offre Premium activée globalement). */
   isPremium: boolean;
+  /**
+   * Le PLAN a répondu — cf. `usePlan().isResolved` (drapeaux d'offre ET profil).
+   *
+   * `isPremium` vaut `false` par DÉFAUT tant que les drapeaux globaux ne sont pas revenus, et
+   * DÉFINITIVEMENT si leur lecture échoue (coupure réseau). Sans cette entrée, la page n'attendait
+   * que le profil et la config IA : un abonné pouvait donc se voir opposer le mur « réservé aux
+   * abonnés Premium » sur une fonctionnalité qu'il paye. Le Reporting attendait déjà cette réponse,
+   * pas les Conseils Intelligents — deux pages, une même règle, deux comportements.
+   */
+  planResolved: boolean;
   isAdmin: boolean;
   /** Consultation admin « connecté en tant que » → lecture seule. */
   isImpersonating: boolean;
@@ -72,8 +82,13 @@ export function resolveAiAccess(i: AiAccessInput): AiAccessState {
 
   const baseAllowed = i.isPremium || i.isAdmin || i.openToAll;
   const allowed = baseAllowed || extraCredits > 0;
-  // Sans le solde de crédits on ne peut pas trancher l'accès de qui n'a QUE des requêtes achetées.
-  const accessReady = i.profileReady && i.cfgReady && (baseAllowed || i.quotaSettled);
+  /* On ne tranche que sur des RÉPONSES :
+     • sans le solde de crédits, impossible de statuer sur qui n'a QUE des requêtes achetées ;
+     • sans la réponse du PLAN, « pas abonné » n'est qu'une valeur par défaut — d'où le mur opposé
+       à des abonnés au premier chargement (ou durablement, si les drapeaux ne répondent pas).
+     Un accès déjà acquis par une autre voie (admin, ouverture à tous) n'attend rien : `baseAllowed`
+     court-circuite les deux conditions. */
+  const accessReady = i.profileReady && i.cfgReady && (baseAllowed || (i.planResolved && i.quotaSettled));
   const readOnly = i.isImpersonating || !allowed;
 
   const available = remaining + extraCredits;

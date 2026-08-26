@@ -199,7 +199,7 @@ function BoutiqueScreen() {
     // Article exclusif Premium et utilisateur non-Premium → bouton verrouillé (renvoie vers l'offre Premium).
     if (item.premiumOnly && !isPremium) {
       return (
-        <TouchableOpacity style={[styles.buyBtn, { backgroundColor: COLORS.yellow + '22', borderWidth: 1, borderColor: COLORS.yellow + '66', paddingHorizontal: 12 }]} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.buyBtn, { backgroundColor: COLORS.yellow + '22', borderWidth: 1, borderColor: COLORS.yellow + '66', paddingHorizontal: 12 }]} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
           <Ionicons name="lock-closed" size={12} color={COLORS.yellow} />
           <Text style={[styles.buyText, { color: COLORS.yellow }]}>Premium</Text>
         </TouchableOpacity>
@@ -356,7 +356,7 @@ function BoutiqueScreen() {
                     <Text style={styles.premiumText}>Premium actif — remise de {discountPct}% appliquée.</Text>
                   </View>
                 ) : (
-                  <TouchableOpacity style={[styles.premiumBanner, { borderColor: COLORS.yellow + '66' }]} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+                  <TouchableOpacity style={[styles.premiumBanner, { borderColor: COLORS.yellow + '66' }]} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
                     <Ionicons name="star-outline" size={16} color={COLORS.yellow} />
                     <Text style={styles.premiumText}>Passe Premium : −{discountPct}% sur la boutique + zéro pub.</Text>
                     <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />

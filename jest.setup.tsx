@@ -142,12 +142,24 @@ jest.mock('./lib/platform/pushNotifications', () => ({
   requestPushPermissionAsync: jest.fn(async () => 'denied'),
   getDevicePushTokenAsync: jest.fn(async () => null),
 }));
+/* La page Plan appelle AUSSI `getPlanPrices`, `getSubscriptionInfo`, `purchasePremium` et
+   `restorePurchases` : sans doublure, le simple montage de l'écran lève « n'est pas une fonction ».
+   Valeurs par défaut = celles du web (aucun store) ; un test qui veut simuler un achat les
+   reprogramme (`(getPlanPrices as jest.Mock).mockResolvedValue(...)`). */
 jest.mock('./lib/platform/purchases', () => ({
   PURCHASES_SUPPORTED: false,
+  RC_ENTITLEMENT_ID: 'Relyka_Premium',
+  isPurchaseConfigured: jest.fn(() => false),
   configurePurchases: jest.fn(async () => {}),
   logInPurchases: jest.fn(async () => {}),
+  logOutPurchases: jest.fn(async () => {}),
   isProActive: jest.fn(async () => false),
   addProListener: jest.fn(() => jest.fn()),
+  purchasePremium: jest.fn(async () => ({ ok: false, reason: 'not_supported' })),
+  restorePurchases: jest.fn(async () => ({ ok: false, reason: 'not_supported' })),
+  purchaseGemsPack: jest.fn(async () => ({ ok: false, reason: 'not_supported' })),
+  getSubscriptionInfo: jest.fn(async () => null),
+  getPlanPrices: jest.fn(async () => ({})),
 }));
 
 /* Bruit de sortie : react-test-renderer signale un `act()` manquant sur des mises à jour d'état

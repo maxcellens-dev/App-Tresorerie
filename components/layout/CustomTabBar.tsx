@@ -38,9 +38,11 @@ export default function CustomTabBar({ state, navigation }: any) {
   // Surlignage OPTIMISTE : l'onglet tapé s'allume À LA FRAME DU TAP (état local synchrone), sans
   // attendre que la navigation/le rendu de l'écran aboutisse → la barre répond toujours instantanément.
   const [pressedTab, setPressedTab] = React.useState<TabName | null>(null);
-  useEffect(() => {
-    if (pressedTab && navActiveRoute === pressedTab) setPressedTab(null);
-  }, [navActiveRoute, pressedTab]);
+  /* On abandonne le surlignage optimiste dès que la navigation BOUGE, quelle que soit sa
+     destination — et pas seulement quand elle arrive sur l'onglet tapé. Sinon, taper « Comptes »
+     puis revenir en arrière (geste, bouton système, lien interne) laissait l'onglet Comptes allumé
+     alors qu'on est ailleurs : la barre désignait durablement la mauvaise page. */
+  useEffect(() => { setPressedTab(null); }, [navActiveRoute]);
   const activeRoute = pressedTab ?? navActiveRoute;
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const rwInviteCount = rwInvitations.length;
@@ -60,10 +62,13 @@ export default function CustomTabBar({ state, navigation }: any) {
       {ITEMS.map((it) => {
         const focused = activeRoute === it.name;
         const color = focused ? COLORS.tabActive : COLORS.tabInactive;
+        const pending = it.name === 'projects' ? rwInviteCount : it.name === 'comptes' ? acctInviteCount : 0;
         return (
           <TouchableOpacity
             key={it.name}
             style={styles.item}
+            accessibilityState={{ selected: focused }}
+            accessibilityLabel={pending > 0 ? `${it.label}, ${pending} invitation${pending > 1 ? 's' : ''} en attente` : it.label}
             onPress={() => {
               setPressedTab(it.name); // surlignage optimiste (état local, harmless)
               if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED);

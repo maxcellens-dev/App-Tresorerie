@@ -4,13 +4,12 @@ import { useMemo } from 'react';
  * Regroupe l'accès aux pages « compte » (profil, financier, reporting, boutique, plan,
  * paramètres, apparence, support) + déconnexion + pied de page. Affiche le tag Premium.
  */
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, Modal, Image, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Modal, Image, ScrollView, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
 import { usePlan } from '../../hooks/config/usePlan';
-import { useFeatureFlags } from '../../hooks/config/useFeatureFlags';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useUserUnreadCount } from '../../hooks/admin/useUnreadBadges';
 import { useCosmetics } from '../../hooks/theme/useCosmetics';
@@ -24,8 +23,14 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const { isPremium } = usePlan(user?.id);
-  const { data: featureFlags } = useFeatureFlags();
+  const { isPremium, isResolved: planResolved } = usePlan(user?.id);
+  /* HAUTEUR DISPONIBLE — le panneau ne doit JAMAIS dépasser la fenêtre. Il n'avait aucune limite :
+     seule la liste des entrées était plafonnée (430 px), et le reste (bouton « Se déconnecter »,
+     pied de page) débordait purement et simplement hors de l'écran, sans possibilité de défiler.
+     Sur un petit téléphone, et sur N'IMPORTE QUEL téléphone en mode paysage (l'app n'est pas
+     verrouillée en portrait), se déconnecter devenait impossible depuis ce menu. */
+  const { height: winHeight } = useWindowDimensions();
+  const topPad = Platform.OS === 'web' ? 56 : 70;
 
   // Source de vérité unique : profiles.avatar_url (cf. HeaderWithProfile). Pas de repli Google.
   const avatarUrl = profile?.avatar_url ?? undefined;
@@ -36,21 +41,28 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   // Titres cosmétiques équipés, triés par ordre alphabétique (un seul emplacement pour l'instant).
   const cosmeticTitles = (profileTitle ? [profileTitle] : []).sort((a, b) => a.localeCompare(b, 'fr'));
 
-  const go = (route: string) => { onClose(); router.push(route as any); };
+  /* `navigate` et non `push` : une entrée de menu REVIENT sur une page, elle n'en empile pas une
+     n-ième copie. Sans ça, ouvrir cinq fois « Reporting » depuis l'avatar laissait cinq écrans dans
+     la pile — et autant d'appuis sur « retour » pour en sortir. Même règle que le menu du bureau
+     (WebSideNav), qui l'appliquait déjà pour exactement ces destinations. */
+  const go = (route: string) => { onClose(); router.navigate(route as any); };
   // signOut() se charge de tout (voile, navigation, purge) — cf. AuthContext.
   const logout = () => { onClose(); signOut(); };
 
   // Conseils IA : bouton TOUJOURS visible (comme une vitrine). C'est l'ACCÈS au clic qui change selon
   // les réglages admin (Premium requis, ou « Ouvrir à tous ») — géré dans la page elle-même.
 
-  const items: ({ icon: string; label: string; route: string; color?: string; premium?: boolean } | false)[] = [
+  const items: { icon: string; label: string; route: string; color?: string; premium?: boolean }[] = [
     { icon: 'person-circle-outline', label: 'Mon Profil', route: '/(tabs)/(secondary)/profile' },
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
     /* L'étoile signale « réservé aux abonnés » : elle n'a donc de sens que pour un NON-abonné.
        Elle était affichée en dur, si bien qu'un abonné Premium voyait un cadenas sur des pages
-       qu'il paye — et le menu web (WebSideNav), lui, la masquait déjà correctement. */
-    { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: !isPremium },
-    { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: !isPremium },
+       qu'il paye — et le menu web (WebSideNav), lui, la masquait déjà correctement.
+       `planResolved` : tant que le plan n'est pas revenu, `isPremium` vaut faux par DÉFAUT, pas par
+       réponse — un abonné voyait donc l'étoile réapparaître une fraction de seconde à chaque
+       ouverture du menu. On ne signale un manque qu'une fois qu'on sait qu'il en manque un. */
+    { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: planResolved && !isPremium },
+    { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: planResolved && !isPremium },
     /* « Succès » manquait ici. Sur mobile, la page n'était atteignable QUE par la pastille de série
        de l'en-tête — laquelle disparaît tant que l'état de gamification n'est pas chargé (ou s'il
        échoue) : la page devenait alors purement et simplement inaccessible. Elle est à sa place à
@@ -64,8 +76,8 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={styles.panel} onPress={() => {}}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} accessibilityLabel="Fermer le menu">
+        <TouchableOpacity testID="profile-menu-panel" activeOpacity={1} style={[styles.panel, { maxHeight: Math.max(220, winHeight - topPad - 16) }]} onPress={() => {}}>
           {/* En-tête : avatar + nom + tag premium */}
           <View style={styles.header}>
             <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
@@ -104,16 +116,23 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ maxHeight: 430 }} showsVerticalScrollIndicator={false}>
-            {items.filter(Boolean).map((it) => {
-              const item = it as { icon: string; label: string; route: string; color?: string; premium?: boolean };
+          {/* `flexShrink: 1` : c'est CETTE liste qui cède la place quand la fenêtre est basse (elle
+              défile), pour que la déconnexion et le pied de page restent toujours visibles. */}
+          <ScrollView style={{ maxHeight: 430, flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            {items.map((item) => {
               const badgeCount = item.label === 'Support' ? supportUnread : 0;
               return (
-                <Pressable key={item.label} style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]} onPress={() => go(item.route)}>
+                <Pressable
+                  key={item.label}
+                  style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]}
+                  onPress={() => go(item.route)}
+                  accessibilityRole="button"
+                  accessibilityLabel={badgeCount > 0 ? `${item.label}, ${badgeCount} non lu${badgeCount > 1 ? 's' : ''}` : item.label}
+                >
                   <Ionicons name={item.icon as any} size={20} color={item.color ?? COLORS.emerald} />
                   <Text style={styles.rowLabel} numberOfLines={1}>{item.label}</Text>
                   {item.premium && (
-                    <View style={styles.premiumStar}>
+                    <View testID="premium-star" style={styles.premiumStar}>
                       <Ionicons name="star" size={10} color="#F5B301" />
                     </View>
                   )}
@@ -158,8 +177,6 @@ function makeStyles(c: any) {
     avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     avatarFrame: { borderWidth: 2.5, borderRadius: 26, padding: 2 },
     name: { fontSize: 16, fontWeight: '800', color: c.text },
-    titleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 3, marginTop: 3, borderWidth: 1, borderColor: '#f59e0b66', backgroundColor: '#f59e0b1A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-    titleBadgeText: { fontSize: 10, fontWeight: '800', color: '#f59e0b' },
     tagsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
     tag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     tagText: { fontSize: 10, fontWeight: '800' },

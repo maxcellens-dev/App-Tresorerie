@@ -33,7 +33,12 @@ function TabsHeader({ desktop = false }: { desktop?: boolean }) {
   const COLORS = useAppColors();
   const segments = useSegments();
   const fullPath = segments.join('/');
-  const routeName = (segments as string[])[1] ?? '';
+  /* DERNIER segment RÉEL de la route, groupes Expo Router exclus.
+     C'était `segments[1]` : pour toute page secondaire, cet index vaut « (secondary) » — un GROUPE,
+     jamais un nom d'écran. La liste `customHeaderPages` ci-dessous ne pouvait donc jamais
+     correspondre, et Paramètres / Catégories / À propos rendaient leur titre par le chemin
+     ordinaire, dans une autre taille que les pages Admin auxquelles ils étaient censés ressembler. */
+  const routeName = (segments as string[]).filter((s) => !s.startsWith('(')).pop() ?? '';
   const { user } = useAuth();
   const { isPremium } = usePlan(user?.id);
 

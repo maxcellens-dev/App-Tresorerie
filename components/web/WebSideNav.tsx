@@ -16,7 +16,6 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
 import { usePlan } from '../../hooks/config/usePlan';
-import { useFeatureFlags } from '../../hooks/config/useFeatureFlags';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useBrandFont';
 import { useRwInvitations } from '../../hooks/engagement/useRelykaWorld';
 import { useAccountInvitations, useSharedAccountsRealtime } from '../../hooks/data/useSharedAccounts';
@@ -52,8 +51,9 @@ export default function WebSideNav() {
   const segments = useSegments() as string[];
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const { isPremium } = usePlan(user?.id);
-  const { data: flags } = useFeatureFlags();
+  // `isResolved` : l'étoile « réservé aux abonnés » ne s'affiche qu'une fois le plan CONNU — sinon
+  // elle clignote sur les entrées d'un abonné à chaque chargement (cf. ProfileMenuModal).
+  const { isPremium, isResolved: planResolved } = usePlan(user?.id);
   const appNameFontStyle = useAppNameFontStyle();
   const [quickOpen, setQuickOpen] = useState(false);
 
@@ -80,8 +80,8 @@ export default function WebSideNav() {
 
   const analyse: NavItem[] = [
     { key: 'tresorerie', label: 'Plan de trésorerie', icon: 'calendar-outline', route: '/(tabs)/tresorerie' },
-    { key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting', premium: !isPremium },
-    { key: 'conseils-ia', label: 'Conseils Intelligents', icon: 'sparkles-outline', route: '/(tabs)/conseils-ia', premium: !isPremium },
+    { key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting', premium: planResolved && !isPremium },
+    { key: 'conseils-ia', label: 'Conseils Intelligents', icon: 'sparkles-outline', route: '/(tabs)/conseils-ia', premium: planResolved && !isPremium },
   ];
 
   // « Mon espace » — les pages du menu de l'avatar, en raccourci permanent. Sur un écran

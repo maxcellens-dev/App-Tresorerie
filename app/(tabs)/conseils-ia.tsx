@@ -99,7 +99,7 @@ function ConseilsIaScreen() {
     return () => sub.remove();
   }, []);
 
-  const { isPremium, premiumEnabled } = usePlan(uid);
+  const { isPremium, premiumEnabled, isResolved: planResolved } = usePlan(uid);
   const { data: profile, isSuccess: profileReady, isError: profileFailed, refetch: refetchProfile } = useProfile(uid);
   const isAdmin = (profile as any)?.is_admin === true;
 
@@ -183,7 +183,7 @@ function ConseilsIaScreen() {
   //    celles de l'Edge Function, et une expression booléenne noyée dans le rendu ne se vérifie pas.
   const packs: AiCreditPack[] = cfg?.extra_credit_packs ?? [];
   const access = resolveAiAccess({
-    isPremium, isAdmin, isImpersonating,
+    isPremium, planResolved, isAdmin, isImpersonating,
     profileReady, cfgReady, quotaSettled: quotaOk || quotaFailed,
     openToAll: !!cfg?.open_to_all,
     payToUseEnabled: !!cfg?.pay_to_use_enabled,
@@ -473,7 +473,7 @@ function ConseilsIaScreen() {
                 : 'Analyses personnalisées de tes finances et conseiller en discussion : cette fonctionnalité n\'est pas encore ouverte. Reviens bientôt !'}
             </Text>
             {premiumEnabled && (
-              <TouchableOpacity style={s.payBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+              <TouchableOpacity style={s.payBtn} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
                 <Ionicons name="star" size={16} color="#0f172a" />
                 <Text style={s.payBtnTxt}>Passer Premium</Text>
               </TouchableOpacity>
@@ -563,7 +563,7 @@ function ConseilsIaScreen() {
                     </Text>
                   </View>
                   {!isPremium && (
-                    <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} accessibilityRole="button" accessibilityLabel="Voir Premium">
+                    <TouchableOpacity onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} accessibilityRole="button" accessibilityLabel="Voir Premium">
                       <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
                     </TouchableOpacity>
                   )}

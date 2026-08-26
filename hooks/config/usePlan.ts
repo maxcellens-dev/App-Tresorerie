@@ -52,8 +52,9 @@ export function useAwaitPremiumFromServer(userId: string | undefined) {
       const profile = qc.getQueryData<any>(['profile', userId]);
       if (!!profile?.is_premium === expected) return true;
       // Le webhook arrive vite, mais pas instantanément : on laisse le temps à l'aller-retour
-      // store → RevenueCat → notre fonction → base.
-      await new Promise((r) => setTimeout(r, 2000));
+      // store → RevenueCat → notre fonction → base. Pas d'attente après la DERNIÈRE tentative :
+      // c'étaient deux secondes d'indicateur tournant de plus pour une réponse déjà connue.
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 2000));
     }
     return false;
   }, [qc, userId]);
@@ -89,6 +90,14 @@ export function usePlan(userId: string | undefined) {
      * (badge, publicité) peut s'en passer.
      */
     isResolved: flagsQuery.isSuccess && profileQuery.isSuccess,
+    /**
+     * Une des deux lectures a ÉCHOUÉ. Indispensable à qui affiche une attente sur `isResolved` :
+     * un chargement qui a échoué n'est pas un chargement en cours, et un cercle qui tourne pour
+     * toujours ne dit rien et n'offre aucun recours (même règle que le Reporting).
+     */
+    hasFailed: flagsQuery.isError || profileQuery.isError,
+    /** Relance les deux lectures — à câbler sur un bouton « Réessayer ». */
+    retry: () => { void flagsQuery.refetch(); void profileQuery.refetch(); },
     plan: isPremium ? ('premium' as const) : ('free' as const),
     /* Les publicités font partie de l'offre gratuite : elles s'affichent pour tout utilisateur
        non-premium. Le CONTENU (bannières maison) se gère dans l'admin « Publicités » — n'en

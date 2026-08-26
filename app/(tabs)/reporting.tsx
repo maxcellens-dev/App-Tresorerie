@@ -539,7 +539,7 @@ function ReportingBody() {
   };
 
   const { data: profile } = useProfile(user?.id);
-  const { isPremium, isResolved: planResolved } = usePlan(user?.id);
+  const { isPremium, premiumEnabled, isResolved: planResolved } = usePlan(user?.id);
   const isAdmin = (profile as any)?.is_admin === true;
   const reportingAllowed = isPremium || isAdmin;
 
@@ -822,12 +822,24 @@ function ReportingBody() {
         <BackRow C={C} onPress={goBack} />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
           <Ionicons name="star-outline" size={48} color={C.amber} />
-          <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>Reporting réservé aux abonnés Premium</Text>
+          {/* L'offre Premium peut être coupée globalement (admin) : inviter à « passer Premium »
+              mènerait alors à une page qui répond « pas encore disponible ». Même règle que la page
+              Conseils Intelligents, qui la respectait déjà — les deux murs disent désormais la
+              même chose du même état. */}
+          <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
+            {premiumEnabled ? 'Reporting réservé aux abonnés Premium' : 'Reporting bientôt disponible'}
+          </Text>
           {/* TUTOIEMENT — comme partout ailleurs dans l'app (« passez » détonnait ici seulement). */}
-          <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>Total de tes comptes, répartition des dépenses et bilan intelligent : passe Premium pour y accéder.</Text>
-          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
-            <Ionicons name="star" size={16} color="#0f172a" /><Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
-          </TouchableOpacity>
+          <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>
+            {premiumEnabled
+              ? 'Total de tes comptes, répartition des dépenses et bilan intelligent : passe Premium pour y accéder.'
+              : "Total de tes comptes, répartition des dépenses et bilan intelligent : cette fonctionnalité n'est pas encore ouverte. Reviens bientôt !"}
+          </Text>
+          {premiumEnabled && (
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+              <Ionicons name="star" size={16} color="#0f172a" /><Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     </View>

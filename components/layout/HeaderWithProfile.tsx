@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
@@ -14,10 +14,18 @@ import OnboardingChecklist from '../onboarding/OnboardingChecklist';
 import StreakChip from '../gamification/StreakChip';
 import ProfileMenuModal from '../ui/ProfileMenuModal';
 
-/** Mélange opaque base + overlay à alpha (0-1). */
+/**
+ * Mélange opaque base + overlay à alpha (0-1).
+ *
+ * ⚠️ Si la couleur de FOND n'est pas un « #RRGGBB » (l'admin peut saisir la sienne dans l'éditeur
+ * de style : « #000 », « rgb(…) », une valeur incomplète en cours de frappe), on rend la base
+ * TELLE QUELLE plutôt que de replier sur le noir : le repli noir peignait une barre supérieure noire
+ * en plein thème clair, pour une simple faute de frappe côté administration.
+ */
 function blendHex(base: string, overlay: string, alpha: number): string {
-  const b = /^#[0-9A-Fa-f]{6}$/.test(base) ? base : '#000000';
-  const o = /^#[0-9A-Fa-f]{6}$/.test(overlay) ? overlay : '#000000';
+  if (!/^#[0-9A-Fa-f]{6}$/.test(base)) return base;
+  const b = base;
+  const o = /^#[0-9A-Fa-f]{6}$/.test(overlay) ? overlay : base;
   const a = Math.min(1, Math.max(0, alpha));
   const r = Math.round(parseInt(b.slice(1, 3), 16) * (1 - a) + parseInt(o.slice(1, 3), 16) * a);
   const g = Math.round(parseInt(b.slice(3, 5), 16) * (1 - a) + parseInt(o.slice(3, 5), 16) * a);
@@ -75,26 +83,12 @@ interface HeaderWithProfileProps {
   desktop?: boolean;
 }
 
-/** Blende une couleur d'accent (#RRGGBB) à 30 % sur le fond — couleur opaque, aucun problème d'alpha sur web. */
-function blendAccent(bg: string, accent: string, opacity = 0.30): string {
-  try {
-    const parse = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-    const [r1, g1, b1] = parse(bg.length >= 7 ? bg.slice(0, 7) : '#000000');
-    const [r2, g2, b2] = parse(accent.length >= 7 ? accent.slice(0, 7) : '#000000');
-    const r = Math.round(r1 * (1 - opacity) + r2 * opacity);
-    const g = Math.round(g1 * (1 - opacity) + g2 * opacity);
-    const b = Math.round(b1 * (1 - opacity) + b2 * opacity);
-    return `rgb(${r},${g},${b})`;
-  } catch { return bg; }
-}
-
 export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge, applyTopInset = false, desktop = false }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const segments = useSegments();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { data: styleConfig } = useStyleConfig();
   // Source de vérité unique : profiles.avatar_url. PAS de repli sur l'avatar Google
@@ -104,9 +98,6 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   const avatarUrl = profile?.avatar_url ?? undefined;
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
 
-  // Déterminer la page actuelle pour masquer les boutons
-  const currentPage = segments[segments.length - 1] ?? '';
-  const isOnSettings = currentPage === 'parametres';
   const isAdmin = (profile as any)?.is_admin === true;
   const [menuOpen, setMenuOpen] = useState(false);
   // Badges « non lu » : réponses assistance pour l'utilisateur, assistance + idées pour l'admin.
@@ -115,8 +106,11 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   useClientErrorsRealtime(isAdmin); // badge crash en temps réel (nouvelle erreur remontée)
   const { avatarFrameColor } = useCosmetics(user?.id);
 
+  /* `navigate` (et non `push`) pour les raccourcis PERMANENTS de l'en-tête : ils reviennent sur une
+     page, ils n'en empilent pas une copie de plus à chaque appui — sinon « retour » remonte tout
+     l'historique des clics sur le bouclier ou sur le titre. Même règle que la barre latérale. */
   function openAdmin() {
-    router.push('/(tabs)/(secondary)/admin');
+    router.navigate('/(tabs)/(secondary)/admin');
   }
 
   // Déterminer le contenu à afficher à gauche
@@ -141,7 +135,11 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   // Fond de l'entête = couleur exacte du HAUT du dégradé du corps (blend bg + accent au 1er palier)
   // → l'entête prolonge le dégradé sans couture. L'opacité ajoute un surplus d'accent SUR l'entête seule.
   const headerBg = (() => {
-    const mode = (profile?.theme_mode ?? 'dark') as 'dark' | 'light';
+    /* LE MODE EST CELUI DE LA PALETTE RÉELLEMENT APPLIQUÉE (`COLORS.mode`), pas `profile.theme_mode`.
+       Au démarrage — et durablement hors-ligne, où le profil ne se charge jamais — `useAppColors`
+       repart du dernier thème mémorisé sur l'appareil : l'app s'affichait donc en clair pendant que
+       l'entête calculait sa teinte avec les réglages du mode SOMBRE (paliers plus intenses). */
+    const mode = COLORS.mode as 'dark' | 'light';
     const cfg = mode === 'light' ? styleConfig?.light : styleConfig?.dark;
     const gradientEnabled = cfg?.gradient_enabled ?? true;
     const stops = getGradientStops(cfg, mode === 'light' ? 20 : 30);
@@ -165,11 +163,20 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
             <Text style={styles.backText}>Retour</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(tabs)/pilotage')} style={{ flexShrink: 1 }} accessibilityRole="button" accessibilityLabel="Aller au tableau de bord">
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.navigate('/(tabs)/pilotage')} style={{ flexShrink: 1 }} accessibilityRole="button" accessibilityLabel="Aller au tableau de bord">
           {leftContentToRender}
         </TouchableOpacity>
       </View>
-      {!hideProfile && <View style={styles.right}>
+      {/* PAS DE MENU DE COMPTE SANS COMPTE. Les pages légales rendent cet en-tête pour un VISITEUR
+          PUBLIC sur mobile (cf. legalPresentation → « app ») : l'avatar y ouvrait un menu « Mon
+          Profil / Plan / Boutique… » et un bouton « Se déconnecter » à quelqu'un qui n'est pas
+          connecté — chaque entrée renvoyant aussitôt sur l'écran d'accueil par le garde
+          d'authentification. Partout ailleurs cet en-tête n'est monté qu'une fois connecté :
+          ce test ne retire donc rien à personne.
+          `authLoading` : on ne masque que sur une RÉPONSE (« personne n'est connecté »), jamais
+          pendant la reprise de session — sinon la barre du haut se viderait puis se remplirait à
+          chaque rechargement de page. */}
+      {!hideProfile && (!!user || authLoading) && <View style={styles.right}>
         <StreakChip />
         <OnboardingChecklist />
         {isAdmin && (
@@ -235,7 +242,6 @@ function makeStyles(c: any) {
   greetingWrap: { justifyContent: 'center' },
   greeting: { fontSize: 14, color: c.textSecondary, fontWeight: '400' },
   greetingName: { fontSize: 20, color: c.text, fontWeight: '700', marginTop: 1, letterSpacing: -0.4 },
-  date: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn: { padding: 8 },
   avatarWrap: { padding: 4 },

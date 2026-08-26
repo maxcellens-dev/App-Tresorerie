@@ -13,7 +13,7 @@ const quota = (over: Partial<AiQuotaLike> = {}): AiQuotaLike => ({
 });
 
 const base = (over: Partial<AiAccessInput> = {}): AiAccessInput => ({
-  isPremium: true, isAdmin: false, isImpersonating: false,
+  isPremium: true, planResolved: true, isAdmin: false, isImpersonating: false,
   profileReady: true, cfgReady: true, quotaSettled: true,
   openToAll: false, payToUseEnabled: false, paidFallbackEnabled: false, packsCount: 0,
   quota: quota(),
@@ -50,6 +50,16 @@ describe('resolveAiAccess — accès', () => {
   it('reste en attente tant que le profil ou la config n\'a pas répondu', () => {
     expect(resolveAiAccess(base({ profileReady: false })).accessReady).toBe(false);
     expect(resolveAiAccess(base({ cfgReady: false })).accessReady).toBe(false);
+  });
+
+  /* `isPremium` vaut faux par DÉFAUT tant que les drapeaux d'offre ne sont pas revenus — et
+     définitivement si leur lecture échoue. Sans attendre la réponse du plan, la page opposait le
+     mur « réservé aux abonnés Premium » à un abonné. */
+  it('attend la réponse du PLAN avant de refuser l\'accès', () => {
+    expect(resolveAiAccess(base({ isPremium: false, planResolved: false })).accessReady).toBe(false);
+    // Un accès acquis autrement (admin, ouverture à tous) n'attend rien.
+    expect(resolveAiAccess(base({ isPremium: false, planResolved: false, isAdmin: true })).accessReady).toBe(true);
+    expect(resolveAiAccess(base({ isPremium: false, planResolved: false, openToAll: true })).accessReady).toBe(true);
   });
 
   it('passe en lecture seule pendant une consultation admin (« connecté en tant que »)', () => {

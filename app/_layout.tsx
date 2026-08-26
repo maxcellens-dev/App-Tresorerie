@@ -235,7 +235,13 @@ function UsagePremiumSync() {
  * Aucun effet sur le web (PURCHASES_SUPPORTED = false).
  */
 function PurchasesSync() {
-  const { user } = useAuth();
+  /* ⚠️ JAMAIS EN CONSULTATION ADMIN. En mode « connecté en tant que », `user.id` est celui du compte
+     CONSULTÉ alors que le téléphone, lui, reste celui de l'administrateur. Sans ce garde, on
+     appelait `Purchases.logIn(<compte consulté>)` : le magasin de l'administrateur se retrouvait
+     rattaché à l'identité RevenueCat de quelqu'un d'autre — et le premier achat ou la première
+     restauration TRANSFÉRAIT l'abonnement de l'admin vers ce compte. On laisse donc l'identité
+     RevenueCat sur l'administrateur réel ; elle est reprise dès qu'il quitte la consultation. */
+  const { user, isImpersonating } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const awaitPremium = useAwaitPremiumFromServer(user?.id);
   const isPremiumDb = !!(profile as any)?.is_premium;
@@ -247,7 +253,7 @@ function PurchasesSync() {
   useEffect(() => { isManualRef.current = isManual; }, [isManual]);
 
   useEffect(() => {
-    if (!PURCHASES_SUPPORTED || !user?.id) return;
+    if (!PURCHASES_SUPPORTED || !user?.id || isImpersonating) return;
     let unsub = () => {};
     let cancelled = false;
     const apply = (active: boolean) => {
@@ -265,7 +271,7 @@ function PurchasesSync() {
       unsub = addProListener(apply);
     })();
     return () => { cancelled = true; unsub(); };
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, isImpersonating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }

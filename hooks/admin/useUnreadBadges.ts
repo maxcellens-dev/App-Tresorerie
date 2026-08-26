@@ -156,7 +156,11 @@ export function useMarkSuggestionsRead() {
       await supabase.from('suggestions').update({ admin_unread: false }).eq('admin_unread', true);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['unread_badges', 'admin'] });
+      /* La clé du comptage est `['unread_badges', 'admin_breakdown', profileId]` : invalider
+         `['unread_badges', 'admin']` ne correspondait à RIEN (react-query compare élément par
+         élément, « admin » ≠ « admin_breakdown »). La pastille de l'en-tête continuait donc
+         d'annoncer des idées non lues après leur lecture, jusqu'au prochain cycle de 30 s. */
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
       qc.invalidateQueries({ queryKey: ['admin-suggestions'] });
     },
   });

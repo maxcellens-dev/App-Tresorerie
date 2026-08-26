@@ -447,7 +447,7 @@ function AppearanceScreen() {
               ) : (
                 <>
                   <Text style={styles.hint}>La personnalisation de la couleur d'accent est réservée aux abonnés Premium.</Text>
-                  <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85} accessibilityRole="button">
+                  <TouchableOpacity style={styles.unlockBtn} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85} accessibilityRole="button">
                     <Ionicons name="star-outline" size={16} color={COLORS.onAccent} />
                     <Text style={styles.unlockBtnText}>Passer Premium</Text>
                   </TouchableOpacity>
