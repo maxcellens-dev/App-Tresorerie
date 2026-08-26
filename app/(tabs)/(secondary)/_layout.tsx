@@ -13,6 +13,7 @@ export default function SecondaryLayout() {
       <Stack.Screen name="apparence" />
       <Stack.Screen name="support" />
       <Stack.Screen name="change-password" />
+      <Stack.Screen name="change-email" />
       <Stack.Screen name="mes-donnees" />
       <Stack.Screen name="cloture" />
       <Stack.Screen name="categories" />

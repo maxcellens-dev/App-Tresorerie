@@ -301,6 +301,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      /* ── CONFIRMATION D'UN CHANGEMENT D'ADRESSE E-MAIL ────────────────────────────────────────
+         Rien à faire signer à l'utilisateur : Supabase a déjà remplacé l'adresse en ouvrant le
+         lien. Il reste à mettre NOTRE côté à jour — la session porte encore l'ancienne adresse, et
+         les écrans (Profil, Assistance) la liraient telle quelle. On rafraîchit la session, puis on
+         relit le profil (dont la copie de l'adresse est synchronisée côté base, migration 214), et
+         on le dit : sans un mot, on ne saurait pas si le changement a pris. */
+      if (link.kind === 'email_change') {
+        try {
+          const { data } = await supabase!.auth.refreshSession();
+          if (data?.session) updateState(data.session);
+          queryClient.invalidateQueries({ queryKey: ['profile'] });
+          const now = data?.session?.user?.email;
+          setTimeout(() => Alert.alert(
+            'Adresse confirmée',
+            now ? `Tu te connectes désormais avec ${now}.` : 'Ta nouvelle adresse e-mail est active.',
+          ), 400);
+        } catch {
+          setTimeout(() => Alert.alert(
+            'Adresse confirmée',
+            'Reconnecte-toi avec ta nouvelle adresse pour terminer.',
+          ), 400);
+        }
+        return;
+      }
+
       setPasswordRecovery(true);
       try {
         // Les deux flux possibles selon la configuration du projet Supabase (PKCE / implicite).
@@ -323,6 +348,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // App DÉJÀ ouverte : le lien arrive par cet événement.
     const sub = Linking.addEventListener('url', (e) => { void handle(e.url); });
     return () => { cancelled = true; clearTimeout(t); sub.remove(); };
+    // `updateState` et `queryClient` sont stables (useCallback / provider) : l'abonnement ne doit
+    // se poser qu'UNE fois, sous peine de traiter deux fois le même lien.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);

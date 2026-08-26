@@ -84,6 +84,25 @@ l'inscription échoue quand même.
   - **`213` (suppression de compte)** — deux clés étrangères vers `auth.users` sans règle de
     suppression empêchaient les comptes administrateurs de se supprimer. Indépendante de l'OTA :
     elle peut être jouée avant ou après, mais la suppression reste cassée tant qu'elle ne l'est pas.
+  - **`214` (changement d'adresse e-mail)** — synchronise `profiles.email` quand l'adresse de
+    connexion change. Sans elle, l'écran « Changer d'adresse » fonctionne mais l'application
+    continue d'afficher et d'utiliser l'ANCIENNE adresse (panneau d'administration, demandes
+    d'assistance, exports). **À jouer avec l'OTA qui livre la fonctionnalité.**
+
+- ⬜ **Changement d'adresse e-mail — réglages Supabase** :
+  - **URL Configuration → Redirect URLs** : `relyka-app://profile`.
+    Le web est déjà couvert par `https://relyka.app/**`, et le natif l'est en principe par
+    `relyka-app://*` — on la déclare quand même en clair : dépendre d'un joker pour la seule
+    adresse dont on a besoin, c'est se priver du moyen de vérifier qu'elle est autorisée.
+    ⚠️ C'est bien `profile`, sans les segments entre parenthèses : `(tabs)` et `(secondary)` sont
+    des groupes d'expo-router, ils n'apparaissent jamais dans une adresse.
+    Sans cette entrée, le lien de confirmation retombe sur le Site URL : le changement aboutit
+    quand même, mais se termine dans un navigateur au lieu de l'app.
+  - **Sign In / Providers → Email → « Secure email change »** : à laisser ACTIVÉ. La confirmation
+    est alors demandée sur les DEUX adresses (l'ancienne et la nouvelle) — c'est ce qui empêche
+    qu'un accès momentané au téléphone suffise à emporter le compte. Le texte de l'écran annonce ce
+    fonctionnement.
+  - Modèle d'e-mail « Change Email Address » traduit en français (comme les autres).
 - ⬜ `runtimeVersion` : ne le bumper **que** si le natif change (cf. note `versioning-and-ota`) — sinon
   l'OTA n'atteint plus les installations existantes.
 - ⬜ AAB vérifié 16 Ko : `node scripts/check-16kb.js`.

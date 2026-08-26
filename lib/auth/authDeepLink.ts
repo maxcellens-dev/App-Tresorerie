@@ -50,6 +50,16 @@ export function paramFrom(str: string, key: string, plusAsSpace = false): string
 export type AuthLink =
   /** Lien de réinitialisation exploitable : il reste à ouvrir la session. */
   | { kind: 'recovery'; code: string | null; accessToken: string | null; refreshToken: string | null }
+  /**
+   * Confirmation d'un CHANGEMENT D'ADRESSE e-mail (`type=email_change`).
+   *
+   * Ce cas n'était pas reconnu : le lien reçu par e-mail rendait `none` et l'application ne faisait
+   * donc RIEN en s'ouvrant — la personne se retrouvait sur son tableau de bord, sans savoir si son
+   * changement avait été pris en compte. Pire, le repli sur le CHEMIN (`/reset-password`) pouvait,
+   * selon l'URL configurée, le faire passer pour une réinitialisation et ouvrir l'écran
+   * « Nouveau mot de passe » — un écran qui n'a rien à voir avec ce qu'on venait de demander.
+   */
+  | { kind: 'email_change'; code: string | null; accessToken: string | null; refreshToken: string | null }
   /** Le fournisseur a répondu par un refus (lien périmé, déjà utilisé, annulé). */
   | { kind: 'error'; expired: boolean; message: string }
   /** Rien à voir ici (URL d'ouverture ordinaire, retour OAuth traité ailleurs…). */
@@ -76,10 +86,16 @@ export function parseAuthLink(url: string | null | undefined): AuthLink {
   const pick = (k: string, plusAsSpace = false) =>
     paramFrom(query, k, plusAsSpace) ?? paramFrom(hash, k, plusAsSpace);
 
+  const type = pick('type');
+  /* `email_change` est TESTÉ EN PREMIER, et sur le `type` seul : le repli par chemin ci-dessous
+     reconnaît « reset-password », or Supabase peut renvoyer une confirmation d'adresse sur cette
+     même URL de redirection. Sans cette priorité, un changement d'e-mail confirmé aurait ouvert
+     l'écran « Nouveau mot de passe ». */
+  const isEmailChange = type === 'email_change';
   // `type=recovery` est posé par Supabase ; le chemin sert de repli, car un lien EN ERREUR ne porte
   // pas toujours de `type` (seulement `error`/`error_code`).
-  const isRecovery = pick('type') === 'recovery' || /reset-password/i.test(path);
-  if (!isRecovery) return { kind: 'none' };
+  const isRecovery = !isEmailChange && (type === 'recovery' || /reset-password/i.test(path));
+  if (!isEmailChange && !isRecovery) return { kind: 'none' };
 
   const errorCode = pick('error_code');
   const errorRaw = pick('error');
@@ -90,7 +106,9 @@ export function parseAuthLink(url: string | null | undefined): AuthLink {
       kind: 'error',
       // `otp_expired`, `access_denied`, « Email link is invalid or has expired ».
       expired: /expired|invalid|otp/i.test(blob),
-      message: errorDesc || 'Ce lien de réinitialisation n’est plus valable.',
+      message: errorDesc || (isEmailChange
+        ? 'Ce lien de confirmation n’est plus valable.'
+        : 'Ce lien de réinitialisation n’est plus valable.'),
     };
   }
 
@@ -101,5 +119,5 @@ export function parseAuthLink(url: string | null | undefined): AuthLink {
   // exemple). On ne déclenche rien plutôt que d'annoncer un faux échec.
   if (!code && !(accessToken && refreshToken)) return { kind: 'none' };
 
-  return { kind: 'recovery', code, accessToken, refreshToken };
+  return { kind: isEmailChange ? 'email_change' : 'recovery', code, accessToken, refreshToken };
 }

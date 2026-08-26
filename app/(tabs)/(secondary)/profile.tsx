@@ -393,7 +393,11 @@ function ProfileScreen() {
               placeholder="email@exemple.com"
               placeholderTextColor={COLORS.textSecondary}
             />
-            <Text style={styles.hint}>L'e-mail est géré par la connexion.</Text>
+            {/* L'adresse ne se modifie pas ici : c'est l'identifiant de connexion, et son
+                changement demande une confirmation par e-mail (écran dédié). Le message disait
+                seulement « géré par la connexion », sans dire où aller — il n'y avait d'ailleurs
+                nulle part où aller. */}
+            <Text style={styles.hint}>C'est ton identifiant de connexion.</Text>
           </View>
 
           {/* Le résultat s'affiche SUR la page, à côté du bouton. Une boîte de dialogue « Profil —
@@ -419,9 +423,14 @@ function ProfileScreen() {
               <Text style={styles.linkLabel}>Mes données</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.linkRow, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/change-password')}>
+            <TouchableOpacity style={styles.linkRow} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/change-password')} accessibilityRole="button">
               <Ionicons name="key-outline" size={20} color={COLORS.emerald} />
               <Text style={styles.linkLabel}>Changer le mot de passe</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.linkRow, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/change-email')} accessibilityRole="button">
+              <Ionicons name="mail-outline" size={20} color={COLORS.emerald} />
+              <Text style={styles.linkLabel}>Changer d'adresse e-mail</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
