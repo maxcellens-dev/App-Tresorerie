@@ -33,7 +33,12 @@ export function useSavingsConfig() {
     queryKey: [KEY],
     queryFn: async (): Promise<SavingsConfig> => {
       if (!supabase) return SAVINGS_DEFAULTS;
-      const { data } = await supabase.from('app_config').select('savings_config').eq('id', 'default').single();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('savings_config').eq('id', 'default').single();
+      if (error) throw error;
       const cfg = (data as any)?.savings_config as Partial<SavingsConfig> | undefined;
       return { ...SAVINGS_DEFAULTS, ...(cfg ?? {}) };
     },
@@ -46,7 +51,10 @@ export function useSaveSavingsConfig() {
   return useMutation({
     mutationFn: async (config: Partial<SavingsConfig>) => {
       if (!supabase) throw new Error('Supabase non configuré');
-      const { data } = await supabase.from('app_config').select('savings_config').eq('id', 'default').single();
+      // Lecture ratée ≠ config vide : sans ce test, l'écriture ci-dessous réduisait la colonne au
+      // seul champ modifié (cf. useFeatureFlags pour le détail).
+      const { data, error: readErr } = await supabase.from('app_config').select('savings_config').eq('id', 'default').single();
+      if (readErr) throw readErr;
       const prev = { ...SAVINGS_DEFAULTS, ...(((data as any)?.savings_config) ?? {}) };
       const merged: SavingsConfig = { ...prev, ...config };
       const { error } = await supabase.from('app_config')

@@ -21,7 +21,12 @@ export function useReliabilityConfig() {
     queryKey: ['reliability_config'],
     queryFn: async (): Promise<ReliabilityConfig> => {
       if (!supabase) return resolveReliabilityConfig(null);
-      const { data } = await supabase.from('app_config').select('reliability').eq('id', 'default').single();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('reliability').eq('id', 'default').single();
+      if (error) throw error;
       return resolveReliabilityConfig((data as any)?.reliability ?? null);
     },
     staleTime: 60 * 1000,
@@ -42,7 +47,9 @@ export function useSaveReliabilityConfig() {
   return useMutation({
     mutationFn: async (patch: Partial<ReliabilityConfig>) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { data } = await supabase.from('app_config').select('reliability').eq('id', 'default').single();
+      // Lecture ratée ≠ config vide (cf. useFeatureFlags) : on ne réécrit pas la colonne à l'aveugle.
+      const { data, error: readErr } = await supabase.from('app_config').select('reliability').eq('id', 'default').single();
+      if (readErr) throw readErr;
       const prev = ((data as any)?.reliability ?? {}) as Partial<ReliabilityConfig>;
       const merged = { ...prev, ...patch };
       const { error } = await supabase.from('app_config').update({ reliability: merged, updated_at: new Date().toISOString() }).eq('id', 'default');
@@ -58,7 +65,12 @@ export function useSystemNotificationsConfig() {
     queryKey: ['system_notifications_config'],
     queryFn: async (): Promise<SystemNotificationsConfig> => {
       if (!supabase) return {};
-      const { data } = await supabase.from('app_config').select('system_notifications').eq('id', 'default').single();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('system_notifications').eq('id', 'default').single();
+      if (error) throw error;
       return ((data as any)?.system_notifications ?? {}) as SystemNotificationsConfig;
     },
     staleTime: 60 * 1000,
@@ -71,7 +83,9 @@ export function useSaveSystemNotificationsConfig() {
   return useMutation({
     mutationFn: async (patch: SystemNotificationsConfig) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { data } = await supabase.from('app_config').select('system_notifications').eq('id', 'default').single();
+      // Lecture ratée ≠ config vide (cf. useFeatureFlags) : on ne réécrit pas la colonne à l'aveugle.
+      const { data, error: readErr } = await supabase.from('app_config').select('system_notifications').eq('id', 'default').single();
+      if (readErr) throw readErr;
       const prev = ((data as any)?.system_notifications ?? {}) as SystemNotificationsConfig;
       const merged = { ...prev, ...patch };
       const { error } = await supabase.from('app_config').update({ system_notifications: merged, updated_at: new Date().toISOString() }).eq('id', 'default');

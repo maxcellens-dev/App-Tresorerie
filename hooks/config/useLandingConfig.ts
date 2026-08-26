@@ -172,7 +172,12 @@ export function useLandingConfig() {
     queryKey: [KEY],
     queryFn: async (): Promise<LandingConfig> => {
       if (!supabase) return DEFAULT_LANDING;
-      const { data } = await supabase.from('app_config').select('landing').eq('id', 'default').maybeSingle();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('landing').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       const cfg = mergeLanding((data as any)?.landing);
       // Mémorise le thème admin pour un rendu sans flash au prochain démarrage web.
       setCachedAdminTheme(cfg.theme);

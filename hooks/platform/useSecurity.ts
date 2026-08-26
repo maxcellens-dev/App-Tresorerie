@@ -66,7 +66,12 @@ export function useAdminNotifTemplates() {
         ai_ticket: { title: 'Conseil IA en échec', body: 'Une demande de conseil a échoué et attend une relance.' },
       };
       if (!supabase) return fallback;
-      const { data } = await supabase.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       const cfg = ((data as any)?.admin_notif_templates) ?? {};
       return {
         support: { ...fallback.support, ...(cfg.support ?? {}) },
@@ -83,7 +88,9 @@ export function useSaveAdminNotifTemplate() {
   return useMutation({
     mutationFn: async (input: { kind: AdminNotifTemplateKind; title: string; body: string }) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { data } = await supabase.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+      // Lecture ratée ≠ config vide (cf. useFeatureFlags) : on ne réécrit pas la colonne à l'aveugle.
+      const { data, error: readErr } = await supabase.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+      if (readErr) throw readErr;
       const prev = ((data as any)?.admin_notif_templates) ?? {};
       const merged = { ...prev, [input.kind]: { title: input.title, body: input.body } };
       const { error } = await supabase.from('app_config').update({ admin_notif_templates: merged, updated_at: new Date().toISOString() }).eq('id', 'default');
@@ -103,7 +110,12 @@ export function useCrashNotifyConfig() {
     queryFn: async (): Promise<CrashNotifyConfig> => {
       const fallback: CrashNotifyConfig = { enabled: true, title: '🚨 Erreur détectée dans l\'app', body: 'Une erreur ({kind}) est remontée depuis {platform} v{version}.', throttle_minutes: 30 };
       if (!supabase) return fallback;
-      const { data } = await supabase.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       return { ...fallback, ...(((data as any)?.crash_notify) ?? {}) } as CrashNotifyConfig;
     },
     staleTime: 30 * 1000,
@@ -115,7 +127,9 @@ export function useSaveCrashNotifyConfig() {
   return useMutation({
     mutationFn: async (patch: Partial<CrashNotifyConfig>) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { data } = await supabase.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      // Lecture ratée ≠ config vide (cf. useFeatureFlags) : on ne réécrit pas la colonne à l'aveugle.
+      const { data, error: readErr } = await supabase.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      if (readErr) throw readErr;
       const prev = (((data as any)?.crash_notify) ?? {}) as CrashNotifyConfig;
       const merged = { ...prev, ...patch };
       const { error } = await supabase.from('app_config').update({ crash_notify: merged, updated_at: new Date().toISOString() }).eq('id', 'default');

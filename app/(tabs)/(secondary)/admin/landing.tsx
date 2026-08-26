@@ -46,7 +46,7 @@ export default function AdminLanding() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
-  const { data: loaded } = useLandingConfig();
+  const { data: loaded, isError, refetch } = useLandingConfig();
   const save = useSaveLandingConfig();
 
   const [cfg, setCfg] = useState<LandingConfig | null>(null);
@@ -65,6 +65,24 @@ export default function AdminLanding() {
 
   useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
 
+  /* ⚠️ NE JAMAIS OUVRIR LE FORMULAIRE SUR UNE LECTURE RATÉE : cet écran réécrit la configuration
+     EN ENTIER. Partir de valeurs vides ou par défaut parce que la lecture n'a pas abouti, puis
+     appuyer sur « Enregistrer », effaçait la page d'accueil publiée pour tous les utilisateurs. */
+  if (isError) {
+    return (
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Page d'accueil" onBack={goBack} />
+        <Text style={{ color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: '700' }}>Configuration non chargée</Text>
+        <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
+          La configuration actuelle n'a pas pu être lue. Le formulaire reste fermé : l'ouvrir vide
+          ferait écraser les réglages en place au premier enregistrement.
+        </Text>
+        <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
+          <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+        </TouchableOpacity>
+      </SafeAreaView></View>
+    );
+  }
   if (!cfg) {
     return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Page d'accueil" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
   }

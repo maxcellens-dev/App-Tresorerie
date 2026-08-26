@@ -118,7 +118,12 @@ export function useAdsConfig() {
     queryKey: [KEY],
     queryFn: async (): Promise<AdsConfig> => {
       if (!supabase) return { banners: [] };
-      const { data } = await supabase.from('app_config').select('ads').eq('id', 'default').maybeSingle();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('ads').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       const ads = (data as any)?.ads as AdsConfig | undefined;
       return { banners: ads?.banners ?? [], rotation_seconds: ads?.rotation_seconds ?? 6, opacity: ads?.opacity ?? 100, disabled: ads?.disabled ?? false };
     },

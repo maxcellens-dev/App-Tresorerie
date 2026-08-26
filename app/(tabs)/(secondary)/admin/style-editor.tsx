@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Alert } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -147,7 +147,7 @@ export default function StyleEditor() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
-  const { data: styleConfig } = useStyleConfig();
+  const { data: styleConfig, isError: styleReadFailed, refetch: refetchStyle } = useStyleConfig();
   const saveStyle = useSaveStyleConfig();
 
   const isAdmin = profile?.is_admin ?? false;
@@ -408,8 +408,37 @@ export default function StyleEditor() {
       await saveStyle.mutateAsync(sc);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      // L'échec ne partait qu'en console : le bouton reprenait son libellé normal et rien ne
+      // distinguait un thème publié d'un thème perdu.
+      console.error(e);
+      Alert.alert('Thème non enregistré', e instanceof Error ? e.message : 'Vérifie ta connexion, puis réessaie.');
+    }
     finally { setSaving(false); }
+  }
+
+  /* ⚠️ NE JAMAIS OUVRIR L'ÉDITEUR SUR UNE LECTURE RATÉE. Les presets supplémentaires, les couleurs
+     masquées, l'ordre des pastilles, les accents personnalisés et les polices importées sont des
+     LISTES : l'enregistrement les remplace en bloc par l'état local. Or cet état local part de
+     valeurs par défaut et n'est garni qu'une fois la configuration lue — ouvrir la page hors réseau
+     puis appuyer sur « Enregistrer » effaçait donc tout le travail de personnalisation, pour tous
+     les utilisateurs de l'app. */
+  if (styleReadFailed) {
+    return (
+      <View style={styles.root}>
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Design System" onBack={goBack} />
+          <Text style={styles.body}>
+            Le thème actuel n'a pas pu être lu. L'éditeur reste fermé : l'ouvrir sur des valeurs par
+            défaut ferait effacer les couleurs, presets et polices en place au premier enregistrement.
+          </Text>
+          <TouchableOpacity onPress={() => refetchStyle()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
+            <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </View>
+    );
   }
 
   if (!isAdmin) {

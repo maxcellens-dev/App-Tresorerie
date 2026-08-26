@@ -48,7 +48,7 @@ export default function AdminAds() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
-  const { data: loaded } = useAdsConfig();
+  const { data: loaded, isError, refetch } = useAdsConfig();
   const save = useSaveAdsConfig();
 
   const [banners, setBanners] = useState<AdBanner[] | null>(null);
@@ -123,6 +123,25 @@ export default function AdminAds() {
     setMsg(null);
     try { await save.mutateAsync({ banners, rotation_seconds: Math.max(2, Number(rotation) || 6), opacity: Math.max(0, Math.min(100, Math.round(Number(opacity)) || 100)), disabled }); setMsg('Enregistré ✓'); }
     catch (e: unknown) { setMsg(e instanceof Error ? e.message : 'Erreur'); }
+  }
+
+  /* ⚠️ NE JAMAIS OUVRIR LE FORMULAIRE SUR UNE LECTURE RATÉE : cet écran réécrit la configuration
+     des publicités EN ENTIER. Partir d'une liste vide parce que la lecture n'a pas abouti, puis
+     appuyer sur « Enregistrer », effaçait TOUTES les bannières configurées. */
+  if (isError) {
+    return (
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Publicités" onBack={goBack} />
+        <Text style={{ color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: '700' }}>Configuration non chargée</Text>
+        <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
+          Les bannières actuelles n'ont pas pu être lues. Le formulaire reste fermé : l'ouvrir vide
+          ferait écraser les bannières en place au premier enregistrement.
+        </Text>
+        <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
+          <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+        </TouchableOpacity>
+      </SafeAreaView></View>
+    );
   }
 
   return (

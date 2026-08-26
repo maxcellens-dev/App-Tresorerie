@@ -20,7 +20,7 @@ export default function AdminLegal() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
-  const { data: loaded } = useLegalContent();
+  const { data: loaded, isError, refetch } = useLegalContent();
   const save = useSaveLegalContent();
 
   const [privacy, setPrivacy] = useState<string | null>(null);
@@ -33,6 +33,26 @@ export default function AdminLegal() {
       setLegal(loaded.legal ?? '');
     }
   }, [loaded]);
+
+  /* ⚠️ NE JAMAIS OUVRIR LE FORMULAIRE SUR UNE LECTURE RATÉE. Ces deux textes sont réécrits EN
+     ENTIER à l'enregistrement : partir d'un contenu vide parce que la lecture n'a pas abouti, puis
+     appuyer sur « Enregistrer », effaçait la politique de confidentialité et les mentions légales
+     publiées — pour tout le monde, y compris les pages publiques indexées. */
+  if (isError) {
+    return (
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Pages légales" onBack={goBack} />
+        <Text style={{ color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: '700' }}>Contenu non chargé</Text>
+        <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
+          Les textes actuels n'ont pas pu être lus. Le formulaire reste fermé : l'ouvrir vide ferait
+          écraser les textes publiés au premier enregistrement.
+        </Text>
+        <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
+          <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+        </TouchableOpacity>
+      </SafeAreaView></View>
+    );
+  }
 
   if (privacy === null) {
     return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Pages légales" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;

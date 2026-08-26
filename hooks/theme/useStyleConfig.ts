@@ -146,7 +146,10 @@ export function useSaveStyleConfig() {
   return useMutation({
     mutationFn: async (config: Partial<StyleConfig>) => {
       if (!supabase) throw new Error('Supabase non configuré');
-      const { data } = await supabase.from('app_config').select('theme').eq('id', 'default').single();
+      // Lecture ratée ≠ thème vide (cf. useFeatureFlags) : sans ce test, enregistrer une seule
+      // couleur effaçait tout le reste du thème (presets ajoutés, couleurs masquées, ordre).
+      const { data, error: readErr } = await supabase.from('app_config').select('theme').eq('id', 'default').single();
+      if (readErr) throw readErr;
       const existing = (data as any)?.theme ?? {};
       const prev: StyleConfig = {
         dark:  { ...STYLE_DEFAULTS.dark,  ...(existing.style?.dark  ?? {}) },

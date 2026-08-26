@@ -105,7 +105,13 @@ export function useSaveFeatureFlags() {
   return useMutation({
     mutationFn: async (patch: Partial<FeatureFlags>) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { data } = await supabase.from('app_config').select('features').eq('id', 'default').single();
+      /* ⚠️ CETTE LECTURE DÉCIDE DU SORT DE TOUTE LA COLONNE. Son erreur était ignorée : sur une
+         simple coupure, `data` valait null, `prev` devenait {} — et l'écriture juste en dessous
+         REMPLAÇAIT tous les drapeaux par le seul que l'administrateur venait de basculer. Offre
+         Premium, versions publiées, liens de store, coupure globale : tout disparaissait, pour
+         tous les utilisateurs, sans le moindre message. */
+      const { data, error: readErr } = await supabase.from('app_config').select('features').eq('id', 'default').single();
+      if (readErr) throw readErr;
       const prev = (((data as any)?.features) ?? {}) as FeatureFlags;
       const merged = { ...prev, ...patch };
       const { error } = await supabase.from('app_config').update({ features: merged, updated_at: new Date().toISOString() }).eq('id', 'default');

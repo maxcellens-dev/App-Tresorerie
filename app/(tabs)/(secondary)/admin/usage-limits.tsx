@@ -25,7 +25,7 @@ export default function AdminUsageLimits() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
-  const { data: cfg } = useUsageLimitsConfig();
+  const { data: cfg, isError: readFailed, refetch } = useUsageLimitsConfig();
   const save = useSaveUsageLimitsConfig();
 
   const [draft, setDraft] = useState<Record<Tier, Record<string, string>>>({ free: {}, premium: {} });
@@ -97,10 +97,25 @@ export default function AdminUsageLimits() {
             </View>
           ))}
 
+          {/* ⚠️ ENREGISTRER SUR UNE LECTURE RATÉE ÉCRASERAIT LA CONFIGURATION. Le brouillon part
+              des valeurs PAR DÉFAUT et n'est garni qu'une fois la configuration lue : tant qu'elle
+              ne l'est pas, ce que montre le formulaire n'est pas ce qui est en place, et
+              l'enregistrement remplacerait les vrais réglages par les défauts. */}
+          {readFailed && (
+            <View style={{ borderWidth: 1, borderColor: COLORS.danger + '55', backgroundColor: COLORS.danger + '12', borderRadius: 12, padding: 12, marginTop: 8, gap: 8 }}>
+              <Text style={{ color: COLORS.danger, fontSize: 12.5, lineHeight: 18 }}>
+                La configuration en place n'a pas pu être lue : ce que tu vois ci-dessus sont les
+                valeurs par défaut, pas les tiennes. L'enregistrement est bloqué pour ne pas les écraser.
+              </Text>
+              <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 }}>
+                <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 13 }}>Réessayer</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <TouchableOpacity
-            style={[styles.saveBtn, (!dirty || save.isPending) && styles.saveBtnDisabled]}
+            style={[styles.saveBtn, (!dirty || save.isPending || readFailed) && styles.saveBtnDisabled]}
             onPress={saveAll}
-            disabled={!dirty || save.isPending}
+            disabled={!dirty || save.isPending || readFailed}
           >
             {save.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="checkmark" size={18} color="#fff" />}
             <Text style={styles.saveBtnTxt}>{save.isPending ? 'Enregistrement…' : 'Enregistrer'}</Text>

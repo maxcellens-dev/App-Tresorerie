@@ -14,7 +14,12 @@ export function useLegalContent() {
     queryKey: [KEY],
     queryFn: async (): Promise<LegalContent> => {
       if (!supabase) return {};
-      const { data } = await supabase.from('app_config').select('legal').eq('id', 'default').maybeSingle();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('legal').eq('id', 'default').maybeSingle();
+      if (error) throw error;
       return ((data as any)?.legal as LegalContent) ?? {};
     },
     staleTime: 5 * 60 * 1000,

@@ -50,5 +50,12 @@ export function useSaveProjectionAssumptions(userId: string | undefined) {
       return { prev };
     },
     onError: (_e, _v, ctx) => { if (ctx?.prev !== undefined) qc.setQueryData([KEY, userId], ctx.prev); },
+    /* ── SILENCE VOLONTAIRE, ET SEULEMENT ICI ─────────────────────────────────────────────────
+       Cette sauvegarde est AUTOMATIQUE et rejouée à chaque réglage (anti-rebond de 500 ms). Hors
+       ligne, le filet global (cf. lib/ui/writeErrors) ouvrait donc une boîte « Changement non
+       enregistré » toutes les demi-secondes, par-dessus l'écran qu'on est en train de régler —
+       impossible à lire, impossible à fermer. L'écran Projection affiche désormais un bandeau
+       discret et permanent à la place : c'est la même information, dite une seule fois. */
+    meta: { silentError: true },
   });
 }

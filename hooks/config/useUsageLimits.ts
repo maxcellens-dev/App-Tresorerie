@@ -18,7 +18,12 @@ export function useUsageLimitsConfig() {
     queryKey: ['usage_limits_config'],
     queryFn: async (): Promise<UsageLimitsConfig> => {
       if (!supabase) return resolveUsageLimits(null);
-      const { data } = await supabase.from('app_config').select('usage_limits').eq('id', 'default').single();
+      /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN
+         ENTIER. Son erreur était ignorée : sur une coupure, le formulaire s'ouvrait garni des
+         valeurs par défaut, et « Enregistrer » écrasait la vraie configuration avec elles. On lève
+         — l'écran sait alors qu'il ne sait pas (`isError`) et refuse d'enregistrer. */
+      const { data, error } = await supabase.from('app_config').select('usage_limits').eq('id', 'default').single();
+      if (error) throw error;
       return resolveUsageLimits((data as any)?.usage_limits ?? null);
     },
     staleTime: 60 * 1000,

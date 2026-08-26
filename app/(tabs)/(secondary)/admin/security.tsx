@@ -75,6 +75,16 @@ function LockdownCard({ c, s }: { c: any; s: any }) {
     setMessage(flags.app_lockdown_message ?? '');
   }, [flags]);
 
+  /* ⚠️ LA COUPURE GLOBALE NE DOIT JAMAIS ÉCHOUER EN SILENCE. C'est le geste qu'on fait en
+     urgence, pendant une attaque : l'écriture partait sans aucun retour d'erreur, et l'écran ne
+     change d'état qu'une fois les drapeaux relus. Si elle échouait, l'administrateur repartait
+     convaincu d'avoir verrouillé l'application alors que tous les utilisateurs y avaient encore
+     un accès complet — et rien à l'écran ne l'aurait détrompé. */
+  const onLockdownError = (e: unknown) => Alert.alert(
+    'La coupure n’a PAS été appliquée',
+    `L'application n'a pas changé d'état : ${e instanceof Error ? e.message : 'écriture refusée'}. Vérifie ta connexion et recommence — n'en conclus rien tant que la ligne ci-dessus n'affiche pas « ACTIVE ».`,
+  );
+
   const toggle = () => {
     if (!locked) {
       Alert.alert(
@@ -82,20 +92,23 @@ function LockdownCard({ c, s }: { c: any; s: any }) {
         "Tous les utilisateurs (sauf les admins) seront IMMÉDIATEMENT bloqués : voile plein écran, aucune interaction possible. À n'utiliser qu'en cas d'attaque ou de piratage en cours.",
         [
           { text: 'Annuler', style: 'cancel' },
-          { text: 'Verrouiller l\'app', style: 'destructive', onPress: () => save.mutate({ app_lockdown_enabled: true }) },
+          { text: 'Verrouiller l\'app', style: 'destructive', onPress: () => save.mutate({ app_lockdown_enabled: true }, { onError: onLockdownError }) },
         ],
       );
     } else {
       Alert.alert('Réactiver l\'app ?', 'Les utilisateurs retrouveront l\'accès immédiatement.', [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Réactiver', onPress: () => save.mutate({ app_lockdown_enabled: false }) },
+        { text: 'Réactiver', onPress: () => save.mutate({ app_lockdown_enabled: false }, { onError: onLockdownError }) },
       ]);
     }
   };
 
   const saveTexts = () => save.mutate(
     { app_lockdown_title: title.trim() || undefined, app_lockdown_message: message.trim() || undefined },
-    { onSuccess: () => { setSavedMsg(true); setTimeout(() => setSavedMsg(false), 1500); } },
+    {
+      onSuccess: () => { setSavedMsg(true); setTimeout(() => setSavedMsg(false), 1500); },
+      onError: (e: unknown) => Alert.alert('Un souci', e instanceof Error ? e.message : "Ces textes n'ont pas pu être enregistrés."),
+    },
   );
 
   return (
@@ -198,7 +211,7 @@ function ErrorsCard({ c, s }: { c: any; s: any }) {
         <Text style={s.empty}>Aucune erreur {onlyOpen ? 'ouverte' : ''} — tout va bien. 🎉</Text>
       ) : (
         errors.map((e) => (
-          <ErrorRow key={e.id} e={e} c={c} s={s} expanded={expanded === e.id} onToggle={() => setExpanded(expanded === e.id ? null : e.id)} onResolve={() => resolve.mutate({ id: e.id, resolved: !e.resolved })} />
+          <ErrorRow key={e.id} e={e} c={c} s={s} expanded={expanded === e.id} onToggle={() => setExpanded(expanded === e.id ? null : e.id)} onResolve={() => resolve.mutate({ id: e.id, resolved: !e.resolved }, { onError: (err: unknown) => Alert.alert('Un souci', err instanceof Error ? err.message : "L'entrée n'a pas pu être mise à jour.") })} />
         ))
       )}
 
