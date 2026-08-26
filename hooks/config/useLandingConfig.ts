@@ -87,10 +87,21 @@ export const DEFAULT_LANDING: LandingConfig = {
   enabled: true,
   theme: 'dark',
   brandName: 'Relyka',
+  /* ── UN LIEN DE MENU DOIT DÉCRIRE CE QU'IL MONTRE, ET N'EXISTER QUE S'IL APPORTE QUELQUE CHOSE ──
+     Les trois liens d'origine ne tenaient ni l'un ni l'autre :
+       • « Pourquoi Relyka » menait à la bande de CHIFFRES, qui dit « 100 % gratuit pour démarrer,
+         aucune carte requise, accessible partout ». Ce sont des conditions d'accès, pas des raisons
+         de choisir l'app : on posait une question et on répondait à une autre ;
+       • « Commencer » menait au dernier bloc, dont les deux boutons sont… « S'inscrire » et
+         « Se connecter ». Or ce même « S'inscrire » se trouve à quelques pixels à droite, dans le
+         MÊME en-tête : le lien faisait défiler toute la page pour reproposer le geste qu'on venait
+         de refuser. Un lien qui tourne en rond.
+     Il ne reste donc que ce que la page contient vraiment : ce qu'elle fait, et à quel prix.
+     (Ces libellés sont ÉDITABLES en administration — section « Page d'accueil » › « Menu du haut ».
+     S'ils cessent de décrire les sections, c'est là qu'on les corrige.) */
   navLinks: [
     { label: 'Fonctionnalités', anchor: 'features' },
-    { label: 'Pourquoi Relyka', anchor: 'stats' },
-    { label: 'Commencer', anchor: 'final' },
+    { label: 'Gratuit', anchor: 'stats' },
   ],
   ctaPrimaryLabel: "S'inscrire",
   ctaSecondaryLabel: 'Se connecter',

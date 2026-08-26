@@ -91,6 +91,7 @@ export default function AdminLanding() {
   const setFeature = (i: number, patch: Partial<LandingFeature>) => set({ features: cfg.features.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setMobileFeature = (i: number, patch: Partial<LandingFeature>) => set({ mobileFeatures: cfg.mobileFeatures.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setStat = (i: number, patch: Partial<LandingStat>) => set({ stats: cfg.stats.map((s, idx) => idx === i ? { ...s, ...patch } : s) });
+  const setNav = (i: number, patch: Partial<LandingLink>) => set({ navLinks: cfg.navLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
   const setFooter = (i: number, patch: Partial<LandingLink>) => set({ footerLinks: cfg.footerLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
 
   /** Choisit un fichier et le téléverse dans le bucket public, puis renvoie son URL à `onDone`.
@@ -449,6 +450,31 @@ export default function AdminLanding() {
             <Text style={styles.section}>Appel à l'action final</Text>
             <Field label="Titre" value={cfg.finalTitle} onChange={(v) => set({ finalTitle: v })} styles={styles} c={COLORS} />
             <Field label="Sous-titre" value={cfg.finalSubtitle} onChange={(v) => set({ finalSubtitle: v })} multiline styles={styles} c={COLORS} />
+          </View>
+
+          {/* ── MENU DU HAUT ────────────────────────────────────────────────────────────────
+              Ces liens étaient CONFIGURÉS (valeurs par défaut, fusion, résolution des ancres)
+              mais éditables NULLE PART : le menu de la page d'accueil était le seul élément de
+              cette page qu'on ne pouvait pas corriger d'ici. Un libellé qui ne décrit plus sa
+              section — parce qu'on a changé les chiffres ou renommé un bloc — restait faux. */}
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.section}>Menu du haut</Text>
+              <TouchableOpacity onPress={() => set({ navLinks: [...cfg.navLinks, { label: 'Lien', anchor: 'features' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
+            </View>
+            {cfg.navLinks.length === 0 && <Text style={styles.hint}>Aucun lien : le menu ne s'affiche pas.</Text>}
+            {cfg.navLinks.map((l, i) => (
+              <View key={i} style={styles.rowItem}>
+                <TextInput style={[styles.input, { flex: 1 }]} value={l.label} onChangeText={(v) => setNav(i, { label: v })} placeholder="Libellé" placeholderTextColor={COLORS.textSecondary} />
+                <TextInput style={[styles.input, { width: 110 }]} value={l.anchor ?? l.url ?? ''} onChangeText={(v) => setNav(i, /^https?:\/\//.test(v) ? { url: v, anchor: undefined } : { anchor: v, url: undefined })} placeholder="ancre / URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" />
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le lien de menu" onPress={() => set({ navLinks: cfg.navLinks.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+              </View>
+            ))}
+            <Text style={styles.hint}>
+              Affiché seulement sur écran large (au-delà de 980 px). Ancres des sections de cette page :
+              features (fonctionnalités), stats (les chiffres), final (dernier appel à l'action) — ou une URL https://…
+              Un libellé doit décrire la section qu'il montre, et ne pas doubler « S'inscrire » ou « Se connecter », déjà présents à droite du menu.
+            </Text>
           </View>
 
           <View style={styles.card}>
