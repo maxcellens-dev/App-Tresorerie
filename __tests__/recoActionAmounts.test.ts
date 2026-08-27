@@ -9,7 +9,22 @@ import { formatRangeLabel } from '../lib/finance/currency';
  * (« Réserver 0 € », description « Conserve au moins 0 € », confirmation sans effet).
  */
 
-// Palier « below_optimal » : save 40 % / invest 10 % / enjoy 20 % / keep 30 %.
+/**
+ * RÉPARTITION EXPLICITE — 40 / 10 / 20 / 30.
+ *
+ * Ces cas portent sur la MÉCANIQUE du moteur (miettes, cascade, arrondis, garde-fou), pas sur les
+ * pourcentages : ils ont besoin d'une répartition stable, pas de celle d'un palier précis.
+ *
+ * Elle était jusqu'ici obtenue en NE PASSANT PAS de profil, ce qui faisait retomber le moteur sur
+ * une échelle déduite du montant d'épargne. Cette échelle a été retirée : elle était inatteignable
+ * en production (`buildRecoOptions` passe toujours un identifiant) et ces tests étaient donc son
+ * seul utilisateur — on validait des pourcentages que personne ne recevait. On les pose maintenant
+ * à la main, ce qui dit exactement ce que les cas supposent.
+ */
+const ALLOC = { save: 40, invest: 10, enjoy: 20, keep: 30 };
+const reco = (data: any, opts: any = {}) =>
+  computeRecommendations(data, { manualAllocation: ALLOC, ...opts });
+
 const base: any = {
   safe_to_spend: 1000,
   safety_margin_amount: 2000,
@@ -34,7 +49,7 @@ const doubtCrushesEverything = () => ({ value: 0, isRange: true });
 
 describe('montant actionnable — filet anti-zéro', () => {
   it('borne basse écrasée à 0 → on retombe sur le montant proposé (jamais « au moins 0 € »)', () => {
-    const r = byType(computeRecommendations(base, { actionAmountFor: doubtCrushesEverything }));
+    const r = byType(reco(base, { actionAmountFor: doubtCrushesEverything }));
     expect(r.save.amount).toBe(400);
     expect(r.save.actionAmount).toBe(400);
     expect(r.save.description).not.toContain('au moins 0 €');
@@ -43,7 +58,7 @@ describe('montant actionnable — filet anti-zéro', () => {
   });
 
   it('borne basse valable → elle est bien utilisée (« au moins … »)', () => {
-    const r = byType(computeRecommendations(base, {
+    const r = byType(reco(base, {
       actionAmountFor: (amount: number) => ({ value: Math.round(amount * 0.6), isRange: true }),
     }));
     expect(r.save.actionAmount).toBe(240);
@@ -54,19 +69,19 @@ describe('montant actionnable — filet anti-zéro', () => {
      nominal : la phrase unique donnait « Fais ce que tu veux des au moins 240 € restants », qui ne
      se lit pas. C'est le seul texte de reco dans ce cas. */
   it('« Confort » reste lisible en fourchette (pas de « des au moins … restants »)', () => {
-    const enFourchette = byType(computeRecommendations(base, {
+    const enFourchette = byType(reco(base, {
       actionAmountFor: (amount: number) => ({ value: Math.round(amount * 0.6), isRange: true }),
     }));
     expect(enFourchette.enjoy.description).not.toContain('des au moins');
     expect(enFourchette.enjoy.description).toContain("d'au moins 120 €");
 
-    const sansFourchette = byType(computeRecommendations(base));
+    const sansFourchette = byType(reco(base));
     expect(sansFourchette.enjoy.description).toContain('des 200 € restants');
   });
 
   it('le type est transmis → « Conserver » peut être servi au montant plein (doute directionnel)', () => {
     const seen: RecoType[] = [];
-    const r = byType(computeRecommendations(base, {
+    const r = byType(reco(base, {
       actionAmountFor: (amount: number, type: RecoType) => {
         seen.push(type);
         return type === 'keep' ? { value: amount, isRange: false } : { value: Math.round(amount * 0.6), isRange: true };
@@ -84,7 +99,7 @@ describe('petit Relyka — repli « une seule reco »', () => {
     // 100 € répartis 40/10/20/30 % = 40/10/20/30 € : tous sous leurs seuils (50/100/50/50).
     // Avant, les 4 postes étaient filtrés un à un → « Toutes les recommandations ont été traitées ✨ »
     // alors qu'il restait 100 € non alloués.
-    const recos = computeRecommendations(base, { budget: 100, maxAmount: 100 });
+    const recos = reco(base, { budget: 100, maxAmount: 100 });
     expect(recos).toHaveLength(1);
     expect(recos[0].type).toBe('keep');
     expect(recos[0].amount).toBe(100);
@@ -93,7 +108,7 @@ describe('petit Relyka — repli « une seule reco »', () => {
 
   it('cas réel : épargne/invest déjà fléchés, il ne reste qu’une miette → tout conserver', () => {
     // Relyka 154 € : la part épargne (62 €) et invest (15 €) sont déjà engagées ce mois.
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       budget: 154,
       maxAmount: 150,
       alreadyAllocated: { save: 62, invest: 15 },
@@ -106,14 +121,14 @@ describe('petit Relyka — repli « une seule reco »', () => {
 
   it('un seul poste passe son seuil → il absorbe tout le reste', () => {
     // 154 € : seule l'épargne (62 € ≥ 50) atteint son seuil → elle récupère les miettes.
-    const recos = computeRecommendations(base, { budget: 154, maxAmount: 150 });
+    const recos = reco(base, { budget: 154, maxAmount: 150 });
     expect(recos).toHaveLength(1);
     expect(recos[0].type).toBe('save');
     expect(recos[0].amount).toBe(150);
   });
 
   it('reste dérisoire → aucune reco', () => {
-    expect(computeRecommendations(base, { budget: 6, maxAmount: 0 })).toEqual([]);
+    expect(reco(base, { budget: 6, maxAmount: 0 })).toEqual([]);
   });
 });
 
@@ -121,7 +136,7 @@ describe('miettes & arrondis — Σ(recos) = Relyka', () => {
   it('les postes sous leur seuil sont versés au poste le mieux protégé', () => {
     // Budget 300 → save 120 / invest 30 / enjoy 60 / keep 90. invest (30 < 100) est une miette.
     // Ordre « équilibré » : enjoy, invest, keep, save → le mieux protégé est « save ».
-    const recos = computeRecommendations(base, { budget: 300 });
+    const recos = reco(base, { budget: 300 });
     const r = byType(recos);
     expect(r.invest).toBeUndefined();
     expect(r.save.amount).toBe(150); // 120 + 30
@@ -131,14 +146,14 @@ describe('miettes & arrondis — Σ(recos) = Relyka', () => {
   it('le reliquat d’arrondi à la dizaine n’est pas perdu', () => {
     // Budget 1007 → 402,8 / 100,7 / 201,4 / 302,1 → arrondis 400/100/200/300 = 1000 (7 € perdus),
     // alors que le Relyka affiché vaut 1000 → le reliquat rejoint le poste le mieux protégé.
-    const recos = computeRecommendations(base, { budget: 1007, maxAmount: 1000 });
+    const recos = reco(base, { budget: 1007, maxAmount: 1000 });
     expect(recos.reduce((s, x) => s + x.amount, 0)).toBe(1000);
   });
 
   it('Σ(recos) ne dépasse JAMAIS le Relyka affiché (plafond appliqué à la somme)', () => {
     // Le plafond `maxAmount` s'applique poste par poste : sans réconciliation, 400+100+200+300 = 1000
     // s'affichait au-dessus d'un Relyka annoncé à 990.
-    const recos = computeRecommendations(base, { budget: 999, maxAmount: 990 });
+    const recos = reco(base, { budget: 999, maxAmount: 990 });
     expect(recos.reduce((s, x) => s + x.amount, 0)).toBe(990);
   });
 });
@@ -176,9 +191,9 @@ describe('fin de période (avant la prochaine rentrée d’argent)', () => {
      profil qui s'appliquent, du premier au dernier jour de la période. Seuls les LIBELLÉS changent
      à l'approche de la rentrée d'argent (tests suivants). */
   it('les montants sont les MÊMES du premier au dernier jour de la période', () => {
-    const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 20 }));
+    const mid = byType(reco(base, { daysLeftInPeriod: 20 }));
     for (const daysLeftInPeriod of [7, 3, 0]) {
-      const jour = byType(computeRecommendations(base, { daysLeftInPeriod }));
+      const jour = byType(reco(base, { daysLeftInPeriod }));
       expect(jour.enjoy.amount).toBe(mid.enjoy.amount);
       expect(jour.keep.amount).toBe(mid.keep.amount);
       expect(jour.save.amount).toBe(mid.save.amount);
@@ -190,14 +205,14 @@ describe('fin de période (avant la prochaine rentrée d’argent)', () => {
   // Vocabulaire figé : le geste s'appelle « Réserver » partout à l'affichage (comme la ligne
   // « Réservé » du suivi). Seul l'horizon change à l'approche de la rentrée d'argent.
   it('à l’approche de la rentrée d’argent, le titre bascule sur la suite', () => {
-    const end = byType(computeRecommendations(base, { daysLeftInPeriod: 2 }));
+    const end = byType(reco(base, { daysLeftInPeriod: 2 }));
     expect(end.keep.title).toBe('Réserver pour après ta rentrée d’argent');
     expect(end.keep.shortTitle).toBe('Réserver');
     expect(end.keep.description).toContain('rentrée d\'argent');
   });
 
   it('en pleine période, les libellés ne changent pas', () => {
-    const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 15 }));
+    const mid = byType(reco(base, { daysLeftInPeriod: 15 }));
     expect(mid.keep.title).toBe('Réserver pour plus tard');
     expect(mid.keep.shortTitle).toBe('Réserver');
   });
@@ -206,9 +221,9 @@ describe('fin de période (avant la prochaine rentrée d’argent)', () => {
      décrétait « fin de mois » alors qu'il venait d'être payé. Période inconnue ou lointaine = rien
      ne bouge ; seule la vraie rentrée d'argent déclenche la bascule. */
   it('sans période connue, « Confort » reste INTACT (plus de fonte calendaire)', () => {
-    const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 20 }));
-    const inconnu = byType(computeRecommendations(base, {}));
-    const nul = byType(computeRecommendations(base, { daysLeftInPeriod: null }));
+    const mid = byType(reco(base, { daysLeftInPeriod: 20 }));
+    const inconnu = byType(reco(base, {}));
+    const nul = byType(reco(base, { daysLeftInPeriod: null }));
     expect(inconnu.enjoy.amount).toBe(mid.enjoy.amount);
     expect(nul.enjoy.amount).toBe(mid.enjoy.amount);
     expect(inconnu.keep.title).toBe('Réserver pour plus tard');
@@ -296,8 +311,8 @@ describe('trace des écarts — ce que le moteur a réellement fait', () => {
 
   it('sans collecteur, le moteur rend exactement le même résultat', () => {
     const avec: any[] = [];
-    const a = computeRecommendations(base, { overspend: 200, trace: avec });
-    const b = computeRecommendations(base, { overspend: 200 });
+    const a = reco(base, { overspend: 200, trace: avec });
+    const b = reco(base, { overspend: 200 });
     expect(a.map((r) => [r.type, r.amount])).toEqual(b.map((r) => [r.type, r.amount]));
     expect(avec.length).toBeGreaterThan(0);
   });

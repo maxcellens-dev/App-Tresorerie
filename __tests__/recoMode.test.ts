@@ -33,9 +33,6 @@ const comfortable: any = {
   remaining_fixed_expenses: 0,
 };
 
-/** Réserve quasi nulle : la priorité « te constituer un filet » borne l'investissement à 0 %. */
-const noReserve: any = { ...comfortable, current_savings: 500, total_savings: 500, total_invested: 0 };
-
 const manual = { save: 10, invest: 60, enjoy: 10, keep: 20 };
 
 describe('readManualAllocation — ce qui est exploitable, et ce qui ne l’est pas', () => {
@@ -87,21 +84,21 @@ describe('resolveRecoMode — le mode réellement appliqué', () => {
 
 describe('deriveRecoAllocations — le manuel remplace la table du palier, et rien de plus', () => {
   it('sans mode manuel : la table du profil', () => {
-    const { alloc } = deriveRecoAllocations(comfortable, { financialProfileId: 'P6' });
+    const { alloc } = deriveRecoAllocations({ financialProfileId: 'P6' });
     // P6 = 12/40/25/23 ; aucune borne ne s'applique ici (plus de 6 mois de réserve).
     expect(alloc).toEqual(PROFILE_ALLOCATIONS.P6);
   });
 
   it('en manuel : les pourcentages choisis, appliqués tels quels', () => {
-    const { alloc } = deriveRecoAllocations(comfortable, {
+    const { alloc } = deriveRecoAllocations({
       financialProfileId: 'P6', manualAllocation: manual,
     });
     expect(alloc).toEqual(manual);
   });
 
   it('le PALIER de vocabulaire reste celui du profil réel', () => {
-    const auto = deriveRecoAllocations(comfortable, { financialProfileId: 'P6' });
-    const manuel = deriveRecoAllocations(comfortable, { financialProfileId: 'P6', manualAllocation: manual });
+    const auto = deriveRecoAllocations({ financialProfileId: 'P6' });
+    const manuel = deriveRecoAllocations({ financialProfileId: 'P6', manualAllocation: manual });
     expect(manuel.tier).toBe(auto.tier);
   });
 
@@ -113,9 +110,12 @@ describe('deriveRecoAllocations — le manuel remplace la table du palier, et ri
      L'étage a été supprimé. Ce que ces bornes prétendaient protéger reste assuré plus bas, sur des
      MONTANTS réels (cascade, garde-fou projection, réconciliation Σ recos = Relyka). */
   it('la répartition de base n’est plus bornée, même sans réserve', () => {
-    // Situation extrême (réserve quasi nulle) : c'est elle qui déclenchait « invest ≤ 0 %, save ≥ 50 ».
-    const auto = deriveRecoAllocations(noReserve, { financialProfileId: 'P6' }).alloc;
-    const manuel = deriveRecoAllocations(noReserve, {
+    /* La situation extrême (réserve quasi nulle) déclenchait « invest ≤ 0 %, save ≥ 50 ».
+       ⚠️ Elle ne peut MÊME PLUS être exprimée : `deriveRecoAllocations` ne reçoit plus les données
+       du pilotage — seulement le palier et la répartition choisie. C'est le meilleur garde-fou
+       possible contre le retour d'un étage qui réécrirait les pourcentages d'après la situation. */
+    const auto = deriveRecoAllocations({ financialProfileId: 'P6' }).alloc;
+    const manuel = deriveRecoAllocations({
       financialProfileId: 'P6', manualAllocation: manual,
     }).alloc;
     // L'investissement n'est plus ramené à zéro, ni l'épargne remontée à 50 %.
@@ -135,7 +135,7 @@ describe('deriveRecoAllocations — le manuel remplace la table du palier, et ri
     // Table de l'administration : elle prime sur celle du code, dans les deux sens de lecture.
     const admin = { ...PROFILE_ALLOCATIONS, P6: { save: 30, invest: 30, enjoy: 20, keep: 20 } };
     expect(appliedAllocation('P6', null, admin)).toEqual(admin.P6);
-    expect(deriveRecoAllocations(comfortable, {
+    expect(deriveRecoAllocations({
       financialProfileId: 'P6', profileAllocations: admin,
     }).alloc).toEqual(admin.P6);
   });

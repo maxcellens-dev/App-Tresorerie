@@ -53,6 +53,23 @@ const ALL_PROFILES: FinancialProfileId[] = FINANCIAL_PROFILE_IDS;
 /** Les trois passages gouvernés par le PATRIMOINE, et non par le seul matelas. */
 const WEALTH_TRANSITIONS = new Set(['P6_P7', 'P7_P8', 'P8_P9']);
 
+/**
+ * Les deux réglages qui décident de « il investit », et pourquoi ils vivent sur ces lignes-là.
+ *
+ * Le MONTANT placé minimal est porté par les colonnes « patrimoine » de P5_P6 — la transition qui
+ * EST le passage à l'investissement, et dont ces colonnes n'étaient lues par personne (les paliers
+ * de patrimoine commencent à P6_P7). La PART du patrimoine placée est portée par P6_P7 et vaut pour
+ * les trois paliers hauts, comme `chronic_overdraft_months` est lu une seule fois sur P1_P2.
+ */
+const INVEST_MIN_TRANSITION = 'P5_P6';
+const INVEST_SHARE_TRANSITION = 'P6_P7';
+
+/** Part (0,10) → « 10 % ». Vide ⇒ le libellé de repli, jamais « null % ». */
+const pct = (v: unknown, fallback: string): string =>
+  (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)))
+    ? fallback
+    : `${(Number(v) * 100).toFixed(0)} %`;
+
 const TRANSITIONS = PROFILE_TRANSITION_KEYS.map((key) => {
   const [from, to] = key.split('_') as [FinancialProfileId, FinancialProfileId];
   return { key, label: `${from} → ${to}`, from, to };
@@ -667,6 +684,8 @@ function MatrixSection({ userId }: { userId: string }) {
         viability_exit_ratio: String((cfg as any).viability_exit_ratio ?? ''),
         viability_enter_ratio: String((cfg as any).viability_enter_ratio ?? ''),
         viability_grace_months: String((cfg as any).viability_grace_months ?? ''),
+        invested_share_up: String((cfg as any).invested_share_up ?? ''),
+        invested_share_down: String((cfg as any).invested_share_down ?? ''),
       });
     }
     setEditingKey(transition);
@@ -694,7 +713,10 @@ function MatrixSection({ userId }: { userId: string }) {
       ? check('viability_grace_months', 'downgrade_months_threshold', 'mois')
         ?? check('viability_enter_ratio', 'viability_exit_ratio', '× revenu')
       : check('upgrade_months_threshold', 'downgrade_months_threshold', 'mois')
-        ?? check('upgrade_wealth_threshold', 'downgrade_wealth_threshold', '€');
+        /* Sur P5_P6, ces deux colonnes portent le MONTANT PLACÉ minimal (cf. le formulaire) : la
+           bande s'y vérifie exactement pareil, seule l'unité change. */
+        ?? check('upgrade_wealth_threshold', 'downgrade_wealth_threshold', '€')
+        ?? check('invested_share_up', 'invested_share_down', 'de part placée');
     if (problem) { Alert.alert('Réglage impossible', problem); return; }
 
     try {
@@ -710,6 +732,8 @@ function MatrixSection({ userId }: { userId: string }) {
         viability_exit_ratio: numOrNull(editValues.viability_exit_ratio),
         viability_enter_ratio: numOrNull(editValues.viability_enter_ratio),
         viability_grace_months: numOrNull(editValues.viability_grace_months),
+        invested_share_up: numOrNull(editValues.invested_share_up),
+        invested_share_down: numOrNull(editValues.invested_share_down),
       } as any);
       setEditingKey(null);
       Alert.alert('Sauvegardé');
@@ -726,8 +750,9 @@ function MatrixSection({ userId }: { userId: string }) {
           profil est évalué en temps réel. Il décrit maintenant ce qui se passe réellement. */}
       <Text style={styles.matrixInfo}>
         Le profil répond à quatre questions, dans cet ordre : la situation est-elle viable (P1) ·
-        combien de temps tient-elle (P2 → P5) · investit-il réellement (P6) · quelle taille fait le
-        patrimoine (P7 → P9). Le taux d’épargne ne classe plus rien.
+        combien de temps tient-elle (P2 → P5) · un montant qui compte est-il réellement placé (P6) ·
+        quelle taille fait le patrimoine, et quelle part en est pilotée (P7 → P9). Le taux d’épargne
+        ne classe plus rien.
       </Text>
       <Text style={styles.matrixInfo}>
         Le profil est recalculé DÈS QUE les données changent. L’écart entre le seuil de montée et
@@ -765,12 +790,18 @@ function MatrixSection({ userId }: { userId: string }) {
                   // « Mois de sécurité » = épargne ÷ DÉPENSES essentielles mensuelles, c'est-à-dire
                   // charges récurrentes + budget variable (lib/securityCushion) — MÊME définition
                   // partout dans l'app (Pouls, Reporting, recommandations).
-                  {
+                  /* ⚠️ PAS SUR P1_P2 : l'échelle du matelas commence à P2_P3, personne ne lit la
+                     colonne de montée de cette ligne-là. Elle était pourtant proposée sous le
+                     libellé « Montée — mois de DÉPENSES couverts ≥ » : un réglage qu'on pouvait
+                     modifier sans le moindre effet, sur la transition la plus sensible de l'échelle.
+                     Ce qui décide de l'entrée en P1, ce sont les trois champs de viabilité en bas de
+                     ce formulaire (cf. migration 216). */
+                  ...(transition === 'P1_P2' ? [] : [{
                     field: 'upgrade_months_threshold',
                     label: WEALTH_TRANSITIONS.has(transition)
                       ? 'Réserve minimale exigée pour ENTRER (mois)'
                       : 'Montée — mois de DÉPENSES couverts ≥',
-                  },
+                  }]),
                   /* La réserve de SORTIE se règle aussi sur les paliers de patrimoine. Le champ y
                      était masqué : la colonne restait donc vide et le moteur réutilisait le seuil
                      d'entrée pour décider de la descente — même valeur dans les deux sens, donc
@@ -794,6 +825,20 @@ function MatrixSection({ userId }: { userId: string }) {
                     { field: 'upgrade_wealth_threshold',   label: 'Montée — patrimoine bancaire ≥ (€)' },
                     { field: 'downgrade_wealth_threshold', label: 'Descente — patrimoine bancaire < (€)' },
                   ] : []),
+                  /* MONTANT PLACÉ MINIMAL — porté par les colonnes « patrimoine » de la ligne
+                     P5_P6, qui EST le passage « il investit ». Sans lui, « investir » valait un
+                     euro : avec six mois de réserve et 100 000 € sur un livret, un euro posé sur un
+                     compte d'investissement faisait passer de P5 à P8 (cf. migration 216). */
+                  ...(transition === INVEST_MIN_TRANSITION ? [
+                    { field: 'upgrade_wealth_threshold',   label: 'Montant placé pour être INVESTISSEUR ≥ (€)' },
+                    { field: 'downgrade_wealth_threshold', label: 'Montant sous lequel on cesse de l’être (€)' },
+                  ] : []),
+                  /* PART PLACÉE — lue sur la ligne P6_P7 pour les TROIS paliers de patrimoine. Elle
+                     distingue un patrimoine piloté d'un capital qui dort avec un jeton posé dessus. */
+                  ...(transition === INVEST_SHARE_TRANSITION ? [
+                    { field: 'invested_share_up',   label: 'Part du patrimoine placée pour ENTRER (0,10 = 10 %)' },
+                    { field: 'invested_share_down', label: 'Part sous laquelle on QUITTE (0,05 = 5 %)' },
+                  ] : []),
                   /* VIABILITÉ + découvert chronique : portés par la ligne P1_P2, la seule où ils
                      aient un sens. Ce sont eux qui gouvernent l'entrée et la sortie de « Fragile ». */
                   ...(transition === 'P1_P2' ? [
@@ -815,11 +860,20 @@ function MatrixSection({ userId }: { userId: string }) {
                   </View>
                 ))}
                 {/* L'écart tampon vaut pour TOUTES les transitions, patrimoine compris : c'est lui
-                    qui empêche le profil de clignoter, quel que soit le palier. */}
+                    qui empêche le profil de clignoter, quel que soit le palier.
+                    ⚠️ Sur P1_P2, il se mesure entre la DISPENSE (`viability_grace_months`) et sa
+                    sortie — pas depuis une colonne de montée que cette ligne ne porte pas. Il
+                    affichait sinon un écart calculé sur un champ mort, donc un chiffre faux sur la
+                    seule transition où l'utilisateur ne peut pas le vérifier d'un coup d'œil. */}
                 <View style={styles.bufferRow}>
-                  <Text style={styles.bufferLabel}>Écart tampon (calculé)</Text>
+                  <Text style={styles.bufferLabel}>
+                    {transition === 'P1_P2' ? 'Écart tampon de la dispense (calculé)' : 'Écart tampon (calculé)'}
+                  </Text>
                   <Text style={styles.bufferValue}>
-                    {(parseFloat(editValues.upgrade_months_threshold) - parseFloat(editValues.downgrade_months_threshold)).toFixed(1)} mois
+                    {(
+                      parseFloat(editValues[transition === 'P1_P2' ? 'viability_grace_months' : 'upgrade_months_threshold'])
+                      - parseFloat(editValues.downgrade_months_threshold)
+                    ).toFixed(1)} mois
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -845,11 +899,25 @@ function MatrixSection({ userId }: { userId: string }) {
                       sortie &lt; {cfg.downgrade_months_threshold ?? '5 (défaut)'} mois · placements obligatoires
                     </Text>
                   </>
-                ) : (
+                /* P1_P2 ne porte AUCUN seuil de matelas : afficher « ↑ Montée ≥ … mois » y annonçait
+                   un réglage qui ne gouverne rien (et, la colonne étant vidée par la 216, un tiret). */
+                ) : transition === 'P1_P2' ? null : (
                   <>
                     <Text style={styles.matrixSummaryText}>↑ Montée : ≥ {cfg.upgrade_months_threshold} mois</Text>
                     <Text style={styles.matrixSummaryText}>↓ Descente : &lt; {cfg.downgrade_months_threshold} mois</Text>
                   </>
+                )}
+                {transition === INVEST_MIN_TRANSITION && (
+                  <Text style={styles.matrixSummaryText}>
+                    📈 Investisseur à partir de {(cfg as any).upgrade_wealth_threshold ?? '500 (défaut)'} € placés ·
+                    cesse de l’être sous {(cfg as any).downgrade_wealth_threshold ?? '250 (défaut)'} €
+                  </Text>
+                )}
+                {transition === INVEST_SHARE_TRANSITION && (
+                  <Text style={styles.matrixSummaryText}>
+                    Part du patrimoine placée : ≥ {pct((cfg as any).invested_share_up, '10 % (défaut)')} pour entrer ·
+                    sortie &lt; {pct((cfg as any).invested_share_down, '5 % (défaut)')}
+                  </Text>
                 )}
                 {transition === 'P1_P2' && (
                   <>
@@ -859,7 +927,10 @@ function MatrixSection({ userId }: { userId: string }) {
                     </Text>
                     <Text style={styles.matrixSummaryText}>
                       Dispense de P1 au-delà de {(cfg as any).viability_grace_months ?? '—'} mois de réserve ·
-                      découvert chronique {(cfg as any).chronic_overdraft_months ?? '—'} mois
+                      elle cesse sous {cfg.downgrade_months_threshold ?? '5 (défaut)'} mois
+                    </Text>
+                    <Text style={styles.matrixSummaryText}>
+                      Découvert chronique : {(cfg as any).chronic_overdraft_months ?? '—'} mois consécutifs
                     </Text>
                   </>
                 )}

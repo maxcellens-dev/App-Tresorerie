@@ -6,8 +6,15 @@ import { computeRecommendations } from '../lib/finance/recommendationEngine';
  * de la marge (invest réduit en premier, excédent → Conserver, Σ recos = budget préservé).
  */
 
-// Palier « below_optimal » (épargne 8000 entre min 5000 et optimal 10000) :
-// save 40 % / invest 10 % / enjoy 20 % / keep 30 %. Budget 1000 → 400/100/200/300.
+/**
+ * Répartition explicite 40 / 10 / 20 / 30 → budget 1000 = 400/100/200/300.
+ * Ces cas mesurent le GARDE-FOU, pas les pourcentages : ils les posent donc à la main plutôt que de
+ * les tirer d'un palier (cf. la même note dans recoActionAmounts.test.ts).
+ */
+const ALLOC = { save: 40, invest: 10, enjoy: 20, keep: 30 };
+const reco = (data: any, opts: any = {}) =>
+  computeRecommendations(data, { manualAllocation: ALLOC, ...opts });
+
 const base: any = {
   safe_to_spend: 1000,
   safety_margin_amount: 2000,
@@ -30,7 +37,7 @@ const byType = (recos: any[]) => Object.fromEntries(recos.map((r) => [r.type, r]
 
 describe('computeRecommendations — garde-fou marge × projection', () => {
   it('sans garde-fou : répartition du palier intacte', () => {
-    const r = byType(computeRecommendations(base, {}));
+    const r = byType(reco(base, {}));
     expect(r.save.amount).toBe(400);
     expect(r.invest.amount).toBe(100);
     expect(r.enjoy.amount).toBe(200);
@@ -38,7 +45,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('headroom large + solde qui MONTE : montants intacts, récurrent tenable', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       // Le solde progresse de 500 €/mois → surplus structurel 500, et le point bas reste
       // largement au-dessus de la marge.
       projectionGuard: { balances: [5000, 5000, 5500, 6000, 6500, 7000], margin: 2000 },
@@ -54,7 +61,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it("solde PLAT : rien n'est tenable en récurrent, même très au-dessus de la marge", () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       // 5 000 € stables, marge 2 000 : l'ancien test d'horizon concluait « tenable 400 €/mois »…
       // alors qu'un solde plat signifie ZÉRO surplus : 400 €/mois de plus, et le compte perd
       // 400 € par mois — il touche la marge au 8ᵉ mois et zéro au 13ᵉ.
@@ -67,7 +74,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('surplus plus petit que le disponible : plafonné au surplus mensuel', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       // +150 €/mois de surplus, point bas très haut → c'est le surplus qui borne, pas la marge.
       projectionGuard: { balances: [9000, 9000, 9150, 9300, 9450, 9600], margin: 2000 },
     });
@@ -78,7 +85,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('headroom insuffisant : invest réduit en premier, excédent vers Conserver', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       // point bas = 2300 → headroom 300 ; save+invest = 500 → excédent 200.
       projectionGuard: { balances: [2600, 2300, 2400, 2500, 2600, 2700], margin: 2000 },
     });
@@ -97,7 +104,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('réduction sous le seuil d’affichage : tout le reste part en réserve (rien ne disparaît)', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       // headroom = 450 → excédent 50 → invest passerait à 50 < seuil 100 → tout invest (100) en réserve.
       projectionGuard: { balances: [2450, 2500, 2600, 2700, 2800, 2900], margin: 2000 },
     });
@@ -109,7 +116,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('récurrent non tenable : plafonné par la MARGE quand elle mord avant le surplus', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       // Surplus confortable (+300 €/mois) mais on démarre juste au-dessus de la marge :
       // min((solde_k − 2000)/(k+1)) = (2600−2000)/1 = 600 au mois 0… et (4100−2000)/6 = 350 au
       // mois 5 → l'horizon borne à 350, sous le surplus de 300 ? non : le surplus (300) est plus
@@ -125,7 +132,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('point bas déjà sous la marge : tout en réserve (frein complet)', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       projectionGuard: { balances: [2600, 1900, 2200, 2400, 2600, 2800], margin: 2000 },
     });
     expect(recos).toHaveLength(1);
@@ -135,7 +142,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
   });
 
   it('marge à 0 : garde-fou inactif', () => {
-    const recos = computeRecommendations(base, {
+    const recos = reco(base, {
       projectionGuard: { balances: [100, 100, 100, 100, 100, 100], margin: 0 },
     });
     const r = byType(recos);

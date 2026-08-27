@@ -79,17 +79,34 @@ export interface ProfileChangeLog {
 
 export interface ProfileMatrixConfig {
   transition: string;
-  upgrade_months_threshold: number;
-  downgrade_months_threshold: number;
+  /**
+   * Réserve (mois de dépenses) à atteindre. NULLABLE depuis la migration 206 : vide ⇒ le moteur
+   * applique son repli. La ligne P1_P2 l'a définitivement vidée (migration 216) — l'échelle du
+   * matelas commence à P2_P3, cette colonne n'y gouvernait rien.
+   */
+  upgrade_months_threshold: number | null;
+  /** Réserve sous laquelle on redescend. Sur P1_P2 : réserve sous laquelle la dispense de P1 cesse. */
+  downgrade_months_threshold: number | null;
   /** @deprecated Échelle v2 (migration 206) : le taux d'épargne ne classe plus. Colonne conservée, jamais lue. */
   upgrade_flux_threshold?: number | null;
   /** @deprecated Idem — l'hystérésis a remplacé les seuils de flux. */
   downgrade_flux_threshold?: number | null;
   /** @deprecated Le clignotement est traité par l'hystérésis, pas par un compteur de mois consécutifs. */
   anti_yoyo_months?: number | null;
-  /** Patrimoine bancaire (€) d'entrée / de sortie — lignes P6_P7, P7_P8, P8_P9. */
+  /**
+   * Patrimoine bancaire (€) d'entrée / de sortie — lignes P6_P7, P7_P8, P8_P9.
+   * Sur la ligne P5_P6, ces deux colonnes portent le MONTANT PLACÉ minimal pour être considéré
+   * comme investisseur (migration 216) : c'est la transition « il investit », et elles n'y
+   * gouvernaient rien d'autre.
+   */
   upgrade_wealth_threshold?: number | null;
   downgrade_wealth_threshold?: number | null;
+  /**
+   * Part du patrimoine devant être réellement placée pour les paliers de patrimoine (migration 216).
+   * Portée par la ligne P6_P7, lue pour les trois. 0,10 = 10 %.
+   */
+  invested_share_up?: number | null;
+  invested_share_down?: number | null;
   /** Mois consécutifs dans le rouge = découvert chronique — ligne P1_P2. */
   chronic_overdraft_months?: number | null;
   /** Bande de VIABILITÉ et dispense de réserve (migration 206) — ligne P1_P2. */

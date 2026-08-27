@@ -129,11 +129,11 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
   return {
     manualAllocation: x.manualAllocation ?? null,
     profileAllocations: x.profileAllocations ?? null,
-    /* PAS ENCORE DE PROFIL → P1, le plus prudent.
-       Le profil se déduit maintenant des seules données réelles (financialProfileEngine.
-       computeProfileFromData) : tant qu'il manque une donnée pour le calculer, on n'invente pas un
-       palier depuis le seul montant d'épargne — un compte neuf avec 20 000 € dormants passait ainsi
-       pour « confortable » alors qu'on ne connaissait ni son revenu ni son rythme. */
+    /* PAS ENCORE DE PROFIL → P0 « Découverte », le palier qui dit qu'on ne sait pas encore.
+       Le profil se déduit des seules données réelles (financialProfileEngine.computeProfileFromData) :
+       tant qu'il manque une donnée pour le calculer, on n'invente pas un palier depuis le seul
+       montant d'épargne — un compte neuf avec 20 000 € dormants passait ainsi pour « confortable »
+       alors qu'on ne connaissait ni son revenu ni son rythme. */
     financialProfileId: x.financialProfileId ?? 'P0',
     // Budget « enveloppe juste atteinte » : le dépassement est rajouté (le moteur le re-déduit en cascade).
     budget: recoGrossBudget + variableOverspend + savingsExecuted + investExecuted,

@@ -51,23 +51,32 @@ function getTransitionKey(prev: string | null, next: string, reason: string): Tr
   return { transition: `P${nextNum}_P${prevNum}`, direction: 'downgrade', steps };
 }
 
-// Replis si la ligne n'existe pas en base — TUTOIEMENT, comme partout dans l'app (migration 145).
+/* Replis si la ligne n'existe pas en base — TUTOIEMENT, comme partout dans l'app (migration 145).
+ *
+ * ⚠️ CES PHRASES NE PROMETTENT QUE CE QUE LA RÉPARTITION DU PALIER APPUIE. Trois d'entre elles
+ * annonçaient de l'investissement (« tu investis régulièrement », « ton flux d'investissement ») à
+ * des paliers dont la répartition recommande 0 % d'investissement tant que la réserve n'est pas
+ * pleine — et une « épargne régulière » que plus rien ne mesure depuis que le taux d'épargne est
+ * sorti du classement (migration 206). Une fenêtre qui décrit autre chose que ce qui s'affiche
+ * derrière elle est pire qu'une fenêtre générique. */
 const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
-  'P1_P2|upgrade':    { title: '🌿 Tu changes de profil', body: 'Ton matelas de sécurité commence à se constituer. C\'est une vraie avancée.' },
-  'P2_P3|upgrade':    { title: '⚖️ Tu changes de profil', body: 'Ta base financière est solide et ton comportement d\'épargne est régulier.' },
-  'P3_P4|upgrade':    { title: '🚀 Tu changes de profil', body: 'Excellent travail. Ta réserve est confortable et tu investis régulièrement.' },
-  'P4_P5|upgrade':    { title: '🎯 Tu changes de profil', body: 'Tu as atteint un niveau de maturité financière remarquable.' },
-  'P1_P2|downgrade':  { title: '🌱 Ton profil évolue', body: 'Ta réserve s\'est réduite ou ton épargne est à l\'arrêt. Pas d\'inquiétude.' },
-  'P2_P3|downgrade':  { title: '🌿 Ton profil évolue', body: 'Ta réserve est en dessous du seuil recommandé.' },
-  'P3_P4|downgrade':  { title: '⚖️ Ton profil évolue', body: 'Ta réserve ou ton épargne a baissé temporairement.' },
-  'P4_P5|downgrade':  { title: '🚀 Ton profil évolue', body: 'Ton flux d\'investissement est passé en dessous du seuil.' },
+  'P1_P2|upgrade':    { title: '🌿 Tu changes de profil', body: 'Tes mois ne se terminent plus dans le rouge. C\'est la marche la plus difficile, et tu viens de la passer.' },
+  'P2_P3|upgrade':    { title: '⚖️ Tu changes de profil', body: 'Tu as plus d\'un mois de dépenses de côté : ton filet existe. L\'objectif du moment, le porter à trois mois.' },
+  'P3_P4|upgrade':    { title: '🚀 Tu changes de profil', body: 'Trois mois de dépenses de côté : ta situation est stable. Dernière ligne droite jusqu\'à six mois.' },
+  'P4_P5|upgrade':    { title: '🎯 Tu changes de profil', body: 'Ton matelas est fait. Tu peux commencer à en placer une part, sans toucher à ta réserve.' },
+  'P1_P2|downgrade':  { title: '🌱 Ton profil évolue', body: 'Ce qui sort dépasse ce qui rentre. Rien n\'est perdu : l\'app met le reste en pause le temps de remettre l\'équation à l\'endroit.' },
+  'P2_P3|downgrade':  { title: '🌿 Ton profil évolue', body: 'Ta réserve est repassée sous un mois de dépenses. L\'objectif redevient simple : la reconstituer.' },
+  'P3_P4|downgrade':  { title: '⚖️ Ton profil évolue', body: 'Ta réserve est passée sous trois mois. On remet un peu plus de poids sur l\'épargne, le temps qu\'elle remonte.' },
+  'P4_P5|downgrade':  { title: '🚀 Ton profil évolue', body: 'Ta réserve est passée sous six mois. Rien d\'alarmant : on la reconstitue avant tout le reste.' },
   'exceptional_one|exceptional': { title: '⚠️ Profil ajusté suite à une baisse de revenus', body: 'Tes revenus des 2 derniers mois sont inférieurs à ta moyenne habituelle.' },
   'exceptional_two|exceptional': { title: '⚠️ Profil ajusté — aucun revenu détecté', body: 'Aucun revenu enregistré ces 2 derniers mois.' },
   'P1|same': { title: '🌱 Tu conserves le profil', body: 'Ce mois-ci, ton profil reste inchangé. \nContinue à constituer ton matelas de sécurité.' },
   'P2|same': { title: '🌿 Tu conserves le profil', body: 'Ton profil reste stable ce mois-ci. \nPoursuis le renforcement de ta réserve.' },
   'P3|same': { title: '⚖️ Tu conserves le profil', body: 'Ta situation reste stable ce mois-ci. \nContinue sur cette lancée.' },
-  'P4|same': { title: '🚀 Tu conserves le profil', body: 'Ton profil reste solide ce mois-ci. \nTa dynamique d\'investissement se confirme.' },
-  'P5|same': { title: '🎯 Tu conserves le profil', body: 'Ta maturité financière se maintient ce mois-ci. \nContinue à optimiser ton patrimoine.' },
+  /* P4 n'investit pas encore (réserve pas pleine) : « ta dynamique d'investissement se confirme »
+     décrivait un palier plus haut. P5, lui, vient tout juste de commencer. */
+  'P4|same': { title: '🚀 Tu conserves le profil', body: 'Ton profil reste solide ce mois-ci. \nContinue jusqu\'à six mois de réserve.' },
+  'P5|same': { title: '🎯 Tu conserves le profil', body: 'Ta sécurité se maintient ce mois-ci. \nTa réserve est faite : tu peux en placer une part.' },
 };
 
 /* Repli de DERNIER recours, par sens de variation ET par AMPLITUDE.

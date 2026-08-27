@@ -38,8 +38,9 @@ import { computeSecurityCushion } from './securityCushion';
 // ── QUATRE QUESTIONS, DANS CET ORDRE, ET RIEN D'AUTRE ───────────────────────────────────────────
 //   1. la situation est-elle VIABLE ?          revenu vs dépenses essentielles      → sinon P1
 //   2. combien de temps tient-il ?             épargne ÷ dépenses essentielles      → P2 … P5
-//   3. investit-il RÉELLEMENT ?                oui / non                            → P6
-//   4. quelle est la taille du patrimoine ?    30k / 100k / 300k (hors courant)     → P7 … P9
+//   3. investit-il RÉELLEMENT ?                montant placé ≥ 500 €                → P6
+//   4. quelle est la taille du patrimoine ?    30k / 100k / 300k (hors courant),    → P7 … P9
+//                                              dont ≥ 10 % réellement placés
 //
 // Le TAUX D'ÉPARGNE a été retiré du calcul, et c'est un correctif, pas une simplification. Il
 // mesurait un MÉRITE là où le profil décrit un ÉTAT : la règle « 1 mois de réserve + 20 % mis de
@@ -76,8 +77,13 @@ import { computeSecurityCushion } from './securityCushion';
  *       seuils de réserve des paliers hauts et de la dispense de viabilité gagnent leur bande
  *       d'hystérésis. Les deux déplacent réellement des gens : sans ce numéro, chacun d'eux
  *       recevrait « ton profil a changé » pour une décision qu'il n'a pas prise.
+ *   4 → « investir » cesse d'être un booléen à un euro : un MONTANT minimal ouvre P6
+ *       (`investedMin`), et les paliers de patrimoine exigent en plus qu'une PART du patrimoine
+ *       soit réellement placée (`wealthInvestedShare`). Avant, 1 € posé sur un compte
+ *       d'investissement faisait passer de P5 à P8 quelqu'un qui a 100 000 € sur un livret — trois
+ *       paliers et une répartition renversée pour un euro.
  */
-export const PROFILE_LADDER_VERSION = 3;
+export const PROFILE_LADDER_VERSION = 4;
 
 /** Ordre canonique. Toute liste de profils dans l'app doit partir d'ici, jamais d'un littéral. */
 export const FINANCIAL_PROFILE_IDS: FinancialProfileId[] = [
@@ -111,6 +117,27 @@ export function resolveProfileId(raw: string | null | undefined): FinancialProfi
   return `P${clamped}` as FinancialProfileId;
 }
 
+/* ── LES LIBELLÉS DISENT LE CRITÈRE, ET LA DESCRIPTION NE PROMET QUE CE QUI EST RECOMMANDÉ ───────
+ *
+ * Deux règles, tirées de deux incohérences réelles :
+ *
+ *  1. LE NOM NOMME LE CRITÈRE DE BASCULE, pas une ambiance. « Premiers repères » (P2) évoquait un
+ *     début de parcours — c'est le rôle de P0 — alors que le critère est « tu tiens le mois, mais
+ *     tu as moins d'un mois devant toi ». Et « Premiers placements » (P6) laissait croire que
+ *     l'investissement commence là, alors que c'est en P5 que l'app le propose pour la première
+ *     fois : P6 CONSTATE que le geste a été fait. Un nom qui décrit autre chose que son critère
+ *     rend l'échelle inexplicable — et c'est précisément ce qu'on demande à un profil d'être.
+ *
+ *  2. LA DESCRIPTION NE CONTREDIT JAMAIS LA RÉPARTITION affichée trois lignes plus bas. « Continuer
+ *     à empiler du liquide ne rapporte plus rien » (P5) se lisait au-dessus d'un « Épargner 50 % ».
+ *     Le NOM et le tier viennent du critère, jamais des pourcentages : ceux-ci se règlent en
+ *     administration et peuvent changer sans livraison (cf. `profile_allocations`). La description,
+ *     elle, dit la SITUATION et l'OBJECTIF — jamais un pourcentage, jamais un geste que la
+ *     répartition du palier n'appuie pas.
+ *
+ * Le `tier` ne redouble plus le `name` : les deux sont affichés l'un sous l'autre (fenêtre de
+ * changement de profil, simulateur d'administration), et lire deux fois la même chose n'apprend rien.
+ */
 export const PROFILE_INFO: Record<FinancialProfileId, {
   name: string;
   emoji: string;
@@ -121,7 +148,9 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
   P0: {
     name: 'Découverte',
     emoji: '🧭',
-    tier: 'Découverte',
+    /* Pas « Découverte » une seconde fois : le tier est affiché SOUS le nom. Et surtout, il doit
+       dire que ce palier n'en est pas un — c'est une absence de données, pas un rang. */
+    tier: 'Pas encore classé',
     /* Pas de « sans questionnaire » : il n'y en a pas, donc l'utilisateur n'a aucune raison d'y
        penser. On ne rassure pas sur une contrainte qui n'existe pas — on dit quoi faire. */
     description: 'On apprend à te connaître. Ajoute tes comptes et tes rentrées d\'argent : ton profil se calculera tout seul.',
@@ -131,62 +160,76 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
     name: 'Fragile',
     emoji: '🌧️',
     tier: 'Situation à rétablir',
-    description: 'Ce qui sort dépasse ce qui rentre : le mois ne peut pas se boucler tout seul. Une seule priorité, remettre l\'équation à l\'endroit — tout le reste attend.',
+    /* « Tout le reste attend » a été retiré : la répartition de P1 met une part importante de côté
+       (c'est ce qui permet de sortir du cycle), et annoncer le contraire juste au-dessus se voyait. */
+    description: 'Ce qui sort dépasse ce qui rentre : le mois ne peut pas se boucler tout seul. Une seule priorité, remettre l\'équation à l\'endroit — rien n\'est engagé ailleurs en attendant.',
     color: '#dc2626',
   },
   P2: {
-    name: 'Premiers repères',
+    /* « Premiers repères » évoquait un début de parcours — c'est P0. Le critère de P2, c'est
+       l'absence de réserve chez quelqu'un dont le mois, lui, se boucle. */
+    name: 'Sans filet',
     emoji: '🌱',
-    tier: 'Sans filet',
-    description: 'Tu tiens le mois, mais sans filet : moins d\'un mois de dépenses de côté. L\'objectif est d\'en constituer un premier.',
+    tier: 'Réserve à constituer',
+    description: 'Tu tiens le mois, mais sans filet : moins d\'un mois de dépenses de côté. Tout l\'effort va à ce premier mois de réserve.',
     color: '#ef4444',
   },
   P3: {
-    name: 'Réserve à construire',
+    /* « à construire » disait qu'il n'y a rien — c'est P2. Ici le filet EXISTE, il est mince. */
+    name: 'Réserve en construction',
     emoji: '🌿',
     tier: 'Épargne à renforcer',
-    description: 'Un à trois mois de dépenses de côté : le filet existe. Renforce-le jusqu\'à trois mois avant toute autre ambition.',
+    description: 'Un à trois mois de dépenses de côté : le filet existe. L\'effort reste sur la réserve, jusqu\'à trois mois puis six.',
     color: '#f59e0b',
   },
   P4: {
     name: 'Équilibre trouvé',
     emoji: '⚖️',
     tier: 'Stabilité',
-    description: 'Trois à six mois de réserve et une épargne régulière. Tu peux commencer à faire travailler ce qui dépasse.',
+    /* L'« épargne régulière » ne classe plus depuis le retrait du taux d'épargne : la promettre
+       ici décrivait un critère qui n'existe plus. Et « faire travailler ce qui dépasse » annonçait
+       de l'investissement à un palier où la répartition n'en recommande pas encore. */
+    description: 'Trois à six mois de dépenses de côté : ta situation est stable. Dernière ligne droite avant six mois — l\'investissement vient ensuite.',
     color: '#3b82f6',
   },
   P5: {
     name: 'Sécurité acquise',
     emoji: '🛡️',
-    tier: 'Sécurité acquise',
-    description: 'Plus de six mois de dépenses couverts : ton matelas est fait. Continuer à empiler du liquide ne rapporte plus rien.',
+    tier: 'Prêt à investir',
+    /* C'EST ICI que l'investissement apparaît dans les recommandations, pas en P6 : P6 constate
+       qu'il a eu lieu. La description doit donc porter l'invitation, sans prétendre que l'épargne
+       n'a plus d'intérêt — la répartition du palier continue d'en recommander. */
+    description: 'Plus de six mois de dépenses couverts : ton matelas est fait. Tu peux commencer à en placer une part, sans toucher à ta réserve.',
     color: '#0ea5e9',
   },
   P6: {
-    name: 'Premiers placements',
+    /* « Premiers placements » laissait croire que l'investissement COMMENCE ici — il commence en
+       P5, où l'app le propose. Ce palier constate que le geste est fait : c'est son seul critère. */
+    name: 'Placements lancés',
     emoji: '🌍',
     tier: 'Investisseur débutant',
-    description: 'Réserve solide ET premiers investissements en place. L\'enjeu devient la régularité des versements, pas leur montant.',
+    /* Pas de promesse de « régularité » : rien ne la mesure depuis le retrait du taux d'épargne. */
+    description: 'Réserve solide et argent réellement placé. L\'investissement peut désormais prendre le pas sur l\'épargne de précaution.',
     color: '#8b5cf6',
   },
   P7: {
     name: 'Patrimoine en construction',
     emoji: '🚀',
-    tier: 'Patrimoine en construction',
-    description: 'Le patrimoine sur tes comptes dépasse 30 000 €. L\'investissement prend le pas sur l\'épargne de précaution, déjà pleine.',
+    tier: 'Investisseur confirmé',
+    description: 'Le patrimoine sur tes comptes dépasse 30 000 €, et une vraie part est placée. L\'épargne de précaution étant pleine, l\'essentiel de ce qui dépasse part à l\'investissement.',
     color: '#a855f7',
   },
   P8: {
     name: 'Patrimoine établi',
     emoji: '🏛️',
-    tier: 'Patrimoine établi',
-    description: 'Au-delà de 100 000 € sur tes comptes : une minorité de la population. L\'objectif n\'est plus d\'accumuler mais de faire fructifier.',
+    tier: 'Faire fructifier',
+    description: 'Au-delà de 100 000 € sur tes comptes : une minorité de la population. L\'objectif n\'est plus d\'accumuler du liquide mais de faire fructifier ce qui est déjà là.',
     color: '#22c55e',
   },
   P9: {
     name: 'Patrimoine d\'exception',
     emoji: '💎',
-    tier: 'Patrimoine d\'exception',
+    tier: 'Optimisation patrimoniale',
     description: 'Plus de 300 000 € sur tes comptes bancaires — et au-delà du million, une fraction de pour cent des ménages. Presque tout doit travailler ; le liquide immobilisé coûte cher.',
     color: '#14b8a6',
   },
@@ -201,22 +244,37 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
  * de dépenser plus parce qu'on est riche : on se le permet plus sereinement), et « Conserver »
  * reste haut aux deux extrémités — par nécessité en bas (le mois est tendu), par choix en haut
  * (le patrimoine se pilote, il ne se dépense pas).
+ *
+ * ⚠️ CE N'EST PAS LA TABLE QUI S'APPLIQUE : c'est le REPLI. Ce qui s'applique vient de
+ * `profile_allocations` (administration, migration 207), lue à chaque calcul. Ces valeurs ne
+ * servent qu'au démarrage à froid, hors-ligne, ou si la lecture échoue.
+ *
+ * Elles sont donc RECOPIÉES de la table d'administration (état du 2026-08-27) et doivent le rester.
+ * Un repli qui dit autre chose que la table appliquée, c'est un utilisateur hors-ligne à qui l'on
+ * répartit son Relyka autrement que la veille, sans que rien ne l'explique — exactement ce que
+ * `DEFAULT_PROFILE_THRESHOLDS` évite déjà pour les seuils.
+ *
+ * LA DOCTRINE QUE CES CHIFFRES PORTENT : aucun investissement recommandé tant que la réserve n'est
+ * pas pleine (P0–P4 à 0 %), une première part placée dès que le matelas est fait (P5), puis
+ * l'investissement qui prend le dessus. Les descriptions de `PROFILE_INFO` disent la même chose —
+ * si l'une des deux bouge, l'autre doit suivre.
  */
 export const PROFILE_ALLOCATIONS: Record<FinancialProfileId, {
   save: number; invest: number; enjoy: number; keep: number;
 }> = {
-  // Rien n'est mesuré : on ne pousse ni à épargner ni à investir, on garde.
-  P0: { save: 25, invest:  0, enjoy: 20, keep: 55 },
-  // Déficitaire : le liquide est vital. Épargner un peu quand même — sinon on ne sort jamais du cycle.
-  P1: { save: 30, invest:  0, enjoy:  5, keep: 65 },
+  // Rien n'est mesuré : on ne pousse pas à investir, on met de côté et on garde.
+  P0: { save: 60, invest:  0, enjoy: 10, keep: 30 },
+  // Déficitaire : le liquide est vital. Épargner quand même — sinon on ne sort jamais du cycle.
+  P1: { save: 40, invest:  0, enjoy: 10, keep: 50 },
   P2: { save: 55, invest:  0, enjoy: 10, keep: 35 },
-  P3: { save: 45, invest:  5, enjoy: 15, keep: 35 },
-  P4: { save: 30, invest: 20, enjoy: 20, keep: 30 },
-  P5: { save: 20, invest: 30, enjoy: 22, keep: 28 },
-  P6: { save: 12, invest: 40, enjoy: 25, keep: 23 },
-  P7: { save:  8, invest: 47, enjoy: 25, keep: 20 },
-  P8: { save:  5, invest: 55, enjoy: 25, keep: 15 },
-  P9: { save:  0, invest: 62, enjoy: 28, keep: 10 },
+  P3: { save: 50, invest:  0, enjoy: 15, keep: 35 },
+  P4: { save: 50, invest:  0, enjoy: 20, keep: 30 },
+  // Matelas fait : la première part placée apparaît ICI (cf. le nom de P5, « Prêt à investir »).
+  P5: { save: 50, invest: 10, enjoy: 20, keep: 20 },
+  P6: { save: 20, invest: 40, enjoy: 20, keep: 20 },
+  P7: { save: 10, invest: 60, enjoy: 15, keep: 15 },
+  P8: { save:  0, invest: 70, enjoy: 15, keep: 15 },
+  P9: { save:  0, invest: 80, enjoy: 10, keep: 10 },
 };
 
 /** Une ligne de `profile_allocations` (réglage admin), telle qu'elle arrive de la base. */
@@ -479,6 +537,30 @@ export interface ProfileThresholds {
    * fenêtre à chaque passage. C'est le diagnostic le plus dur de l'app : il ne peut pas clignoter.
    */
   viabilityGraceMonthsDown: number;
+  /**
+   * MONTANT RÉELLEMENT PLACÉ à partir duquel on considère que la personne INVESTIT (ouvre P6).
+   *
+   * « Investit » était un booléen à un euro (`totalInvested > 0`). C'était la seule falaise de
+   * l'échelle : avec six mois de réserve et 100 000 € sur un livret, poser UN EURO sur un compte
+   * d'investissement faisait passer de P5 à P8 — trois paliers, et une répartition qui bascule de
+   * « Épargner 50 % » à « Investir 70 % ». Pour un euro.
+   *
+   * Bande comme partout : `investedMinUp` pour franchir, `investedMinDown` pour se maintenir — la
+   * valeur d'un portefeuille bouge toute seule avec les marchés, elle ne doit pas faire clignoter
+   * un palier.
+   */
+  investedMinUp: number;
+  investedMinDown: number;
+  /**
+   * PART DU PATRIMOINE réellement placée, exigée EN PLUS par les paliers de patrimoine (P7 → P9).
+   *
+   * Le montant seul ne suffisait déjà pas (il faut la réserve pleine ET des placements) — mais
+   * « des placements » se contentait d'un jeton. Or ces paliers prétendent décrire un patrimoine
+   * PILOTÉ : 500 € placés sur 300 000 € qui dorment, ce n'est pas un patrimoine piloté, et lui
+   * servir des conseils d'optimisation serait à côté du sujet. À 0, la part n'est pas exigée.
+   */
+  wealthInvestedShareUp: number;
+  wealthInvestedShareDown: number;
 }
 
 /**
@@ -520,8 +602,22 @@ export const DEFAULT_PROFILE_THRESHOLDS: ProfileThresholds = {
   viabilityEnterRatio: 1.02,
   viabilityGraceMonths: 6,
   /* Même bande que partout ailleurs (6 pour bénéficier de la dispense, 5 pour la perdre) : un mois
-     de dépenses un peu plus lourd ne fait plus basculer quelqu'un en « Fragile ». */
+     de dépenses un peu plus lourd ne fait plus basculer quelqu'un en « Fragile ».
+     ⚠️ Cette valeur est lue dans la colonne de DESCENTE de la ligne P1_P2. La migration 209 devait
+     l'y semer mais se gardait par `IS NULL` — or la 020 y avait laissé 0,5 (un seuil de matelas de
+     l'échelle d'alors). Le repli était donc juste et la base fausse, ce qui est le pire des deux
+     mondes : les tests passaient. Corrigé par la migration 216. */
   viabilityGraceMonthsDown: 5,
+  /* 500 € : assez pour qu'un compte d'investissement ouvert « pour voir » ne fasse pas changer de
+     palier, assez bas pour qu'un premier vrai versement compte tout de suite. 250 € pour se
+     maintenir : un portefeuille qui perd 20 % ne doit pas coûter un palier. */
+  investedMinUp: 500,
+  investedMinDown: 250,
+  /* 10 % du patrimoine placé pour ENTRER dans les paliers de patrimoine, 5 % pour s'y maintenir.
+     C'est bas volontairement : il s'agit de distinguer un patrimoine piloté d'un capital qui dort,
+     pas d'imposer une allocation. */
+  wealthInvestedShareUp: 0.10,
+  wealthInvestedShareDown: 0.05,
 };
 
 /** Une ligne de `profile_matrix_config`, telle qu'elle arrive de la base. */
@@ -536,6 +632,9 @@ export interface MatrixRow {
   viability_exit_ratio?: number | null;
   viability_enter_ratio?: number | null;
   viability_grace_months?: number | null;
+  /* Part du patrimoine réellement placée (ligne P6_P7 uniquement) — cf. `ProfileThresholds`. */
+  invested_share_up?: number | null;
+  invested_share_down?: number | null;
 }
 
 /* `Number(null)` vaut 0, et 0 est un nombre fini : sans ce test préalable, une colonne VIDE se
@@ -608,6 +707,16 @@ export function thresholdsFromMatrix(rows: MatrixRow[] | null | undefined): Prof
     /* Portée par la colonne de DESCENTE de la ligne P1_P2 : ses colonnes « mois » n'étaient lues par
        personne (l'échelle du matelas commence à P2_P3), et c'est bien la ligne de la viabilité. */
     viabilityGraceMonthsDown: down('P1_P2', D.viabilityGraceMonthsDown),
+    /* MONTANT PLACÉ MINIMAL — porté par les colonnes « patrimoine » de la ligne P5_P6, qui est
+       justement le passage « il investit ». Ces deux colonnes n'étaient lues par personne sur cette
+       ligne (les paliers de patrimoine commencent à P6_P7) : elles avaient donc un sens libre, et
+       c'est le bon. */
+    investedMinUp: num(by.get('P5_P6')?.upgrade_wealth_threshold, D.investedMinUp),
+    investedMinDown: num(by.get('P5_P6')?.downgrade_wealth_threshold, D.investedMinDown),
+    /* PART PLACÉE — portée par la ligne P6_P7, la première des trois lignes de patrimoine, et lue
+       une seule fois pour les trois (comme `chronic_overdraft_months` l'est sur P1_P2). */
+    wealthInvestedShareUp: num(by.get('P6_P7')?.invested_share_up, D.wealthInvestedShareUp),
+    wealthInvestedShareDown: num(by.get('P6_P7')?.invested_share_down, D.wealthInvestedShareDown),
   };
 }
 
@@ -640,7 +749,15 @@ export function hasStructuralDeficit(
      `resolveLiveProfile` ne bouge pas. */
   const ratio = bounds === 'up' ? cfg.viabilityExitRatio : cfg.viabilityEnterRatio;
   const essentials = i.monthlyEssentialExpenses ?? 0;
-  if (essentials > 0 && i.avgMonthlyIncome > 0 && essentials > i.avgMonthlyIncome * ratio) return true;
+  /* ⚠️ MÊME GARDE QUE LE MATELAS, ET C'EST UNE CORRECTION.
+     Sans charge récurrente saisie, les « dépenses essentielles » se réduisent à l'enveloppe
+     variable : `computeSecurityCushion` REFUSE alors de diviser par elles (le total est amputé du
+     loyer). Ce test-ci, lui, s'en servait quand même — donc le même chiffre était jugé trop
+     incertain pour mesurer une réserve, mais assez sûr pour déclarer quelqu'un « Fragile ». Une
+     enveloppe variable déclarée un peu haute suffisait à servir le diagnostic le plus dur de l'app
+     à quelqu'un dont l'app ignore encore le loyer — et donc les charges réelles. */
+  const expensesUsable = i.hasRecurringExpenses && essentials > 0;
+  if (expensesUsable && i.avgMonthlyIncome > 0 && essentials > i.avgMonthlyIncome * ratio) return true;
 
   const checking = i.checkingBalance;
   if (checking == null || checking >= 0) return false;
@@ -692,12 +809,21 @@ export function computeProfileFromData(
   const M = bounds === 'up' ? cfg.monthsUp : cfg.monthsDown;
   const W = bounds === 'up' ? cfg.wealthUp : cfg.wealthDown;
 
-  // « Investit » = il a réellement placé de l'argent sur un compte d'investissement.
-  const invests = i.totalInvested > 0;
+  /* « Investit » = il a placé un MONTANT qui compte, pas un euro symbolique (cf. `investedMinUp` :
+     un euro faisait passer de P5 à P8 quelqu'un qui a 100 000 € sur un livret). Le seuil suit le
+     sens du trajet, comme tout le reste — la valeur d'un portefeuille bouge toute seule. */
+  const investedMin = bounds === 'up' ? cfg.investedMinUp : cfg.investedMinDown;
+  const invested = Math.max(0, i.totalInvested);
+  const invests = invested > 0 && invested >= investedMin;
   /* PATRIMOINE = épargne + placements. Le solde COURANT en est exclu : c'est la trésorerie du mois,
      pas un patrimoine. L'inclure faisait entrer en « Patrimoine en construction » quelqu'un qui
      venait d'être payé, et l'en faisait ressortir trois semaines plus tard. */
-  const wealth = Math.max(0, i.availableSavings) + Math.max(0, i.totalInvested);
+  const wealth = Math.max(0, i.availableSavings) + invested;
+  /* PATRIMOINE PILOTÉ : le montant placé doit peser une PART du patrimoine. Les paliers P7 à P9
+     prétendent décrire quelqu'un qui pilote ce qu'il a — 500 € placés sur 300 000 € qui dorment ne
+     décrivent pas ça, et les conseils d'optimisation qui vont avec tomberaient à côté. */
+  const investedShare = bounds === 'up' ? cfg.wealthInvestedShareUp : cfg.wealthInvestedShareDown;
+  const pilotsWealth = invests && (investedShare <= 0 || invested >= wealth * investedShare);
 
   /* ── QUESTION 1 : LA SITUATION EST-ELLE VIABLE ? ─────────────────────────────────────────────
      Elle passe AVANT tout le reste : tant que ce qui sort dépasse ce qui rentre, aucun palier de
@@ -720,8 +846,9 @@ export function computeProfileFromData(
      Deux conditions cumulatives, en plus du montant :
        • la RÉSERVE PLEINE (même exigence que P5/P6, cf. `wealthMinMonths`) — sans quoi un palier
          « supérieur » serait moins exigeant que ceux qu'il surplombe ;
-       • de l'argent RÉELLEMENT PLACÉ — c'est le geste qui distingue un patrimoine piloté d'un
-         capital qui dort.
+       • un patrimoine réellement PILOTÉ — un montant placé qui compte (`investedMin`) ET qui pèse
+         une part du patrimoine (`wealthInvestedShare`). « De l'argent placé » se contentait
+         auparavant d'un euro : c'était la seule falaise de l'échelle.
      À défaut, on redescend sur l'échelle du matelas — exactement le conseil dont cette personne a
      besoin. Le patrimoine reste donc un indicateur, jamais un laissez-passer. */
   /* La RÉSERVE exigée suit le sens du trajet, comme le montant : `wealthMinMonths` pour monter,
@@ -729,7 +856,7 @@ export function computeProfileFromData(
      même valeur dans les deux sens faisait basculer P6 ⇄ P7 à chaque saisie chez quelqu'un dont la
      réserve frôle six mois, avec une notification de changement de profil à chaque aller-retour. */
   const WM = bounds === 'up' ? cfg.wealthMinMonths : cfg.wealthMinMonthsDown;
-  if (invests) {
+  if (pilotsWealth) {
     if (months >= WM.P9 && wealth >= W.P9) return 'P9';
     if (months >= WM.P8 && wealth >= W.P8) return 'P8';
     if (months >= WM.P7 && wealth >= W.P7) return 'P7';

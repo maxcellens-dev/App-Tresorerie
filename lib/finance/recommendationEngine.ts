@@ -13,7 +13,7 @@
 
 import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
 import type { FinancialProfile, FinancialProfileId } from '../../types/database';
-import { PROFILE_ALLOCATIONS, PROFILE_TO_TIER, resolveProfileId } from './financialProfileEngine';
+import { PROFILE_TO_TIER, resolveProfileId } from './financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from './securityCushion';
 import { appliedAllocation } from './recoMode';
 import { floorToTen, CURRENCY_SYMBOL } from './currency';
@@ -173,48 +173,22 @@ export const PROFILE_LABELS: Record<FinancialProfile, string> = {
   investir: 'Investir',
 };
 
-/* ── Répartitions par palier (en %) — REPLI HISTORIQUE ─────────────────────────────────────────
- * Utilisé UNIQUEMENT quand le profil financier (P0–P9) n'est pas encore calculé : le tout premier
- * chargement, avant que `LiveProfileSync` n'ait écrit la ligne du profil. Le palier se déduit
- * alors du MONTANT d'épargne, comme dans l'ancienne version de l'app.
+/* ── L'ANCIENNE ÉCHELLE PAR MONTANT D'ÉPARGNE A ÉTÉ RETIRÉE ────────────────────────────────────
  *
- * ⚠️ CES VALEURS NE SONT PLUS RÉGLABLES. L'écran d'administration proposait un onglet « Paliers »
- * qui les éditait : deux échelles concurrentes à régler pour une même question, dont une que
- * presque personne n'atteint jamais. Le repli reste, sur les valeurs du code ; ce qui décide
- * réellement, pour tout le monde, ce sont les répartitions par profil (admin « Profils financiers »).
+ * `TIER_ALLOCATIONS`, `determineTier` et `applyUserAllocationPreferences` déduisaient une
+ * répartition du seul MONTANT d'épargne, comparé à trois seuils. Ce chemin se présentait comme un
+ * repli « le temps que le profil soit calculé » — mais il était INATTEIGNABLE : `buildRecoOptions`
+ * passe toujours un identifiant de profil (`x.financialProfileId ?? 'P0'`), et P0 est une valeur.
+ *
+ * Personne n'a donc jamais reçu ces pourcentages… sauf les TESTS, qui les exerçaient à longueur de
+ * cas. On validait une échelle que la production n'emprunte pas, pendant que celle qui décide
+ * vraiment (les répartitions par profil, réglées en administration) n'était couverte qu'ailleurs.
+ *
+ * C'était surtout une SECONDE réponse à « quelle répartition s'applique ? », avec ses propres
+ * seuils — exactement ce que `lib/finance/recoMode` documente comme la chose à ne pas laisser
+ * traîner. Faute de profil, on répond désormais P0 (« on ne sait pas encore »), qui a sa propre
+ * ligne dans la table : une seule échelle, la même pour tout le monde.
  */
-const TIER_ALLOCATIONS: Record<SavingsTier, Record<RecoType, number>> = {
-  critical: {
-    save:   60,
-    invest:  0,
-    enjoy:  10,
-    keep:   30,
-  },
-  below_optimal: {
-    save:   40,
-    invest: 10,
-    enjoy:  20,
-    keep:   30,
-  },
-  healthy: {
-    save:   25,
-    invest: 25,
-    enjoy:  20,
-    keep:   30,
-  },
-  p4_dynamic: {
-    save:   10,
-    invest: 40,
-    enjoy:  25,
-    keep:   25,
-  },
-  comfortable: {
-    save:    0,
-    invest: 65,
-    enjoy:  25,
-    keep:   10,
-  },
-};
 
 /* ── Seuil minimum pour afficher une recommandation ──────── */
 const MIN_PERCENT_THRESHOLD = 5;
@@ -239,32 +213,6 @@ const MIN_FALLBACK_AMOUNT = 10;
  */
 const PERIOD_END_LABEL_DAYS = 5;
 
-/* ── Helpers ─────────────────────────────────────────────── */
-
-function determineTier(
-  savings: number,
-  thresholdMin: number,
-  thresholdOptimal: number,
-  thresholdComfort: number,
-): SavingsTier {
-  if (savings < thresholdMin) return 'critical';
-  if (savings < thresholdOptimal) return 'below_optimal';
-  if (savings < thresholdComfort) return 'healthy';
-  return 'comfortable';
-}
-
-
-function applyUserAllocationPreferences(alloc: Record<RecoType, number>, data: any) {
-  const custom = [data.allocation_save_percent, data.allocation_invest_percent, data.allocation_enjoy_percent, data.allocation_keep_percent];
-  if (!custom.every((value) => typeof value === 'number' && !Number.isNaN(value))) return;
-  const total = custom.reduce((sum, value) => sum + value, 0);
-  if (total !== 100) return;
-  alloc.save = data.allocation_save_percent;
-  alloc.invest = data.allocation_invest_percent;
-  alloc.enjoy = data.allocation_enjoy_percent;
-  alloc.keep = data.allocation_keep_percent;
-}
-
 /**
  * Allocation (%) par poste — LA source unique des pourcentages de répartition, partagée entre le
  * moteur de recos et le Pouls (capacité d'investissement) : profil P0–P9 (ou réglage manuel), puis
@@ -272,12 +220,11 @@ function applyUserAllocationPreferences(alloc: Record<RecoType, number>, data: a
  * différents pour le même mois.
  *
  * Sans profil financier connu (tout premier chargement, avant que `LiveProfileSync` n'écrive la
- * ligne), on retombe sur les PALIERS D'ÉPARGNE historiques — cf. `TIER_ALLOCATIONS`. Ces valeurs
- * ne sont plus réglables en administration : l'onglet « Paliers » a été retiré, parce qu'il faisait
- * régler une seconde échelle, concurrente des profils, que presque personne n'atteint jamais.
+ * ligne), on applique P0 « Découverte » — le palier qui dit précisément qu'on ne sait pas encore.
+ * Il n'y a plus de seconde échelle de repli (cf. le bloc sur l'ancienne échelle par montant
+ * d'épargne, plus haut).
  */
 export function deriveRecoAllocations(
-  data: PilotageData,
   opts: {
     financialProfileId?: FinancialProfileId;
     /** Jours restants avant la prochaine rentrée d'argent — LIBELLÉS uniquement (aucun montant). */
@@ -292,46 +239,31 @@ export function deriveRecoAllocations(
     profileAllocations?: Record<FinancialProfileId, Record<RecoType, number>> | null;
   } = {},
 ): { tier: SavingsTier; alloc: Record<RecoType, number> } {
-  let tier: SavingsTier;
-  let alloc: Record<RecoType, number>;
+  /* ── LA RÉPARTITION VIENT DU PROFIL, OU DU RÉGLAGE MANUEL. POINT. ────────────────────────────
+     Un étage « priorité du mois » s'intercalait ici : il classait la situation en sept cas écrits
+     en dur et imposait des bornes qui ÉCRASAIENT les pourcentages du profil. Retiré. Le profil
+     financier détermine les pourcentages ; c'est sa raison d'être, et l'utilisateur les voit tels
+     quels sur son écran de profil.
 
-  if (opts.financialProfileId) {
-    /* ── LA RÉPARTITION VIENT DU PROFIL, OU DU RÉGLAGE MANUEL. POINT. ──────────────────────────
-       Un étage « priorité du mois » s'intercalait ici : il classait la situation en sept cas écrits
-       en dur et imposait des bornes qui ÉCRASAIENT les pourcentages du profil. Retiré. Le profil
-       financier détermine les pourcentages ; c'est sa raison d'être, et l'utilisateur les voit tels
-       quels sur son écran de profil.
-
-       Ce que ces bornes prétendaient protéger est déjà assuré plus bas, sur des MONTANTS RÉELS
-       plutôt que sur des pourcentages : cascade de l'enveloppe variable dépassée (étape 8),
-       garde-fou « point bas de la projection − marge » qui rabote l'investissement en premier et
-       reverse l'excédent sur « Conserver » (étape 8bis), puis seuils d'affichage et réconciliation
-       Σ(recos) = Relyka (étapes 9 à 10). Ces règles-là mesurent la FAISABILITÉ ; les priorités,
-       elles, portaient un jugement sur des pourcentages, et rendaient à l'utilisateur des chiffres
-       qu'il n'avait choisis nulle part. */
-    // Identifiant venu de la base : ramené sur le référentiel de CE bundle (cf. resolveProfileId).
-    const pid = resolveProfileId(opts.financialProfileId);
-    // Table de l'administration si elle est fournie, celle du code sinon (repli hors-ligne).
-    // `appliedAllocation` est LE point d'entrée partagé avec les écrans : ils ne peuvent pas
-    // annoncer une répartition différente de celle qui est appliquée ici.
-    alloc = appliedAllocation(pid, opts.manualAllocation, opts.profileAllocations);
-    /* Le PALIER reste celui du profil réel, même en manuel : il ne choisit plus de pourcentages
-       (ils viennent d'être posés), il ne sert qu'au VOCABULAIRE des conseils. Le déduire des
-       pourcentages choisis ferait parler l'app à quelqu'un d'autre — « ta réserve est confortable »
-       à qui a simplement demandé plus d'investissement. */
-    tier = PROFILE_TO_TIER[pid];
-  } else {
-    /* REPLI : profil pas encore calculé → ancienne échelle, déduite du montant d'épargne. Les
-       valeurs viennent du CODE (`TIER_ALLOCATIONS`) : elles ne se règlent plus en administration. */
-    tier = determineTier(
-      data.current_savings,
-      data.safety_threshold_min,
-      data.safety_threshold_optimal,
-      data.safety_threshold_comfort,
-    );
-    alloc = { ...TIER_ALLOCATIONS[tier] };
-    applyUserAllocationPreferences(alloc, data);
-  }
+     Ce que ces bornes prétendaient protéger est déjà assuré plus bas, sur des MONTANTS RÉELS
+     plutôt que sur des pourcentages : cascade de l'enveloppe variable dépassée (étape 8),
+     garde-fou « point bas de la projection − marge » qui rabote l'investissement en premier et
+     reverse l'excédent sur « Conserver » (étape 8bis), puis seuils d'affichage et réconciliation
+     Σ(recos) = Relyka (étapes 9 à 10). Ces règles-là mesurent la FAISABILITÉ ; les priorités,
+     elles, portaient un jugement sur des pourcentages, et rendaient à l'utilisateur des chiffres
+     qu'il n'avait choisis nulle part. */
+  // Identifiant venu de la base : ramené sur le référentiel de CE bundle (cf. resolveProfileId).
+  // Absent ⇒ P0 « Découverte », le palier qui dit qu'on ne sait pas encore.
+  const pid = resolveProfileId(opts.financialProfileId);
+  // Table de l'administration si elle est fournie, celle du code sinon (repli hors-ligne).
+  // `appliedAllocation` est LE point d'entrée partagé avec les écrans : ils ne peuvent pas
+  // annoncer une répartition différente de celle qui est appliquée ici.
+  const alloc = appliedAllocation(pid, opts.manualAllocation, opts.profileAllocations);
+  /* Le PALIER reste celui du profil réel, même en manuel : il ne choisit plus de pourcentages
+     (ils viennent d'être posés), il ne sert qu'au VOCABULAIRE des conseils. Le déduire des
+     pourcentages choisis ferait parler l'app à quelqu'un d'autre — « ta réserve est confortable »
+     à qui a simplement demandé plus d'investissement. */
+  const tier = PROFILE_TO_TIER[pid];
 
   /* ⚠️ PLUS AUCUN « MODIFICATEUR CONTEXTUEL » ICI.
      Quatre fonctions déplaçaient encore ces pourcentages de 5 à 15 points chacune — rythme de
@@ -519,7 +451,7 @@ export function computeRecommendations(
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
 
-  const { tier, alloc } = deriveRecoAllocations(data, {
+  const { tier, alloc } = deriveRecoAllocations({
     financialProfileId, daysLeftInPeriod: opts.daysLeftInPeriod,
     manualAllocation: opts.manualAllocation,
     profileAllocations: opts.profileAllocations,
@@ -594,6 +526,16 @@ export function computeRecommendations(
   // Invest réduit en PREMIER (illiquide), épargne ensuite ; l'excédent file vers « Conserver »
   // (Σ recos = Relyka préservé). Réduit sous son seuil d'affichage → tout le reste part en réserve.
   const guardInfo: Partial<Record<RecoType, { addMore: number; total: number }>> = {};
+  /**
+   * Le garde-fou a-t-il RÉELLEMENT plafonné quelque chose ?
+   *
+   * ⚠️ Sans ce drapeau, les deux étapes suivantes défaisaient son travail. Les miettes (§9) et le
+   * reliquat d'arrondi (§10) sont versés au poste « le mieux protégé » — c'est-à-dire `save` en
+   * mode équilibré et `invest` en mode dynamique, soit précisément les deux postes que le garde-fou
+   * vient de raboter. Épargner + Investir repassaient donc au-dessus du point bas projeté, de
+   * quelques dizaines à quelques centaines d'euros, après coup et sans que rien ne le signale.
+   */
+  let guardCapped = false;
   if (guardTrough != null) {
     const headroom = Math.max(0, Math.round(guardTrough - guard!.margin));
     let remaining = Math.max(0, (nets.save ?? 0) + (nets.invest ?? 0) - headroom);
@@ -617,6 +559,7 @@ export function computeRecommendations(
     }
     if (moved > 0) {
       mark('projection_guard');
+      guardCapped = true;
       nets.keep = (nets.keep ?? 0) + moved;
       if (!filtered.includes('keep')) filtered.push('keep');
       // (Cas B) Pas de message orange sur « Conserver » ici : la mise en réserve est déjà reflétée
@@ -630,7 +573,18 @@ export function computeRecommendations(
   // filtrés un à un et l'écran annonçait « tout est traité ✨ » alors qu'il restait de l'argent.
   const consumption = opts.consumptionOrder ?? DEFAULT_CONSUMPTION_ORDERS.equilibre;
   const protection = (t: RecoType) => consumption.indexOf(t); // plus grand = mieux protégé
-  const mostProtected = (list: RecoType[]) => list.reduce((a, b) => (protection(a) >= protection(b) ? a : b));
+  /**
+   * Où déverser un reliquat (miettes, arrondis) : le poste le mieux protégé — MAIS jamais un poste
+   * que le garde-fou de projection vient de plafonner, sans quoi on lui rendrait d'une main ce qu'on
+   * lui a retiré de l'autre. Quand tous les candidats sont plafonnés, « Conserver » recueille :
+   * c'est le seul poste que le garde-fou ne cherche jamais à réduire.
+   */
+  const CAPPED_BY_GUARD: RecoType[] = ['save', 'invest'];
+  const mostProtected = (list: RecoType[]): RecoType => {
+    const eligible = guardCapped ? list.filter((t) => !CAPPED_BY_GUARD.includes(t)) : list;
+    const pool = eligible.length > 0 ? eligible : list;
+    return pool.reduce((a, b) => (protection(a) >= protection(b) ? a : b));
+  };
   const shown = filtered.filter((t) => (nets[t] ?? 0) > 0 && (nets[t] ?? 0) >= (thresholdByType[t] ?? 0));
   if (shown.length > 0) {
     let crumbs = 0;

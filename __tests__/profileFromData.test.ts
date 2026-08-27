@@ -623,4 +623,161 @@ describe('dispense de viabilité — bande d’hystérésis', () => {
     expect(cfg.viabilityGraceMonths).toBe(6);
     expect(cfg.viabilityGraceMonthsDown).toBe(2);
   });
+
+  /* ⚠️ LE CAS QUI MANQUAIT, ET QUI A LAISSÉ PASSER SIX MOIS DE BUG.
+     Tous les cas ci-dessus tournent sur `DEFAULT_PROFILE_THRESHOLDS`, où la bande vaut 6 / 5. La
+     BASE, elle, portait 6 / 0,5 : la migration 209 devait y semer 5 mais se gardait par `IS NULL`,
+     alors que la 020 y avait laissé 0,5. Le repli était juste, la configuration était fausse, et
+     rien ne les comparait — donc tout était vert pendant qu'en production « Fragile » n'arrivait
+     plus qu'au dernier euro. Ce cas lit la configuration RÉELLE (cf. PROD_MATRIX). */
+  it('avec la configuration RÉELLE, une fonte de réserve fait bien basculer en Fragile', () => {
+    const cfg = thresholdsFromMatrix(PROD_MATRIX);
+    expect(cfg.viabilityGraceMonthsDown).toBe(5);
+    const live = resolveLiveProfile('P5', burning(4), cfg);
+    expect(live.changed).toBe(true);
+    expect(live.profileId).toBe('P1');
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   LA CONFIGURATION RÉELLEMENT DÉPLOYÉE
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   Le moteur ne tourne JAMAIS sur `DEFAULT_PROFILE_THRESHOLDS` en production : il lit
+   `profile_matrix_config`. Tester le seul repli revient à valider un code que personne n'exécute —
+   c'est exactement ce qui a permis à la bande de « Fragile » de rester fausse en base (6 / 0,5 au
+   lieu de 6 / 5) pendant que tous les cas passaient au vert.
+
+   Ces lignes reproduisent la table telle que la chaîne de migrations la laisse (020 → 182 → 194 →
+   206 → 209 → 216). À maintenir avec elle : si une migration change un seuil, ce bloc change AVEC,
+   et l'écart entre les deux mondes redevient visible immédiatement. */
+const PROD_MATRIX = [
+  { transition: 'P1_P2', upgrade_months_threshold: null, downgrade_months_threshold: 5,
+    chronic_overdraft_months: 2,
+    viability_exit_ratio: 0.95, viability_enter_ratio: 1.02, viability_grace_months: 6 },
+  { transition: 'P2_P3', upgrade_months_threshold: 1, downgrade_months_threshold: 0.5 },
+  { transition: 'P3_P4', upgrade_months_threshold: 3, downgrade_months_threshold: 1 },
+  { transition: 'P4_P5', upgrade_months_threshold: 6, downgrade_months_threshold: 2.5 },
+  { transition: 'P5_P6', upgrade_months_threshold: 6, downgrade_months_threshold: 5,
+    upgrade_wealth_threshold: 500, downgrade_wealth_threshold: 250 },
+  { transition: 'P6_P7', upgrade_months_threshold: 6, downgrade_months_threshold: 5,
+    upgrade_wealth_threshold: 30_000, downgrade_wealth_threshold: 24_000,
+    invested_share_up: 0.10, invested_share_down: 0.05 },
+  { transition: 'P7_P8', upgrade_months_threshold: 6, downgrade_months_threshold: 5,
+    upgrade_wealth_threshold: 100_000, downgrade_wealth_threshold: 85_000 },
+  { transition: 'P8_P9', upgrade_months_threshold: 6, downgrade_months_threshold: 5,
+    upgrade_wealth_threshold: 300_000, downgrade_wealth_threshold: 260_000 },
+] as any;
+
+describe('configuration déployée — elle doit dire la même chose que le repli du code', () => {
+  /* Le repli sert hors-ligne et au démarrage à froid. S'il diverge de la base, le même utilisateur
+     est classé différemment selon qu'il a du réseau — sans que rien ne le lui dise. */
+  it('la matrice de production produit EXACTEMENT les seuils de repli', () => {
+    expect(thresholdsFromMatrix(PROD_MATRIX)).toEqual(DEFAULT_PROFILE_THRESHOLDS);
+  });
+
+  it('aucune bande n’est inversée (descente toujours ≤ montée)', () => {
+    const t = thresholdsFromMatrix(PROD_MATRIX);
+    for (const k of ['P3', 'P4', 'P5', 'P6'] as const) {
+      expect(t.monthsDown[k]).toBeLessThanOrEqual(t.monthsUp[k]);
+    }
+    for (const k of ['P7', 'P8', 'P9'] as const) {
+      expect(t.wealthDown[k]).toBeLessThanOrEqual(t.wealthUp[k]);
+      expect(t.wealthMinMonthsDown[k]).toBeLessThanOrEqual(t.wealthMinMonths[k]);
+    }
+    expect(t.viabilityGraceMonthsDown).toBeLessThanOrEqual(t.viabilityGraceMonths);
+    expect(t.investedMinDown).toBeLessThanOrEqual(t.investedMinUp);
+    expect(t.wealthInvestedShareDown).toBeLessThanOrEqual(t.wealthInvestedShareUp);
+  });
+});
+
+/* ── « INVESTIR » N'EST PLUS UN BOOLÉEN À UN EURO ────────────────────────────────────────────────
+   C'était la seule falaise de l'échelle : avec six mois de réserve et 100 000 € sur un livret, UN
+   EURO posé sur un compte d'investissement faisait passer de P5 à P8 — trois paliers, et une
+   répartition du Relyka qui bascule de « Épargner 50 % » à « Investir 70 % ». */
+describe('placements — un montant qui compte, et une part du patrimoine', () => {
+  /** Six mois de réserve (6 000 €), patrimoine dormant piloté par le test. */
+  const withInvested = (savings: number, invested: number): ProfileDataInputs => ({
+    ...base, availableSavings: savings, totalInvested: invested,
+  });
+
+  it('un euro symbolique n’ouvre plus rien', () => {
+    expect(computeProfileFromData(withInvested(100_000, 1))).toBe('P5');
+  });
+
+  it('un premier versement qui compte ouvre P6', () => {
+    expect(computeProfileFromData(withInvested(6_000, 500))).toBe('P6');
+  });
+
+  it('le seuil suit le sens du trajet (bande) : on ne perd pas P6 pour une baisse de marché', () => {
+    // 300 € placés : sous le seuil d'entrée (500), au-dessus de celui de maintien (250).
+    expect(computeProfileFromData(withInvested(6_000, 300), DEFAULT_PROFILE_THRESHOLDS, 'up')).toBe('P5');
+    expect(computeProfileFromData(withInvested(6_000, 300), DEFAULT_PROFILE_THRESHOLDS, 'down')).toBe('P6');
+    expect(resolveLiveProfile('P6', withInvested(6_000, 300)).changed).toBe(false);
+  });
+
+  /* Les paliers de patrimoine prétendent décrire un patrimoine PILOTÉ. Un jeton posé sur un capital
+     qui dort n'est pas ça — et les conseils d'optimisation qui vont avec tomberaient à côté. */
+  it('un jeton sur un capital qui dort n’ouvre pas les paliers de patrimoine', () => {
+    // 100 000 € dormants, 600 € placés (0,6 % du patrimoine) : investisseur, mais pas « piloté ».
+    expect(computeProfileFromData(withInvested(100_000, 600))).toBe('P6');
+  });
+
+  it('une part réelle du patrimoine ouvre le palier', () => {
+    // 15 000 € placés sur 115 000 € = 13 % ≥ 10 % → le patrimoine est piloté.
+    expect(computeProfileFromData(withInvested(100_000, 15_000))).toBe('P8');
+  });
+
+  it('la part exigée a sa bande, comme le reste', () => {
+    // 8 % du patrimoine : sous les 10 % d'entrée, au-dessus des 5 % de maintien.
+    const entreDeux = withInvested(100_000, 8_700);
+    expect(computeProfileFromData(entreDeux, DEFAULT_PROFILE_THRESHOLDS, 'up')).toBe('P6');
+    expect(computeProfileFromData(entreDeux, DEFAULT_PROFILE_THRESHOLDS, 'down')).toBe('P8');
+    expect(resolveLiveProfile('P8', entreDeux).changed).toBe(false);
+  });
+
+  it('à 0, la part n’est pas exigée (réglage neutralisable)', () => {
+    const sansPart = { ...DEFAULT_PROFILE_THRESHOLDS, wealthInvestedShareUp: 0, wealthInvestedShareDown: 0 };
+    expect(computeProfileFromData(withInvested(100_000, 600), sansPart)).toBe('P8');
+  });
+});
+
+/* ── LE MÊME CHIFFRE NE PEUT PAS ÊTRE TROP INCERTAIN POUR DIVISER ET ASSEZ SÛR POUR CONDAMNER ────
+   Sans charge récurrente saisie, les « dépenses essentielles » se réduisent à l'enveloppe variable :
+   `computeSecurityCushion` refuse alors de diviser par elles. Le test de viabilité, lui, s'en
+   servait quand même — une enveloppe variable déclarée un peu haute suffisait donc à servir le
+   diagnostic le plus dur de l'app à quelqu'un dont l'app ignore encore le loyer. */
+describe('viabilité — le même garde que le matelas sur les charges inconnues', () => {
+  it('sans charge saisie, une enveloppe variable élevée ne déclare plus « Fragile »', () => {
+    const sansCharges: ProfileDataInputs = {
+      availableSavings: 0,
+      avgMonthlyIncome: 1500,
+      monthlyEssentialExpenses: 1600,   // l'enveloppe variable SEULE, loyer inconnu
+      hasRecurringExpenses: false,
+      totalInvested: 0,
+      checkingBalance: 200,
+    };
+    expect(computeProfileFromData(sansCharges)).toBe('P2');
+  });
+
+  it('les mêmes chiffres, charges saisies : le diagnostic tombe, et il est fondé', () => {
+    const avecCharges: ProfileDataInputs = {
+      availableSavings: 0,
+      avgMonthlyIncome: 1500,
+      monthlyEssentialExpenses: 1600,
+      hasRecurringExpenses: true,
+      totalInvested: 0,
+      checkingBalance: 200,
+    };
+    expect(computeProfileFromData(avecCharges)).toBe('P1');
+  });
+
+  /* Le second motif de P1 (à sec ET dans le rouge durablement) ne dépend pas des charges : il se
+     lit sur les soldes. Il doit continuer de fonctionner sans aucune charge saisie. */
+  it('à sec et dans le rouge durablement : P1 même sans charge connue', () => {
+    expect(computeProfileFromData({
+      ...base, hasRecurringExpenses: false, monthlyEssentialExpenses: 0,
+      availableSavings: 0, checkingBalance: -420, consecutiveOverdraftMonths: 2,
+    })).toBe('P1');
+  });
 });

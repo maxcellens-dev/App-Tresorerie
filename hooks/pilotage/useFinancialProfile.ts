@@ -531,6 +531,11 @@ export function useLiveProfileSync(userId: string | undefined) {
       await supabase.from('user_financial_profile').upsert({
         user_id: userId,
         profile_id: next,
+        /* Qui a posé ce palier. La colonne n'était pas écrite : une ligne CRÉÉE ici prenait donc le
+           défaut de la base, `'questionnaire'` — c'est-à-dire le nom d'un système qui n'existe plus,
+           sur une ligne calculée à partir des seules données réelles. L'export de données et
+           l'administration lisaient cette provenance. */
+        profile_source: 'automatic',
         // Le profil n'est plus « gelé » : il suit les données en continu.
         auto_unlock_at: null,
         assigned_at: now,
@@ -609,11 +614,16 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
 
       if (!fp) return; // pas encore de profil
 
-      // Gel initial (freeze_months, défaut 2 mois — migration 144) : pendant ce délai, pas de
-      // changement automatique NI de bilan mensuel… SAUF cas exceptionnels (chute de revenus) :
-      // on évalue quand même, et seul un résultat 'exceptional_revenue_drop' est appliqué.
-      const autoUnlockAt = fp.auto_unlock_at ? new Date(fp.auto_unlock_at) : null;
-      const frozen = !!autoUnlockAt && new Date() < autoUnlockAt;
+      /* ── LE GEL INITIAL A ÉTÉ RETIRÉ D'ICI ──────────────────────────────────────────────────
+         Il lisait `auto_unlock_at` pour suspendre le bilan mensuel pendant les deux premiers mois
+         (`freeze_months`, migration 144). Ce verrou ne pouvait plus se fermer : le profil vivant
+         pose explicitement `auto_unlock_at: null` à chaque écriture ET à la création de la ligne,
+         et les dernières dates héritées du questionnaire ont expiré depuis longtemps (la 144 les a
+         ramenées à assigned_at + 2 mois).
+         Ce qu'il protégeait n'a plus d'objet non plus : il évitait qu'un profil issu de neuf
+         réponses déclarées soit contredit trop vite par des données encore partielles. Il n'y a
+         plus de réponse déclarée à protéger — et ce qui manque se DIT (fiabilité du profil) au lieu
+         de suspendre le calcul. Un verrou qui ne se ferme jamais finit par être cru sur parole. */
 
       const today = new Date();
       const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
@@ -648,8 +658,6 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
          complet à chaque ouverture de l'app, pour rien. Poser un rendez-vous ne demande que la
          date. */
 
-      // Pendant le gel initial, pas de bilan : il tomberait sur des données encore partielles.
-      if (frozen) return;
       // Un seul bilan par mois — c'est un rendez-vous, pas un flux.
       if (alreadyReportedThisMonth) return;
 
