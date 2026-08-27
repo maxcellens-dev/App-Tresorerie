@@ -246,12 +246,8 @@ export function webCard(isDesktop: boolean): ViewStyle | null {
   return { ...(shadow(1) as any), ...(transition as any) };
 }
 
-/** Style additionnel quand la carte est survolée (à composer avec useHover). */
-export function webCardHover(isDesktop: boolean, hovered: boolean, borderColor?: string): ViewStyle | null {
-  if (!isDesktop || !hovered) return null;
-  return {
-    ...(shadow(2) as any),
-    transform: [{ translateY: -1 }],
-    ...(borderColor ? { borderColor } : {}),
-  };
-}
+/* (`webCardHover` vivait ici : le relief au survol calculé EN JAVASCRIPT, à composer avec un hook
+   `useHover` qui suivait l'état de la souris. Les deux ont été retirés — plus rien ne les appelait,
+   et ce n'est plus l'approche : le survol se fait en CSS via `hoverCard` ci-dessus, qui ne coûte
+   aucun rendu React. Repasser par du JS pour ça ferait re-rendre la carte à chaque va-et-vient du
+   curseur.) */

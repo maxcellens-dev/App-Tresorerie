@@ -20,7 +20,6 @@ import ScreenHeader from '../../../components/layout/ScreenHeader';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import { useGuide } from '../../../contexts/GuideContext';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
-import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
@@ -35,51 +34,15 @@ import { useProjects } from '../../../hooks/data/useProjects';
 import { useProjectAttach } from '../../../hooks/data/useProjectAttach';
 import { matchProjectsForTransaction } from '../../../lib/finance/projectMatch';
 import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import AccountChipRow from '../../../components/transaction/AccountChipRow';
+import { computeContributed } from '../../../lib/finance/contributed';
+import { useResetPreSaving } from '../../../hooks/data/usePreSavings';
+import { useReleaseReservedByProject } from '../../../hooks/data/useTransactions';
+import { safeInternalRoute } from '../../../lib/ui/navHistory';
+import type { PreSavingType } from '../../../types/database';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
-
-/**
- * Ligne horizontale de comptes (chips) qui défile automatiquement pour rendre VISIBLE le compte
- * sélectionné — sinon, si le compte actif est loin dans la liste, il reste hors écran à droite.
- */
-function AccountChipRow({ accounts, activeId, disabledId, onSelect, styles, COLORS }: {
-  accounts: { id: string; name: string; type: string }[];
-  activeId: string | null;
-  disabledId?: string | null;
-  onSelect: (id: string) => void;
-  styles: any;
-  COLORS: any;
-}) {
-  const ref = useRef<ScrollView>(null);
-  const posRef = useRef<Record<string, number>>({});
-  const scrollToActive = (animated: boolean) => {
-    if (activeId != null && posRef.current[activeId] != null) {
-      ref.current?.scrollTo({ x: Math.max(0, posRef.current[activeId] - 40), animated });
-    }
-  };
-  useEffect(() => { scrollToActive(true); }, [activeId]);
-  return (
-    <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-      {accounts.map((acc) => {
-        const color = accountColor(acc.type as any);
-        const isActive = activeId === acc.id;
-        const isDisabled = disabledId === acc.id;
-        return (
-          <TouchableOpacity
-            key={acc.id}
-            onLayout={(e) => { posRef.current[acc.id] = e.nativeEvent.layout.x; if (acc.id === activeId) scrollToActive(false); }}
-            style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent', opacity: isDisabled ? 0.35 : 1 }]}
-            onPress={() => onSelect(acc.id)}
-            disabled={isDisabled}
-          >
-            <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
-  );
-}
 
 function AddTransactionScreen() {
   const COLORS = useAppColors();
@@ -94,7 +57,24 @@ function AddTransactionScreen() {
   // bouton « Enregistrer » s'étirent sur toute la largeur de l'écran, ce qui ne se fait nulle part.
   const { isDesktop } = useResponsive();
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: string; account?: string; on_behalf?: string; on_behalf_name?: string; origin?: string; recurring?: string }>();
+  /**
+   * PARAMÈTRES D'OUVERTURE — cet écran est le SEUL point de saisie d'une dépense, d'une recette et
+   * d'un virement. Il a donc absorbé tout ce que l'ancien second écran de virement
+   * (app/(tabs)/comptes/transfer.tsx, supprimé) savait recevoir du Pilotage et d'une fiche compte.
+   *  • type                  expense | income | transfer
+   *  • account               compte source pré-sélectionné (fiche d'un compte, bouton « + »)
+   *  • to / destType         destination imposée, par compte OU par type de compte (reco épargne / invest)
+   *  • amount / label / date valeurs pré-remplies
+   *  • resetPreSaving        virement d'un cumul → remettre ce cumul à 0 une fois le virement passé
+   *  • releaseProject        virement d'un montant réservé → libérer les brouillons de réservation
+   *  • origin                écran de retour (saisie ouverte depuis un autre onglet)
+   */
+  const params = useLocalSearchParams<{
+    type?: string; account?: string; to?: string; destType?: string;
+    amount?: string; label?: string; date?: string;
+    resetPreSaving?: string; releaseProject?: string;
+    on_behalf?: string; on_behalf_name?: string; origin?: string; recurring?: string;
+  }>();
   const { user } = useAuth();
   // Comptes où je peux ÉCRIRE (perso + joints + partagés écriture) — pas les comptes en consultation.
   const { data: allAccounts = [] } = useAllAccounts(user?.id);
@@ -112,6 +92,11 @@ function AddTransactionScreen() {
   // l'écran Projets.
   const { data: projects = [] } = useProjects(user?.id);
   const attachToProject = useProjectAttach(user?.id);
+  /* Suites d'un virement venu du Pilotage : le cumul « mis de côté » retombe à zéro une fois viré,
+     et un montant réservé pour un projet libère ses brouillons de réservation. Sans elles, l'argent
+     restait compté deux fois — une fois réservé, une fois viré. */
+  const resetPreSaving = useResetPreSaving(user?.id);
+  const releaseReserved = useReleaseReservedByProject(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
   const getInitialType = (): TransactionType => {
@@ -161,15 +146,38 @@ function AddTransactionScreen() {
   const guide = useGuide();
   const guideNeedsRecurring = params.recurring === '1' && guide.is('tx_recurring') && !isRecurring;
 
-  // Le bouton « + » (ou un lien) peut rouvrir cet écran DÉJÀ monté avec un type différent : expo-router
-  // ne réinitialise alors pas le useState → on resynchronise le type sur le param à chaque changement.
+  /* ── RESYNCHRONISATION SUR LES PARAMÈTRES ──────────────────────────────────────────────────────
+     Le bouton « + », une fiche de compte ou une reco du Pilotage rouvrent cet écran DÉJÀ MONTÉ :
+     expo-router ne le remonte pas, donc les valeurs initiales des `useState` ne se réappliquent
+     jamais. Sans cette resynchronisation, un virement laissé à l'étape 2 rouvrait à l'étape 2 sur
+     les comptes de la fois précédente — en sautant le choix des comptes.
+     On rejoue donc TOUTE la préparation quand la signature des paramètres change, et seulement
+     alors : tant qu'elle ne bouge pas, une sélection faite à la main n'est jamais écrasée. */
+  const lastParamsSig = useRef<string | null>(null);
   useEffect(() => {
+    const sig = [
+      params.type, params.account, params.to, params.destType,
+      params.amount, params.label, params.date, params.resetPreSaving, params.releaseProject,
+    ].join('|');
+    if (sig === lastParamsSig.current) return;
+    lastParamsSig.current = sig;
+
     const t = params.type;
-    if (t === 'income' || t === 'transfer' || t === 'expense') {
-      setTransactionType(t as TransactionType);
-      setStep(1);
-    }
-  }, [params.type]);
+    if (t === 'income' || t === 'transfer' || t === 'expense') setTransactionType(t as TransactionType);
+    if (params.account) setAccountId(String(params.account));
+    if (params.to) setTargetAccountId(String(params.to));
+    if (params.amount != null) setAmount(sanitizeAmountInput(String(params.amount)));
+    if (params.label != null) setNote(String(params.label));
+    if (params.date) { setDate(String(params.date)); setDateDisplay(formatDateFrench(String(params.date))); }
+    /* Les deux comptes sont déjà connus (virement pré-rempli depuis le Pilotage) : l'étape 1 n'a
+       plus rien à demander, on ouvre directement sur le montant et la date. */
+    setStep(params.account && params.to ? 2 : 1);
+    setFormError(null);
+    setErrorFields([]);
+  }, [
+    params.type, params.account, params.to, params.destType,
+    params.amount, params.label, params.date, params.resetPreSaving, params.releaseProject,
+  ]);
 
   const isExpense = transactionType === 'expense';
   const isIncome = transactionType === 'income';
@@ -281,9 +289,11 @@ function AddTransactionScreen() {
   // plutôt que de quitter l'écran.
   const handleBack = useCallback(() => {
     if (step === 2) { setStep(1); setFormError(null); setErrorFields([]); return; }
-    // Saisie ouverte via la saisie rapide (FAB) → revenir à l'écran d'ORIGINE et non à la pile
-    // Transactions (cf. navigation inter-onglets). Sinon retour normal.
-    if (params.origin) { router.replace(decodeURIComponent(String(params.origin)) as any); return; }
+    // Saisie ouverte via la saisie rapide (FAB), une fiche de compte ou une reco du Pilotage →
+    // revenir à l'écran d'ORIGINE et non à la pile Transactions (navigation inter-onglets).
+    // Chemin interne uniquement (cf. safeInternalRoute) : le paramètre vient de l'URL.
+    const back = safeInternalRoute(params.origin ? decodeURIComponent(String(params.origin)) : null);
+    if (back) { router.replace(back as any); return; }
     router.back();
   }, [step, router, params.origin]);
   useFocusEffect(
@@ -318,6 +328,46 @@ function AddTransactionScreen() {
   // Dépense / Recette → comptes courants uniquement. Virement → tous les comptes.
   const selectableAccounts = isTransfer ? accounts : accounts.filter(a => a.type === 'checking');
 
+  /* DESTINATION D'UN VIREMENT — restreinte au TYPE demandé par l'appelant quand il y en a un : une
+     reco « mets de côté » ne vise que les comptes d'épargne, une reco « investis » que les comptes
+     d'investissement. Sans ce filtre, la reco renvoyait vers la liste complète et rien n'empêchait
+     de virer l'épargne… vers le compte courant qu'on venait de quitter. */
+  const destAccounts = useMemo(
+    () => (params.destType ? accounts.filter((a) => a.type === params.destType) : accounts),
+    [accounts, params.destType],
+  );
+  /* Une destination pré-sélectionnée qui ne survit pas au filtre resterait choisie tout en étant
+     ABSENTE de la liste : compte sélectionné mais invisible, et validation sur un choix fantôme. */
+  useEffect(() => {
+    if (!accounts.length || !targetAccountId) return;
+    if (!destAccounts.some((a) => a.id === targetAccountId)) setTargetAccountId('');
+  }, [accounts.length, destAccounts, targetAccountId]);
+
+  /* ── RETRAIT D'UN COMPTE D'INVESTISSEMENT : LA RÈGLE DU PRORATA ────────────────────────────────
+     Sortir 1 000 € d'un compte d'investissement, ce n'est pas sortir 1 000 € de capital : c'est en
+     sortir la part de capital et la part de plus-value dans la proportion où elles composent le
+     compte. On le DIT avant de valider, parce que c'est ce qui décide de l'apport restant — donc de
+     la performance affichée ensuite. */
+  const withdrawalProrata = useMemo(() => {
+    if (!isTransfer || isRecurring) return null;
+    const src = accounts.find((a) => a.id === accountId);
+    if (!src || src.type !== 'investment' || Number(src.balance) <= 0) return null;
+    const contributed = computeContributed(src, transactions as any);
+    if (contributed == null) return null;
+    const n = parseFloat((amount || '').replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const ratio = Math.min(1, contributed / Number(src.balance));
+    const capital = n * ratio;
+    return {
+      currency: src.currency,
+      capitalPct: Math.round(ratio * 100),
+      capital,
+      plus: n - capital,
+      remainingContributed: Math.max(0, contributed - capital),
+      remainingBalance: Number(src.balance) - n,
+    };
+  }, [isTransfer, isRecurring, accounts, accountId, transactions, amount]);
+
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
   // Création rapide de sous-catégorie (§12) : parents disponibles (hors « Mouvements ») + mutation.
   const addCategory = useAddCategory(user?.id);
@@ -342,18 +392,8 @@ function AddTransactionScreen() {
     }
   }, [transactionType, accounts, accountId, isTransfer]);
 
-  // Pré-sélection du compte source quand on ouvre la saisie DEPUIS un compte (param `account`).
-  // On réagit à CHAQUE changement de `params.account` (et pas une seule fois) : l'écran de saisie peut
-  // être RÉUTILISÉ d'un compte à l'autre sans remontage → un garde one-shot garderait le 1ᵉʳ compte.
-  // `lastAppliedAccount` évite de réécraser une sélection manuelle tant que le param ne change pas.
-  const lastAppliedAccount = useRef<string | null>(null);
-  useEffect(() => {
-    const a = params.account;
-    if (a && a !== lastAppliedAccount.current && accounts.some(acc => acc.id === a)) {
-      setAccountId(a);
-      lastAppliedAccount.current = a;
-    }
-  }, [params.account, accounts]);
+  // (La pré-sélection du compte source depuis `?account=` est faite par la resynchronisation des
+  //  paramètres, plus haut : elle valait pour le virement comme pour la dépense/recette.)
 
   // Sélection initiale, à l'arrivée sur l'écran (tant que rien n'est choisi).
   useEffect(() => {
@@ -466,7 +506,10 @@ function AddTransactionScreen() {
     // d'origine dès l'insert ; en cas d'échec, une alerte globale prévient (appAlert).
     // Les valeurs du formulaire sont déjà CAPTURÉES dans des constantes locales → resetForm() ne
     // change rien à la sauvegarde en vol.
-    const origin = params.origin ? decodeURIComponent(String(params.origin)) : null;
+    /* La destination de retour vient de l'URL, donc de n'importe qui sur le web : on n'accepte
+       qu'un chemin INTERNE (cf. safeInternalRoute), sinon l'enregistrement pourrait faire sortir de
+       l'application — une page de connexion imitée n'aurait plus qu'à se présenter. */
+    const origin = safeInternalRoute(params.origin ? decodeURIComponent(String(params.origin)) : null);
     const finish = async () => {
       if (isTransfer && asProjectDraft) {
         const row = await addTransaction.mutateAsync({
@@ -527,6 +570,15 @@ function AddTransactionScreen() {
 
       // (Les invalidations de caches sont faites DANS la mutation — fin de mutationFn — donc elles
       // survivent au démontage de cet écran, sans double refetch du lourd pilotage_data.)
+
+      /* SUITES D'UN VIREMENT VENU DU PILOTAGE. Un virement validé depuis une reco n'est PAS marqué
+         « traitée » : le montant viré est déjà compté dans le suivi du mois, la reco se réduit donc
+         d'elle-même. En revanche, ce qui était mis DE CÔTÉ doit cesser de l'être — sinon la même
+         somme reste comptée deux fois, une fois réservée et une fois virée. */
+      if (isTransfer && !isDraft) {
+        if (params.resetPreSaving) await resetPreSaving.mutateAsync(String(params.resetPreSaving) as PreSavingType);
+        if (params.releaseProject) await releaseReserved.mutateAsync(String(params.releaseProject));
+      }
 
       // Projet : mensualité recalculée (mode « date cible », apport validé) + échéance planifiée du
       // même mois remplacée (anti double-compte). L'avancement, lui, est dérivé des transactions.
@@ -636,11 +688,16 @@ function AddTransactionScreen() {
               <>
                 {/* Compte source */}
                 <Text style={styles.label}>Depuis quel compte ?</Text>
-                <AccountChipRow accounts={accounts} activeId={accountId} onSelect={setAccountId} styles={styles} COLORS={COLORS} />
+                <AccountChipRow accounts={accounts} activeId={accountId} onSelect={setAccountId} />
                 {/* Compte cible */}
                 <Text style={styles.label}>Vers quel compte ?</Text>
-                <AccountChipRow accounts={accounts} activeId={targetAccountId} disabledId={accountId} onSelect={setTargetAccountId} styles={styles} COLORS={COLORS} />
+                <AccountChipRow accounts={destAccounts} activeId={targetAccountId} disabledId={accountId} onSelect={setTargetAccountId} />
                 {accounts.length < 2 && <Text style={styles.hint}>Il faut au moins deux comptes pour faire un virement.</Text>}
+                {!!params.destType && destAccounts.length === 0 && (
+                  <Text style={styles.hint}>
+                    Aucun compte {params.destType === 'savings' ? 'épargne' : params.destType === 'investment' ? 'investissement' : ''}. Ajoutes-en un dans l'onglet Comptes.
+                  </Text>
+                )}
               </>
             ) : (
               <>
@@ -648,7 +705,7 @@ function AddTransactionScreen() {
                 {selectableAccounts.length > 1 && (
                   <>
                     <Text style={styles.label}>Compte</Text>
-                    <AccountChipRow accounts={selectableAccounts} activeId={accountId} onSelect={setAccountId} styles={styles} COLORS={COLORS} />
+                    <AccountChipRow accounts={selectableAccounts} activeId={accountId} onSelect={setAccountId} />
                   </>
                 )}
                 {selectableAccounts.length === 0 && <Text style={styles.hint}>Aucun compte courant. Ajoutes-en un dans l'onglet Comptes.</Text>}
@@ -709,6 +766,31 @@ function AddTransactionScreen() {
                       <Text style={styles.hint}>Proposé au taux du jour. Ajuste-le avec le montant RÉELLEMENT crédité sur ton relevé ({currencySymbolFor(srcCurrency)} → {currencySymbolFor(dstCurrency)}).</Text>
                     </>
                   )}
+
+                  {/* Retrait d'un compte d'investissement : ce que ce virement prend au capital. */}
+                  {!!withdrawalProrata && (() => {
+                    const p = withdrawalProrata;
+                    const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + currencySymbolFor(p.currency);
+                    return (
+                      <View style={styles.withdrawCard}>
+                        <View style={styles.withdrawHeader}>
+                          <Ionicons name="trending-down-outline" size={18} color={COLORS.orange} />
+                          <Text style={styles.withdrawTitle}>Retrait d'un compte d'investissement</Text>
+                        </View>
+                        <Text style={styles.withdrawText}>
+                          Règle du prorata : ce retrait se compose de <Text style={styles.withdrawStrong}>{p.capitalPct} % de capital</Text> ({fmt(p.capital)}) et {100 - p.capitalPct} % de plus-value ({fmt(p.plus)}).
+                        </Text>
+                        <View style={styles.withdrawRow}>
+                          <Text style={styles.withdrawLabel}>Apport restant</Text>
+                          <Text style={styles.withdrawVal}>{fmt(p.remainingContributed)}</Text>
+                        </View>
+                        <View style={styles.withdrawRow}>
+                          <Text style={styles.withdrawLabel}>Solde restant</Text>
+                          <Text style={styles.withdrawVal}>{fmt(p.remainingBalance)}</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
                 </>
               )}
 
@@ -942,13 +1024,20 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 20,
   },
-  chipScroll: { marginBottom: 16 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8, alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, lineHeight: 18, color: c.text, textAlign: 'center' },
   chipTextActive: { color: c.onAccent, fontWeight: '600' },
-  chipTextDisabled: { opacity: 0.5 },
   inputError: { borderColor: c.danger },
+  // Retrait d'un compte d'investissement : la décomposition capital / plus-value, avant validation.
+  withdrawCard: { backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '55', borderRadius: 12, padding: 14, marginBottom: 20 },
+  withdrawHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  withdrawTitle: { fontSize: 14, fontWeight: '800', color: c.text },
+  withdrawText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
+  withdrawStrong: { fontWeight: '700', color: c.text },
+  withdrawRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  withdrawLabel: { fontSize: 13, color: c.textSecondary },
+  withdrawVal: { fontSize: 15, fontWeight: '800', color: c.text },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',

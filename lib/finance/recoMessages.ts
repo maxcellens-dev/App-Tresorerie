@@ -10,7 +10,7 @@
  * DEUX listes distinctes, parce qu'elles s'affichent à deux endroits :
  *  • `buildRelykaMessages` → sous le chiffre principal (ce qui commente tout l'écran) ;
  *  • `buildRecoMessages`   → sous les quatre décisions (ce qui commente un montant précis).
- * Source unique : l'aperçu admin des recos (RecommendationCard) compose le même garde-fou.
+ * Source unique : l'aperçu admin des recos (RelykaPreview) compose le même garde-fou.
  */
 import type { SmartRecommendation, RecoType } from './recommendationEngine';
 import { getRecoContextText, type RecoFinancials } from './recoContext';

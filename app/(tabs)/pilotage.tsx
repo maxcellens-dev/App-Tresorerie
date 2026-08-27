@@ -478,10 +478,12 @@ function PilotageScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enDepassement, isImpersonating, preSavings?.epargne.total_cumule, preSavings?.invest.total_cumule]);
 
-  // Construit l'URL de virement pré-rempli (query-string fiable + retour vers Pilotage)
+  /* Construit l'URL de virement pré-rempli (query-string fiable + retour vers le Pilotage).
+     Destination : l'ÉCRAN DE SAISIE UNIQUE de l'app (transactions/add). Le Pilotage envoyait vers
+     un second écran de virement, qui ignorait la clôture du mois, les brouillons et les projets. */
   const buildTransferUrl = (opts: {
     dest: 'savings' | 'investment'; amount: number; label: string;
-    recoComplete?: string; resetPreSaving?: PreSavingType;
+    resetPreSaving?: PreSavingType;
   }) => {
     // Le montant de reco est en devise de RÉFÉRENCE ; on le convertit dans la devise du compte
     // SOURCE (courant principal) pour pré-remplir le bon montant. Si la destination est dans une
@@ -490,15 +492,15 @@ function PilotageScreen() {
     const srcCur = accounts.find((a) => a.id === mainCheckingId)?.currency || refCode;
     const amountSrc = convertAmount(opts.amount, refCode, srcCur, rates) ?? opts.amount;
     const q = new URLSearchParams({
-      from: mainCheckingId ?? '',
+      type: 'transfer',
+      account: mainCheckingId ?? '',
       destType: opts.dest,
       amount: String(Math.round(amountSrc)),
       label: opts.label,
-      origin: 'pilotage',
-      ...(opts.recoComplete ? { recoComplete: opts.recoComplete } : {}),
+      origin: '/(tabs)/pilotage',
       ...(opts.resetPreSaving ? { resetPreSaving: opts.resetPreSaving } : {}),
     });
-    return `/(tabs)/comptes/transfer?${q.toString()}`;
+    return `/(tabs)/transactions/add?${q.toString()}`;
   };
 
   const monthYearLabel = () => new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -538,7 +540,10 @@ function PilotageScreen() {
   const openRecoTransfer = (reco: SmartRecommendation, dest: 'savings' | 'investment') => {
     markRecoUsed();
     const label = dest === 'savings' ? 'Épargne' : 'Investissement';
-    router.push(buildTransferUrl({ dest, amount: reco.actionAmount ?? reco.amount, label: `${label} ${monthYearLabel()}`, recoComplete: reco.type }) as any);
+    /* La reco n'est PAS marquée « traitée » au retour : le montant viré est déjà compté dans le
+       suivi du mois, donc elle se réduit d'elle-même et réapparaît diminuée s'il reste un solde.
+       (Un paramètre `recoComplete` était transmis pour ça — il n'était lu nulle part.) */
+    router.push(buildTransferUrl({ dest, amount: reco.actionAmount ?? reco.amount, label: `${label} ${monthYearLabel()}` }) as any);
   };
 
   // Ouvrir le virement global d'un cumul (depuis la modale)
@@ -839,14 +844,15 @@ function PilotageScreen() {
         onTransferProject={(r) => {
           setShowReservedModal(false);
           const q = new URLSearchParams({
-            from: r.source_account_id ?? '',
+            type: 'transfer',
+            account: r.source_account_id ?? '',
             to: r.linked_account_id ?? '',
             amount: String(Math.round(r.total)),
             label: r.name,
-            origin: 'pilotage',
+            origin: '/(tabs)/pilotage',
             releaseProject: r.id,
           });
-          router.push(`/(tabs)/comptes/transfer?${q.toString()}` as any);
+          router.push(`/(tabs)/transactions/add?${q.toString()}` as any);
         }}
       />
 

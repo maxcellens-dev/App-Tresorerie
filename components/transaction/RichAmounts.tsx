@@ -7,7 +7,8 @@
  * incluse dans le motif.
  *
  * Partagé par le tableau de bord (RecoMessagesCarousel) et l'aperçu admin des recos
- * (RecommendationCard) : les deux affichent les mêmes phrases, ils doivent les rendre pareil.
+ * (RelykaPreview, qui monte le composant de production) : les deux affichent les mêmes phrases,
+ * ils doivent les rendre pareil.
  */
 import { Text, type StyleProp, type TextStyle } from 'react-native';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';

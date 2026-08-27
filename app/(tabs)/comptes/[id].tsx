@@ -11,19 +11,15 @@ import {
   TextInput,
   Alert,
   Modal,
-  Pressable,
   useWindowDimensions,
 } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
-import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/ui/categoryIcons';
-import { formatDateFrench, todayISO } from '../../../lib/dateUtils';
+import { todayISO } from '../../../lib/dateUtils';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/finance/txOrder';
-import { findRegulCategoryId } from '../../../lib/finance/regul';
-import { useCategories } from '../../../hooks/data/useCategories';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -43,13 +39,12 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { currencySymbolFor } from '../../../lib/finance/currency';
 import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLoss } from '../../../lib/finance/investment';
-import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
 import BalanceChart from '../../../components/charts/BalanceChart';
 import AccountSettingsForm from '../../../components/account/AccountSettingsForm';
+import AccountAmountModal from '../../../components/account/AccountAmountModal';
 import PageLoader from '../../../components/layout/PageLoader';
 import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
-import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
-import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
+import { sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
@@ -137,8 +132,6 @@ function AccountDetailScreen() {
   const params = useLocalSearchParams<{ id: string; verify?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
-  // Catégories du profil : sert à ranger la régularisation selon son sens (cf. lib/regul).
-  const { data: categories = [] } = useCategories(user?.id);
   const accountsQuery = useAllAccounts(user?.id);
   const accounts = accountsQuery.data ?? [];
   const { data: rawTransactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
@@ -157,7 +150,6 @@ function AccountDetailScreen() {
   const creditFlows = useCreditFlows(user?.id, false);
   const addTransaction = useAddTransaction(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
-  const recalibrate = useRecalibrateReliability(user?.id);
 
   const account = accounts.find((a) => a.id === id);
 
@@ -183,23 +175,21 @@ function AccountDetailScreen() {
     : (t?.profile_id === user?.id ? 'Toi' : (nameByUser[t?.profile_id] ?? 'Un membre'));
 
   const [showOnBehalf, setShowOnBehalf] = useState(false);
-  const [showApport, setShowApport] = useState(false);
-  const [apportAmount, setApportAmount] = useState('');
-  const [apportNote, setApportNote] = useState('Apport');
-  const [apportLoading, setApportLoading] = useState(false);
-  const [apportDate, setApportDate] = useState(todayISO());
-  const [apportDateDisplay, setApportDateDisplay] = useState(formatDateFrench(todayISO()));
-  const [showApportCalendar, setShowApportCalendar] = useState(false);
+  /* Les trois saisies de la fiche (apport, plus/moins-value, intérêts) partagent UN SEUL formulaire
+     — cf. components/account/AccountAmountModal. Un seul état suffit donc à dire laquelle est
+     ouverte : elles s'excluent, et chacune avait sinon son propre jeu d'états recopié. */
+  const [entryModal, setEntryModal] = useState<null | 'apport' | 'gainloss' | 'interest'>(null);
   const [apportBase, setApportBase] = useState('');
   const [apportBaseDirty, setApportBaseDirty] = useState(false);
 
-  const [showBalance, setShowBalance] = useState(false);
-  const [balanceInput, setBalanceInput] = useState('');
-  const [balanceNote, setBalanceNote] = useState('Régularisation solde');
-  const [balanceLoading, setBalanceLoading] = useState(false);
-  const [balanceDate, setBalanceDate] = useState(todayISO());
-  const [balanceDateDisplay, setBalanceDateDisplay] = useState(formatDateFrench(todayISO()));
-  const [showBalanceCalendar, setShowBalanceCalendar] = useState(false);
+  /* MISE À JOUR DU SOLDE : un seul écran dans toute l'app (app/(tabs)/comptes/solde.tsx), atteint
+     ici pré-filtré sur CE compte. Cette fiche en portait une copie — une modale « Ajuster le solde »
+     qui refaisait la date de référence, l'écart et la régularisation dans son coin, avec ses propres
+     libellés : deux chemins pour le même geste, et deux endroits où corriger le moindre détail. */
+  const openBalanceUpdate = () => {
+    const origin = encodeURIComponent(`/(tabs)/comptes/${id}`);
+    router.push(`/(tabs)/comptes/solde?account=${id}&origin=${origin}` as any);
+  };
 
   // On garde l'ID, pas la ligne : une copie figée dans le state continuait d'afficher l'ancien
   // montant après une modification (le cache se rafraîchit, pas le snapshot).
@@ -217,125 +207,40 @@ function AccountDetailScreen() {
   const [monthsShown, setMonthsShown] = useState(MONTHS_STEP);
   useEffect(() => { setMonthsShown(MONTHS_STEP); }, [id]);
 
-  /* Deeplink de saisie de solde : ?verify=1 ouvre directement le modal Nouveau Solde — le user n'a
-     plus qu'à saisir le montant (~10 s réels). Il était produit par le bandeau « Vérifie ton
-     solde », qui n'existe plus (le doute est porté par le badge « Estimation » de la carte Relyka) ;
-     le raccourci reste valable pour toute navigation qui voudrait amener ici prêt à saisir. */
-  useEffect(() => {
-    if (params.verify === '1' && account?.type === 'checking') {
-      setShowBalance(true);
-      setBalanceInput('');
-      setBalanceNote('Régularisation solde');
-      const today = todayISO();
-      setBalanceDate(today);
-      setBalanceDateDisplay(formatDateFrench(today));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.verify, account?.id]);
-
-  const [showGainLoss, setShowGainLoss] = useState(false);
-  const [gainLossMode, setGainLossMode] = useState<'amount' | 'balance'>('balance');
-  const [showMethodPicker, setShowMethodPicker] = useState(false);
-  const [gainLossAmount, setGainLossAmount] = useState('');
-  const [gainLossBalance, setGainLossBalance] = useState('');
-  const [gainLossNote, setGainLossNote] = useState(INVESTMENT_GAIN_NOTE);
-  const [gainLossLoading, setGainLossLoading] = useState(false);
-  const [gainLossDate, setGainLossDate] = useState(todayISO());
-  const [gainLossDateDisplay, setGainLossDateDisplay] = useState(formatDateFrench(todayISO()));
-  const [showGainLossCalendar, setShowGainLossCalendar] = useState(false);
-  const [isLoss, setIsLoss] = useState(false);
-
-  // Intérêts (comptes épargne)
-  const [showInterest, setShowInterest] = useState(false);
-  const [interestMode, setInterestMode] = useState<'amount' | 'balance'>('amount');
-  const [showInterestMethodPicker, setShowInterestMethodPicker] = useState(false);
-  const [interestAmount, setInterestAmount] = useState('');
-  const [interestBalance, setInterestBalance] = useState('');
-  const [interestNote, setInterestNote] = useState('Intérêts');
-  const [interestDate, setInterestDate] = useState(todayISO());
-  const [interestDateDisplay, setInterestDateDisplay] = useState(formatDateFrench(todayISO()));
-  const [showInterestCalendar, setShowInterestCalendar] = useState(false);
-  const [interestLoading, setInterestLoading] = useState(false);
-  /* Verrou SYNCHRONE partagé par les quatre écritures de cet écran (régul de solde, apport,
-     plus/moins-value, intérêts). Toutes créent une TRANSACTION : les rejouer en crée une de plus.
-     Les drapeaux `…Loading` ne désactivent le bouton qu'au rendu SUIVANT — cf. useSubmitLock. */
+  /* Verrou SYNCHRONE partagé par les écritures de cet écran (apport, plus/moins-value, intérêts).
+     Toutes créent une TRANSACTION : les rejouer en crée une de plus. Un drapeau d'état ne désactive
+     le bouton qu'au rendu SUIVANT — cf. useSubmitLock. */
   const submitLock = useSubmitLock();
-  /* Consultation admin : régul, apport, plus-value et intérêts écrivent tous une transaction sur
-     le compte visité (la politique d'accès l'autorise). On regarde, on n'écrit pas. */
+  /* Consultation admin : apport, plus-value et intérêts écrivent tous une transaction sur le compte
+     visité (la politique d'accès l'autorise). On regarde, on n'écrit pas. */
   const roGuard = useReadOnlyGuard();
 
-  async function handleBalance() {
-    if (roGuard.blocked()) return;
-    const newBalance = parseFloat(balanceInput.replace(',', '.'));
-    if (Number.isNaN(newBalance)) {
-      Alert.alert('Solde invalide', 'Saisis un solde valide.');
-      return;
-    }
-    if (!account || !id || !user?.id) return;
-    if (!submitLock.acquire()) return; // verrou SYNCHRONE : une régul de plus par tap, sinon
-    const diff = newBalance - balanceAtDate;
-    // Écart 0 = le user CONFIRME son solde → c'est une vraie VÉRIFICATION (ancre écart 0) :
-    // elle calibre sa dérive vers 0 et fait remonter la confiance. On ne la refuse plus.
-    setBalanceLoading(true);
-    try {
-      await addTransaction.mutateAsync({
-        account_id: id,
-        // Rangée selon son sens : « Frais variables › Régularisation Solde » si le solde baisse,
-        // « Autres recettes › Régularisation Solde » s'il monte (cf. lib/regul).
-        category_id: findRegulCategoryId(categories, diff),
-        amount: diff,
-        date: balanceDate,
-        note: balanceNote.trim() || 'Ajustement de solde',
-        is_recurring: false,
-        regul_target: newBalance, // solde cible saisi → affiché sur la ligne de régul
-      });
-      // Vérification effectuée → recalibrer la dérive du user (silencieux, non bloquant).
-      recalibrate.mutate();
-      setShowBalance(false);
-      setBalanceInput('');
-      setBalanceNote('');
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
-    } finally {
-      submitLock.release();
-      setBalanceLoading(false);
-    }
-  }
-
-  async function handleApport() {
-    if (roGuard.blocked()) return;
-    const num = parseFloat(apportAmount.replace(',', '.'));
-    if (Number.isNaN(num) || num <= 0) {
-      Alert.alert('Montant invalide', 'Saisis un montant positif.');
-      return;
-    }
-    if (!id || !user?.id) return;
-    if (!submitLock.acquire()) return; // un apport de plus par tap, sinon
-    setApportLoading(true);
+  /**
+   * Écriture COMMUNE aux trois saisies de la fiche. Elles ne diffèrent que par le marqueur de nature
+   * (`investment_kind`, migration 196) : tout le reste — verrou, lecture seule, conflit avec une
+   * régularisation du même jour — se jouait à l'identique dans trois fonctions recopiées.
+   * Les erreurs remontent : c'est le formulaire qui les affiche (message unique).
+   */
+  async function writeAccountEntry(
+    op: { amount: number; date: string; note: string },
+    investmentKind: 'gain' | 'loss' | 'deposit' | null,
+  ) {
+    if (roGuard.blocked()) throw new Error('Consultation seule.');
+    if (!id || !user?.id) throw new Error('Compte introuvable.');
+    if (!submitLock.acquire()) throw new Error('Enregistrement déjà en cours.');
     try {
       await addTransaction.mutateAsync({
         account_id: id,
         category_id: null,
-        amount: num,
-        date: apportDate,
-        note: apportNote.trim() || 'Apport',
-        // Même raison qu'une plus-value : la nature est une donnée, pas une devinette sur le texte.
-        // Un versement noté « Apport moins les frais » était compté comme une MOINS-VALUE.
-        investment_kind: 'deposit',
+        amount: op.amount,
+        date: op.date,
+        note: op.note,
+        investment_kind: investmentKind,
         is_recurring: false,
         checkRegulConflict: true,
       });
-      // L'apport « actuel » est dérivé des transactions (computeContributed) → rien à mettre à jour ici.
-      setShowApport(false);
-      setApportAmount('');
-      setApportNote('Apport');
-      setApportDate(todayISO());
-      setApportDateDisplay(formatDateFrench(todayISO()));
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
       submitLock.release();
-      setApportLoading(false);
     }
   }
 
@@ -363,137 +268,10 @@ function AccountDetailScreen() {
     }
   }
 
-  async function handleGainLoss() {
-    if (roGuard.blocked()) return;
-    let num: number;
-    if (gainLossMode === 'amount') {
-      num = parseFloat(gainLossAmount.replace(',', '.'));
-      if (Number.isNaN(num) || num <= 0) {
-        Alert.alert('Montant invalide', 'Saisis un montant positif.');
-        return;
-      }
-      num = isLoss ? -Math.abs(num) : Math.abs(num);
-    } else {
-      const balance = parseFloat(gainLossBalance.replace(',', '.'));
-      if (Number.isNaN(balance)) {
-        Alert.alert('Solde invalide', 'Saisis un solde final valide.');
-        return;
-      }
-      if (!account) {
-        Alert.alert('Compte introuvable', 'Impossible de calculer le solde.');
-        return;
-      }
-      num = balance - Number(account.balance);
-      if (num === 0) {
-        Alert.alert('Aucune variation', 'Le solde est identique au solde actuel.');
-        return;
-      }
-    }
-
-    if (!id || !user?.id) return;
-    if (!submitLock.acquire()) return; // une plus/moins-value de plus par tap, sinon
-    setGainLossLoading(true);
-    try {
-      await addTransaction.mutateAsync({
-        account_id: id,
-        category_id: null,
-        amount: num,
-        date: gainLossDate,
-        note: gainLossNote.trim() || (num < 0 ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE),
-        /* MARQUEUR de nature (migration 196) : c'est lui qui fait foi, et non le libellé — que
-           l'utilisateur peut réécrire à tout moment depuis l'écran d'édition. Sans lui, renommer
-           « Plus-value » en « Revalorisation T3 » sortait la ligne des plus-values et la faisait
-           compter comme un APPORT : le capital investi gonflait, la performance du compte
-           s'effondrait, sans qu'aucun montant n'ait bougé. */
-        investment_kind: num < 0 ? 'loss' : 'gain',
-        is_recurring: false,
-        checkRegulConflict: true,
-      });
-      setShowGainLoss(false);
-      setGainLossAmount('');
-      setGainLossBalance('');
-      setGainLossMode('balance');
-      setIsLoss(false);
-      setGainLossNote(INVESTMENT_GAIN_NOTE);
-      setGainLossDate(todayISO());
-      setGainLossDateDisplay(formatDateFrench(todayISO()));
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
-    } finally {
-      submitLock.release();
-      setGainLossLoading(false);
-    }
-  }
-
-  async function handleInterest() {
-    if (roGuard.blocked()) return;
-    let num: number;
-    if (interestMode === 'amount') {
-      num = parseFloat(interestAmount.replace(',', '.'));
-      if (Number.isNaN(num) || num === 0) {
-        Alert.alert('Montant invalide', 'Saisis un montant.');
-        return;
-      }
-      num = Math.abs(num); // les intérêts sont toujours crédités
-    } else {
-      const balance = parseFloat(interestBalance.replace(',', '.'));
-      if (Number.isNaN(balance)) {
-        Alert.alert('Solde invalide', 'Saisis un solde final valide.');
-        return;
-      }
-      if (!account) {
-        Alert.alert('Compte introuvable', 'Impossible de calculer le solde.');
-        return;
-      }
-      num = balance - Number(account.balance);
-      if (num === 0) {
-        Alert.alert('Aucune variation', 'Le solde est identique au solde actuel.');
-        return;
-      }
-    }
-
-    if (!id || !user?.id) return;
-    if (!submitLock.acquire()) return; // un versement d'intérêts de plus par tap, sinon
-    setInterestLoading(true);
-    try {
-      await addTransaction.mutateAsync({
-        account_id: id,
-        category_id: null,
-        amount: num,
-        date: interestDate,
-        note: interestNote.trim() || 'Intérêts',
-        is_recurring: false,
-        checkRegulConflict: true,
-      });
-      setShowInterest(false);
-      setInterestAmount('');
-      setInterestBalance('');
-      setInterestMode('amount');
-      setInterestNote('Intérêts');
-      setInterestDate(todayISO());
-      setInterestDateDisplay(formatDateFrench(todayISO()));
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
-    } finally {
-      submitLock.release();
-      setInterestLoading(false);
-    }
-  }
-
-  const balanceAtDate = useMemo(() => {
-    if (!id) return account ? Number(account.balance) : 0;
-    // Le solde du compte ne reflète QUE le passé (transactions échues ≤ aujourd'hui).
-    // Pour remonter à la date de référence, on ne retire donc que les transactions
-    // réellement portées au solde, c.-à-d. comprises entre la date de réf. et aujourd'hui.
-    // (Les transactions FUTURES ne sont pas dans le solde → ne pas les réintégrer.)
-    const today = todayISO();
-    const afterDate = (transactions as TransactionWithDetails[]).filter(
-      (t) => t.account_id === id && !(t as any).is_draft && !(t as any).is_recurring
-        && t.date > balanceDate && t.date <= today
-    );
-    const sumAfter = afterDate.reduce((s, t) => s + Number(t.amount), 0);
-    return (account ? Number(account.balance) : 0) - sumAfter;
-  }, [id, transactions, balanceDate, account]);
+  /* (Le solde REMONTÉ à une date de référence vivait ici, pour la modale « Ajuster le solde ». Il
+     est désormais calculé par lib/finance/balanceAt, dans l'unique écran de mise à jour du solde —
+     et cette version-ci, qui soustrayait naïvement tout ce qui s'est passé depuis, ignorait les
+     ancres de régularisation : dès la deuxième mise à jour, elle affichait un solde faux.) */
 
   const accountTransactions = useMemo(() => {
     if (!id) return [];
@@ -693,7 +471,7 @@ function AccountDetailScreen() {
             {account.type === 'checking' ? (
               <TouchableOpacity
                 style={styles.actionTile}
-                onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); const today = todayISO(); setBalanceDate(today); setBalanceDateDisplay(formatDateFrench(today)); }}
+                onPress={openBalanceUpdate}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Nouveau solde"
@@ -707,7 +485,7 @@ function AccountDetailScreen() {
             {account.type === 'investment' ? (
               <TouchableOpacity
                 style={styles.actionTile}
-                onPress={() => { setShowGainLoss(true); setShowMethodPicker(false); }}
+                onPress={() => setEntryModal('gainloss')}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Plus / moins value"
@@ -721,7 +499,7 @@ function AccountDetailScreen() {
             {account.type === 'savings' ? (
               <TouchableOpacity
                 style={styles.actionTile}
-                onPress={() => { setShowInterest(true); setShowInterestMethodPicker(false); const today = todayISO(); setInterestDate(today); setInterestDateDisplay(formatDateFrench(today)); }}
+                onPress={() => setEntryModal('interest')}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Intérêts"
@@ -732,21 +510,32 @@ function AccountDetailScreen() {
                 <Text style={styles.actionLabel} numberOfLines={1}>Intérêts</Text>
               </TouchableOpacity>
             ) : null}
+            {/* APPORT — jamais sur un compte COURANT. Sur un compte d'épargne ou d'investissement,
+                un apport est un versement identifié (il alimente le capital investi, cf.
+                computeContributed). Sur un compte courant, c'est une entrée d'argent comme une
+                autre : « Recette » la saisit correctement, avec sa catégorie. La tuile y écrivait
+                une transaction SANS catégorie — invisible du budget, et indiscernable d'une jambe
+                de virement dans l'historique du compte. */}
+            {account.type !== 'checking' ? (
+              <TouchableOpacity
+                style={styles.actionTile}
+                onPress={() => setEntryModal('apport')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Apport"
+              >
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.orange + '1F' }]}>
+                  <Ionicons name="add-circle-outline" size={19} color={COLORS.orange} />
+                </View>
+                <Text style={styles.actionLabel} numberOfLines={1}>Apport</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               style={styles.actionTile}
-              onPress={() => setShowApport(true)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Apport"
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.orange + '1F' }]}>
-                <Ionicons name="add-circle-outline" size={19} color={COLORS.orange} />
-              </View>
-              <Text style={styles.actionLabel} numberOfLines={1}>Apport</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionTile}
-              onPress={() => router.push(`/(tabs)/comptes/transfer?from=${id}`)}
+              /* Un SEUL écran de saisie de virement dans l'app (transactions/add) — cette fiche
+                 ouvrait le sien, qui ne connaissait ni la clôture, ni les brouillons, ni les
+                 projets. Le compte visité reste le compte SOURCE pré-sélectionné. */
+              onPress={() => router.push(`/(tabs)/transactions/add?type=transfer&account=${id}&origin=${encodeURIComponent(`/(tabs)/comptes/${id}`)}` as any)}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Virement"
@@ -778,7 +567,7 @@ function AccountDetailScreen() {
         {account.type === 'checking' && Number(account.balance) === 0 && accountTransactions.length === 0 && (
           <TouchableOpacity
             style={styles.setupBanner}
-            onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); const today = todayISO(); setBalanceDate(today); setBalanceDateDisplay(formatDateFrench(today)); }}
+            onPress={openBalanceUpdate}
             activeOpacity={0.85}
             accessibilityRole="button"
           >
@@ -969,179 +758,59 @@ function AccountDetailScreen() {
         </KeyboardAwareScrollView>
       </SafeAreaView>
 
-      {/* ── Solde modal ── */}
-      <Modal visible={showBalance} transparent animationType="fade" onRequestClose={() => setShowBalance(false)}>
-        <KeyboardAwareOverlay style={modalStyles.overlay}>
-          <View style={modalStyles.container}>
-            <Text style={modalStyles.title}>Ajuster le solde</Text>
+      {/* ── LES TROIS SAISIES DE LA FICHE, UN SEUL FORMULAIRE ──────────────────────────────────
+          Apport, plus/moins-value et intérêts partagent la même mécanique (méthode de saisie,
+          montant ou solde final, date, libellé, verrou de double envoi) : elles ne diffèrent plus
+          que par ce qui est écrit ici. Cf. components/account/AccountAmountModal. */}
+      <AccountAmountModal
+        visible={entryModal === 'apport'}
+        onClose={() => setEntryModal(null)}
+        title="Apport"
+        accent={COLORS.orange}
+        currencySymbol={CURRENCY_SYMBOL}
+        currentBalance={Number(account.balance)}
+        amountLabel="Montant"
+        amountHint="Versement effectué sur ce compte."
+        defaultNoteFor={() => 'Apport'}
+        onSubmit={(op) => writeAccountEntry(op, 'deposit')}
+      />
 
-            <Text style={modalStyles.label}>Date de référence</Text>
-            <TouchableOpacity
-              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }]}
-              onPress={() => setShowBalanceCalendar(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: COLORS.text, fontSize: 16 }}>{balanceDateDisplay}</Text>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
-            </TouchableOpacity>
-            <Text style={[modalStyles.helperText, { marginBottom: 14 }]}>
-              Le solde calculé tient compte des transactions jusqu'à cette date.
-            </Text>
-            <View style={modalStyles.infoBox}>
-              <Ionicons name="information-circle-outline" size={16} color={COLORS.blue} style={{ marginTop: 1 }} />
-              <Text style={modalStyles.infoText}>
-                Cette date devient une référence : une transaction ajoutée plus tard avec une date antérieure ne modifiera pas ce solde (il a déjà été constaté ici).
-              </Text>
-            </View>
+      <AccountAmountModal
+        visible={entryModal === 'gainloss'}
+        onClose={() => setEntryModal(null)}
+        title="Plus / moins-value"
+        accent={COLORS.violet}
+        currencySymbol={CURRENCY_SYMBOL}
+        currentBalance={Number(account.balance)}
+        withMethodPicker
+        defaultMethod="balance"
+        signToggle={{ positiveLabel: 'Plus-value', negativeLabel: 'Moins-value' }}
+        amountHint="Plus ou moins-value à porter au compte."
+        balanceHint="La plus/moins-value est calculée à partir du nouveau solde."
+        defaultNoteFor={(v) => (v < 0 ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE)}
+        /* MARQUEUR de nature (migration 196) : c'est lui qui fait foi, et non le libellé — que
+           l'utilisateur peut réécrire depuis l'écran d'édition. Sans lui, renommer « Plus-value »
+           en « Revalorisation T3 » sortait la ligne des plus-values et la faisait compter comme un
+           APPORT : le capital investi gonflait, la performance s'effondrait, sans qu'aucun montant
+           n'ait bougé. */
+        onSubmit={(op) => writeAccountEntry(op, op.amount < 0 ? 'loss' : 'gain')}
+      />
 
-            <Text style={modalStyles.label}>Solde calculé à cette date</Text>
-            <View style={modalStyles.readOnlyInput}>
-              <Text style={modalStyles.readOnlyText}>
-                {balanceAtDate.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
-              </Text>
-            </View>
-
-            <Text style={modalStyles.label}>Solde réel à cette date</Text>
-            <TextInput
-              style={modalStyles.input}
-              value={balanceInput}
-              onChangeText={(v) => setBalanceInput(sanitizeSignedAmountInput(v))}
-              keyboardType="decimal-pad"
-              placeholder="0,00"
-              placeholderTextColor={COLORS.textSecondary}
-              autoFocus
-            />
-            <Text style={modalStyles.helperText}>
-              {(() => {
-                const v = parseFloat(balanceInput.replace(',', '.'));
-                if (Number.isNaN(v)) return 'Saisis le solde réel relevé sur ta banque.';
-                const diff = v - balanceAtDate;
-                /* Comparaison au CENTIME, pas à l'égalité stricte : c'est une soustraction de
-                   flottants, et retaper exactement le solde affiché pouvait laisser un résidu de
-                   l'ordre de 1e-13 — l'écran annonçait alors « + 0,00 € seront ajoutés » au lieu
-                   de « Aucune variation ». Même seuil (0,005) que partout ailleurs dans l'app. */
-                if (Math.abs(diff) < 0.005) return 'Aucune variation.';
-                const abs = Math.abs(diff).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                return diff > 0
-                  ? `+ ${abs} ${CURRENCY_SYMBOL} seront ajoutés`
-                  : `− ${abs} ${CURRENCY_SYMBOL} seront retirés`;
-              })()}
-            </Text>
-
-            <Text style={modalStyles.label}>Libellé</Text>
-            <TextInput
-              style={modalStyles.input}
-              value={balanceNote}
-              onChangeText={setBalanceNote}
-              placeholder="Ex. Relevé bancaire..."
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <View style={modalStyles.actions}>
-              <TouchableOpacity style={modalStyles.cancel} onPress={() => setShowBalance(false)} activeOpacity={0.7}>
-                <Text style={modalStyles.cancelLabel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.confirm, { backgroundColor: COLORS.blue }, balanceLoading && { opacity: 0.5 }]}
-                onPress={handleBalance}
-                disabled={balanceLoading}
-                activeOpacity={0.8}
-              >
-                {balanceLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={modalStyles.confirmLabel}>Valider</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAwareOverlay>
-      </Modal>
-
-      {/* ── Calendrier pour le solde ── */}
-      <Modal visible={showBalanceCalendar} transparent animationType="fade" onRequestClose={() => setShowBalanceCalendar(false)}>
-        <Pressable style={modalStyles.overlay} onPress={() => setShowBalanceCalendar(false)}>
-          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
-              <Text style={modalStyles.title}>Date de référence</Text>
-              <TouchableOpacity onPress={() => setShowBalanceCalendar(false)}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
-            <CalendarWithPicker
-              current={balanceDate}
-              maxDate={todayISO()}
-              onDayPress={(day: any) => {
-                setBalanceDate(day.dateString);
-                setBalanceDateDisplay(formatDateFrench(day.dateString));
-                setShowBalanceCalendar(false);
-              }}
-              markedDates={balanceDate ? { [balanceDate]: { selected: true, selectedColor: COLORS.blue, selectedTextColor: '#000' } } : {}}
-              accentColor={COLORS.blue}
-              bgColor={COLORS.card}
-              textColor={COLORS.text}
-              textSecondaryColor={COLORS.textSecondary}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* ── Apport modal ── */}
-      <Modal visible={showApport} transparent animationType="fade" onRequestClose={() => setShowApport(false)}>
-        <KeyboardAwareOverlay style={modalStyles.overlay}>
-          <View style={modalStyles.container}>
-            <Text style={modalStyles.title}>Apport</Text>
-
-            <Text style={modalStyles.label}>Montant</Text>
-            <TextInput
-              style={modalStyles.input}
-              value={apportAmount}
-              onChangeText={(v) => setApportAmount(sanitizeAmountInput(v))}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor={COLORS.textSecondary}
-              autoFocus
-            />
-
-            <Text style={modalStyles.label}>Date</Text>
-            <TouchableOpacity
-              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }]}
-              onPress={() => setShowApportCalendar(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: COLORS.text, fontSize: 16 }}>{apportDateDisplay}</Text>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
-            </TouchableOpacity>
-
-            <Text style={modalStyles.label}>Note (optionnel)</Text>
-            <TextInput
-              style={modalStyles.input}
-              value={apportNote}
-              onChangeText={setApportNote}
-              placeholder="Apport"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <View style={modalStyles.actions}>
-              <TouchableOpacity style={modalStyles.cancel} onPress={() => setShowApport(false)} activeOpacity={0.7}>
-                <Text style={modalStyles.cancelLabel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.confirm, apportLoading && { opacity: 0.5 }]}
-                onPress={handleApport}
-                disabled={apportLoading}
-                activeOpacity={0.8}
-              >
-                {apportLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={modalStyles.confirmLabel}>Valider</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAwareOverlay>
-      </Modal>
+      <AccountAmountModal
+        visible={entryModal === 'interest'}
+        onClose={() => setEntryModal(null)}
+        title="Intérêts"
+        accent={COLORS.green}
+        currencySymbol={CURRENCY_SYMBOL}
+        currentBalance={Number(account.balance)}
+        withMethodPicker
+        defaultMethod="amount"
+        amountLabel="Montant des intérêts"
+        amountHint="Montant des intérêts à créditer sur le compte."
+        balanceHint="Les intérêts sont calculés à partir du nouveau solde."
+        defaultNoteFor={() => 'Intérêts'}
+        onSubmit={(op) => writeAccountEntry(op, null)}
+      />
 
       {/* #4bis — picker : choisir le membre non-user au nom duquel saisir l'opération sur le compte joint. */}
       <Modal visible={showOnBehalf} transparent animationType="fade" onRequestClose={() => setShowOnBehalf(false)}>
@@ -1165,338 +834,6 @@ function AccountDetailScreen() {
             ))}
           </TouchableOpacity>
         </TouchableOpacity>
-      </Modal>
-
-      <Modal visible={showGainLoss} transparent animationType="fade" onRequestClose={() => {
-        setShowGainLoss(false);
-        setShowMethodPicker(false);
-      }}>
-        <KeyboardAwareOverlay style={modalStyles.overlay}>
-          <View style={modalStyles.container}>
-            <Text style={modalStyles.title}>Plus / moins-value</Text>
-
-            <Text style={modalStyles.sectionLabel}>Méthode de saisie</Text>
-            <TouchableOpacity
-              style={modalStyles.dropdownField}
-              onPress={() => setShowMethodPicker((value) => !value)}
-              activeOpacity={0.8}
-            >
-              <Text style={modalStyles.dropdownText}>{gainLossMode === 'amount' ? 'Montant' : 'Nouveau Solde'}</Text>
-              <Ionicons name={showMethodPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            {showMethodPicker ? (
-              <View style={modalStyles.dropdownOptions}>
-                <TouchableOpacity
-                  style={modalStyles.dropdownOption}
-                  onPress={() => {
-                    setGainLossMode('amount');
-                    setShowMethodPicker(false);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={modalStyles.dropdownOptionLabel}>Montant</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={modalStyles.dropdownOption}
-                  onPress={() => {
-                    setGainLossMode('balance');
-                    setShowMethodPicker(false);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={modalStyles.dropdownOptionLabel}>Nouveau Solde</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {gainLossMode === 'amount' ? (
-              <>
-                <Text style={modalStyles.sectionLabel}>Type</Text>
-                <View style={modalStyles.toggleRow}>
-                  <TouchableOpacity
-                    style={[modalStyles.toggleBtn, !isLoss && modalStyles.toggleBtnActive]}
-                    onPress={() => {
-                      setIsLoss(false);
-                      setGainLossNote(INVESTMENT_GAIN_NOTE);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[modalStyles.toggleLabel, !isLoss && modalStyles.toggleLabelActive]}>Plus-value</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[modalStyles.toggleBtn, isLoss && modalStyles.toggleBtnActive]}
-                    onPress={() => {
-                      setIsLoss(true);
-                      setGainLossNote(INVESTMENT_LOSS_NOTE);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[modalStyles.toggleLabel, isLoss && modalStyles.toggleLabelActive]}>Moins-value</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : null}
-
-            {gainLossMode === 'amount' ? (
-              <>
-                <Text style={modalStyles.label}>Montant</Text>
-                <TextInput
-                  style={modalStyles.input}
-                  value={gainLossAmount}
-                  onChangeText={(v) => setGainLossAmount(sanitizeAmountInput(v))}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-                <Text style={modalStyles.helperText}>Entrez la plus/moins-value à ajouter au compte.</Text>
-              </>
-            ) : (
-              <>
-                <Text style={modalStyles.label}>Solde actuel</Text>
-                <View style={modalStyles.readOnlyInput}>
-                  <Text style={modalStyles.readOnlyText}>
-                    {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
-                  </Text>
-                </View>
-                <Text style={modalStyles.label}>Nouveau solde</Text>
-                <TextInput
-                  style={modalStyles.input}
-                  value={gainLossBalance}
-                  onChangeText={(v) => setGainLossBalance(sanitizeSignedAmountInput(v))}
-                  keyboardType="decimal-pad"
-                  placeholder="0,00"
-                  placeholderTextColor={COLORS.textSecondary}
-                  autoFocus
-                />
-                <Text style={modalStyles.helperText}>La plus/moins-value est calculée automatiquement à partir du nouveau solde.</Text>
-              </>
-            )}
-
-            <Text style={modalStyles.label}>Date</Text>
-            <TouchableOpacity
-              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }]}
-              onPress={() => setShowGainLossCalendar(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: COLORS.text, fontSize: 16 }}>{gainLossDateDisplay}</Text>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
-            </TouchableOpacity>
-
-            <Text style={modalStyles.label}>Note (optionnel)</Text>
-            <TextInput
-              style={modalStyles.input}
-              value={gainLossNote}
-              onChangeText={setGainLossNote}
-              placeholder={isLoss ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE}
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <View style={modalStyles.actions}>
-              <TouchableOpacity style={modalStyles.cancel} onPress={() => {
-                setShowGainLoss(false);
-                setShowMethodPicker(false);
-              }} activeOpacity={0.7}>
-                <Text style={modalStyles.cancelLabel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.confirm, gainLossLoading && { opacity: 0.5 }]}
-                onPress={handleGainLoss}
-                disabled={gainLossLoading}
-                activeOpacity={0.8}
-              >
-                {gainLossLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={modalStyles.confirmLabel}>Valider</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAwareOverlay>
-      </Modal>
-
-      {/* ── Calendrier Apport ── */}
-      <Modal visible={showApportCalendar} transparent animationType="fade" onRequestClose={() => setShowApportCalendar(false)}>
-        <Pressable style={modalStyles.overlay} onPress={() => setShowApportCalendar(false)}>
-          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
-              <Text style={modalStyles.title}>Date de l'apport</Text>
-              <TouchableOpacity onPress={() => setShowApportCalendar(false)}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
-            <CalendarWithPicker
-              current={apportDate}
-              maxDate={todayISO()}
-              onDayPress={(day: any) => {
-                setApportDate(day.dateString);
-                setApportDateDisplay(formatDateFrench(day.dateString));
-                setShowApportCalendar(false);
-              }}
-              markedDates={apportDate ? { [apportDate]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } } : {}}
-              accentColor={COLORS.emerald}
-              bgColor={COLORS.card}
-              textColor={COLORS.text}
-              textSecondaryColor={COLORS.textSecondary}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* ── Calendrier +/- value ── */}
-      <Modal visible={showGainLossCalendar} transparent animationType="fade" onRequestClose={() => setShowGainLossCalendar(false)}>
-        <Pressable style={modalStyles.overlay} onPress={() => setShowGainLossCalendar(false)}>
-          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
-              <Text style={modalStyles.title}>Date de la +/- value</Text>
-              <TouchableOpacity onPress={() => setShowGainLossCalendar(false)}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
-            <CalendarWithPicker
-              current={gainLossDate}
-              maxDate={todayISO()}
-              onDayPress={(day: any) => {
-                setGainLossDate(day.dateString);
-                setGainLossDateDisplay(formatDateFrench(day.dateString));
-                setShowGainLossCalendar(false);
-              }}
-              markedDates={gainLossDate ? { [gainLossDate]: { selected: true, selectedColor: COLORS.violet, selectedTextColor: '#000' } } : {}}
-              accentColor="#a78bfa"
-              bgColor={COLORS.card}
-              textColor={COLORS.text}
-              textSecondaryColor={COLORS.textSecondary}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* ── Intérêts modal (comptes épargne) ── */}
-      <Modal visible={showInterest} transparent animationType="fade" onRequestClose={() => { setShowInterest(false); setShowInterestMethodPicker(false); }}>
-        <KeyboardAwareOverlay style={modalStyles.overlay}>
-          <View style={modalStyles.container}>
-            <Text style={modalStyles.title}>Intérêts</Text>
-
-            <Text style={modalStyles.sectionLabel}>Méthode de saisie</Text>
-            <TouchableOpacity
-              style={modalStyles.dropdownField}
-              onPress={() => setShowInterestMethodPicker((v) => !v)}
-              activeOpacity={0.8}
-            >
-              <Text style={modalStyles.dropdownText}>{interestMode === 'amount' ? 'Montant' : 'Nouveau Solde'}</Text>
-              <Ionicons name={showInterestMethodPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            {showInterestMethodPicker ? (
-              <View style={modalStyles.dropdownOptions}>
-                <TouchableOpacity style={modalStyles.dropdownOption} onPress={() => { setInterestMode('amount'); setShowInterestMethodPicker(false); }} activeOpacity={0.8}>
-                  <Text style={modalStyles.dropdownOptionLabel}>Montant</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={modalStyles.dropdownOption} onPress={() => { setInterestMode('balance'); setShowInterestMethodPicker(false); }} activeOpacity={0.8}>
-                  <Text style={modalStyles.dropdownOptionLabel}>Nouveau Solde</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {interestMode === 'amount' ? (
-              <>
-                <Text style={modalStyles.label}>Montant des intérêts</Text>
-                <TextInput
-                  style={modalStyles.input}
-                  value={interestAmount}
-                  onChangeText={(v) => setInterestAmount(sanitizeAmountInput(v))}
-                  keyboardType="decimal-pad"
-                  placeholder="0,00"
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-                <Text style={modalStyles.helperText}>Montant des intérêts à créditer sur le compte.</Text>
-              </>
-            ) : (
-              <>
-                <Text style={modalStyles.label}>Solde actuel</Text>
-                <View style={modalStyles.readOnlyInput}>
-                  <Text style={modalStyles.readOnlyText}>
-                    {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
-                  </Text>
-                </View>
-                <Text style={modalStyles.label}>Nouveau solde</Text>
-                <TextInput
-                  style={modalStyles.input}
-                  value={interestBalance}
-                  onChangeText={(v) => setInterestBalance(sanitizeSignedAmountInput(v))}
-                  keyboardType="decimal-pad"
-                  placeholder="0,00"
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-                <Text style={modalStyles.helperText}>Les intérêts sont calculés à partir du nouveau solde.</Text>
-              </>
-            )}
-
-            <Text style={modalStyles.label}>Date</Text>
-            <TouchableOpacity
-              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-              onPress={() => setShowInterestCalendar(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: COLORS.text, fontSize: 16 }}>{interestDateDisplay}</Text>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
-            </TouchableOpacity>
-
-            <Text style={modalStyles.label}>Note (optionnel)</Text>
-            <TextInput
-              style={modalStyles.input}
-              value={interestNote}
-              onChangeText={setInterestNote}
-              placeholder="Intérêts"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <View style={modalStyles.actions}>
-              <TouchableOpacity style={modalStyles.cancel} onPress={() => { setShowInterest(false); setShowInterestMethodPicker(false); }} activeOpacity={0.7}>
-                <Text style={modalStyles.cancelLabel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.confirm, { backgroundColor: COLORS.green }, interestLoading && { opacity: 0.5 }]}
-                onPress={handleInterest}
-                disabled={interestLoading}
-                activeOpacity={0.8}
-              >
-                {interestLoading ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={modalStyles.confirmLabel}>Valider</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAwareOverlay>
-      </Modal>
-
-      {/* ── Calendrier Intérêts ── */}
-      <Modal visible={showInterestCalendar} transparent animationType="fade" onRequestClose={() => setShowInterestCalendar(false)}>
-        <Pressable style={modalStyles.overlay} onPress={() => setShowInterestCalendar(false)}>
-          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
-              <Text style={modalStyles.title}>Date des intérêts</Text>
-              <TouchableOpacity onPress={() => setShowInterestCalendar(false)}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
-            <CalendarWithPicker
-              current={interestDate}
-              maxDate={todayISO()}
-              onDayPress={(day: any) => {
-                setInterestDate(day.dateString);
-                setInterestDateDisplay(formatDateFrench(day.dateString));
-                setShowInterestCalendar(false);
-              }}
-              markedDates={interestDate ? { [interestDate]: { selected: true, selectedColor: COLORS.green, selectedTextColor: '#000' } } : {}}
-              accentColor={COLORS.green}
-              bgColor={COLORS.card}
-              textColor={COLORS.text}
-              textSecondaryColor={COLORS.textSecondary}
-            />
-          </Pressable>
-        </Pressable>
       </Modal>
 
       {/* Transaction detail (read-only) */}
@@ -1729,120 +1066,18 @@ function makeStyles(c: any) {
 });
 }
 
+/** Modale « Saisir au nom de… » — la seule qui reste ici : les trois saisies de montant ont leur
+ *  propre formulaire partagé (components/account/AccountAmountModal). */
 function makeModalStyles(c: any) {
   return StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  container: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: c.cardSolid,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    padding: 24,
-  },
-  title: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
-  input: {
-    backgroundColor: c.bg,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    color: c.text,
-    fontSize: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  readOnlyInput: {
-    backgroundColor: c.cardBorder,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 16,
-    opacity: 0.7,
-  },
-  readOnlyText: { fontSize: 16, color: c.textSecondary },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  toggleBtn: {
-    flex: 1,
-    backgroundColor: c.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  toggleBtnActive: {
-    /* Fond TEINTÉ, et non une ardoise sombre écrite en dur (`#1f2937`) : en thème clair, le bouton
-       actif devenait un rectangle gris foncé au milieu d'une carte blanche. La bordure et le
-       libellé étant déjà en accent, on garde le style « contour teinté » plutôt que le remplissage
-       plein utilisé ailleurs (qui rendrait le libellé illisible). */
-    backgroundColor: c.emerald + '1F',
-    borderColor: c.emerald,
-  },
-  toggleLabel: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
-  toggleLabelActive: { color: c.emerald },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 10 },
-  dropdownField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: c.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 14,
-  },
-  dropdownText: { color: c.text, fontSize: 15, fontWeight: '600' },
-  dropdownOptions: {
-    backgroundColor: c.bg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    marginBottom: 18,
-    overflow: 'hidden',
-  },
-  dropdownOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  dropdownOptionLabel: { color: c.text, fontSize: 15 },
-  helperText: { color: c.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
-  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.blue + '14', borderWidth: 1, borderColor: c.blue + '40', borderRadius: 10, padding: 10, marginTop: -4, marginBottom: 14 },
-  infoText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
-  cancel: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    alignItems: 'center',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  cancelLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
-  confirm: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    // Ambre du thème (`c.orange`), pas la valeur du thème SOMBRE recopiée en dur.
-    backgroundColor: c.orange,
-    alignItems: 'center',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  confirmLabel: { fontSize: 15, fontWeight: '700', color: '#000' },
-});
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    container: {
+      width: '100%', maxWidth: 380, backgroundColor: c.cardSolid,
+      borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 24,
+    },
+    title: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 20, textAlign: 'center' },
+    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
+  });
 }
 
 function makeTxDetailStyles(c: any) {

@@ -2,9 +2,11 @@
  * Aperçu de la carte « Ton Relyka » — le COMPOSANT DE PRODUCTION (`PilotageSimple`), monté avec des
  * chiffres simulés et des actions inertes.
  *
- * ⚠️ Les écrans d'administration rendaient jusqu'ici `RecommendationCard`, le carrousel en colonnes
- * qui a quitté le tableau de bord : on y jugeait des réglages sur un écran que plus personne ne
- * voit. Un aperçu qui ne montre pas l'écran réel ne vaut pas mieux qu'une capture d'écran périmée.
+ * ⚠️ Les écrans d'administration rendaient jusqu'ici un carrousel de recos en colonnes qui avait
+ * quitté le tableau de bord : on y jugeait des réglages sur un écran que plus personne ne voit. Un
+ * aperçu qui ne montre pas l'écran réel ne vaut pas mieux qu'une capture d'écran périmée. (Ce
+ * carrousel — `components/pilotage/RecommendationCard.tsx` — a fini par être supprimé : plus rien
+ * ne l'importait, et on continuait pourtant d'en retoucher les textes pour rien.)
  *
  * Tout ce qui s'affiche ici passe par les mêmes fonctions que le Pilotage (confiance, fourchette,
  * recommandations, messages) — rien n'est reformulé sur place.

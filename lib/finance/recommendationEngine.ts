@@ -53,8 +53,8 @@ export interface SmartRecommendation {
   /**
    * Garde-fou marge × projection — cas « reco RÉDUITE » (épargne/invest plafonnés). Donnée STRUCTURÉE :
    * `addMore` = ce qu'on pourrait ajouter en plus, `total` = le total possible sans le garde-fou.
-   * Le TEXTE est composé côté écran (RecommendationCard) → un seul message combiné si épargne + invest
-   * sont tous deux plafonnés.
+   * Le TEXTE est composé côté écran (composeGuardMessage, cf. lib/recoMessages) → un seul message
+   * combiné si épargne + invest sont tous deux plafonnés.
    */
   guard?: { addMore: number; total: number };
   /**

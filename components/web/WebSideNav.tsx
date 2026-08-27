@@ -36,12 +36,17 @@ interface NavItem {
   premium?: boolean;
 }
 
-/** Actions de saisie du bouton principal — mêmes routes que le « + » mobile (QuickAddButton). */
+/**
+ * Actions de saisie du bouton principal — mêmes routes, mêmes libellés et MÊME ORDRE que le « + »
+ * mobile (QuickAddButton) et que l'en-tête des Transactions : Virement, Dépense, Recette, puis la
+ * mise à jour du solde. Trois listes qui proposent les mêmes gestes dans trois ordres différents,
+ * ça se remarque d'un écran à l'autre.
+ */
 const QUICK_ACTIONS = [
+  { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', tone: 'blue', route: '/(tabs)/transactions/add?type=transfer' },
   { key: 'expense', label: 'Dépense', icon: 'arrow-down', tone: 'danger', route: '/(tabs)/transactions/add?type=expense' },
   { key: 'income', label: 'Recette', icon: 'arrow-up', tone: 'green', route: '/(tabs)/transactions/add?type=income' },
-  { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', tone: 'blue', route: '/(tabs)/transactions/add?type=transfer' },
-  { key: 'balance', label: 'Mettre à jour un solde', icon: 'refresh', tone: 'emerald', route: '/(tabs)/comptes/solde' },
+  { key: 'balance', label: 'Mettre à jour mon solde', icon: 'refresh', tone: 'emerald', route: '/(tabs)/comptes/solde' },
 ] as const;
 
 export default function WebSideNav() {

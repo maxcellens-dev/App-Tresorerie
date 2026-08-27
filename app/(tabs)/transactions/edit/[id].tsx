@@ -18,12 +18,12 @@ import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/
 import { isRegulRow } from '../../../../lib/finance/txOrder';
 import type { RecurrenceRule } from '../../../../types/database';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../../lib/dateUtils';
-import { accountColor } from '../../../../theme/colors';
 import { supabase } from '../../../../lib/platform/supabase';
 import { useAppColors } from '../../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
-import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
+import { currencySymbolFor } from '../../../../lib/finance/currency';
+import AccountChipRow from '../../../../components/transaction/AccountChipRow';
 import { useKeyboardAwareScroll } from '../../../../hooks/platform/useKeyboardAwareScroll';
 import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
 import { notePlaceholder } from '../../../../lib/finance/txPlaceholders';
@@ -714,23 +714,15 @@ function EditTransactionScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Compte — dépense/recette : comptes courants uniquement (comme à la création) */}
+              {/* Compte — dépense/recette : comptes courants uniquement, et le MÊME sélecteur qu'à
+                  la création (components/transaction/AccountChipRow) : celui d'ici n'affichait pas
+                  les soldes et ne défilait pas jusqu'au compte sélectionné. */}
               <Text style={styles.label}>Compte</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                {accounts.filter((a) => a.type === 'checking').map((acc) => {
-                  const color = accountColor(acc.type);
-                  const isActive = accountId === acc.id;
-                  return (
-                    <TouchableOpacity
-                      key={acc.id}
-                      style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]}
-                      onPress={() => setAccountId(acc.id)}
-                    >
-                      <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              <AccountChipRow
+                accounts={accounts.filter((a) => a.type === 'checking')}
+                activeId={accountId}
+                onSelect={setAccountId}
+              />
             </>
           )}
 
@@ -772,7 +764,9 @@ function EditTransactionScreen() {
           )}
 
           {/* Montant */}
-          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (' + CURRENCY_SYMBOL + ')'} *</Text>
+          {/* Devise DU COMPTE, comme à la création : `CURRENCY_SYMBOL` est la devise de RÉFÉRENCE
+              du profil — une opération sur un compte en CHF s'annonçait donc « Montant (€) ». */}
+          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (' + currencySymbolFor(accounts.find((a) => a.id === accountId)?.currency) + ')'} *</Text>
           <TextInput
             style={[styles.input, errorFields.includes('amount') && styles.inputError]}
             value={amount}
@@ -1144,7 +1138,6 @@ function makeStyles(c: any) {
   },
   errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
   hint: { color: c.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 16 },
-  chipScroll: { marginBottom: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   /* Périodicité : les quatre choix tiennent sur UNE ligne quel que soit l'écran. */
   periodRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
@@ -1155,7 +1148,6 @@ function makeStyles(c: any) {
   periodChipText: { fontSize: 12.5, fontWeight: '600', color: c.text },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  chipText: { fontSize: 14, color: c.text },
   chipTextActive: { color: c.onAccent, fontWeight: '600' },
   recurringSection: { marginTop: 8, marginBottom: 16 },
   recurringInfoBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },

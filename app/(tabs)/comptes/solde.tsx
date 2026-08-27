@@ -9,6 +9,13 @@
  *
  * Multi-comptes assumé : un utilisateur a souvent plusieurs comptes courants. On les liste TOUS,
  * il remplit ceux qu'il veut, et on n'écrit une régularisation que pour ceux réellement modifiés.
+ *
+ * ── `?account=<id>` : LE MÊME ÉCRAN, CENTRÉ SUR UN COMPTE ───────────────────────────────────────
+ * La fiche d'un compte portait sa propre modale « Ajuster le solde » : elle refaisait la date de
+ * référence, l'écart et la régularisation dans son coin, avec ses propres libellés — et son solde
+ * « connu » était calculé par une soustraction naïve qui ignorait les ancres de régularisation
+ * (donc faux dès la deuxième mise à jour). Elle envoie désormais ici, pré-filtrée sur son compte :
+ * un seul geste, un seul calcul, un seul endroit à corriger.
  */
 import React, { useMemo, useState } from 'react';
 import { findRegulCategoryId } from '../../../lib/finance/regul';
@@ -33,8 +40,8 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 import { safeInternalRoute } from '../../../lib/ui/navHistory';
-import { useAccounts } from '../../../hooks/data/useAccounts';
-import { useAddTransaction, useTransactions } from '../../../hooks/data/useTransactions';
+import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { useAddTransaction, useAllTransactions } from '../../../hooks/data/useTransactions';
 import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
 import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
 import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
@@ -50,7 +57,7 @@ export default function BalanceUpdateScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
   const router = useRouter();
-  const params = useLocalSearchParams<{ origin?: string }>();
+  const params = useLocalSearchParams<{ origin?: string; account?: string }>();
   const { user } = useAuth();
   // Catégories du profil : sert à ranger la régularisation selon son sens (cf. lib/regul).
   const { data: categories = [] } = useCategories(user?.id);
@@ -63,8 +70,11 @@ export default function BalanceUpdateScreen() {
   const backTo = safeInternalRoute(params.origin) ?? '/(tabs)/pilotage';
   const goBack = useNavBack(backTo);
 
-  const { data: accounts = [] } = useAccounts(user?.id);
-  const { data: transactions = [] } = useTransactions(user?.id);
+  /* Comptes ET transactions vus « en grand » (joints et partagés compris) : la fiche d'un compte
+     joint envoie ici avec `?account=`, et le solde REMONTÉ à une date ne vaut rien s'il manque les
+     transactions de ce compte. */
+  const { data: accounts = [] } = useAllAccounts(user?.id);
+  const { data: transactions = [] } = useAllTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const recalibrate = useRecalibrateReliability(user?.id);
 
@@ -104,11 +114,17 @@ export default function BalanceUpdateScreen() {
     return balanceAtDate(transactions as any[], accountId, balance, date);
   }, [transactions, date, dateValid]);
 
-  /** Comptes courants actifs, dans l'ordre unique de l'app (principal → type → nom). */
-  const checking = useMemo(
-    () => accounts.filter((a: any) => a.type === 'checking' && a.is_active !== false),
-    [accounts],
-  );
+  /**
+   * Comptes à renseigner, dans l'ordre unique de l'app (principal → type → nom) :
+   *  • `?account=<id>` → CE compte seul, quel que soit son type (on arrive de sa fiche) ;
+   *  • sinon → mes comptes courants perso actifs, comme avant.
+   * Jamais un compte reçu en consultation : une régularisation y serait une écriture.
+   */
+  const checking = useMemo(() => {
+    const writable = accounts.filter((a: any) => a._role !== 'read' && a.is_active !== false);
+    if (params.account) return writable.filter((a: any) => a.id === params.account);
+    return writable.filter((a: any) => a.type === 'checking' && !a.is_joint && a._role === 'owner');
+  }, [accounts, params.account]);
 
   const num = (s: string) => {
     const n = parseFloat(String(s ?? '').replace(',', '.'));
@@ -251,7 +267,9 @@ export default function BalanceUpdateScreen() {
           {checking.length === 0 && (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
-                Tu n’as pas encore de compte courant. Ajoute-en un depuis l’onglet Comptes.
+                {params.account
+                  ? 'Ce compte n’est plus accessible.'
+                  : 'Tu n’as pas encore de compte courant. Ajoute-en un depuis l’onglet Comptes.'}
               </Text>
             </View>
           )}
@@ -340,9 +358,11 @@ export default function BalanceUpdateScreen() {
                   <Ionicons name="checkmark" size={18} color={COLORS.onAccent} />
                 </>}
           </TouchableOpacity>
-          <Text style={styles.foot}>
-            Tu peux ne remplir qu’un seul compte : les autres restent inchangés.
-          </Text>
+          {checking.length > 1 && (
+            <Text style={styles.foot}>
+              Tu peux ne remplir qu’un seul compte : les autres restent inchangés.
+            </Text>
+          )}
         </View>
       </SafeAreaView>
 

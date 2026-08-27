@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { APP_MAX_WIDTH } from '../../lib/ui/appLayout';
+import { shouldShowQuickAdd } from '../../lib/ui/quickAdd';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
 const ACTION_SIZE = 54;       // actions plus grosses et lisibles
@@ -115,13 +116,7 @@ export default function QuickAddButton() {
 
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
-  // Visible sur le Pilotage (l'écran d'accueil sur lequel on atterrit au démarrage), sur les écrans
-  // « Comptes » (liste + détail d'un compte) et sur la liste des « Transactions » (où il remplace
-  // les 3 boutons du haut). Jamais sur un écran de SAISIE (add / edit / solde) — y proposer une
-  // saisie n'aurait aucun sens, et la mise à jour de solde EST une saisie.
-  const path = pathname ?? '';
-  if (/\/(add|edit|solde)(\/|$)/.test(path)) return null;
-  if (!/(pilotage|comptes|transactions)/.test(path)) return null;
+  if (!shouldShowQuickAdd(pathname)) return null;
 
   // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
   const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);
@@ -138,13 +133,14 @@ export default function QuickAddButton() {
   // Actions EMPILÉES verticalement au-dessus du bouton (et non plus en arc) : à trois actions
   // l'arc restait lisible, à quatre les pastilles se chevauchaient et la cible devenait imprécise.
   // Une colonne se lit d'un coup d'œil et donne des zones tactiles franches.
-  // Ordre de lecture : « Solde » le plus près du pouce (l'action la plus fréquente, la seule qui
-  // VÉRIFIE les données), puis les saisies.
+  // La DERNIÈRE du tableau est la plus proche du pouce : « Solde » y reste (l'action la plus
+  // fréquente, la seule qui VÉRIFIE les données). Au-dessus, les saisies se lisent de haut en bas
+  // Virement, Dépense, Recette — l'ordre de l'en-tête des Transactions et du menu latéral du web.
   const soldeRoute = `/(tabs)/comptes/solde${pathname ? `?origin=${encodeURIComponent(pathname)}` : ''}`;
   const ACTIONS = [
-    { key: 'income', label: 'Recette', icon: 'arrow-up', color: COLORS.green ?? COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
-    { key: 'expense', label: 'Dépense', icon: 'arrow-down', color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
     { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
+    { key: 'expense', label: 'Dépense', icon: 'arrow-down', color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
+    { key: 'income', label: 'Recette', icon: 'arrow-up', color: COLORS.green ?? COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
     { key: 'balance', label: 'Mettre à jour mon solde', icon: 'refresh', color: COLORS.emerald, route: soldeRoute },
   ] as const;
   const ROW_H = ACTION_SIZE + 12;   // hauteur d'une ligne (bouton + gouttière)
