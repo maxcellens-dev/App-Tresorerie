@@ -19,8 +19,127 @@ import { useAppColors } from '../../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
+
+/** Parc installé (migration 215) — la version de chacun est celle de son DERNIER évènement. */
+interface VersionRow { platform: string; app_version: string | null; runtime_version: string | null; users: number; last_seen: string | null }
+interface VersionStats {
+  activeUsers: number;
+  /** installed = a ouvert l'app sur un appareil ; web_only = jamais vu ailleurs que sur le web. */
+  usage: { installed: number; webOnly: number; nativeOnly: number; both: number; unknown: number };
+  versions: VersionRow[];
+  /** Vrai quand l'agrégat vient de la base ; faux = repli client (versions non mesurables). */
+  measured: boolean;
+}
+
+/** Une version, tous appareils confondus — la question posée est « combien sur la 1.0.7 ? ». */
+interface VersionGroup { version: string | null; users: number; byPlatform: { platform: string; users: number }[] }
+
+function platformLabel(p: string | null): string {
+  if (p === 'android') return 'Android';
+  if (p === 'ios') return 'iOS';
+  if (p === 'web') return 'Web';
+  return 'Inconnu';
+}
+
+/** « 1.0.10 » vient APRÈS « 1.0.9 » : un tri texte les met dans l'ordre inverse. */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * Regroupe par VERSION, pas par (plateforme × version).
+ *
+ * L'agrégat de base sépare les plateformes — utile pour savoir qui a l'app installée, mais illisible
+ * pour la question qu'on se pose vraiment : « combien sont sur la 1.0.7, combien traînent sur la
+ * 1.0.4 ? ». Une même version éclatée en trois lignes ne se compare pas. Le détail par plateforme
+ * reste, en sous-titre.
+ */
+function groupByVersion(rows: VersionRow[]): VersionGroup[] {
+  const map = new Map<string, { version: string | null; users: number; plat: Map<string, number> }>();
+  for (const r of rows) {
+    const key = r.app_version ?? '';
+    const g = map.get(key) ?? { version: r.app_version, users: 0, plat: new Map<string, number>() };
+    g.users += r.users;
+    g.plat.set(r.platform, (g.plat.get(r.platform) ?? 0) + r.users);
+    map.set(key, g);
+  }
+  return [...map.values()]
+    .map((g) => ({
+      version: g.version,
+      users: g.users,
+      byPlatform: [...g.plat.entries()].map(([platform, users]) => ({ platform, users })).sort((a, b) => b.users - a.users),
+    }))
+    .sort((a, b) => {
+      if (a.version === null) return 1;                    // « inconnue » toujours en dernier
+      if (b.version === null) return -1;
+      return compareVersions(b.version, a.version);        // la plus récente en premier
+    });
+}
+
+function normalizeVersionStats(raw: any): VersionStats {
+  const u = raw?.usage ?? {};
+  return {
+    activeUsers: Number(raw?.active_users) || 0,
+    usage: {
+      installed: Number(u.installed) || 0,
+      webOnly: Number(u.web_only) || 0,
+      nativeOnly: Number(u.native_only) || 0,
+      both: Number(u.both) || 0,
+      unknown: Number(u.unknown) || 0,
+    },
+    versions: (Array.isArray(raw?.versions) ? raw.versions : []).map((v: any) => ({
+      platform: v?.platform ?? 'inconnu',
+      app_version: v?.app_version ?? null,
+      runtime_version: v?.runtime_version ?? null,
+      users: Number(v?.users) || 0,
+      last_seen: v?.last_seen ?? null,
+    })),
+    measured: true,
+  };
+}
+
+/**
+ * REPLI : la fonction d'agrégation n'est pas déployée (une OTA précède toujours sa migration).
+ * On sait alors dire qui n'utilise QUE le web — l'information est dans `platform`, qui existe depuis
+ * la 055 — mais pas sur quelle version : les évènements chargés ici ne la portent pas. On rend donc
+ * des lignes « version inconnue » plutôt qu'un tableau vide qui laisserait croire à une panne.
+ */
+function computeVersionFallback(events: RawEvent[]): VersionStats {
+  const perUser = new Map<string, { native: boolean; web: boolean; at: number; platform: string | null }>();
+  for (const e of events) {
+    if (!e.profile_id) continue;
+    const at = new Date(e.created_at).getTime();
+    const cur = perUser.get(e.profile_id) ?? { native: false, web: false, at: -1, platform: null };
+    if (e.platform === 'ios' || e.platform === 'android') cur.native = true;
+    if (e.platform === 'web') cur.web = true;
+    if (at >= cur.at) { cur.at = at; cur.platform = e.platform; }   // le dernier évènement fait foi
+    perUser.set(e.profile_id, cur);
+  }
+  const usage = { installed: 0, webOnly: 0, nativeOnly: 0, both: 0, unknown: 0 };
+  const byPlatform = new Map<string, number>();
+  for (const u of perUser.values()) {
+    if (u.native) usage.installed++;
+    if (u.native && u.web) usage.both++;
+    else if (u.native) usage.nativeOnly++;
+    else if (u.web) usage.webOnly++;
+    else usage.unknown++;
+    const key = u.platform ?? 'inconnu';
+    byPlatform.set(key, (byPlatform.get(key) ?? 0) + 1);
+  }
+  const versions: VersionRow[] = [...byPlatform.entries()]
+    .map(([platform, users]) => ({ platform, app_version: null, runtime_version: null, users, last_seen: null }))
+    .sort((a, b) => b.users - a.users);
+  return { activeUsers: perUser.size, usage, versions, measured: false };
+}
 
 /** Bilan archivé (pulse_snapshots) — sert à mesurer la diffusion de l'état des lieux.
  *  Plus de `all_green` / `green_count` : l'état des lieux ne juge plus rien (aucun statut de
@@ -88,7 +207,12 @@ export default function StatsHub() {
   const [counts, setCounts] = useState<{ users: number; accounts: number; transactions: number; newUsers: number; premium: number; aiRequests: number; crashes: number }>({ users: 0, accounts: 0, transactions: 0, newUsers: 0, premium: 0, aiRequests: 0, crashes: 0 });
   const [monthly, setMonthly] = useState<MonthAgg[]>([]);
   const [pulse, setPulse] = useState<RawPulse[]>([]);
+  const [versionStats, setVersionStats] = useState<VersionStats | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string>('');
+
+  // Version publiée sur le store (Admin › Mise à jour) : sert de référence pour « à jour ».
+  const { data: flags } = useFeatureFlags();
+  const latestVersion = flags?.latest_version?.trim() || '';
 
   useEffect(() => { if (isAdmin) loadStats(days); /* eslint-disable-next-line */ }, [isAdmin, days]);
 
@@ -151,6 +275,13 @@ export default function StatsHub() {
         .limit(20000);
       setPulse(pErr ? [] : ((pdata ?? []) as RawPulse[]));
 
+      /* Parc installé (migration 215) : agrégé EN BASE — compter « le dernier évènement de chaque
+         personne » côté client supposerait de télécharger tous les évènements de la période, et la
+         limite de 50 000 ci-dessus tronquerait la population sans le dire. Repli client si la
+         fonction n'est pas encore déployée (cf. computeVersionFallback). */
+      const vRes = await supabase.rpc('admin_app_version_stats', { p_days: periodDays });
+      setVersionStats(vRes.error || !vRes.data ? null : normalizeVersionStats(vRes.data));
+
       setUpdatedAt(new Date().toLocaleString('fr-FR'));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Erreur de chargement.');
@@ -161,6 +292,21 @@ export default function StatsHub() {
 
   const agg = useMemo(() => computeAggregates(events, days), [events, days]);
   const pulseAgg = useMemo(() => computePulseStats(pulse), [pulse]);
+  const versionAgg = useMemo(() => versionStats ?? computeVersionFallback(events), [versionStats, events]);
+  const versionGroups = useMemo(() => groupByVersion(versionAgg.versions), [versionAgg]);
+  const maxVersionUsers = useMemo(() => Math.max(1, ...versionGroups.map((v) => v.users)), [versionGroups]);
+  /** Combien de monde on sait réellement situer : le reste n'a pas rouvert l'app depuis la mesure. */
+  const versionKnown = useMemo(
+    () => versionGroups.reduce((s, v) => s + (v.version ? v.users : 0), 0),
+    [versionGroups],
+  );
+  /* Un COMPTE, jamais un pourcentage : « 100 % à jour » alors qu'on ne connaît la version que
+     d'une personne sur huit est un chiffre faux — il rapporte la part des seuls mesurés en la
+     présentant comme celle de la population. Un compte, lui, ne peut pas mentir sur son assiette. */
+  const onLatest = useMemo(
+    () => (latestVersion ? versionGroups.reduce((s, v) => s + (v.version === latestVersion ? v.users : 0), 0) : 0),
+    [versionGroups, latestVersion],
+  );
 
   if (!isAdmin) {
     return (
@@ -339,6 +485,60 @@ export default function StatsHub() {
                 {agg.platforms.length === 0 ? <Empty styles={styles} /> : agg.platforms.map((p) => (
                   <HBar key={p.name} label={p.name} value={p.users} max={agg.maxPlatform} color="#0ea5a8" styles={styles} c={COLORS} />
                 ))}
+              </Section>
+
+              {/* Parc installé — quelle version tourne chez qui, et qui ne fait que du web.
+                  C'est la mesure à regarder AVANT de publier une « version minimale requise » :
+                  elle dit combien de personnes le bandeau bloquant irait toucher. */}
+              <Section
+                title="Versions de l'app"
+                hint={`Version du dernier passage · ${days} derniers jours${versionAgg.activeUsers ? ` · ${versionAgg.activeUsers} actifs` : ''}`}
+                styles={styles}
+              >
+                <View style={styles.adKpiRow}>
+                  <AdKpi value={versionAgg.usage.installed} label="App installée" color={COLORS.emerald} styles={styles} />
+                  <AdKpi value={versionAgg.usage.webOnly} label="Web uniquement" color="#60a5fa" styles={styles} />
+                  <AdKpi value={versionAgg.usage.both} label="Web + app" color="#a78bfa" styles={styles} />
+                  {latestVersion ? (
+                    <AdKpi value={onLatest} label={`Sur la ${latestVersion}`} color="#f59e0b" styles={styles} />
+                  ) : null}
+                </View>
+
+                {versionGroups.length === 0 ? (
+                  <Text style={styles.empty}>Aucun passage sur cette période.</Text>
+                ) : (
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={styles.sectionHint}>Utilisateurs par version{versionKnown < versionAgg.activeUsers ? ` · ${versionKnown}/${versionAgg.activeUsers} situés` : ''}</Text>
+                    <View style={{ marginTop: 8 }}>
+                      {versionGroups.map((v) => (
+                        <HBar
+                          key={v.version ?? '?'}
+                          label={v.version ? `Version ${v.version}${v.version === latestVersion ? '  (à jour)' : ''}` : 'Version inconnue'}
+                          value={v.users}
+                          sub={v.byPlatform.map((p) => `${p.users} ${platformLabel(p.platform)}`).join(' · ')}
+                          max={maxVersionUsers}
+                          color={v.version ? (v.version === latestVersion ? COLORS.emerald : '#0ea5a8') : COLORS.textSecondary}
+                          styles={styles}
+                          c={COLORS}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Un trou de mesure se DIT : sans ça, « version inconnue » passerait pour une population. */}
+                {!versionAgg.measured ? (
+                  <Text style={styles.versionNote}>
+                    Répartition par plateforme seulement : la fonction d'agrégation n'est pas déployée (migration 215).
+                  </Text>
+                ) : versionKnown < versionAgg.activeUsers ? (
+                  <Text style={styles.versionNote}>
+                    « Version inconnue » n'est pas une version : ce sont {versionAgg.activeUsers - versionKnown} personne
+                    {versionAgg.activeUsers - versionKnown > 1 ? 's' : ''} dont le dernier passage est antérieur à la mise en place de la mesure.
+                    Tant qu'elles n'ont pas rouvert l'app, la répartition ci-dessus ne porte que sur {versionKnown} utilisateur
+                    {versionKnown > 1 ? 's' : ''} — d'où l'absence de pourcentage, qui laisserait croire à une part de la population.
+                  </Text>
+                ) : null}
               </Section>
 
               {/* Données de référence */}
@@ -618,6 +818,7 @@ function makeStyles(c: any) {
     refLabel: { fontSize: 13, color: c.textSecondary },
     refValue: { fontSize: 14, fontWeight: '800', color: c.text },
     empty: { fontSize: 12, color: c.textSecondary, fontStyle: 'italic' },
+    versionNote: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 6, fontStyle: 'italic' },
     error: { marginTop: 14, fontSize: 13, color: c.danger, textAlign: 'center' },
     text: { color: c.text },
   });
