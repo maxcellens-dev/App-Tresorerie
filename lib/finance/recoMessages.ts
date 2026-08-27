@@ -40,8 +40,14 @@ const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_
  * Compose LE message du garde-fou marge × projection.
  *  • épargne ET invest plafonnés → UN SEUL message combiné (« investir X et épargner Y de plus… ») ;
  *  • un seul des deux → message avec le total possible entre parenthèses ;
- *  • trajectoire déjà sous la marge (tout conserver) → message tout prêt (reco.guardNote).
+ *  • tout conserver → message tout prêt (reco.guardNote), quel qu'en soit le motif : solde déjà sous
+ *    la marge, trajectoire en danger, point bas des 6 mois, ou Relyka trop petit pour être découpé.
+ *    Les quatre le portent désormais — trois d'entre eux rendaient une carte « Conserver » muette.
  * Le verbe est DANS le message (pas de préfixe « Investir — »).
+ *
+ * ⚠️ Ce message DÉFILE comme les autres, et c'est voulu : le carrousel est le format de tout ce qui
+ * commente le Relyka. Le sortir du lot (épinglage, libellé propre) attirait l'œil bien au-delà de ce
+ * qu'il apporte, et cassait la sobriété de la carte.
  */
 export function composeGuardMessage(recos: SmartRecommendation[]): string | null {
   const tail = 'mais ton solde repasserait sous ta marge de sécurité d\'ici 6 mois.';
@@ -63,7 +69,22 @@ export function composeGuardMessage(recos: SmartRecommendation[]): string | null
 }
 
 /**
- * La consigne « solde non vérifié », à partir du seul résultat de confiance.
+ * Ce que l'app dit d'un solde non vérifié — et sur quel ton.
+ *
+ * `neutral` = un CONSTAT, pas une consigne : la fourchette est expliquée, aucun geste n'est réclamé.
+ */
+export interface UnverifiedMessage { text: string; neutral: boolean }
+
+/**
+ * Jours restants avant la prochaine rentrée d'argent en deçà desquels on parle de « fin de mois ».
+ *
+ * Plus large que le seuil d'affichage des recos (5 jours) : ici on n'annonce pas un basculement, on
+ * explique une fourchette qui s'élargit — et elle s'élargit bien avant le dernier week-end.
+ */
+const PERIOD_END_DOUBT_DAYS = 8;
+
+/**
+ * La phrase « solde non vérifié », à partir du seul résultat de confiance.
  *
  * Extraite du tableau de bord pour être PARTAGÉE avec le simulateur d'administration : recopiée
  * là-bas, elle aurait fini par annoncer un geste que l'app ne propose plus — c'est précisément ce
@@ -72,17 +93,85 @@ export function composeGuardMessage(recos: SmartRecommendation[]): string | null
  * `null` hors confiance BASSE : en moyenne, le badge de la carte suffit (pas de doublon).
  * L'ancienneté employée est la RÉELLE (`rawDaysSinceVerification`), jamais celle du calcul qui
  * sature à 21 jours — et « jamais vérifié » a sa propre phrase : on n'invente pas une ancienneté.
+ *
+ * ── UNE INJONCTION N'EST JUSTE QUE SI LE GESTE MANQUE ────────────────────────────────────────────
+ * « Mets ton solde à jour ou saisis tes dépenses » était servi à TOUT LE MONDE en confiance basse —
+ * y compris le 27 du mois à quelqu'un qui saisit au fil de l'eau. Or à cette date, le doute grandit
+ * de lui-même : il croît avec les jours écoulés depuis la dernière vérification. Le geste réclamé
+ * n'y changerait presque rien, et il est réclamé au pire moment.
+ *
+ * On distingue donc les deux causes, sur un signal que le moteur calcule déjà (`entriesKeptUp`) :
+ *   • rien n'est suivi → on nomme le manque, et le geste qui le comble ;
+ *   • quelque chose est suivi → un CONSTAT. Le doute demeure (la fourchette aussi), on dit
+ *     seulement D'OÙ il vient — et rien de plus.
+ *
+ * ── ON PARLE DE SAISIE, PAS DE VÉRIFICATION ─────────────────────────────────────────────────────
+ * Ces phrases renvoyaient toutes au SOLDE : « non vérifié », « pas confirmé », « mets-le à jour ».
+ * C'est-à-dire un geste qui se fait dans l'appli de sa banque, pas ici — la corvée, précisément.
+ * Or ce n'est pas le seul remède, ni le plus simple : NOTER UNE DÉPENSE resserre déjà la fourchette
+ * (cf. `activityDampening` et le taux d'honoration de l'enveloppe dans confidenceEngine), au point
+ * de pouvoir ramener le Relyka à « À jour » sans jamais ouvrir sa banque. Les messages parlent donc
+ * de ce qu'on peut faire ICI, et restent vagues sur le reste ; les boutons « Mettre à jour », eux,
+ * demeurent pour qui veut le faire.
+ *
+ * ── ET ON NE DIT PAS « FOURCHETTE » ─────────────────────────────────────────────────────────────
+ * C'est le mot de l'ingénieur, pas celui du lecteur : il décrit le SYMPTÔME (deux bornes affichées)
+ * au lieu de l'enjeu. Ce que l'utilisateur veut, c'est un Relyka plus juste — et c'est exactement ce
+ * que la saisie lui donne. On parle donc du résultat, jamais de la mécanique d'affichage.
+ *
+ * ⚠️ ON NE COMMENTE JAMAIS LE COMPORTEMENT DE L'UTILISATEUR. « Tu suis bien tes dépenses » a été
+ * retiré : l'app ne sait pas ce qu'il a dépensé sans le saisir, donc elle ne peut pas savoir s'il
+ * saisit bien. Elle constate des saisies, pas leur exhaustivité — et féliciter sur cette base, c'est
+ * affirmer précisément ce qu'on ignore.
  */
 export function unverifiedRelykaMessage(conf: {
   level: 'high' | 'medium' | 'low';
   neverVerified: boolean;
   rawDaysSinceVerification: number | null;
-}): string | null {
+  /** cf. ConfidenceResult — absent (anciens appelants / tests) = comportement d'avant. */
+  entriesKeptUp?: boolean;
+  /** Jours depuis la dernière saisie (cf. ConfidenceResult). `null` = aucune sur la fenêtre. */
+  daysSinceLastEntry?: number | null;
+  /**
+   * Jours avant la prochaine rentrée d'argent (cf. lib/recoInputs). `null` = inconnu → on ne parle
+   * pas de fin de mois : on ne l'affirme que quand la donnée existe.
+   */
+  daysLeftInPeriod?: number | null;
+}): UnverifiedMessage | null {
   if (conf.level !== 'low') return null;
+  /* Aucun point de départ constaté : c'est le SEUL cas où noter des dépenses n'y peut rien (le
+     moteur refuse d'ailleurs d'en tenir compte, cf. `neverVerified`). On nomme donc la donnée qui
+     manque — sans en faire un reproche, le bouton est juste à côté. */
   if (conf.neverVerified || conf.rawDaysSinceVerification == null) {
-    return 'Ton solde n\'a jamais été vérifié — mets-le à jour pour que tes montants cessent d\'être des estimations.';
+    return {
+      text: 'Le solde de tes comptes n\'a pas encore été renseigné : ton Relyka reste une estimation.',
+      neutral: false,
+    };
   }
-  return `Solde non vérifié ${unverifiedSincePhrase(conf.rawDaysSinceVerification)} — mets ton solde à jour ou saisis tes dépenses pour l'actualiser.`;
+  if (conf.entriesKeptUp) {
+    const periodEnd = conf.daysLeftInPeriod != null && conf.daysLeftInPeriod <= PERIOD_END_DOUBT_DAYS;
+    /* Une phrase, une raison, aucun impératif. En fin de période c'est l'écoulement du mois qui
+       explique l'imprécision ; sinon, c'est le geste qui la réduit. */
+    return {
+      text: periodEnd
+        ? 'Fin de mois : ton Relyka est forcément moins précis qu\'en début de mois.'
+        : 'Chaque dépense que tu notes rend ton Relyka plus juste.',
+      neutral: true,
+    };
+  }
+  /* Trop peu de saisies pour affiner quoi que ce soit. On date le SILENCE quand il est net (plus de
+     quelques jours sans rien noter) ; en deçà, on reste vague — quelques saisies éparses ne
+     permettent pas d'affirmer qu'il ne s'est rien passé. */
+  const quiet = conf.daysSinceLastEntry == null || conf.daysSinceLastEntry > 4;
+  const since = conf.daysSinceLastEntry == null
+    ? 'depuis un moment'
+    : unverifiedSincePhrase(conf.daysSinceLastEntry);
+  return {
+    text: quiet
+      ? `Aucune dépense saisie ${since} : note-les pour un Relyka plus juste.`
+      : 'Il manque sans doute des dépenses : note-les au fil de l\'eau pour un Relyka plus juste.',
+    neutral: false,
+  };
 }
 
 /**
@@ -107,8 +196,8 @@ export function buildRelykaMessages(input: {
   incomeGuessedMessage?: string | null;
   /** Garde-fou marge × projection (cf. composeGuardMessage). */
   guardMessage?: string | null;
-  /** Solde non vérifié depuis longtemps : la consigne que portait le bandeau ambre des recos. */
-  unverifiedMessage?: string | null;
+  /** Solde non vérifié depuis longtemps : la phrase que portait le bandeau ambre des recos. */
+  unverifiedMessage?: UnverifiedMessage | string | null;
   relykaColor: string;
   warnColor: string;
 }): RecoMessage[] {
@@ -127,8 +216,17 @@ export function buildRelykaMessages(input: {
   if (guardMessage?.trim()) {
     substantive.push({ key: 'relyka:guard', label: 'À savoir', color: warnColor, text: guardMessage.trim(), icon: 'alert-circle', tone: 'warn' });
   }
-  if (unverifiedMessage?.trim()) {
-    substantive.push({ key: 'relyka:unverified', label: 'À vérifier', color: warnColor, text: unverifiedMessage.trim(), icon: 'shield-outline', tone: 'warn' });
+  const unverified: UnverifiedMessage | null = typeof unverifiedMessage === 'string'
+    ? (unverifiedMessage.trim() ? { text: unverifiedMessage.trim(), neutral: false } : null)
+    : (unverifiedMessage?.text?.trim() ? { text: unverifiedMessage.text.trim(), neutral: unverifiedMessage.neutral } : null);
+  if (unverified) {
+    /* Un CONSTAT ne se présente pas comme une alerte : ni ambre, ni bouclier. Le doute est le même —
+       c'est ce qu'on en dit qui change, et le ton fait la moitié du message.
+       « À compléter » plutôt que « À vérifier » : ce qui manque, ce sont des saisies, et vérifier
+       son solde renvoie vers l'appli de sa banque (cf. unverifiedRelykaMessage). */
+    substantive.push(unverified.neutral
+      ? { key: 'relyka:unverified', label: 'Bon à savoir', color: relykaColor, text: unverified.text, icon: 'information-circle-outline', tone: 'info' }
+      : { key: 'relyka:unverified', label: 'À compléter', color: warnColor, text: unverified.text, icon: 'create-outline', tone: 'warn' });
   }
   if (troughMessage?.trim()) {
     substantive.push({ key: 'relyka:trough', label: 'Point bas', color: relykaColor, text: troughMessage.trim(), icon: 'trending-down-outline', tone: 'tip' });

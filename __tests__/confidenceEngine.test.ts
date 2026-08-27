@@ -160,6 +160,28 @@ describe('computeConfidence — amortisseur d’assiduité (couverture de saisie
     expect(r.level).toBe('low');
   });
 
+  /* ── DATER LES SAISIES, PAS SEULEMENT LES VÉRIFICATIONS ─────────────────────────────────────
+     Les messages parlaient tous d'un solde « non vérifié » — un geste qui se fait dans l'appli de sa
+     banque. Or noter une dépense resserre déjà la fourchette : encore faut-il pouvoir dire depuis
+     quand plus rien n'a été noté. Cette valeur ne sert QU'À ÇA (aucun calcul ne la lit). */
+  it('date la dernière saisie, même hors fenêtre d’assiduité', () => {
+    // 10 jours : bien au-delà des 7 jours de couverture, mais dans la fenêtre d'observation (30 j).
+    const r = computeConfidence({ ...base, activityDays: [daysAgo(10), daysAgo(12)] });
+    expect(r.daysSinceLastEntry).toBe(10);
+    expect(r.activityCoverage).toBe(0);   // …sans rien changer à l'amortissement
+  });
+
+  it('saisie du jour → 0 ; aucune saisie connue → null', () => {
+    expect(computeConfidence({ ...base, activityDays: [daysAgo(0)] }).daysSinceLastEntry).toBe(0);
+    expect(computeConfidence(base).daysSinceLastEntry).toBeNull();
+    expect(computeConfidence({ ...base, activityDays: [] }).daysSinceLastEntry).toBeNull();
+  });
+
+  it('au-delà de la fenêtre d’observation, on ne date plus rien', () => {
+    const r = computeConfidence({ ...base, activityDays: [daysAgo(45)] });
+    expect(r.daysSinceLastEntry).toBeNull();
+  });
+
   it('assiduité insuffisante → toujours pas de confiance haute par simple amortissement', () => {
     // Doute brut juste au-dessus de highMax : 20 €/j × 6 j = 120, ratio 0.06 ; couverture 3/6 = 0.5
     // → amorti à 0.045 < highMax, mais sous le seuil d'assiduité → le verrou tient.
@@ -331,9 +353,63 @@ describe('computeConfidence — le doute suit le taux d’honoration de l’enve
   });
 });
 
+/* ── LE DOUTE A DEUX CAUSES, ET L'APP N'EN CONNAISSAIT QU'UNE ───────────────────────────────────
+   « Mets ton solde à jour ou saisis tes dépenses » était servi à toute confiance basse — y compris à
+   quelqu'un qui saisit chaque jour depuis trois semaines. On lui réclamait, en orange, le geste
+   qu'il était en train de faire. `entriesKeptUp` sépare les deux causes : des saisies qui manquent,
+   ou un point de départ jamais reconfirmé. Il ne change AUCUN montant — seulement ce qu'on dit. */
+describe('entriesKeptUp — suit-il ses dépenses, ou pas ?', () => {
+  const calib: DriftCalibration = { medianAbsGap: 900, medianDaysBetween: 20, sampleCount: 4 }; // 45 €/j
+  const ctx = {
+    today: TODAY, lastVerifiedAt: iso('2026-06-25'), calibration: calib, // 20 jours
+    relyka: 1200, floorBase: 3000, variableBase: 600, config: cfg,
+  };
+
+  it('rien de saisi → l’app a raison de réclamer', () => {
+    const r = computeConfidence({ ...ctx, variableSpentByDay: {}, activityDays: [] });
+    expect(r.level).toBe('low');
+    expect(r.entriesKeptUp).toBe(false);
+  });
+
+  it('saisies quotidiennes → le doute reste, la réclamation n’a plus lieu d’être', () => {
+    const r = computeConfidence({ ...ctx, variableSpentByDay: {}, activityDays: everyDay(20) });
+    expect(r.entriesKeptUp).toBe(true);
+  });
+
+  it('enveloppe honorée sans assiduité parfaite → suivi reconnu quand même', () => {
+    const attendu = (600 / 30.44) * 20;
+    const r = computeConfidence({
+      ...ctx, variableSpentByDay: spentEveryDay(20, attendu / 20), activityDays: [],
+    });
+    expect(r.observedRate).toBeCloseTo(1, 2);
+    expect(r.entriesKeptUp).toBe(true);
+  });
+
+  /* Sans point de départ constaté, aucune somme de saisies ne dit où l'on en est : la consigne
+     reste la bonne, et c'est la même règle que le plafond d'observation. */
+  it('jamais vérifié → jamais « à jour de ses saisies », quelle que soit l’assiduité', () => {
+    const r = computeConfidence({
+      ...ctx, lastVerifiedAt: null, variableSpentByDay: {}, activityDays: everyDay(30),
+    });
+    expect(r.neverVerified).toBe(true);
+    expect(r.entriesKeptUp).toBe(false);
+  });
+
+  /* LE POINT ESSENTIEL : reconnaître le suivi ne revient pas à déclarer les chiffres exacts.
+     Le doute demeure, la fourchette reste ouverte — c'est le TON qui change, pas le calcul. Si ce
+     cas venait à tomber, ce serait le signe que le drapeau s'est mis à décider quelque chose. */
+  it('le doute demeure : la fourchette reste ouverte malgré le suivi reconnu', () => {
+    const r = computeConfidence({ ...ctx, variableSpentByDay: {}, activityDays: everyDay(20) });
+    expect(r.entriesKeptUp).toBe(true);
+    expect(r.uncertaintyEur).toBeGreaterThan(0);
+    expect(r.doubtRatio).toBeGreaterThanOrEqual(cfg.highMax);
+    expect(toRange(ctx.relyka, r, cfg).isRange).toBe(true);
+  });
+});
+
 describe('toRange', () => {
-  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, rawDaysSinceVerification: 1, neverVerified: false, dailyDrift: 0, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null };
-  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false, dailyDrift: 22, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null };
+  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, rawDaysSinceVerification: 1, neverVerified: false, dailyDrift: 0, coldStart: false, activityDamped: false, activityCoverage: 0, daysSinceLastEntry: null, observedRelief: null, observedRate: null, entriesKeptUp: false };
+  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false, dailyDrift: 22, coldStart: false, activityDamped: false, activityCoverage: 0, daysSinceLastEntry: null, observedRelief: null, observedRate: null, entriesKeptUp: false };
 
   it('confiance haute = pas de fourchette', () => {
     expect(toRange(2000, highConf, cfg)).toEqual({ low: 2000, high: 2000, isRange: false });
@@ -350,12 +426,12 @@ describe('toRange', () => {
   it('niveau « moyen » mais doute sous highMax (saisie récente) = PAS de fourchette (évite « 750–750 »)', () => {
     // Doute fortement réduit par l'amortisseur d'activité : ratio < highMax → un seul chiffre,
     // même si le niveau reste « medium » (« À jour » réservé à une vraie vérif).
-    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, rawDaysSinceVerification: 8, neverVerified: false, dailyDrift: 2.5, coldStart: false, activityDamped: true, activityCoverage: 1, observedRelief: null };
+    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, rawDaysSinceVerification: 8, neverVerified: false, dailyDrift: 2.5, coldStart: false, activityDamped: true, activityCoverage: 1, daysSinceLastEntry: null, observedRelief: null, observedRate: null, entriesKeptUp: false };
     expect(toRange(750, damped, cfg)).toEqual({ low: 750, high: 750, isRange: false });
   });
 
   it('borne basse jamais négative (doute plus large que le montant)', () => {
-    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false, activityCoverage: 0, observedRelief: null };
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false, activityCoverage: 0, daysSinceLastEntry: null, observedRelief: null, observedRate: null, entriesKeptUp: false };
     const r = toRange(154, huge, cfg);
     expect(r.isRange).toBe(true);
     expect(r.low).toBe(0);
@@ -366,7 +442,7 @@ describe('toRange', () => {
      fabriquait une borne haute à partir de rien — « minimum sûr 0 € · jusqu'à 100 € si tout est à
      jour » s'affichait sous un « 0 € » rouge accompagné d'un message de budget dépassé. */
   it('aucune fourchette à zéro : l’incertitude ne rend pas de l’argent qui n’existe pas', () => {
-    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false, activityCoverage: 0, observedRelief: null };
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, rawDaysSinceVerification: null, neverVerified: true, dailyDrift: 57, coldStart: true, activityDamped: false, activityCoverage: 0, daysSinceLastEntry: null, observedRelief: null, observedRate: null, entriesKeptUp: false };
     expect(toRange(0, huge, cfg)).toEqual({ low: 0, high: 0, isRange: false });
   });
 
@@ -417,7 +493,7 @@ describe('toRange', () => {
 
   it('garde-fou d’arrondi : bornes égales après arrondi → un seul chiffre (quel que soit le pas)', () => {
     // Doute au-dessus de highMax mais faible en €, gros pas d'arrondi → les bornes se rejoignent.
-    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, rawDaysSinceVerification: 6, neverVerified: false, dailyDrift: 1.7, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null };
+    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, rawDaysSinceVerification: 6, neverVerified: false, dailyDrift: 1.7, coldStart: false, activityDamped: false, activityCoverage: 0, daysSinceLastEntry: null, observedRelief: null, observedRate: null, entriesKeptUp: false };
     const r = toRange(720, smallEur, cfg); // roundStep 100 : 710→700 et 723→700
     expect(r.isRange).toBe(false);
     expect(r.low).toBe(720);
@@ -428,7 +504,8 @@ describe('makeSubRanges — fourchettes des recos & montants proposés', () => {
   const conf = (uncertaintyEur: number) => ({
     level: 'medium' as const, doubtRatio: 0.2, uncertaintyEur,
     daysSinceVerification: 10, rawDaysSinceVerification: 10, neverVerified: false,
-    dailyDrift: 1, coldStart: false, activityDamped: false, activityCoverage: 0, observedRelief: null,
+    dailyDrift: 1, coldStart: false, activityDamped: false, activityCoverage: 0, daysSinceLastEntry: null,
+    observedRelief: null, observedRate: null, entriesKeptUp: false,
   });
 
   it('confiance haute (pas de fourchette du Relyka) → sous-montants nets', () => {

@@ -88,7 +88,9 @@ export default function BannersGallery() {
           <View key={d} style={styles.phraseRow}>
             <Text style={styles.phraseDays}>{d} j</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.phraseTxt}>Solde non vérifié <Text style={styles.phraseStrong}>{unverifiedSincePhrase(d)}</Text></Text>
+              {/* La même formulation sert désormais à dater les SAISIES : c'est d'elles que parlent
+                  les messages du Relyka, pas de la vérification de solde (cf. lib/recoMessages). */}
+              <Text style={styles.phraseTxt}>Aucune dépense saisie <Text style={styles.phraseStrong}>{unverifiedSincePhrase(d)}</Text></Text>
               <Text style={styles.phraseTxt}>Vérifié <Text style={styles.phraseStrong}>{verifiedAgoPhrase(d)}</Text></Text>
             </View>
           </View>

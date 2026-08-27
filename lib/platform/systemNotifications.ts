@@ -30,8 +30,11 @@ export const SYSTEM_NOTIFICATIONS: SystemNotificationDef[] = [
   },
   {
     id: 'confidence_low',
-    title: 'Tes chiffres sont à vérifier',
-    bodyExample: 'Solde non vérifié depuis un moment — tes montants sont affichés en fourchette. Vérifie en 30 s.',
+    title: 'Tes chiffres sont estimés',
+    /* On parle du geste qui se fait ICI (noter une dépense), pas de la vérification du solde qui
+       renvoie vers l'appli de sa banque — les deux affinent le Relyka, un seul est simple. Et on dit
+       ce qu'on y gagne, pas la mécanique d'affichage (« fourchette »). */
+    bodyExample: 'Note tes dépenses des derniers jours pour un Relyka plus juste.',
     condition: "Le niveau de confiance est « bas » (doute > seuil) alors qu'aucune vérification récente.",
     maxFrequency: '1 par semaine',
     defaultEnabled: true,

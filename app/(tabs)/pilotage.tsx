@@ -676,6 +676,9 @@ function PilotageScreen() {
               // dire « vérifié il y a un moment » à qui n'a rien vérifié depuis des mois.
               daysSinceVerification={relConf?.result.rawDaysSinceVerification ?? null}
               neverVerified={relConf?.result.neverVerified ?? false}
+              // Doute STRUCTUREL (point de départ non reconfirmé) plutôt que saisies manquantes :
+              // le badge reste « Estimation », mais il cesse d'être ambre (cf. entriesKeptUp).
+              confidenceNeutral={relConf?.result.entriesKeptUp ?? false}
               recommendations={recoList}
               // Qui décide de la répartition : le profil, ou les pourcentages posés par l'utilisateur.
               // `recoMode.mode` est le mode RÉELLEMENT appliqué (cf. lib/recoMode) — une répartition

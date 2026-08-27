@@ -416,6 +416,15 @@ export function computeRecommendations(
     return [guardNote ? { ...reco, guardNote } : reco];
   };
 
+  /* ── UN FREIN DOIT TOUJOURS DIRE POURQUOI ─────────────────────────────────────────────────────
+     Trois chemins réduisent le Relyka à un seul « Conserver ». Un seul portait son explication :
+     les deux autres rendaient une carte unique, sans un mot, et l'utilisateur voyait la répartition
+     de son profil disparaître sans savoir ce qui l'avait décidée — le pire moment pour se taire,
+     puisque c'est là que l'app s'écarte le plus de ce qu'elle a promis.
+     Ces phrases commencent en minuscule : `composeGuardMessage` les capitalise (lib/recoMessages). */
+  const margin = Math.round(data.safety_margin_amount ?? 0);
+  const marginLabel = `${margin.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
+
   // Garde-fou marge de sécurité : si le solde courant est sous la marge, on ne
   // recommande que "Conserver" (tout le budget disponible, s'il en reste).
   if (
@@ -423,7 +432,9 @@ export function computeRecommendations(
     data.total_checking < (data.safety_margin_amount ?? 0)
   ) {
     mark('margin_freeze');
-    return keepEverything();
+    return keepEverything(
+      `ton solde courant (${Math.round(data.total_checking).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}) est déjà sous ta marge de sécurité (${marginLabel}) : on te recommande de tout conserver ce mois-ci, le temps de la reconstituer.`,
+    );
   }
 
   // Garde-fou PROJECTION (moyen terme) : si la trajectoire de trésorerie plonge sous le coussin
@@ -432,7 +443,11 @@ export function computeRecommendations(
   // comme le garde-fou marge ci-dessus (n'agit qu'en situation de danger projeté).
   if (data.projection_in_danger) {
     mark('projection_freeze');
-    return keepEverything();
+    return keepEverything(
+      margin > 0
+        ? `ta trajectoire de trésorerie passe sous ta marge de sécurité (${marginLabel}) dans les prochains mois : on te recommande de tout conserver ce mois-ci.`
+        : 'ta trajectoire de trésorerie passe dans le rouge dans les prochains mois : on te recommande de tout conserver ce mois-ci.',
+    );
   }
 
   // Garde-fou MARGE × PROJECTION 6 MOIS : point bas de la trajectoire (écran Projection). S'il est
@@ -607,7 +622,14 @@ export function computeRecommendations(
     mark('single_fallback');
     const rest = types.reduce((s, t) => s + Math.max(0, nets[t] ?? 0), 0);
     const reco = buildRecommendation('keep', 100, Math.round(rest), tier, data, opts);
-    return reco.amount >= MIN_FALLBACK_AMOUNT ? [reco] : [];
+    if (reco.amount < MIN_FALLBACK_AMOUNT) return [];
+    /* Ici aussi, la carte unique doit dire pourquoi elle est unique : la répartition du profil n'a
+       pas changé, c'est le MONTANT qui ne se découpe pas — sans cette phrase, l'utilisateur voit un
+       « Conserver » solitaire et croit que son profil a basculé. */
+    return [{
+      ...reco,
+      guardNote: 'ton Relyka est trop petit pour être partagé entre plusieurs gestes : le garder est le seul qui ait du sens ce mois-ci.',
+    }];
   }
 
   // 10. RÉCONCILIATION avec le Relyka AFFICHÉ. Deux dérives à corriger, dans les deux sens :

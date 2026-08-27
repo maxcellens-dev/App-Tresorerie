@@ -6,7 +6,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRecoDismissals } from '../../hooks/config/useUiPrefs';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
-import { unverifiedSincePhrase, verifiedAgoPhrase } from '../../lib/finance/confidenceEngine';
+import { verifiedAgoPhrase } from '../../lib/finance/confidenceEngine';
 import { isHidden } from '../../lib/finance/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../../lib/finance/recoContext';
 // Mise en gras des montants et message du garde-fou : PARTAGÉS avec la vue simplifiée
@@ -208,16 +208,20 @@ export default function RecommendationCard({
 
   return (
     <View style={[styles.container, (isLead && Math.round(relykaAmount) <= 0) && { minHeight: 0 }, { borderColor: (confidenceLevel === 'low' ? COLORS.orange : ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald)) + '55' }]} {...panResponder.panHandlers}>
-      {/* Bandeau ambre « solde non vérifié » — visible sur TOUTES les slides (confiance basse). */}
+      {/* Bandeau ambre « chiffres estimés » — visible sur TOUTES les slides (confiance basse). */}
       {confidenceLevel === 'low' && onVerify && (
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
           <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
           {/* Message COMPLET (pas de numberOfLines) : tronquer une consigne la rend inutile.
-              (Le badge « Estimation » à côté de « Ton Relyka » porte déjà le statut.) */}
+              (Le badge « Estimation » à côté de « Ton Relyka » porte déjà le statut.)
+              On parle de SAISIE, pas de vérification de solde : noter une dépense affine déjà le
+              Relyka, et c'est le geste qui se fait ici (cf. lib/recoMessages). Le bouton, lui, mène
+              toujours à la mise à jour du solde pour qui veut la faire. Et on dit ce qu'on y gagne
+              (« un Relyka plus juste »), jamais la mécanique d'affichage (« la fourchette »). */}
           <Text style={styles.amberText}>
-            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Fais une régul ou saisis tes dépenses pour l'actualiser.
+            Note tes dépenses pour un Relyka plus juste.
           </Text>
-          <Text style={styles.amberCta}>Vérifier</Text>
+          <Text style={styles.amberCta}>Mettre à jour</Text>
         </TouchableOpacity>
       )}
       {/* ── Header (titre + nav) — masqué si la section porte déjà le titre ── */}

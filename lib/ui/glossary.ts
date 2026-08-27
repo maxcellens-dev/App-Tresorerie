@@ -149,7 +149,9 @@ export const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   confiance: {
     title: '« À jour » ou « estimation »',
-    text: "Plus ta dernière mise à jour de solde est ancienne, plus tes chiffres sont incertains : l'app les affiche alors en fourchette plutôt qu'au centime. Mets ton solde à jour et tout redevient net.",
+    /* Ni « fourchette » (le mot décrit l'affichage, pas l'enjeu), ni la mise à jour du solde comme
+       seul remède : noter ses dépenses affine déjà le Relyka, et c'est le geste le plus simple. */
+    text: "Plus le temps passe sans que tu notes tes dépenses, moins Relyka peut être précis : il annonce alors un ordre de grandeur plutôt qu'un chiffre au centime. Note tes dépenses au fil de l'eau — ou mets ton solde à jour — et ton Relyka redevient net.",
     color: 'yellow',
     icon: 'help-circle-outline',
   },

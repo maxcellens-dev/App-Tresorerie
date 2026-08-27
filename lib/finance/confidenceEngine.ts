@@ -113,6 +113,23 @@ const DAYS_PER_MONTH = 30.44;
  */
 const ACTIVITY_ONLY_MAX_RATE = 0.5;
 
+/**
+ * À partir d'où considère-t-on que quelqu'un SUIT ses dépenses ?
+ *
+ * Le doute a deux causes très différentes, et jusqu'ici l'app ne servait qu'un seul discours :
+ *   • personne n'a rien saisi depuis longtemps → il manque probablement des dépenses, et la
+ *     consigne « mets ton solde à jour ou saisis tes dépenses » est exactement ce qu'il faut dire ;
+ *   • tout a été saisi, mais aucune VÉRIFICATION n'est venue confirmer le point de départ → le
+ *     doute est structurel, pas comportemental. Servir la même injonction à quelqu'un qui note tout
+ *     revient à lui reprocher un geste qu'il vient de faire, tous les jours, pendant trois semaines.
+ *
+ * Ce seuil sépare les deux. Il est volontairement bas (la moitié) : il ne s'agit pas de récompenser
+ * la perfection, mais de reconnaître un suivi réel — l'un OU l'autre des deux signaux suffit,
+ * l'assiduité (des saisies jour après jour) ou l'honoration de l'enveloppe (les montants attendus
+ * sont là). Il ne change AUCUN montant ni aucun niveau de confiance : seulement ce qu'on dit.
+ */
+const KEEPING_UP_RATE = 0.5;
+
 export const RELIABILITY_DEFAULTS: ReliabilityConfig = {
   highMax: 0.05,
   lowMin: 0.20,
@@ -224,12 +241,39 @@ export interface ConfidenceResult {
   /** Part des jours de la fenêtre portant au moins une saisie manuelle (0 → 1). */
   activityCoverage: number;
   /**
+   * Jours depuis la DERNIÈRE saisie manuelle (0 = aujourd'hui). `null` = aucune sur la fenêtre
+   * d'observation, ou signaux absents.
+   *
+   * ⚠️ N'entre dans aucun calcul — le doute se mesure sur l'ancienneté de la VÉRIFICATION. Cette
+   * valeur-ci existe pour ce qu'on DIT : parler à l'utilisateur d'un solde « non vérifié » le
+   * renvoie vers son appli bancaire, alors que noter une dépense — le geste le plus simple de
+   * l'app — resserre déjà la fourchette (cf. `activityDampening` et le taux d'honoration). Les
+   * messages doivent donc pouvoir dater les SAISIES, pas seulement les vérifications.
+   */
+  daysSinceLastEntry: number | null;
+  /**
    * Doute EFFACÉ (€) par les dépenses variables réellement saisies sur la période. `null` quand la
    * mesure ne s'applique pas (jamais vérifié, enveloppe inconnue, signaux journaliers absents).
    * Exposé pour l'aperçu admin et les tests : c'est LUI qui explique qu'un user à jour de ses
    * saisies retrouve des chiffres nets en fin de mois.
    */
   observedRelief: number | null;
+  /**
+   * Taux d'honoration retenu (0 → 1) : la tranche la plus faible de la période, celle qui décide de
+   * `observedRelief`. `null` quand la mesure ne s'applique pas. Exposé parce qu'un montant en euros
+   * ne dit pas à lui seul si l'enveloppe a été honorée — c'est ce taux qui le dit.
+   */
+  observedRate: number | null;
+  /**
+   * L'utilisateur SUIT-IL ses dépenses ? Assiduité réelle, ou enveloppe honorée sur la période.
+   *
+   * ⚠️ N'ENTRE DANS AUCUN CALCUL — ni montant, ni niveau, ni fourchette. Ce drapeau ne sert qu'à
+   * choisir CE QU'ON DIT : réclamer une vérification de solde a du sens quand des dépenses ont pu
+   * échapper à l'app, aucun quand tout a été saisi et que seul le point de départ n'a jamais été
+   * confirmé. Dans ce second cas le doute reste entier (et la fourchette avec lui) — mais il
+   * s'explique, il ne se reproche pas.
+   */
+  entriesKeptUp: boolean;
 }
 
 export interface Range {
@@ -321,6 +365,14 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     const covered = lastDayKeys(today, covWindow).filter((k) => seen.has(k)).length;
     activityCoverage = Math.min(1, covered / covWindow);
   }
+  /* Depuis quand rien n'a été noté ? Cherché sur toute la fenêtre d'observation (et non sur celle,
+     plus courte, de l'assiduité) : c'est une DATE pour une phrase, pas un ratio pour un calcul. */
+  let daysSinceLastEntry: number | null = null;
+  if (activityDays && activityDays.length > 0) {
+    const seen = new Set(activityDays);
+    const idx = lastDayKeys(today, OBSERVATION_WINDOW_DAYS).findIndex((k) => seen.has(k));
+    if (idx >= 0) daysSinceLastEntry = idx;
+  }
   // Interpolation depuis 1 (aucune saisie) jusqu'à `activityDampening` (une saisie chaque jour) :
   // pas d'effet falaise, et un tap isolé ne vaut plus le demi-doute d'un suivi quotidien.
   const activityDamp = config.activityDampening < 1
@@ -353,6 +405,7 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   const observedDays = Math.min(daysSinceVerification, OBSERVATION_WINDOW_DAYS);
   const rawDoubt = dailyDrift * daysSinceVerification;
   let observedRelief: number | null = null;
+  let observedRate: number | null = null;
   if (!neverVerified && variableBase && variableBase > 0 && variableSpentByDay && observedDays > 0) {
     /* ── LE TAUX DOIT ÊTRE RÉPARTI, PAS CONCENTRÉ ────────────────────────────────────────────────
        Un taux calculé d'un bloc sur toute la période se laisse saturer par un seul jour, et deux
@@ -400,6 +453,7 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
       const byActivity = (active / slice.length) * ACTIVITY_ONLY_MAX_RATE;
       rate = Math.min(rate, Math.max(byAmount, byActivity));
     }
+    observedRate = rate;
     observedRelief = Math.min(rawDoubt, base) * rate;
   }
 
@@ -428,12 +482,21 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   const assiduous = activityCoverage >= config.activityHighCoverage && !neverVerified;
   if (level === 'high' && activityDamp < 1 && rawRatio >= config.highMax && !assiduous) level = 'medium';
 
+  /* Suit-il ses dépenses ? L'un OU l'autre suffit — noter chaque jour, ou voir arriver ce que
+     l'enveloppe prévoyait. Jamais sans vérification passée : sans point de départ constaté, aucune
+     somme de saisies ne dit où l'on en est (même règle que le plafond d'observation). */
+  const entriesKeptUp = !neverVerified
+    && (activityCoverage >= KEEPING_UP_RATE || (observedRate ?? 0) >= KEEPING_UP_RATE);
+
   return {
     level, doubtRatio, uncertaintyEur, daysSinceVerification, rawDaysSinceVerification,
     neverVerified, dailyDrift, coldStart,
     activityDamped: activityDamp < 1,
     activityCoverage,
+    daysSinceLastEntry,
     observedRelief,
+    observedRate,
+    entriesKeptUp,
   };
 }
 
@@ -441,7 +504,12 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
 // On n'affiche JAMAIS un compteur de jours précis (peu fiable : un compte neuf, jamais vérifié,
 // démarre à `coldStartDays` → « 21 j » n'a aucun sens). On préfère un terme flou et rassurant.
 
-/** « depuis quelques jours » / « depuis un moment »… pour « Solde non vérifié {…} ». */
+/**
+ * « depuis quelques jours » / « depuis un moment »… pour dater une absence.
+ *
+ * Sert aussi bien à l'ancienneté d'une VÉRIFICATION qu'à celle de la dernière SAISIE : c'est une
+ * formulation d'ancienneté, pas un vocabulaire de solde (cf. `daysSinceLastEntry`).
+ */
 export function unverifiedSincePhrase(days: number): string {
   if (!Number.isFinite(days) || days <= 4) return 'depuis quelques jours';
   if (days <= 14) return 'depuis plusieurs jours';

@@ -251,11 +251,17 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
         : 'Relyka n\'a pas encore repéré ta rentrée d\'argent : enregistre-la en récurrente pour qu\'il cesse de calculer sans elle.',
     guardMessage: composeGuardMessage(recoList.filter((r) => r.amount > 0)),
     /* Phrase PARTAGÉE (lib/recoMessages) avec le simulateur d'administration : elle vivait ici, et
-       l'aperçu admin en affichait fatalement une version d'un autre âge. */
-    unverifiedMessage: relConf ? unverifiedRelykaMessage(relConf.result) : null,
+       l'aperçu admin en affichait fatalement une version d'un autre âge.
+       `daysLeftInPeriod` vient de la MÊME fabrique que les recos (lib/recoInputs) : le message dit
+       « fin de mois » exactement quand le reste de l'écran le considère, jamais sur une autre date. */
+    /* `daysSinceLastEntry` vient du résultat de confiance (étalé par le spread) : c'est lui qui
+       permet de dater les SAISIES plutôt que la dernière vérification de solde. */
+    unverifiedMessage: relConf
+      ? unverifiedRelykaMessage({ ...relConf.result, daysLeftInPeriod: recoOptions?.daysLeftInPeriod ?? null })
+      : null,
     relykaColor,
     warnColor: colors.orange,
-  }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, relConf, relykaColor, colors]);
+  }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, recoOptions, relConf, relykaColor, colors]);
 
   const suiviDetail = React.useMemo(
     () => computeSuiviDetail(txForSuivi, accountsForSuivi),

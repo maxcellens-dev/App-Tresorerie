@@ -15,6 +15,11 @@
  *  • survol (souris) ou appui (tactile) → PAUSE, pour avoir le temps de lire ;
  *  • swipe horizontal et pastilles cliquables pour naviguer à la main.
  *
+ * TOUS LES MESSAGES SONT ÉGAUX ICI. Un mécanisme d'épinglage (arrêt de la rotation pour la raison
+ * d'un frein) a été essayé puis retiré : il attirait l'œil bien au-delà de ce que le message
+ * apporte, et faisait de la carte un tableau de bord d'alertes. Ce qui compte se lit dans l'ordre —
+ * les mises en garde passent en tête (cf. lib/recoMessages), et ça suffit.
+ *
  * La COULEUR porte l'appartenance : c'est celle de la décision concernée, la même que sa tuile
  * juste au-dessus. L'étiquette la nomme, pour ne pas dépendre que de la couleur.
  */

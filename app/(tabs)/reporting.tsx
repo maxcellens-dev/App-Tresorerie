@@ -384,6 +384,41 @@ function CategoryDonut({ data, width }: { data: { label: string; amount: number 
   );
 }
 
+/**
+ * Bascule GRANDE CATÉGORIE ⇄ SOUS-CATÉGORIE des deux graphiques de dépenses.
+ *
+ * La grande catégorie répond à « où part mon argent » ; elle ne répond jamais à « pourquoi ce poste
+ * a-t-il grossi ». « Alimentation +180 € » ne se corrige pas — « Restaurants +180 € », si. Les deux
+ * niveaux sont utiles, à deux moments différents : d'où une bascule, plutôt qu'un choix imposé.
+ *
+ * L'état est PORTÉ PAR L'ÉCRAN et partagé par les deux graphiques (un seul réglage) : deux boutons
+ * indépendants auraient laissé le camembert et les barres à deux échelles, avec un total identique
+ * mais des libellés qui ne se correspondent plus.
+ */
+function DetailToggle({ on, onToggle, styles, color }: {
+  on: boolean; onToggle: () => void; styles: any; color: string;
+}) {
+  const C = useReportingColors();
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.75}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      accessibilityRole="button"
+      // L'état est DIT, pas seulement montré : une icône seule laisse deviner ce qu'elle fera.
+      accessibilityLabel={on ? 'Revenir aux grandes catégories' : 'Détailler par sous-catégorie'}
+      accessibilityState={{ selected: on }}
+      style={[
+        styles.detailToggle,
+        on && { backgroundColor: color + '1F', borderColor: color + '66' },
+      ]}
+    >
+      <Ionicons name={on ? 'git-branch' : 'git-branch-outline'} size={13} color={on ? color : C.textSecondary} />
+      <Text style={[styles.detailToggleText, on && { color }]}>Détail</Text>
+    </TouchableOpacity>
+  );
+}
+
 /* ═══ Top postes (barres horizontales, ce mois vs précédent) ═══ */
 function HBarCompare({ rows, width }: { rows: { label: string; current: number; previous: number }[]; width: number }) {
   const C = useReportingColors();
@@ -611,6 +646,28 @@ function ReportingBody() {
     if (c.parent_id) return catById.get(c.parent_id)?.name ?? c.name;
     return c.name;
   };
+  /**
+   * Le nom de la SOUS-CATÉGORIE — c'est-à-dire celui de la catégorie telle qu'elle a été saisie.
+   *
+   * Les deux graphiques de dépenses regroupent par grande catégorie : c'est la bonne échelle pour
+   * « où part mon argent », et la mauvaise dès qu'on veut savoir POURQUOI un poste a grossi.
+   * « Alimentation +180 € » ne se corrige pas ; « Restaurants +180 € », si.
+   *
+   * Une catégorie de premier niveau (sans parent) rend son propre nom : elle EST son propre détail,
+   * et la faire disparaître du graphique détaillé amputerait le total. C'est ce qui garantit que les
+   * deux niveaux somment au même montant.
+   */
+  const subCategoryName = (categoryId: string | null | undefined): string => {
+    if (!categoryId) return 'Sans catégorie';
+    return catById.get(categoryId)?.name ?? 'Sans catégorie';
+  };
+  /**
+   * Niveau de regroupement des deux graphiques de dépenses. UN SEUL réglage pour les deux : ils
+   * répondent à la même question à deux angles, et les voir à deux échelles différentes obligerait
+   * à relire l'en-tête à chaque coup d'œil pour savoir ce qu'on compare.
+   */
+  const [expenseDetail, setExpenseDetail] = useState(false);
+  const expenseCategoryName = expenseDetail ? subCategoryName : grandCategoryName;
   // Type de catégorie (recette vs dépense) : REVENUS = seulement les vraies recettes.
   const catTypeById = useMemo(() => { const m = new Map<string, 'income' | 'expense'>(); for (const c of categories ?? []) { const ty = (c as any).type; if (ty === 'income' || ty === 'expense') m.set(c.id, ty); } return m; }, [categories]);
   const categoryType = (categoryId: string | null | undefined): 'income' | 'expense' | null => (categoryId ? (catTypeById.get(categoryId) ?? null) : null);
@@ -757,10 +814,18 @@ function ReportingBody() {
   /** Jour d'arrêt commun aux deux mois, ou `undefined` quand le mois courant est terminé. */
   const compareDay = monthInProgress ? dayOfMonth : undefined;
 
-  const categoryBreakdown = useMemo(() => buildCategoryBreakdown(fluxTx, curYm, grandCategoryName, categoryType, 7), [fluxTx, curYm, catById, catTypeById]);
+  /* En DÉTAIL, on montre plus de parts : les sous-catégories sont plus nombreuses et plus petites,
+     et garder sept tranches renverrait l'essentiel du camembert dans « Autres » — soit exactement
+     l'inverse de ce qu'on vient de demander en appuyant sur « détail ». */
+  const categoryBreakdown = useMemo(
+    () => buildCategoryBreakdown(fluxTx, curYm, expenseCategoryName, categoryType, expenseDetail ? 10 : 7),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fluxTx, curYm, catById, catTypeById, expenseDetail],
+  );
   const topCategories = useMemo(
-    () => buildTopCategoriesCompare(fluxTx, curYm, prevYm, grandCategoryName, categoryType, 5, compareDay),
-    [fluxTx, curYm, prevYm, catById, catTypeById, compareDay],
+    () => buildTopCategoriesCompare(fluxTx, curYm, prevYm, expenseCategoryName, categoryType, expenseDetail ? 8 : 5, compareDay),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fluxTx, curYm, prevYm, catById, catTypeById, compareDay, expenseDetail],
   );
 
   // ── KPIs. ──
@@ -1078,16 +1143,26 @@ function ReportingBody() {
           <FadeIn delay={300}><GroupHeader icon="card-outline" title="Dépenses" color={C.expense} /></FadeIn>
           <FadeIn delay={330}>
             <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="pie-chart-outline" size={20} color={C.cat[0]} /><Text style={s.sectionTitle}>Où part mon argent</Text></View>
-              <Text style={s.sectionSub}>Répartition des dépenses du mois en cours</Text>
+              <View style={s.sectionHeader}>
+                <Ionicons name="pie-chart-outline" size={20} color={C.cat[0]} />
+                <Text style={[s.sectionTitle, { flex: 1 }]}>Où part mon argent</Text>
+                <DetailToggle on={expenseDetail} onToggle={() => setExpenseDetail((v) => !v)} styles={s} color={C.cat[0]} />
+              </View>
+              <Text style={s.sectionSub}>
+                Dépenses du mois en cours, {expenseDetail ? 'par sous-catégorie' : 'par grande catégorie'}
+              </Text>
               <View style={s.chartCard} onLayout={onChartCardLayout}><CategoryDonut data={categoryBreakdown} width={chartWidth} /></View>
             </View>
           </FadeIn>
           <FadeIn delay={370}>
             <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="podium-outline" size={20} color={C.violet} /><Text style={s.sectionTitle}>Top postes de dépense</Text></View>
+              <View style={s.sectionHeader}>
+                <Ionicons name="podium-outline" size={20} color={C.violet} />
+                <Text style={[s.sectionTitle, { flex: 1 }]}>Top postes de dépense</Text>
+                <DetailToggle on={expenseDetail} onToggle={() => setExpenseDetail((v) => !v)} styles={s} color={C.violet} />
+              </View>
               <Text style={s.sectionSub}>
-                Par grande catégorie · {expenseCompare?.toDate
+                {expenseDetail ? 'Par sous-catégorie' : 'Par grande catégorie'} · {expenseCompare?.toDate
                   ? `ce mois vs le précédent, arrêtés au ${expenseCompare.day} tous les deux`
                   : 'ce mois vs précédent'}
               </Text>
@@ -1216,6 +1291,14 @@ function makeStyles(C: any) {
 
     section: { marginTop: 20 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    /* Bascule « Détail » des graphiques de dépenses — discrète au repos, franche quand elle est
+       active : c'est elle qui explique pourquoi les libellés du graphique ont changé. */
+    detailToggle: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 9, paddingVertical: 5,
+      borderRadius: 999, borderWidth: 1, borderColor: C.cardBorder, backgroundColor: C.card,
+    },
+    detailToggleText: { fontSize: 11.5, fontWeight: '700', color: C.textSecondary },
     sectionTitle: { fontSize: 17, fontWeight: '700', color: C.text },
     sectionSub: { fontSize: 12, color: C.textSecondary, marginTop: 2, marginBottom: 12 },
 

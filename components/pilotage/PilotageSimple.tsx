@@ -59,6 +59,15 @@ export interface PilotageSimpleProps {
   daysSinceVerification: number | null;
   /** Aucune vérification connue : on ne peut alors PAS écrire « Vérifié … ». */
   neverVerified?: boolean;
+  /**
+   * L'utilisateur SUIT ses dépenses (cf. `entriesKeptUp`, confidenceEngine) — le doute vient du
+   * point de départ jamais reconfirmé, pas de saisies manquantes.
+   *
+   * Le badge reste « Estimation » (c'en est une, et la fourchette juste dessous le dit), mais il
+   * cesse d'être AMBRE : l'ambre signale un manque à combler, et il n'y en a pas. Servi à quelqu'un
+   * qui note tout, il transforme un état de fait en reproche quotidien.
+   */
+  confidenceNeutral?: boolean;
   /** Recommandations visibles du mois (le moteur en produit 0 à 4). */
   recommendations: SmartRecommendation[];
   /** La répartition est-elle réglée à la main ? (cf. lib/recoMode — le mode RÉELLEMENT appliqué). */
@@ -152,6 +161,12 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
   /** Le solde courant est-il DÉJÀ passé sous la marge ? (la marge est un souhait, pas une garantie) */
   const marginBreached = p.safetyMargin > 0 && p.checkingBalance < p.safetyMargin;
 
+  /* L'AMBRE SIGNALE UN MANQUE À COMBLER, pas une incertitude.
+     Il était posé sur toute confiance BASSE — donc aussi sur quelqu'un qui saisit tout et dont le
+     seul « tort » est de ne pas avoir reconfirmé son solde auprès de sa banque. Chez lui, l'ambre
+     ne demandait rien de faisable : il colorait un état de fait en reproche, tous les jours. */
+  const alertTone = p.confidenceLevel === 'low' && !p.confidenceNeutral;
+
   return (
     <View style={styles.wrap}>
 
@@ -176,7 +191,7 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             <TouchableOpacity
               style={[
                 styles.badge,
-                p.confidenceLevel === 'low'
+                alertTone
                   ? { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '55' }
                   : { backgroundColor: COLORS.textSecondary + '18', borderColor: COLORS.textSecondary + '55' },
               ]}
@@ -190,14 +205,14 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
                   Sans ce garde-fou, un compte sans aucune vérification lisait « Vérifié il y a un
                   moment » — l'app affirmait un contrôle qui n'avait jamais eu lieu. */}
               <Text
-                style={[styles.badgeText, { color: p.confidenceLevel === 'low' ? COLORS.orange : COLORS.textSecondary }]}
+                style={[styles.badgeText, { color: alertTone ? COLORS.orange : COLORS.textSecondary }]}
                 numberOfLines={1}
               >
                 {p.confidenceLevel === 'low' ? 'Estimation'
                   : p.neverVerified || p.daysSinceVerification == null ? 'Solde à vérifier'
                   : `Vérifié ${verifiedAgoPhrase(p.daysSinceVerification)}`}
               </Text>
-              <View style={[styles.badgeSep, { backgroundColor: (p.confidenceLevel === 'low' ? COLORS.orange : COLORS.textSecondary) + '55' }]} />
+              <View style={[styles.badgeSep, { backgroundColor: (alertTone ? COLORS.orange : COLORS.textSecondary) + '55' }]} />
               <Ionicons name="refresh" size={11} color={COLORS.emerald} />
               <Text style={[styles.badgeText, { color: COLORS.emerald }]} numberOfLines={1}>Mettre à jour</Text>
             </TouchableOpacity>

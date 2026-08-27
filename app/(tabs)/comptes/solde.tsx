@@ -313,7 +313,9 @@ export default function BalanceUpdateScreen() {
                     nombre nu laissait croire qu'il s'agissait de la devise du dernier compte. */}
                 • Ton Relyka est recalculé{!isZeroGap(totalGap) ? ` (${totalGap > 0 ? '+' : '−'} ${Math.abs(Math.round(totalGap)).toLocaleString('fr-FR')} ${currencySymbolFor(refCode)} environ)` : ''}.{'\n'}
                 • Tes recommandations du mois sont mises à jour.{'\n'}
-                • Tes montants repassent en <Text style={{ fontWeight: '700', color: COLORS.emerald }}>« à jour »</Text> au lieu d’être affichés en fourchette.
+                {/* « au lieu d'être affichés en fourchette » a été retiré : « fourchette » décrit la
+                    mécanique d'affichage, pas ce que l'utilisateur y gagne. */}
+                • Tes montants repassent en <Text style={{ fontWeight: '700', color: COLORS.emerald }}>« à jour »</Text> : plus d’estimation, un Relyka au chiffre près.
                 {'  '}<InfoDot term="confiance" size={13} />
               </Text>
             </View>

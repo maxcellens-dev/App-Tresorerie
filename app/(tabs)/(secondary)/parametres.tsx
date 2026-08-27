@@ -642,25 +642,14 @@ function SettingsScreen() {
           </View>
           </>)}
 
-          {/* ── INFORMATIONS ────────────────────────────────────────────────────────────────────
-              Confidentialité et mentions légales n'étaient atteignables QUE depuis la page Support.
-              Or c'est dans les Paramètres qu'on va les chercher — et les magasins d'applications
-              demandent que la politique de confidentialité soit accessible DEPUIS l'app.
-              On pointe DIRECTEMENT sur les deux textes : l'ancien écran « À propos » qui les
-              regroupait n'était ouvert par aucun lien et a été supprimé. */}
-          <Text style={styles.sectionTitle}>Informations</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} accessibilityRole="button" onPress={() => router.push('/confidentialite' as any)}>
-              <Ionicons name="shield-checkmark-outline" size={20} color="#60a5fa" />
-              <Text style={styles.rowLabel}>Confidentialité</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} accessibilityRole="button" onPress={() => router.push('/legal' as any)}>
-              <Ionicons name="document-text-outline" size={20} color="#a78bfa" />
-              <Text style={styles.rowLabel}>Mentions légales</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          {/* ── LA SECTION « INFORMATIONS » A ÉTÉ RETIRÉE D'ICI ─────────────────────────────────
+              Elle reprenait Confidentialité et Mentions légales, qui vivent déjà — et depuis
+              toujours — sur la page Support. Un même lien à deux endroits, c'est une page de
+              réglages qui s'allonge sans rien apprendre, et deux endroits à corriger le jour où
+              l'un des deux textes bouge.
+              ⚠️ L'EXIGENCE DES MAGASINS RESTE TENUE : la politique de confidentialité doit être
+              atteignable DEPUIS l'app, et elle l'est — page Support (compte connecté), écran
+              d'accueil et formulaire d'inscription (sans connexion), pied de page du site. */}
         </KeyboardAwareScrollView>
       </SafeAreaView>
 
