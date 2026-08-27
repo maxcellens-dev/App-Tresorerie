@@ -288,11 +288,14 @@ describe('computeConfidence — le doute suit le taux d’honoration de l’enve
     expect(r.level).not.toBe('high');
   });
 
-  /* ── LE TAUX DOIT ÊTRE RÉPARTI, PAS CONCENTRÉ ────────────────────────────────────────────────
-     Mesuré d'un bloc sur toute la période, il se laissait saturer par un seul jour : deux profils
-     très différents ressortaient « à jour » à tort. C'est le découpage en tranches (on retient la
-     plus faible) qui les sépare. */
-  it('assidu puis SILENCE : le doute revient, même si le cumul honore l’enveloppe', () => {
+  /* ── CHAQUE TRANCHE RÉPOND DE SES PROPRES JOURS ──────────────────────────────────────────────
+     Mesuré d'un bloc sur toute la période, le taux se laissait saturer par un seul jour. Le
+     découpage en tranches (fenêtre d'assiduité) le corrige — mais on retenait la PLUS FAIBLE, ce
+     qui était trop dur et faux : le doute vaut `dérive × jours`, il s'accumule jour par jour, donc
+     une semaine bien suivie efface le doute de SES jours quoi qu'il arrive ailleurs. Une seule
+     semaine calme ramenait tout à zéro. Le taux est désormais la moyenne des tranches, PONDÉRÉE PAR
+     LEURS JOURS. */
+  it('assidu puis SILENCE : le doute revient à proportion des jours non suivis', () => {
     // Tout saisi il y a 15 à 20 jours (largement de quoi honorer l'enveloppe), plus rien depuis.
     const early = Object.fromEntries(
       everyDay(20).map((k, i) => [k, i >= 15 ? (600 / 30.44) * 4 : 0]),
@@ -300,19 +303,24 @@ describe('computeConfidence — le doute suit le taux d’honoration de l’enve
     const r = computeConfidence({
       ...base, variableSpentByDay: early, activityDays: everyDay(20).slice(15),
     });
-    expect(r.observedRelief).toBe(0);        // la tranche récente est muette → taux 0
-    expect(r.uncertaintyEur).toBeCloseTo(400, 0);
-    expect(r.level).toBe('low');
+    // Tranches [0-6] et [7-13] muettes (taux 0), [14-19] honorée (taux 1) → 6 jours sur 20 = 0,30.
+    expect(r.observedRate).toBeCloseTo(0.3, 2);
+    expect(r.observedRelief).toBeCloseTo(120, 0);
+    expect(r.uncertaintyEur).toBeCloseTo(280, 0);   // les 14 jours de silence pèsent toujours
+    /* ⚠️ CE CAS RESTE TRAITÉ, ailleurs et mieux : c'est `entriesKeptUp` (une date, pas un ratio) qui
+       décide de relancer l'utilisateur — et deux semaines sans rien noter, il relance. Le calcul n'a
+       plus à porter cette mission en s'infligeant un zéro. */
+    expect(r.entriesKeptUp).toBe(false);
   });
 
   it('UN achat exceptionnel saisi ne vaut pas trois semaines de suivi', () => {
     const r = computeConfidence({
       ...base, variableSpentByDay: { [daysAgo(0)]: 2000 }, activityDays: [daysAgo(0)],
     });
-    // Les tranches plus anciennes n'ont ni montant ni activité → elles plafonnent le taux à 0.
-    expect(r.observedRelief).toBe(0);
-    // Le doute reste quasi entier : seul l'amortisseur d'assiduité joue, et pour un jour sur sept.
-    expect(r.uncertaintyEur).toBeGreaterThan(350);
+    /* Le plafond `min(1, …)` borne l'achat à SA tranche : il couvre les 7 jours de la semaine en
+       cours, pas les 20 jours de la période. Les deux tranches plus anciennes restent à zéro. */
+    expect(r.observedRate).toBeCloseTo(7 / 20, 2);
+    expect(r.observedRelief).toBeCloseTo(140, 0);
     expect(r.level).not.toBe('high');
   });
 
@@ -327,11 +335,16 @@ describe('computeConfidence — le doute suit le taux d’honoration de l’enve
     expect(r.observedRelief).toBeCloseTo(200, 0);   // 50 % du doute, pas 100 %
   });
 
-  it('… mais une tranche sans AUCUNE dépense n’annule pas tout si le suivi est là', () => {
-    // Semaine calme (rien dépensé) mais saisies quotidiennes : l'assiduité sauve la moitié.
+  /* LE CAS QUI MOTIVE LA PONDÉRATION. Une semaine où l'on dépense peu, c'est peu à saisir : avec le
+     minimum, cette semaine-là écrasait l'effacement des deux autres et le Relyka restait en
+     estimation chez quelqu'un qui note tout. */
+  it('une semaine calme ne ruine plus les semaines suivies', () => {
+    // Semaine calme (rien dépensé) mais saisies quotidiennes ; les deux semaines d'avant honorées.
     const calme = Object.fromEntries(everyDay(20).map((k, i) => [k, i < 7 ? 0 : (600 / 30.44) * 2]));
     const r = computeConfidence({ ...base, variableSpentByDay: calme, activityDays: everyDay(20) });
-    expect(r.observedRelief).toBeCloseTo(200, 0);   // plafond d'assiduité : 50 %
+    // Semaine calme sauvée par l'assiduité (0,5), les deux autres pleines (1) → (3,5 + 7 + 6) / 20.
+    expect(r.observedRate).toBeCloseTo(16.5 / 20, 2);
+    expect(r.observedRelief).toBeCloseTo(330, 0);   // et non 200 € (l'ancien minimum)
   });
 
   it('sans enveloppe établie, rien à opposer au doute', () => {
@@ -353,12 +366,14 @@ describe('computeConfidence — le doute suit le taux d’honoration de l’enve
   });
 });
 
-/* ── LE DOUTE A DEUX CAUSES, ET L'APP N'EN CONNAISSAIT QU'UNE ───────────────────────────────────
-   « Mets ton solde à jour ou saisis tes dépenses » était servi à toute confiance basse — y compris à
-   quelqu'un qui saisit chaque jour depuis trois semaines. On lui réclamait, en orange, le geste
-   qu'il était en train de faire. `entriesKeptUp` sépare les deux causes : des saisies qui manquent,
-   ou un point de départ jamais reconfirmé. Il ne change AUCUN montant — seulement ce qu'on dit. */
-describe('entriesKeptUp — suit-il ses dépenses, ou pas ?', () => {
+/* ── CE QUI CHOISIT LA PHRASE : UNE DATE, PAS UN RATIO ──────────────────────────────────────────
+   `entriesKeptUp` décidait sur la couverture d'assiduité (≥ 50 % des 7 derniers jours) OU le taux
+   d'honoration de l'enveloppe (≥ 50 % sur la tranche la plus faible). Deux bons signaux pour mesurer
+   un doute, deux mauvais pour choisir une phrase : saisir trois fois par semaine donne 3/7 = 43 %, et
+   UNE seule semaine calme écrase le taux à zéro (il retient la tranche la plus faible). L'app
+   réclamait donc des saisies à quelqu'un qui en avait fait la veille.
+   La question posée est désormais « a-t-on eu de tes nouvelles récemment ? » — et rien d'autre. */
+describe('entriesKeptUp — a-t-on eu des nouvelles récemment ?', () => {
   const calib: DriftCalibration = { medianAbsGap: 900, medianDaysBetween: 20, sampleCount: 4 }; // 45 €/j
   const ctx = {
     today: TODAY, lastVerifiedAt: iso('2026-06-25'), calibration: calib, // 20 jours
@@ -376,13 +391,26 @@ describe('entriesKeptUp — suit-il ses dépenses, ou pas ?', () => {
     expect(r.entriesKeptUp).toBe(true);
   });
 
-  it('enveloppe honorée sans assiduité parfaite → suivi reconnu quand même', () => {
-    const attendu = (600 / 30.44) * 20;
+  /* LE CAS SIGNALÉ : « j'ai saisi une dépense il y a 1 jour et beaucoup de dépenses ce mois-ci » —
+     et l'app répondait « il manque sans doute des dépenses ». Trois saisies sur sept jours donnent
+     une couverture de 43 %, sous l'ancien seuil de 50 %. */
+  it('saisies espacées mais RÉCENTES → plus de réclamation', () => {
     const r = computeConfidence({
-      ...ctx, variableSpentByDay: spentEveryDay(20, attendu / 20), activityDays: [],
+      ...ctx, variableSpentByDay: {}, activityDays: [daysAgo(1), daysAgo(4), daysAgo(6)],
     });
-    expect(r.observedRate).toBeCloseTo(1, 2);
+    expect(r.activityCoverage).toBeLessThan(0.5);   // l'ancienne règle disait « non »
+    expect(r.entriesKeptUp).toBe(true);             // la nouvelle regarde la DATE
+  });
+
+  it('une seule saisie, mais d’hier → suffit (le silence, c’est l’absence de nouvelles)', () => {
+    const r = computeConfidence({ ...ctx, variableSpentByDay: {}, activityDays: [daysAgo(1)] });
     expect(r.entriesKeptUp).toBe(true);
+  });
+
+  it('dernière saisie trop ancienne → on redemande', () => {
+    const r = computeConfidence({ ...ctx, variableSpentByDay: {}, activityDays: [daysAgo(9)] });
+    expect(r.daysSinceLastEntry).toBe(9);
+    expect(r.entriesKeptUp).toBe(false);
   });
 
   /* Sans point de départ constaté, aucune somme de saisies ne dit où l'on en est : la consigne

@@ -75,13 +75,19 @@ export function composeGuardMessage(recos: SmartRecommendation[]): string | null
  */
 export interface UnverifiedMessage { text: string; neutral: boolean }
 
-/**
- * Jours restants avant la prochaine rentrée d'argent en deçà desquels on parle de « fin de mois ».
+/* ── « FIN DE MOIS : TON RELYKA EST MOINS PRÉCIS » A ÉTÉ RETIRÉ ──────────────────────────────────
  *
- * Plus large que le seuil d'affichage des recos (5 jours) : ici on n'annonce pas un basculement, on
- * explique une fourchette qui s'élargit — et elle s'élargit bien avant le dernier week-end.
+ * Cette phrase était servie à quelqu'un qui SAISIT — et elle lui disait le contraire de ce que le
+ * moteur fait. Le doute croît bien avec les jours écoulés depuis la dernière vérification, mais il
+ * est effacé en face par le taux d'honoration de l'enveloppe (cf. `observedRelief`) : à mesure que
+ * le mois avance ET que les dépenses sont notées, ce qui « a pu échapper » se réduit. Quelqu'un qui
+ * note tout voit donc son Relyka devenir PLUS sûr en fin de mois, pas moins — c'est même le cas que
+ * le moteur verrouille en test (« fin de mois suivie au jour le jour »).
+ *
+ * Annoncer une imprécision de fin de mois revenait donc à décrire le comportement de l'app à
+ * quelqu'un qui observe l'inverse sur son écran. Le seuil de « fin de période » qui pilotait cette
+ * variante est parti avec elle.
  */
-const PERIOD_END_DOUBT_DAYS = 8;
 
 /**
  * La phrase « solde non vérifié », à partir du seul résultat de confiance.
@@ -132,11 +138,6 @@ export function unverifiedRelykaMessage(conf: {
   entriesKeptUp?: boolean;
   /** Jours depuis la dernière saisie (cf. ConfidenceResult). `null` = aucune sur la fenêtre. */
   daysSinceLastEntry?: number | null;
-  /**
-   * Jours avant la prochaine rentrée d'argent (cf. lib/recoInputs). `null` = inconnu → on ne parle
-   * pas de fin de mois : on ne l'affirme que quand la donnée existe.
-   */
-  daysLeftInPeriod?: number | null;
 }): UnverifiedMessage | null {
   if (conf.level !== 'low') return null;
   /* Aucun point de départ constaté : c'est le SEUL cas où noter des dépenses n'y peut rien (le
@@ -148,28 +149,19 @@ export function unverifiedRelykaMessage(conf: {
       neutral: false,
     };
   }
+  /* Des nouvelles récentes : on ne réclame rien, on dit simplement ce que le geste apporte.
+     Une seule phrase — la variante « fin de mois » a été retirée, elle contredisait le moteur. */
   if (conf.entriesKeptUp) {
-    const periodEnd = conf.daysLeftInPeriod != null && conf.daysLeftInPeriod <= PERIOD_END_DOUBT_DAYS;
-    /* Une phrase, une raison, aucun impératif. En fin de période c'est l'écoulement du mois qui
-       explique l'imprécision ; sinon, c'est le geste qui la réduit. */
-    return {
-      text: periodEnd
-        ? 'Fin de mois : ton Relyka est forcément moins précis qu\'en début de mois.'
-        : 'Chaque dépense que tu notes rend ton Relyka plus juste.',
-      neutral: true,
-    };
+    return { text: 'Chaque dépense que tu notes rend ton Relyka plus juste.', neutral: true };
   }
-  /* Trop peu de saisies pour affiner quoi que ce soit. On date le SILENCE quand il est net (plus de
-     quelques jours sans rien noter) ; en deçà, on reste vague — quelques saisies éparses ne
-     permettent pas d'affirmer qu'il ne s'est rien passé. */
-  const quiet = conf.daysSinceLastEntry == null || conf.daysSinceLastEntry > 4;
+  /* Plus rien depuis un moment. Ce cas EST le silence — `entriesKeptUp` ne vaut faux que si la
+     dernière saisie remonte à plus de `QUIET_ENTRY_DAYS`, ou qu'il n'y en a aucune : il n'y a donc
+     plus de variante « saisies éparses » à distinguer. On date le silence quand on le peut. */
   const since = conf.daysSinceLastEntry == null
     ? 'depuis un moment'
     : unverifiedSincePhrase(conf.daysSinceLastEntry);
   return {
-    text: quiet
-      ? `Aucune dépense saisie ${since} : note-les pour un Relyka plus juste.`
-      : 'Il manque sans doute des dépenses : note-les au fil de l\'eau pour un Relyka plus juste.',
+    text: `Aucune dépense saisie ${since} : note-les pour un Relyka plus juste.`,
     neutral: false,
   };
 }

@@ -126,7 +126,7 @@ export const SIMULATION_SCENARIOS: SimulationScenario[] = [
     profile: { honoredPct: 100, pattern: 'even', entryDaysPct: 60 }, daysSinceVerification: 0,
   },
   {
-    key: 'silent', label: 'Ne saisit rien', hint: 'trois semaines sans vérif ni saisie → fourchette',
+    key: 'silent', label: 'Ne saisit rien', hint: 'trois semaines sans vérif ni saisie → doute entier',
     profile: { honoredPct: 0, pattern: 'even', entryDaysPct: 0 }, daysSinceVerification: 21,
   },
   {
@@ -142,7 +142,7 @@ export const SIMULATION_SCENARIOS: SimulationScenario[] = [
     profile: { honoredPct: 50, pattern: 'even', entryDaysPct: 100 }, daysSinceVerification: 21,
   },
   {
-    key: 'forgot', label: 'Assidu puis oubli', hint: 'tout saisi au début, silence depuis → doute maintenu',
+    key: 'forgot', label: 'Assidu puis oubli', hint: 'tout saisi au début, silence depuis → seuls les jours suivis sont effacés',
     profile: { honoredPct: 140, pattern: 'early_then_silence', entryDaysPct: 45 }, daysSinceVerification: 21,
   },
   {
@@ -183,7 +183,7 @@ export const OBSERVATION_PRESETS: { key: string; label: string; hint: string; pr
     profile: { honoredPct: 50, pattern: 'even', entryDaysPct: 100 },
   },
   {
-    key: 'forgot', label: 'Assidu puis oubli', hint: 'tout saisi au début, silence depuis → doute maintenu',
+    key: 'forgot', label: 'Assidu puis oubli', hint: 'tout saisi au début, silence depuis → seuls les jours suivis sont effacés',
     profile: { honoredPct: 140, pattern: 'early_then_silence', entryDaysPct: 45 },
   },
   {

@@ -114,21 +114,26 @@ const DAYS_PER_MONTH = 30.44;
 const ACTIVITY_ONLY_MAX_RATE = 0.5;
 
 /**
- * À partir d'où considère-t-on que quelqu'un SUIT ses dépenses ?
+ * Jours sans LA MOINDRE saisie au-delà desquels on considère le suivi interrompu.
  *
- * Le doute a deux causes très différentes, et jusqu'ici l'app ne servait qu'un seul discours :
- *   • personne n'a rien saisi depuis longtemps → il manque probablement des dépenses, et la
- *     consigne « mets ton solde à jour ou saisis tes dépenses » est exactement ce qu'il faut dire ;
- *   • tout a été saisi, mais aucune VÉRIFICATION n'est venue confirmer le point de départ → le
- *     doute est structurel, pas comportemental. Servir la même injonction à quelqu'un qui note tout
- *     revient à lui reprocher un geste qu'il vient de faire, tous les jours, pendant trois semaines.
+ * ── UNE SEULE RÈGLE, ET ELLE S'EXPLIQUE EN UNE PHRASE ───────────────────────────────────────────
+ * Ce drapeau décidait auparavant sur deux signaux du CALCUL : la couverture d'assiduité (≥ 50 % des
+ * sept derniers jours portant une saisie) OU le taux d'honoration de l'enveloppe (≥ 50 % sur la
+ * tranche la plus faible). Les deux sont bons pour mesurer un doute ; ils sont mauvais pour choisir
+ * une phrase, et ils se trompaient dans le sens le plus vexant :
  *
- * Ce seuil sépare les deux. Il est volontairement bas (la moitié) : il ne s'agit pas de récompenser
- * la perfection, mais de reconnaître un suivi réel — l'un OU l'autre des deux signaux suffit,
- * l'assiduité (des saisies jour après jour) ou l'honoration de l'enveloppe (les montants attendus
- * sont là). Il ne change AUCUN montant ni aucun niveau de confiance : seulement ce qu'on dit.
+ *   • saisir en trois fois par semaine donne une couverture de 3/7 = 43 % → « suivi interrompu »,
+ *     alors qu'on a noté quelque chose la veille ;
+ *   • une seule semaine calme (peu de dépenses, donc peu à saisir) écrase le taux d'honoration à
+ *     zéro, puisqu'il retient la tranche la PLUS FAIBLE de la période.
+ *
+ * Résultat : l'app réclamait des saisies à quelqu'un qui venait d'en faire. Pour choisir ce qu'on
+ * DIT, la seule question honnête est « a-t-on eu de tes nouvelles récemment ? ». Une date, un seuil.
+ *
+ * ⚠️ Ne change AUCUN montant ni aucun niveau de confiance — la couverture et le taux d'honoration
+ * continuent, eux, de gouverner le doute (cf. `activityDampening` et `observedRelief`).
  */
-const KEEPING_UP_RATE = 0.5;
+const QUIET_ENTRY_DAYS = 4;
 
 export const RELIABILITY_DEFAULTS: ReliabilityConfig = {
   highMax: 0.05,
@@ -265,13 +270,12 @@ export interface ConfidenceResult {
    */
   observedRate: number | null;
   /**
-   * L'utilisateur SUIT-IL ses dépenses ? Assiduité réelle, ou enveloppe honorée sur la période.
+   * A-t-on eu des nouvelles récemment ? Une saisie dans les `QUIET_ENTRY_DAYS` derniers jours.
    *
-   * ⚠️ N'ENTRE DANS AUCUN CALCUL — ni montant, ni niveau, ni fourchette. Ce drapeau ne sert qu'à
-   * choisir CE QU'ON DIT : réclamer une vérification de solde a du sens quand des dépenses ont pu
-   * échapper à l'app, aucun quand tout a été saisi et que seul le point de départ n'a jamais été
-   * confirmé. Dans ce second cas le doute reste entier (et la fourchette avec lui) — mais il
-   * s'explique, il ne se reproche pas.
+   * ⚠️ N'ENTRE DANS AUCUN CALCUL — ni montant, ni niveau, ni bornes affichées. Ce drapeau ne sert
+   * qu'à choisir CE QU'ON DIT : réclamer des saisies a du sens quand plus rien n'arrive, aucun
+   * quand il y en a eu une hier. Dans ce second cas le doute reste entier — mais il s'explique, il
+   * ne se reproche pas.
    */
   entriesKeptUp: boolean;
 }
@@ -415,9 +419,21 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
            semaines ;
          • celui qui saisit UN achat exceptionnel de 2 000 € et rien d'autre — un seul jour couvrait
            trois semaines de doute.
-       On découpe donc la période en tranches (la fenêtre d'assiduité) et on retient la PLUS FAIBLE :
-       une seule tranche muette suffit à maintenir le doute, parce que c'est précisément là que des
-       dépenses ont pu passer inaperçues.
+       On découpe donc la période en tranches (la fenêtre d'assiduité), chacune jugée pour elle-même.
+
+       ── CHAQUE TRANCHE RÉPOND DE SES PROPRES JOURS ────────────────────────────────────────────
+       On retenait la tranche la PLUS FAIBLE. C'était trop dur, et faux : le doute vaut
+       `dérive × jours`, donc il s'accumule JOUR PAR JOUR — une semaine bien suivie efface le doute
+       de SES jours, qu'une autre semaine ait été muette ou non. Avec le minimum, une seule semaine
+       calme (peu dépensé, donc peu à saisir) ramenait à zéro l'effacement des trois semaines : le
+       Relyka restait en estimation chez quelqu'un qui note tout, ce qui est exactement l'inverse de
+       ce que cette règle cherche à produire.
+       Le taux est donc la MOYENNE des tranches, pondérée par leur nombre de jours — ce qui revient
+       à effacer, pour chaque jour, la part de doute réellement observée ce jour-là.
+
+       Les deux profils du début restent traités : le silencieux récent n'efface que les jours qu'il
+       a suivis (trois semaines dont deux muettes → un tiers du doute), et l'achat exceptionnel reste
+       borné par le plafond `min(1, …)` de SA tranche, qui ne déborde pas sur les autres.
 
        Dans chaque tranche, deux preuves comptent, mais PAS à parts égales :
          • les MONTANTS : ce que l'enveloppe prévoyait est là — c'est le critère principal ;
@@ -439,7 +455,8 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     }
 
     const seen = new Set(activityDays ?? []);
-    let rate = 1;
+    let weighted = 0;   // Σ (taux de la tranche × ses jours)
+    let counted = 0;    // Σ (jours des tranches)
     for (const slice of slices) {
       const expected = (variableBase / DAYS_PER_MONTH) * slice.length;
       let observed = 0;
@@ -451,10 +468,13 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
       }
       const byAmount = expected > 0 ? Math.min(1, Math.max(0, observed) / expected) : 0;
       const byActivity = (active / slice.length) * ACTIVITY_ONLY_MAX_RATE;
-      rate = Math.min(rate, Math.max(byAmount, byActivity));
+      weighted += Math.max(byAmount, byActivity) * slice.length;
+      counted += slice.length;
     }
-    observedRate = rate;
-    observedRelief = Math.min(rawDoubt, base) * rate;
+    // Pondération par les JOURS, jamais par le nombre de tranches : la dernière tranche peut avoir
+    // été fusionnée (cf. plus haut) et pèserait alors autant qu'une semaine pleine.
+    observedRate = counted > 0 ? weighted / counted : 0;
+    observedRelief = Math.min(rawDoubt, base) * observedRate;
   }
 
   // PLAFOND ABSOLU : le doute ne peut pas dépasser la base de référence (revenu / enveloppe /
@@ -482,11 +502,12 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   const assiduous = activityCoverage >= config.activityHighCoverage && !neverVerified;
   if (level === 'high' && activityDamp < 1 && rawRatio >= config.highMax && !assiduous) level = 'medium';
 
-  /* Suit-il ses dépenses ? L'un OU l'autre suffit — noter chaque jour, ou voir arriver ce que
-     l'enveloppe prévoyait. Jamais sans vérification passée : sans point de départ constaté, aucune
-     somme de saisies ne dit où l'on en est (même règle que le plafond d'observation). */
+  /* A-t-on eu de ses nouvelles récemment ? Une seule question, une seule date (cf. QUIET_ENTRY_DAYS).
+     Jamais sans vérification passée : sans point de départ constaté, aucune somme de saisies ne dit
+     où l'on en est (même règle que le plafond d'observation). */
   const entriesKeptUp = !neverVerified
-    && (activityCoverage >= KEEPING_UP_RATE || (observedRate ?? 0) >= KEEPING_UP_RATE);
+    && daysSinceLastEntry != null
+    && daysSinceLastEntry <= QUIET_ENTRY_DAYS;
 
   return {
     level, doubtRatio, uncertaintyEur, daysSinceVerification, rawDaysSinceVerification,
