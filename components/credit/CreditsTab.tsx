@@ -13,10 +13,10 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { useResponsive } from '../../hooks/theme/useResponsive';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCredits } from '../../hooks/data/useCredits';
 import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealtime } from '../../hooks/data/useSharedCredits';
@@ -29,8 +29,8 @@ import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { useAllAccounts } from '../../hooks/data/useAccounts';
 import { useProfile } from '../../hooks/data/useProfile';
 
-/** Une case du bandeau de totaux. `short` : libellé de repli quand la case est en 3 colonnes. */
-type RecapCell = { key: string; label: string; short: string; value: number; color: string; lead?: boolean };
+/** Une tuile du bas du récap : icône, libellé, montant déjà mis en forme. */
+type RecapTile = { key: string; label: string; icon: string; text: string; color: string };
 
 const TYPE_META: Record<string, { label: string; icon: string }> = {
   immobilier: { label: 'Immobilier', icon: 'home-outline' },
@@ -86,8 +86,6 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   /** Récap : euros pleins (pas de centimes sur un cumul de crédits). */
   const money = (v: number) => Math.round(v).toLocaleString('fr-FR') + ` ${CURRENCY_SYMBOL}`;
   const today = todayISO();
-  // ≥ 768 px (web bureau/tablette, tablette native) : le récap tient sur une seule ligne.
-  const oneLine = !useResponsive().isCompact;
 
   /** Crédit REÇU : il appartient à quelqu'un d'autre, je n'ai qu'un accès (consultation/écriture). */
   const isReceived = (c: Credit) => !!c._role && c._role !== 'owner';
@@ -130,51 +128,35 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
      Un total unique mélangeait des crédits dont l'utilisateur n'est pas le débiteur — et, quand il
      n'avait QUE des crédits partagés, aucun total ne s'affichait du tout. */
   const recapOf = (list: Credit[]) => {
-    let crd = 0, interestLeft = 0, insuranceLeft = 0, paid = 0;
+    let crd = 0, interestLeft = 0, insuranceLeft = 0, paid = 0, monthly = 0;
     for (const c of list) {
       if (!countsInTotal(c)) continue;
       // Chaque crédit est libellé dans la devise de son compte → converti avant d'entrer au total.
       const cur = curOf(c);
       const ref = (v: number) => toRef(v, cur);
-      const r = recapAtDate(amortOf(c), today, { events: eventsByCredit[c.id] ?? null });
+      const a = amortOf(c);
+      const r = recapAtDate(a, today, { events: eventsByCredit[c.id] ?? null });
       crd += ref(r.crd);
       interestLeft += ref(r.interestLeft);
       insuranceLeft += ref(r.insuranceLeft);
       paid += ref(r.paid);
+      /* MENSUALITÉ CUMULÉE = ce qui sera prélevé le mois prochain, tous crédits confondus.
+         On somme la PROCHAINE échéance réelle (différé, paliers, remboursement anticipé compris),
+         le même chiffre que chaque ligne affiche — mais seulement pour les crédits qui en ont
+         encore une : `nextPaymentAtDate` retombe sur la mensualité NOMINALE quand tout est
+         remboursé (repli utile sur une fiche, faux dans une somme — un crédit soldé ne prélève
+         plus rien). */
+      if (a.schedule.some((s) => s.date > today)) monthly += ref(nextPaymentAtDate(a, today));
     }
-    return { crd, interestLeft, insuranceLeft, paid };
-  };
-
-  /* Les chiffres du récap, dans l'ordre de lecture : les trois COMPOSANTES du reste à payer, puis
-     les deux TOTAUX. Trois d'entre eux refusaient de s'additionner sous les yeux du lecteur, faute
-     d'afficher l'assurance : « reste à payer » la comprend (c'est ce qui quitte le compte), mais
-     elle n'apparaissait nulle part — l'écart passait pour une erreur de calcul.
-
-     Montants ARRONDIS à l'euro : sur un total de crédits, les centimes n'apportent rien et rendaient
-     la grille illisible (le détail d'un crédit, lui, garde ses centimes). Le total est la somme des
-     composantes TELLES QU'AFFICHÉES : arrondir chacune dans son coin laissait un euro d'écart avec
-     l'addition que le lecteur fait de tête. Couleurs : ce qui coûte en orange, l'acquis en vert.
-     `short` = libellé de la ligne à 3 colonnes (téléphone), où le libellé complet serait tronqué. */
-  const cellsOf = (r: ReturnType<typeof recapOf>): RecapCell[] => {
-    const crd = Math.round(r.crd);
-    const interest = Math.round(r.interestLeft);
-    const insurance = Math.round(r.insuranceLeft);
-    return [
-      { key: 'crd', label: 'Capital restant', short: 'Capital', value: crd, color: COLORS.text },
-      { key: 'interest', label: 'Intérêts restants', short: 'Intérêts', value: interest, color: COLORS.orange },
-      // Sans assurance, la cellule n'a rien à dire : la grille reprend sa forme 2 × 2 d'avant.
-      ...(insurance > 0 ? [{ key: 'insurance', label: 'Assurance restante', short: 'Assurance', value: insurance, color: COLORS.orange }] : []),
-      { key: 'left', label: 'Reste à payer', short: 'Reste à payer', value: crd + interest + insurance, color: COLORS.text, lead: true },
-      { key: 'paid', label: 'Déjà payé', short: 'Déjà payé', value: Math.round(r.paid), color: COLORS.emerald, lead: true },
-    ];
+    return { crd, interestLeft, insuranceLeft, paid, monthly };
   };
 
   /* `curByAccount`/`rates`/`refCode`/`eventsByCredit` DOIVENT être dans les deps : les comptes, les
      taux et les événements arrivent APRÈS le premier rendu. Sans eux, le récap resterait figé sur
      son calcul initial — celui fait alors que la table des devises était encore vide (donc sans
      aucune conversion) et qu'aucun remboursement anticipé n'était connu. */
-  const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS, curByAccount, rates, refCode, eventsByCredit]);
-  const sharedCells = useMemo(() => cellsOf(recapOf(shared)), [credits, today, COLORS, curByAccount, rates, refCode, eventsByCredit]);
+  const persoRecap = useMemo(() => recapOf(perso), [credits, today, curByAccount, rates, refCode, eventsByCredit]);
+  const sharedRecap = useMemo(() => recapOf(shared), [credits, today, curByAccount, rates, refCode, eventsByCredit]);
 
   /* Un total qui ne couvre pas toute la liste qu'il surplombe DOIT le dire, sinon il passe pour faux
      (« pourquoi la somme des lignes ne tombe pas ? »). Trois motifs de sortie, deux phrases : la
@@ -194,58 +176,117 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   };
 
   /**
-   * Bandeau de totaux. La grille se lit comme l'ADDITION qu'elle est : les composantes d'abord
-   * (capital + intérêts + assurance), les totaux en dessous, plus gros. Sur téléphone, ça tient
-   * dans les deux mêmes lignes qu'avant — 3 colonnes puis 2 — donc sans rien coûter en hauteur ;
-   * sur écran large, tout reste sur une seule ligne. Sans assurance, on retombe sur 2 × 2.
+   * Anneau de progression — la part DÉJÀ REMBOURSÉE de la dette, en un coup d'œil.
    *
-   * `adjustsFontSizeToFit` N'EXISTE PAS sur react-native-web (la prop est simplement ignorée) et
-   * reste peu fiable sur Android : s'y fier, c'est laisser un montant long se faire tronquer par
-   * `numberOfLines={1}` sans que rien ne le rattrape. On dimensionne donc la police NOUS-MÊMES, à
-   * partir de la longueur réelle du texte — et plus tôt dans une colonne étroite.
+   * L'arc part de midi (`rotate(-90)`) et se lit dans le sens des aiguilles. La piste reste visible
+   * à vide : sans elle, un crédit tout juste souscrit n'aurait rien à montrer et le bloc paraîtrait
+   * cassé. Purement décoratif (`pointerEvents="none"`) — un `<Svg>` qui capte le toucher le refuse
+   * ensuite au ScrollView parent, et le doigt posé dessus ne ferait plus défiler la page.
    */
-  const SummaryGrid = ({ cells }: { cells: RecapCell[] }) => {
-    const rows: RecapCell[][] = oneLine
-      ? [cells]
-      : [cells.slice(0, cells.length - 2), cells.slice(cells.length - 2)];
+  const ProgressRing = ({ pct }: { pct: number }) => {
+    const size = 62, stroke = 7;
+    const c = size / 2;
+    const r = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * r;
     return (
-      <View style={[styles.summary, !oneLine && styles.summaryWrap]}>
-        {rows.map((row, ri) =>
-          row.map((cell, ci) => {
-            // Colonne étroite (3 par ligne sur téléphone) : libellé court + police plus petite.
-            // Sur écran large les cinq cases sont sur une ligne, mais chacune reste assez large
-            // pour son libellé complet — d'où le `!oneLine`.
-            const narrow = !oneLine && row.length > 2;
-            const text = money(cell.value);
-            const size = narrow
-              ? (text.length > 11 ? 10.5 : text.length > 9 ? 11.5 : 12.5)
-              : (text.length > 13 ? 11 : text.length > 10 ? 12.5 : cell.lead ? 14 : 13);
-            return (
-              <View
-                key={cell.key}
-                style={[
-                  styles.summaryCell,
-                  narrow && styles.summaryCellNarrow,
-                  oneLine ? styles.summaryCellFlex : { width: row.length === 3 ? '33.33%' : '50%' },
-                  ci > 0 && styles.summaryCellSepLeft,
-                  ri > 0 && styles.summaryCellSepTop,
-                ]}
-              >
-                <Text style={styles.summaryLabel} numberOfLines={1} accessibilityLabel={cell.label}>
-                  {narrow ? cell.short : cell.label}
-                </Text>
-                <Text
-                  testID={`recap-${cell.key}`}
-                  style={[styles.summaryValue, cell.lead && styles.summaryValueLead, { fontSize: size, color: cell.color }]}
-                  numberOfLines={1}
-                >
-                  {text}
-                </Text>
-              </View>
-            );
-          }),
-        )}
+      <View pointerEvents="none" style={{ width: size, height: size }}>
+        <Svg width={size} height={size}>
+          <Circle cx={c} cy={c} r={r} fill="none" stroke={COLORS.textSecondary + '2E'} strokeWidth={stroke} />
+          {pct > 0 && (
+            <Circle
+              cx={c} cy={c} r={r} fill="none"
+              stroke={COLORS.emerald} strokeWidth={stroke} strokeLinecap="round"
+              strokeDasharray={`${(circumference * pct) / 100} ${circumference}`}
+              transform={`rotate(-90 ${c} ${c})`}
+            />
+          )}
+        </Svg>
+        <View style={StyleSheet.absoluteFill as any}>
+          <View style={styles.ringCenter}>
+            <Text style={styles.ringPct} testID="recap-pct">{pct}%</Text>
+          </View>
+        </View>
       </View>
+    );
+  };
+
+  /**
+   * SYNTHÈSE DES CRÉDITS — deux blocs qui répondent à deux questions différentes.
+   *
+   *   1. « Où en suis-je ? »  → l'anneau, les deux totaux (déjà payé / reste à payer) et la barre
+   *      de progression. C'est le même rapport dit trois fois, exprès : le chiffre pour la valeur,
+   *      l'anneau et la barre pour la proportion, qu'aucun montant à six chiffres ne donne.
+   *   2. « De quoi est-ce fait ? » → les composantes du reste à payer, plus la mensualité.
+   *
+   * L'INVARIANT reste celui d'avant : capital + intérêts + assurance = reste à payer, à l'euro
+   * AFFICHÉ près. On arrondit chaque composante puis on additionne les arrondis — arrondir le total
+   * dans son coin laissait un euro d'écart avec l'addition que le lecteur fait de tête. Montants en
+   * euros pleins : sur un cumul de crédits, les centimes n'apportent rien (le détail d'un crédit,
+   * lui, les garde).
+   */
+  const SummaryCard = ({ recap }: { recap: ReturnType<typeof recapOf> }) => {
+    const crd = Math.round(recap.crd);
+    const interest = Math.round(recap.interestLeft);
+    const insurance = Math.round(recap.insuranceLeft);
+    const left = crd + interest + insurance;
+    const paid = Math.round(recap.paid);
+    /* Avancement = part déjà versée du coût TOTAL du crédit (intérêts et assurance compris), pas du
+       seul capital : c'est l'argent réellement sorti rapporté à l'argent qui sortira en tout. */
+    const engaged = paid + left;
+    const pct = engaged > 0 ? Math.round((paid / engaged) * 100) : 0;
+
+    const tiles: RecapTile[] = [
+      { key: 'crd', label: 'Capital restant', icon: 'business-outline', text: money(crd), color: COLORS.text },
+      { key: 'interest', label: 'Intérêts restants', icon: 'trending-up-outline', text: money(interest), color: COLORS.orange },
+      // Sans assurance, la tuile n'a rien à dire : la grille retombe sur 3 tuiles.
+      ...(insurance > 0
+        ? [{ key: 'insurance', label: 'Assurance restante', icon: 'shield-outline', text: money(insurance), color: COLORS.orange }]
+        : []),
+      { key: 'monthly', label: 'Mensualité', icon: 'calendar-outline', text: `${money(Math.round(recap.monthly))}/mois`, color: COLORS.emerald },
+    ];
+
+    return (
+      <>
+        <View style={styles.recapCard}>
+          <ProgressRing pct={pct} />
+          <View style={styles.recapLines}>
+            <View style={styles.recapLine}>
+              <Text style={styles.recapLineLabel}>Déjà payé</Text>
+              <Text testID="recap-paid" style={[styles.recapLineValue, { color: COLORS.emerald }]} numberOfLines={1}>
+                {money(paid)}
+              </Text>
+            </View>
+            <View style={styles.recapLine}>
+              <Text style={styles.recapLineLabel}>Reste à payer</Text>
+              <Text testID="recap-left" style={styles.recapLineValue} numberOfLines={1}>{money(left)}</Text>
+            </View>
+            {/* La barre reprend l'anneau à l'horizontale, sous les deux montants qu'elle partage :
+                elle montre la proportion là où les chiffres, eux, donnent la valeur. */}
+            <View style={styles.recapBar}>
+              <View style={[styles.recapBarFill, { width: `${Math.max(pct, pct > 0 ? 3 : 0)}%` }]} />
+            </View>
+          </View>
+        </View>
+
+        {/* Les composantes, en tuiles de MÊME largeur (deux par ligne) : le libellé se lit en entier
+            quel que soit l'écran, ce que la ligne à trois colonnes d'avant ne permettait plus — elle
+            abrégeait « Capital restant » en « Capital » sur téléphone. */}
+        <View style={styles.tileGrid}>
+          {tiles.map((t) => (
+            <View key={t.key} style={styles.tile}>
+              <View style={styles.tileHead}>
+                <View style={[styles.tileIcon, { backgroundColor: t.color + '1A' }]}>
+                  <Ionicons name={t.icon as any} size={13} color={t.color} />
+                </View>
+                <Text style={styles.tileLabel} numberOfLines={1}>{t.label}</Text>
+              </View>
+              <Text testID={`recap-${t.key}`} style={[styles.tileValue, { color: t.color }]} numberOfLines={1}>
+                {t.text}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </>
     );
   };
 
@@ -330,17 +371,17 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
       {splitView ? (
         <>
           <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Mes crédits</Text>
-          {persoCounted.length > 0 && <SummaryGrid cells={persoCells} />}
+          {persoCounted.length > 0 && <SummaryCard recap={persoRecap} />}
           <OutOfTotalNote list={perso} />
         </>
       ) : credits.length === 0 ? null : perso.length > 0 ? (
         <>
-          {persoCounted.length > 0 && <SummaryGrid cells={persoCells} />}
+          {persoCounted.length > 0 && <SummaryCard recap={persoRecap} />}
           <OutOfTotalNote list={perso} />
         </>
       ) : (
         <>
-          {sharedCounted.length > 0 && <SummaryGrid cells={sharedCells} />}
+          {sharedCounted.length > 0 && <SummaryCard recap={sharedRecap} />}
           <OutOfTotalNote list={shared} />
         </>
       )}
@@ -382,7 +423,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
               {splitView && (
                 <>
                   <Text style={styles.sectionLabel}>Crédits partagés</Text>
-                  {sharedCounted.length > 0 && <SummaryGrid cells={sharedCells} />}
+                  {sharedCounted.length > 0 && <SummaryCard recap={sharedRecap} />}
                   <OutOfTotalNote list={shared} />
                 </>
               )}
@@ -422,19 +463,36 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
 function makeStyles(c: any) {
   return StyleSheet.create({
     wrap: { paddingHorizontal: 16, paddingTop: 8 },
-    summary: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, marginBottom: 12 },
-    summaryWrap: { flexWrap: 'wrap' },
-    summaryCell: { paddingVertical: 7, paddingHorizontal: 11 },
-    // 3 colonnes sur un écran de téléphone : on rend au montant les marges qu'on lui prend ailleurs.
-    summaryCellNarrow: { paddingHorizontal: 7 },
-    summaryCellFlex: { flex: 1 },
-    summaryCellSepLeft: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.cardBorder },
-    summaryCellSepTop: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.cardBorder },
-    summaryLabel: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600', letterSpacing: 0.2 },
-    // Montants alignés à DROITE : les ordres de grandeur se comparent d'un coup d'œil, colonne
-    // par colonne, sans lire les chiffres (les unités sont les unes sous/à côté des autres).
-    summaryValue: { fontSize: 13, fontWeight: '700', marginTop: 2, textAlign: 'right' },
-    summaryValueLead: { fontSize: 14, fontWeight: '800' },
+
+    /* ── Synthèse : « où j'en suis » (anneau + totaux + barre), puis « de quoi c'est fait ». ── */
+    recapCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 16,
+      borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+      paddingVertical: 16, paddingHorizontal: 16, marginBottom: 10,
+    },
+    ringCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    ringPct: { fontSize: 15, fontWeight: '800', color: c.text },
+    recapLines: { flex: 1, minWidth: 0 },
+    // Libellé à gauche, montant à droite : les deux montants s'alignent, donc se comparent.
+    recapLine: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 6 },
+    recapLineLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: '600', flexShrink: 1 },
+    recapLineValue: { fontSize: 15, fontWeight: '800', color: c.text, flexShrink: 0 },
+    recapBar: { height: 6, borderRadius: 999, backgroundColor: c.textSecondary + '2E', overflow: 'hidden', marginTop: 4 },
+    recapBarFill: { height: '100%', borderRadius: 999, backgroundColor: c.emerald },
+
+    /* Tuiles de MÊME largeur, deux par ligne. `48%` + `space-between` plutôt qu'un `gap` : une
+       tuile impaire (sans assurance) reste alors calée à gauche au lieu de s'étirer sur la ligne. */
+    // marginBottom 4 : chaque tuile porte déjà 8 px sous elle (gouttière entre les deux rangées).
+    tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 4 },
+    tile: {
+      width: '48.5%',
+      borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+      paddingVertical: 10, paddingHorizontal: 11, marginBottom: 8,
+    },
+    tileHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    tileIcon: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+    tileLabel: { fontSize: 11, color: c.textSecondary, fontWeight: '600', flexShrink: 1 },
+    tileValue: { fontSize: 14.5, fontWeight: '800', marginTop: 6 },
     sectionLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 },
     list: { borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, overflow: 'hidden' },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },

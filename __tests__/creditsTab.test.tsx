@@ -1,9 +1,11 @@
 /**
- * Onglet « Crédits » — le bandeau de totaux, monté pour de vrai.
+ * Onglet « Crédits » — la synthèse du haut, montée pour de vrai.
  *
  * Ce qui se joue ici ne se voit dans aucun moteur pur : ce sont les chiffres TELS QUE LUS.
  *  • les trois composantes affichées s'additionnent EXACTEMENT au « reste à payer » imprimé
  *    (l'assurance manquait à l'écran : l'addition ne tombait jamais, et le bandeau passait pour faux) ;
+ *  • l'avancement de l'anneau est bien la part DÉJÀ PAYÉE de ce qui sortira en tout ;
+ *  • la mensualité cumulée ne compte QUE les crédits qui ont encore une échéance devant eux ;
  *  • les ÉVÉNEMENTS d'un crédit (remboursement anticipé) arrivent bien jusqu'à cet écran, qui les
  *    ignorait complètement — il affichait le plan d'origine pendant que la fiche du crédit, elle,
  *    montrait le capital réellement restant ;
@@ -15,7 +17,6 @@ import { todayISO } from '../lib/dateUtils';
 
 let mockCredits: any[] = [];
 let mockEvents: Record<string, any[]> = {};
-let mockCompact = false;
 
 jest.mock('../hooks/data/useCredits', () => ({ useCredits: () => ({ data: mockCredits, isLoading: false }) }));
 jest.mock('../hooks/data/useCreditEvents', () => ({ useAllCreditEvents: () => ({ data: mockEvents }) }));
@@ -27,9 +28,6 @@ jest.mock('../hooks/data/useSharedCredits', () => ({
 jest.mock('../hooks/data/useAccounts', () => ({ useAllAccounts: () => ({ data: [{ id: 'acc1', currency: 'EUR' }] }) }));
 jest.mock('../hooks/data/useCurrencyRates', () => ({ useCurrencyRates: () => ({ data: { EUR: 1 } }) }));
 jest.mock('../hooks/data/useProfile', () => ({ useProfile: () => ({ data: { currency_code: 'EUR' } }) }));
-// Largeur PILOTÉE par le test : la grille se replie à 3 + 2 colonnes sur téléphone (libellés courts)
-// et tient sur une seule ligne au-delà (libellés complets).
-jest.mock('../hooks/theme/useResponsive', () => ({ useResponsive: () => ({ isCompact: mockCompact }) }));
 
 import CreditsTab from '../components/credit/CreditsTab';
 
@@ -50,9 +48,9 @@ const shown = (key: string): number => {
   return Number(text.replace(/[^\d]/g, ''));
 };
 
-beforeEach(() => { mockCredits = [credit()]; mockEvents = {}; mockCompact = false; });
+beforeEach(() => { mockCredits = [credit()]; mockEvents = {}; });
 
-describe('bandeau de totaux — l\'addition doit tomber', () => {
+describe('synthèse — l\'addition doit tomber', () => {
   it('capital + intérêts + assurance = reste à payer, au chiffre affiché près', () => {
     renderWithProviders(<CreditsTab userId="u1" />);
     expect(screen.getByText('Assurance restante')).toBeOnTheScreen();
@@ -61,25 +59,59 @@ describe('bandeau de totaux — l\'addition doit tomber', () => {
     expect(shown('insurance')).toBeGreaterThan(0);
   });
 
-  /* Sur téléphone, la ligne à 3 colonnes n'a pas la place des libellés complets : ils y sont
-     abrégés, et `adjustsFontSizeToFit` n'existant pas sur web, un libellé trop long serait
-     simplement tronqué par `numberOfLines={1}`. Les cinq chiffres, eux, restent les mêmes. */
-  it('sur téléphone, les libellés s\'abrègent et les chiffres ne bougent pas', () => {
-    mockCompact = true;
+  /* Les tuiles font une demi-largeur : le libellé complet y tient sur tout écran. La grille à trois
+     colonnes d'avant devait l'abréger en « Capital » sur téléphone — le mot « restant », qui dit
+     précisément de quoi on parle, disparaissait au moment où la place manquait. */
+  it('les libellés restent entiers, jamais abrégés', () => {
     renderWithProviders(<CreditsTab userId="u1" />);
-    expect(screen.getByText('Capital')).toBeOnTheScreen();
-    expect(screen.getByText('Assurance')).toBeOnTheScreen();
-    expect(screen.queryByText('Capital restant')).toBeNull();
-    expect(screen.getByText('Reste à payer')).toBeOnTheScreen(); // ligne du bas : 2 cases, au large
-    expect(shown('crd') + shown('interest') + shown('insurance')).toBe(shown('left'));
+    expect(screen.getByText('Capital restant')).toBeOnTheScreen();
+    expect(screen.getByText('Intérêts restants')).toBeOnTheScreen();
+    expect(screen.getByText('Assurance restante')).toBeOnTheScreen();
+    expect(screen.queryByText('Capital')).toBeNull();
   });
 
-  // Sans assurance, la case n'a rien à dire : la grille reprend sa forme d'avant, toujours cohérente.
-  it('sans assurance, la case disparaît et l\'addition tient encore', () => {
+  // Sans assurance, la tuile n'a rien à dire : la grille retombe à 3, toujours cohérente.
+  it('sans assurance, la tuile disparaît et l\'addition tient encore', () => {
     mockCredits = [credit({ insurance_monthly: 0 })];
     renderWithProviders(<CreditsTab userId="u1" />);
     expect(screen.queryByTestId('recap-insurance')).toBeNull();
     expect(shown('crd') + shown('interest')).toBe(shown('left'));
+  });
+});
+
+describe('avancement et mensualité', () => {
+  /* L'anneau dit la PROPORTION que les six chiffres ne donnent pas : la part déjà versée du coût
+     total (intérêts et assurance compris), et non du seul capital. */
+  it('le pourcentage de l\'anneau est la part déjà payée du total engagé', () => {
+    renderWithProviders(<CreditsTab userId="u1" />);
+    const paid = shown('paid');
+    const attendu = Math.round((paid / (paid + shown('left'))) * 100);
+    expect(shown('pct')).toBe(attendu);
+    expect(shown('pct')).toBeGreaterThan(0);
+    expect(shown('pct')).toBeLessThan(100);
+  });
+
+  it('la mensualité cumule les crédits en cours', () => {
+    const solo = renderWithProviders(<CreditsTab userId="u1" />);
+    const un = shown('monthly');
+    expect(un).toBeGreaterThan(0);
+    solo.unmount();
+
+    mockCredits = [credit(), credit({ id: 'c2', label: 'Voiture' })];
+    renderWithProviders(<CreditsTab userId="u1" />);
+    // À l'euro d'arrondi près : on somme les mensualités RÉELLES puis on arrondit une seule fois,
+    // donc 2 × arrondi(1 159,45) ≠ arrondi(2 318,90).
+    expect(Math.abs(shown('monthly') - un * 2)).toBeLessThanOrEqual(1);
+  });
+
+  /* `nextPaymentAtDate` retombe sur la mensualité NOMINALE quand tout est remboursé — un repli utile
+     sur la fiche d'un crédit (ordre de grandeur), mais faux dans une somme : un crédit soldé ne
+     prélève plus rien, il ne doit rien ajouter au prélèvement du mois prochain. */
+  it('un crédit soldé n\'ajoute rien à la mensualité', () => {
+    mockCredits = [credit({ start_date: addMonthsISO(today, -300), first_payment_date: addMonthsISO(today, -300) })];
+    renderWithProviders(<CreditsTab userId="u1" />);
+    expect(shown('left')).toBe(0);
+    expect(shown('monthly')).toBe(0);
   });
 });
 
