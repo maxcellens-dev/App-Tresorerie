@@ -19,6 +19,7 @@ import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/da
 import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 
 /** Le nom du compte s'affiche chez les AUTRES membres d'un compte partagé : il lui faut une borne. */
@@ -36,6 +37,9 @@ export default function AddAccountScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
   const router = useRouter();
+  /* RETOUR — pas `router.back()` : il dépile la pile NATIVE, où la liste des comptes peut figurer
+     deux fois dès qu'on y est revenu par une navigation (cf. useNavBack). */
+  const goBack = useNavBack();
   const params = useLocalSearchParams<{ joint?: string }>();
   const { user } = useAuth();
   const addAccount = useAddAccount(user?.id);
@@ -161,7 +165,7 @@ export default function AddAccountScreen() {
       <View style={styles.root}>
         <SafeAreaView style={styles.safe}>
           <Text style={styles.text}>Connecte-toi pour ajouter un compte.</Text>
-          <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.btn} onPress={goBack}>
             <Text style={styles.btnLabel}>Retour</Text>
           </TouchableOpacity>
         </SafeAreaView>
@@ -174,7 +178,7 @@ export default function AddAccountScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
+        <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>

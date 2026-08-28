@@ -27,12 +27,18 @@ import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../../lib/finance/curr
 import { sanitizeAmountInput, sanitizeRateInput, parseAmountInput } from '../../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
 
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
+  /* RETOUR — `router.back()` dépile la pile NATIVE, qui n'est pas l'historique réellement suivi :
+     dès qu'on est revenu sur la fiche du compte par une NAVIGATION (« Nouveau solde », une saisie
+     avec `origin=…`), cette fiche y figure deux fois et « Retour » redescendait sur l'écran qu'on
+     venait de quitter, en boucle. useNavBack suit le chemin à plat (cf. navHistory). */
+  const goBack = useNavBack();
   /* `period` : échéance à mettre en avant. Arriver ici depuis une transaction de prélèvement
      (fiche du compte, liste des transactions) revient à demander « montre-moi CETTE échéance » —
      sans ce repère, on atterrissait en haut de la fiche, à charge de retrouver la bonne ligne
@@ -114,9 +120,9 @@ export default function CreditDetailScreen() {
   // #3 — retour matériel (Android) : revenir à la page précédente plutôt que de quitter.
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { router.back(); return true; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { goBack(); return true; });
     return () => sub.remove();
-  }, [router]));
+  }, [goBack]));
 
   /* Tout sur cette fiche (échéancier, capital restant, coût) concerne UN crédit prélevé sur UN
      compte : les montants sont donc dans la devise de CE compte, pas dans la devise de référence.
@@ -177,7 +183,7 @@ export default function CreditDetailScreen() {
   if (!credit || !amort) {
     return (
       <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
-        <ScreenHeader title="Crédit" onBack={() => router.back()} />
+        <ScreenHeader title="Crédit" onBack={goBack} />
         <Text style={styles.empty}>Crédit introuvable.</Text>
       </SafeAreaView></View>
     );
@@ -227,7 +233,7 @@ export default function CreditDetailScreen() {
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
         <ScreenHeader
           title={credit.label}
-          onBack={() => router.back()}
+          onBack={goBack}
           right={canWrite ? (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/comptes/credit-add?id=${credit.id}` as any)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="pencil" size={16} color={COLORS.blue} />

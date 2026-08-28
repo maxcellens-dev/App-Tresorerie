@@ -11,13 +11,17 @@
  * /admin/seo-center mène alors au panneau /admin, ce que l'utilisateur attend — le tableau de bord
  * ne reste que le dernier recours, pour les pages déjà à la racine.
  */
+import { useCallback } from 'react';
 import { useRouter, usePathname } from 'expo-router';
 import { consumePreviousRoute, parentRoute, resetRouteTo } from '../../lib/ui/navHistory';
 
 export function useNavBack(fallback: string = '/(tabs)/pilotage') {
   const router = useRouter();
   const pathname = usePathname();
-  return () => {
+  /* Référence STABLE tant qu'on ne change pas de page : le retour est branché sur le bouton
+     matériel d'Android (BackHandler) via un effet qui l'a en dépendance — une fonction recréée à
+     chaque rendu y réabonnait l'écouteur en boucle. */
+  return useCallback(() => {
     const prev = consumePreviousRoute();
     if (prev) { router.navigate(prev as any); return; }
     // Pas d'historique : on remonte d'un cran. L'historique repart de cette destination — sinon la
@@ -26,5 +30,5 @@ export function useNavBack(fallback: string = '/(tabs)/pilotage') {
     const target = parentRoute(pathname) ?? fallback;
     resetRouteTo(target);
     router.navigate(target as any);
-  };
+  }, [router, pathname, fallback]);
 }

@@ -31,6 +31,7 @@ import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScr
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
 import { sanitizeAmountInput, sanitizeRateInput } from '../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
@@ -66,6 +67,9 @@ function CreditAddScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
   const router = useRouter();
+  /* RETOUR — pas `router.back()` : il dépile la pile NATIVE, où la fiche du compte peut figurer
+     deux fois dès qu'on y est revenu par une navigation (cf. useNavBack dans la fiche). */
+  const goBack = useNavBack();
   const params = useLocalSearchParams<{ simulation?: string; id?: string; shared?: string }>();
   const editId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
@@ -392,7 +396,7 @@ function CreditAddScreen() {
       <ScreenGradient />
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        <ScreenHeader title={editId ? 'Modifier le crédit' : 'Nouveau crédit'} onBack={() => router.back()} />
+        <ScreenHeader title={editId ? 'Modifier le crédit' : 'Nouveau crédit'} onBack={goBack} />
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {error && <View style={styles.errorBanner}><Ionicons name="alert-circle" size={16} color={COLORS.danger} /><Text style={styles.errorText}>{error}</Text></View>}
 

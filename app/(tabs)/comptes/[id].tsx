@@ -35,6 +35,8 @@ import { recurrenceOccurrencesInMonth } from '../../../lib/finance/recurrenceMon
 import { computeContributed } from '../../../lib/finance/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { contrastRatio, darken, lighten, readableOn } from '../../../theme/palette';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { currencySymbolFor } from '../../../lib/finance/currency';
@@ -47,6 +49,7 @@ import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
 import { sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 
 
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
@@ -129,6 +132,12 @@ function AccountDetailScreen() {
   // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
   const sheetPad = useSheetBottomPadding(36);
   const router = useRouter();
+  /* RETOUR — `router.back()` dépilait la pile NATIVE, qui n'est pas l'historique réellement suivi :
+     « Nouveau solde » puis Retour revient ici en NAVIGUANT (cf. useNavBack dans solde.tsx), donc en
+     empilant une seconde fois cette fiche. Le `back()` suivant redescendait alors sur « Nouveau
+     solde » — on tournait en rond entre les deux écrans sans jamais remonter à la liste des
+     comptes. useNavBack suit le chemin à plat (navHistory) et sort de la boucle. */
+  const goBack = useNavBack();
   const params = useLocalSearchParams<{ id: string; verify?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
@@ -390,7 +399,7 @@ function AccountDetailScreen() {
       <View style={styles.root}>
         <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]}>
-          <ScreenHeader title="Compte" onBack={() => router.back()} />
+          <ScreenHeader title="Compte" onBack={goBack} />
           <Text style={styles.text}>Ce compte n’existe plus.</Text>
         </SafeAreaView>
       </View>
@@ -401,12 +410,81 @@ function AccountDetailScreen() {
   // sont mono-devise). On affiche donc le symbole de la devise du compte partout ici.
   const CURRENCY_SYMBOL = currencySymbolFor((account as any).currency);
 
+  /* ── LES ACTIONS DU COMPTE, DÉCRITES UNE FOIS ─────────────────────────────────────────────────
+     C'étaient six blocs de JSX quasi identiques, qui ne différaient que par l'icône et le geste :
+     la moindre retouche de forme se faisait donc six fois, et la liste réellement proposée selon le
+     TYPE de compte se lisait à travers six conditions éparpillées.
+
+     UNE SEULE COULEUR pour toute la rangée (cf. actionGradient plus bas) : une pastille par couleur
+     — rouge, verte, bleue, teal — faisait une rangée bariolée qui tirait l'œil plus fort que le
+     solde juste au-dessus. C'est l'icône qui distingue le geste, pas la teinte. */
+  const goAdd = (type: 'expense' | 'income' | 'transfer') =>
+    router.push(`/(tabs)/transactions/add?type=${type}&account=${id}&origin=${encodeURIComponent(`/(tabs)/comptes/${id}`)}` as any);
+
+  const accountActions: { key: string; label: string; icon: string; onPress: () => void }[] = [];
+  if (account.type === 'checking') {
+    accountActions.push({ key: 'balance', label: 'Nouveau solde', icon: 'wallet-outline', onPress: openBalanceUpdate });
+    /* DÉPENSE / RECETTE — le geste QUOTIDIEN d'un compte courant, et le seul qui manquait ici : on
+       ouvrait sa fiche pour saisir une dépense, il fallait ressortir par le « + » de la barre
+       d'onglets. Elles passent par l'UNIQUE écran de saisie (transactions/add), pré-réglé sur ce
+       compte — pas de formulaire bis. */
+    accountActions.push({ key: 'expense', label: 'Dépense', icon: 'arrow-down', onPress: () => goAdd('expense') });
+    accountActions.push({ key: 'income', label: 'Recette', icon: 'arrow-up', onPress: () => goAdd('income') });
+  }
+  if (account.type === 'investment') {
+    accountActions.push({ key: 'gainloss', label: '+/− value', icon: 'trending-up-outline', onPress: () => setEntryModal('gainloss') });
+  }
+  if (account.type === 'savings') {
+    accountActions.push({ key: 'interest', label: 'Intérêts', icon: 'cash-outline', onPress: () => setEntryModal('interest') });
+  }
+  /* APPORT — jamais sur un compte COURANT. Sur un compte d'épargne ou d'investissement, un apport
+     est un versement identifié (il alimente le capital investi, cf. computeContributed). Sur un
+     compte courant, c'est une entrée d'argent comme une autre : « Recette » la saisit correctement,
+     avec sa catégorie. La tuile y écrivait une transaction SANS catégorie — invisible du budget, et
+     indiscernable d'une jambe de virement dans l'historique du compte. */
+  if (account.type !== 'checking') {
+    accountActions.push({ key: 'apport', label: 'Apport', icon: 'add-circle-outline', onPress: () => setEntryModal('apport') });
+  }
+  /* Un SEUL écran de saisie de virement dans l'app (transactions/add) — cette fiche ouvrait le
+     sien, qui ne connaissait ni la clôture, ni les brouillons, ni les projets. Le compte visité
+     reste le compte SOURCE pré-sélectionné. */
+  accountActions.push({ key: 'transfer', label: 'Virement', icon: 'swap-horizontal', onPress: () => goAdd('transfer') });
+  // #4bis — compte joint : saisir une opération « au nom de » un membre non-user (simuler sa participation).
+  if (!!(account as any).is_joint && acctMembers.some((m) => !m.user_id)) {
+    accountActions.push({ key: 'onbehalf', label: 'Au nom de…', icon: 'people-circle-outline', onPress: () => setShowOnBehalf(true) });
+  }
+
+  /* HABILLAGE DES RONDS — l'ENCRE du thème, donc noire en clair et blanche en sombre : une seule
+     teinte pour toute la rangée, qui s'inverse avec le thème au lieu d'être choisie à la main.
+     Le dégradé est celui du bouton de saisie rapide (deux arrêts en diagonale, cf. QuickAddButton) :
+     assez pour donner du volume, sans reflet ni liseré — c'est ce liseré clair qui cerclait les
+     ronds en mode sombre. On éclaircit le HAUT d'un rond noir, on assombrit le BAS d'un rond blanc :
+     dans les deux cas la lumière vient d'en haut. */
+  const actionInk = COLORS.text;
+  const actionGradient: [string, string] = COLORS.mode === 'light'
+    ? [lighten(actionInk, 0.24), actionInk]
+    : [actionInk, darken(actionInk, 0.16)];
+  /* L'icône prend le fond du thème — le négatif exact de l'encre. Fond et encre sont tous deux
+     réglables côté admin : si le couple choisi ne contraste pas, on retombe sur un blanc/noir
+     garanti plutôt que sur une icône fantôme. */
+  const actionIconColor = contrastRatio(COLORS.bg, actionInk) >= 4.5 ? COLORS.bg : readableOn(actionInk);
+
+  /* Taille des ronds calculée sur la largeur RÉELLE dont ils disposent — la colonne entière, la
+     rangée étant posée à nu entre les deux cartes. Un diamètre en dur passait à quatre tuiles et
+     débordait à cinq (compte joint) sur un petit écran. Plafond volontairement bas : ces ronds
+     accompagnent le solde, ils ne doivent pas lui voler la vedette. */
+  const ACTION_GAP = 8;
+  const actionCell =
+    (Math.min(isDesktop ? 640 : screenWidth, 640) - 40 - ACTION_GAP * (accountActions.length - 1))
+    / Math.max(1, accountActions.length);
+  const actionCircle = Math.round(Math.max(34, Math.min(44, actionCell - 8)));
+
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
-        <ScreenHeader title={account.name} onBack={() => router.back()} />
+        <ScreenHeader title={account.name} onBack={goBack} />
 
         {/* TROIS FAÇONS DE REGARDER UN COMPTE, une seule à la fois. La fiche empilait tout —
             actions, solde, historique — et envoyait sur un AUTRE écran pour le moindre réglage.
@@ -445,123 +523,59 @@ function AccountDetailScreen() {
               <Text style={styles.typePillText}>{TYPE_LABELS[account.type] ?? account.type}</Text>
             </View>
           </View>
-
-          {/* L'ÉVOLUTION depuis l'ouverture, sous le chiffre auquel elle aboutit. Un compte sans
-              mouvement échu n'a pas d'histoire : on ne trace pas une ligne plate pour faire joli. */}
-          {balanceHistory.length >= 2 && (
-            <View style={styles.chartWrap}>
-              <BalanceChart
-                points={balanceHistory}
-                width={chartWidth}
-                color={account.type === 'investment' ? COLORS.violet : account.type === 'savings' ? COLORS.green : COLORS.blue}
-              />
-              {/* La légende ne promet PAS « depuis l'ouverture » : sur un compte fourni, la courbe
-                  démarre au plus ancien mouvement connu (cf. completeSince). Les mois sont lisibles
-                  sous l'axe — inutile d'y ajouter une affirmation qu'on ne peut pas toujours tenir. */}
-              <Text style={styles.chartCaption}>Évolution du solde</Text>
-            </View>
-          )}
         </View>
 
-          {/* Actions d'écriture masquées pour un membre en consultation (rôle read).
-              Tuiles de LARGEUR ÉGALE : la rangée de boutons-pilules de largeurs différentes se
-              cassait en deux lignes bancales dès qu'il y en avait trois. */}
-          {account._role !== 'read' && (
-          <View style={styles.actionRow}>
-            {account.type === 'checking' ? (
+        {/* LES ACTIONS, ENTRE LE CHIFFRE ET LA COURBE — et SUR LE FOND, pas dans une carte : le
+            montant et la courbe sont deux blocs d'information, les boutons sont un geste. Les
+            enfermer dans le même cadre que le solde les faisait lire comme une décoration de la
+            carte ; à nu, ils se détachent. Masqués pour un membre en consultation (rôle read).
+
+            FORME — un rond d'encre en dégradé, icône en négatif, libellé dessous. La version
+            précédente posait une pastille PÂLE (couleur à 12 % d'opacité) dans une carte elle
+            aussi pâle : à distance, la rangée se lisait comme quatre rectangles gris, pas comme
+            des boutons. */}
+        {account._role !== 'read' && accountActions.length > 0 && (
+          <View style={[styles.actionRow, { gap: ACTION_GAP }]}>
+            {accountActions.map((a) => (
               <TouchableOpacity
+                key={a.key}
                 style={styles.actionTile}
-                onPress={openBalanceUpdate}
-                activeOpacity={0.8}
+                onPress={a.onPress}
+                activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Nouveau solde"
+                accessibilityLabel={a.label}
               >
-                <View style={[styles.actionIcon, { backgroundColor: COLORS.blue + '1F' }]}>
-                  <Ionicons name="wallet-outline" size={19} color={COLORS.blue} />
-                </View>
-                <Text style={styles.actionLabel} numberOfLines={1}>Nouveau solde</Text>
+                <LinearGradient
+                  colors={actionGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.actionIcon, { width: actionCircle, height: actionCircle }]}
+                >
+                  <Ionicons name={a.icon as any} size={Math.round(actionCircle * 0.44)} color={actionIconColor} />
+                </LinearGradient>
+                {/* Deux lignes autorisées : « Nouveau solde » ne tient pas sur une seule dès qu'il y
+                    a quatre tuiles, et le tronquer donnait « Nouveau… ». */}
+                <Text style={styles.actionLabel} numberOfLines={2}>{a.label}</Text>
               </TouchableOpacity>
-            ) : null}
-            {account.type === 'investment' ? (
-              <TouchableOpacity
-                style={styles.actionTile}
-                onPress={() => setEntryModal('gainloss')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Plus / moins value"
-              >
-                <View style={[styles.actionIcon, { backgroundColor: COLORS.violet + '1F' }]}>
-                  <Ionicons name="trending-up-outline" size={19} color={COLORS.violet} />
-                </View>
-                <Text style={styles.actionLabel} numberOfLines={1}>+/− value</Text>
-              </TouchableOpacity>
-            ) : null}
-            {account.type === 'savings' ? (
-              <TouchableOpacity
-                style={styles.actionTile}
-                onPress={() => setEntryModal('interest')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Intérêts"
-              >
-                <View style={[styles.actionIcon, { backgroundColor: COLORS.green + '1F' }]}>
-                  <Ionicons name="cash-outline" size={19} color={COLORS.green} />
-                </View>
-                <Text style={styles.actionLabel} numberOfLines={1}>Intérêts</Text>
-              </TouchableOpacity>
-            ) : null}
-            {/* APPORT — jamais sur un compte COURANT. Sur un compte d'épargne ou d'investissement,
-                un apport est un versement identifié (il alimente le capital investi, cf.
-                computeContributed). Sur un compte courant, c'est une entrée d'argent comme une
-                autre : « Recette » la saisit correctement, avec sa catégorie. La tuile y écrivait
-                une transaction SANS catégorie — invisible du budget, et indiscernable d'une jambe
-                de virement dans l'historique du compte. */}
-            {account.type !== 'checking' ? (
-              <TouchableOpacity
-                style={styles.actionTile}
-                onPress={() => setEntryModal('apport')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Apport"
-              >
-                <View style={[styles.actionIcon, { backgroundColor: COLORS.orange + '1F' }]}>
-                  <Ionicons name="add-circle-outline" size={19} color={COLORS.orange} />
-                </View>
-                <Text style={styles.actionLabel} numberOfLines={1}>Apport</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={styles.actionTile}
-              /* Un SEUL écran de saisie de virement dans l'app (transactions/add) — cette fiche
-                 ouvrait le sien, qui ne connaissait ni la clôture, ni les brouillons, ni les
-                 projets. Le compte visité reste le compte SOURCE pré-sélectionné. */
-              onPress={() => router.push(`/(tabs)/transactions/add?type=transfer&account=${id}&origin=${encodeURIComponent(`/(tabs)/comptes/${id}`)}` as any)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Virement"
-            >
-              <View style={[styles.actionIcon, { backgroundColor: COLORS.emerald + '1F' }]}>
-                <Ionicons name="swap-horizontal" size={19} color={COLORS.emerald} />
-              </View>
-              <Text style={styles.actionLabel} numberOfLines={1}>Virement</Text>
-            </TouchableOpacity>
-            {/* #4bis — compte joint : saisir une opération « au nom de » un membre non-user (simuler sa participation). */}
-            {!!(account as any).is_joint && acctMembers.some((m) => !m.user_id) && (
-              <TouchableOpacity
-                style={styles.actionTile}
-                onPress={() => setShowOnBehalf(true)}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Au nom d'un membre"
-              >
-                <View style={[styles.actionIcon, { backgroundColor: COLORS.blue + '1F' }]}>
-                  <Ionicons name="people-circle-outline" size={19} color={COLORS.blue} />
-                </View>
-                <Text style={styles.actionLabel} numberOfLines={1}>Au nom de…</Text>
-              </TouchableOpacity>
-            )}
+            ))}
           </View>
-          )}
+        )}
+
+        {/* L'ÉVOLUTION depuis l'ouverture, dans sa PROPRE carte sous les boutons. Un compte sans
+            mouvement échu n'a pas d'histoire : on ne trace pas une ligne plate pour faire joli. */}
+        {balanceHistory.length >= 2 && (
+          <View style={styles.chartCard}>
+            <BalanceChart
+              points={balanceHistory}
+              width={chartWidth}
+              color={account.type === 'investment' ? COLORS.violet : account.type === 'savings' ? COLORS.green : COLORS.blue}
+            />
+            {/* La légende ne promet PAS « depuis l'ouverture » : sur un compte fourni, la courbe
+                démarre au plus ancien mouvement connu (cf. completeSince). Les mois sont lisibles
+                sous l'axe — inutile d'y ajouter une affirmation qu'on ne peut pas toujours tenir. */}
+            <Text style={styles.chartCaption}>Évolution du solde</Text>
+          </View>
+        )}
 
         {/* Première ouverture d'un compte courant vierge → inviter à renseigner le solde à date */}
         {account.type === 'checking' && Number(account.balance) === 0 && accountTransactions.length === 0 && (
@@ -968,7 +982,19 @@ function makeStyles(c: any) {
     borderColor: c.cardBorder,
     paddingHorizontal: 14,
     paddingVertical: 14,
+    marginBottom: 14,
+  },
+  /* La courbe a sa PROPRE carte : les boutons se sont intercalés entre elle et le montant, à nu
+     sur le fond. Même habillage que la carte du solde — deux blocs jumeaux séparés par un geste. */
+  chartCard: {
+    backgroundColor: c.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     marginBottom: 16,
+    alignItems: 'center',
   },
   // Montant et type sur UNE ligne : plus de libellé au-dessus ni de type en dessous.
   balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -978,19 +1004,28 @@ function makeStyles(c: any) {
     borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.cardSolid,
   },
   typePillText: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
-  chartWrap: { alignItems: 'center', marginTop: 10 },
   chartCaption: { fontSize: 10.5, color: c.textSecondary, marginTop: 2, textAlign: 'center' },
 
-  // ── Actions du compte : tuiles de largeur ÉGALE (icône + libellé), au lieu de pilules qui
-  //    se cassaient en lignes bancales selon la longueur des mots. ──
-  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  // ── Actions du compte : colonnes de largeur ÉGALE (rond dégradé + libellé), posées À NU entre la
+  //    carte du solde et celle de la courbe. Les cellules restent égales — une rangée de pilules de
+  //    largeurs différentes se cassait en lignes bancales — mais la carte-par-bouton a disparu :
+  //    le rond porte seul le bouton. Diamètre et gouttière sont calculés au rendu. ──
+  actionRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 18 },
   actionTile: {
-    flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 4,
-    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
+    flex: 1, alignItems: 'center', gap: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
-  actionIcon: { width: 36, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: 11, fontWeight: '600', color: c.text, textAlign: 'center' },
+  actionIcon: {
+    borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+    // `overflow` : le dégradé suit l'arrondi du rond au lieu d'en déborder (Android).
+    overflow: 'hidden',
+    /* Ombre neutre et DISCRÈTE. Pas de liseré clair sur le pourtour : il cerclait les ronds d'un
+       trait blanc en mode sombre. En sombre les ronds sont clairs, l'ombre noire ne se voit pas —
+       c'est voulu, le contraste avec le fond suffit à les détacher. */
+    shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 5, shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  actionLabel: { fontSize: 11, fontWeight: '700', color: c.text, textAlign: 'center', lineHeight: 13.5 },
   setupBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.blue + '14', borderWidth: 1, borderColor: c.blue + '55', borderRadius: 14, padding: 14, marginBottom: 24, marginTop: -8 },
   setupBannerTitle: { fontSize: 14, fontWeight: '700', color: c.text },
   setupBannerText: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },

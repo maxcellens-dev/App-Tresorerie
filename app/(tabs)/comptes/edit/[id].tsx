@@ -18,12 +18,16 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import AccountSettingsForm from '../../../../components/account/AccountSettingsForm';
 import PageLoader from '../../../../components/layout/PageLoader';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
 
 export default function EditAccountScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
+  /* RETOUR — pas `router.back()` : il dépile la pile NATIVE, où la fiche du compte peut figurer
+     deux fois dès qu'on y est revenu par une navigation (cf. useNavBack dans la fiche). */
+  const goBack = useNavBack();
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
@@ -40,7 +44,7 @@ export default function EditAccountScreen() {
       <View style={styles.root}>
         <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]}>
-          <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
+          <ScreenHeader title="Modifier le compte" onBack={goBack} />
           <Text style={styles.text}>Ce compte n’existe plus.</Text>
         </SafeAreaView>
       </View>
@@ -52,7 +56,7 @@ export default function EditAccountScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
+        <ScreenHeader title="Modifier le compte" onBack={goBack} />
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <AccountSettingsForm

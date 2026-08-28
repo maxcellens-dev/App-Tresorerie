@@ -462,6 +462,15 @@ export function lighten(hex: string, amount: number): string {
   return `#${ch(r)}${ch(g)}${ch(b)}`;
 }
 
+/** Assombrit une couleur hex vers le noir (amount 0 → 1 ; 0 = inchangée, 1 = noire). */
+export function darken(hex: string, amount: number): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const ch = (c: number) => Math.round(c * (1 - amount)).toString(16).padStart(2, '0');
+  return `#${ch(r)}${ch(g)}${ch(b)}`;
+}
+
 /** Remplissage « pastel » des barres : on ÉCLAIRCIT fortement la teinte vers le blanc (couleur
  *  réellement plus claire, pas juste plus transparente) puis on pose une opacité moyenne — sur
  *  fond sombre il faut assez d'opacité pour que la teinte claire ressorte sans noyer le texte. */
