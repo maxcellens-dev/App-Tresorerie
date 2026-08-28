@@ -183,7 +183,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
    * cassé. Purement décoratif (`pointerEvents="none"`) — un `<Svg>` qui capte le toucher le refuse
    * ensuite au ScrollView parent, et le doigt posé dessus ne ferait plus défiler la page.
    */
-  const ProgressRing = ({ pct }: { pct: number }) => {
+  const ProgressRing = ({ pct, label }: { pct: number; label: string }) => {
     const size = 62, stroke = 7;
     const c = size / 2;
     const r = (size - stroke) / 2;
@@ -203,7 +203,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
         </Svg>
         <View style={StyleSheet.absoluteFill as any}>
           <View style={styles.ringCenter}>
-            <Text style={styles.ringPct} testID="recap-pct">{pct}%</Text>
+            <Text style={styles.ringPct} testID="recap-pct" numberOfLines={1}>{label} %</Text>
           </View>
         </View>
       </View>
@@ -231,9 +231,13 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
     const left = crd + interest + insurance;
     const paid = Math.round(recap.paid);
     /* Avancement = part déjà versée du coût TOTAL du crédit (intérêts et assurance compris), pas du
-       seul capital : c'est l'argent réellement sorti rapporté à l'argent qui sortira en tout. */
+       seul capital : c'est l'argent réellement sorti rapporté à l'argent qui sortira en tout.
+       UNE DÉCIMALE à l'affichage : sur un prêt de vingt ans, l'entier ne bouge pas pendant des mois
+       d'affilée — le dixième, lui, avance à chaque échéance. La valeur non arrondie sert à tracer
+       l'arc et la barre, qui n'ont que faire du format. */
     const engaged = paid + left;
-    const pct = engaged > 0 ? Math.round((paid / engaged) * 100) : 0;
+    const pct = engaged > 0 ? (paid / engaged) * 100 : 0;
+    const pctLabel = pct.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
     const tiles: RecapTile[] = [
       { key: 'crd', label: 'Capital restant', icon: 'business-outline', text: money(crd), color: COLORS.text },
@@ -248,7 +252,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
     return (
       <>
         <View style={styles.recapCard}>
-          <ProgressRing pct={pct} />
+          <ProgressRing pct={pct} label={pctLabel} />
           <View style={styles.recapLines}>
             <View style={styles.recapLine}>
               <Text style={styles.recapLineLabel}>Déjà payé</Text>
@@ -471,7 +475,8 @@ function makeStyles(c: any) {
       paddingVertical: 16, paddingHorizontal: 16, marginBottom: 10,
     },
     ringCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    ringPct: { fontSize: 15, fontWeight: '800', color: c.text },
+    // 13 px : « 100,0 % » doit tenir dans les 48 px de vide au centre de l'anneau.
+    ringPct: { fontSize: 13, fontWeight: '800', color: c.text },
     recapLines: { flex: 1, minWidth: 0 },
     // Libellé à gauche, montant à droite : les deux montants s'alignent, donc se comparent.
     recapLine: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 6 },

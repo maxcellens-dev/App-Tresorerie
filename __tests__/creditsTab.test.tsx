@@ -41,12 +41,14 @@ const credit = (over: any = {}) => ({
   ...over,
 });
 
-/** Montant lu à l'écran, ramené à un nombre (« 181 411 € » → 181411). */
-const shown = (key: string): number => {
+/** Texte brut d'une valeur du récap, tel qu'il est imprimé. */
+const shownText = (key: string): string => {
   const node = screen.getByTestId(`recap-${key}`);
-  const text = Array.isArray(node.props.children) ? node.props.children.join('') : String(node.props.children);
-  return Number(text.replace(/[^\d]/g, ''));
+  return Array.isArray(node.props.children) ? node.props.children.join('') : String(node.props.children);
 };
+
+/** Montant lu à l'écran, ramené à un nombre (« 181 411 € » → 181411). */
+const shown = (key: string): number => Number(shownText(key).replace(/[^\d]/g, ''));
 
 beforeEach(() => { mockCredits = [credit()]; mockEvents = {}; });
 
@@ -81,14 +83,14 @@ describe('synthèse — l\'addition doit tomber', () => {
 
 describe('avancement et mensualité', () => {
   /* L'anneau dit la PROPORTION que les six chiffres ne donnent pas : la part déjà versée du coût
-     total (intérêts et assurance compris), et non du seul capital. */
-  it('le pourcentage de l\'anneau est la part déjà payée du total engagé', () => {
+     total (intérêts et assurance compris), et non du seul capital. Affichée avec UNE DÉCIMALE —
+     sur un prêt de vingt ans, l'entier resterait figé des mois d'affilée. */
+  it('le pourcentage de l\'anneau est la part déjà payée du total engagé, au dixième', () => {
     renderWithProviders(<CreditsTab userId="u1" />);
     const paid = shown('paid');
-    const attendu = Math.round((paid / (paid + shown('left'))) * 100);
-    expect(shown('pct')).toBe(attendu);
-    expect(shown('pct')).toBeGreaterThan(0);
-    expect(shown('pct')).toBeLessThan(100);
+    const attendu = ((paid / (paid + shown('left'))) * 100).toFixed(1).replace('.', ',');
+    expect(shownText('pct')).toBe(`${attendu} %`);
+    expect(shownText('pct')).toMatch(/^\d+,\d %$/); // toujours un dixième, jamais un entier nu
   });
 
   it('la mensualité cumule les crédits en cours', () => {
