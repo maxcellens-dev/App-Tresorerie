@@ -440,15 +440,18 @@ export default function RelykaWorldDetail() {
           {/* Onglets */}
           <View style={styles.tabs}>
             <TouchableOpacity style={[styles.tab, tab === 'expenses' && styles.tabActive]} onPress={() => setTab('expenses')}>
-              <Text style={[styles.tabText, tab === 'expenses' && styles.tabTextActive]}>Dépenses</Text>
+              <Ionicons name="receipt-outline" size={15} color={tab === 'expenses' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.tabText, tab === 'expenses' && styles.tabTextActive]} numberOfLines={1}>Dépenses</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tab, tab === 'balances' && styles.tabActive]} onPress={() => setTab('balances')}>
-              <Text style={[styles.tabText, tab === 'balances' && styles.tabTextActive]}>Équilibres</Text>
+              <Ionicons name="swap-horizontal-outline" size={15} color={tab === 'balances' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.tabText, tab === 'balances' && styles.tabTextActive]} numberOfLines={1}>Équilibres</Text>
             </TouchableOpacity>
             {/* « Par compte » : la vue de fin de projet — ce que chaque compte a réellement encaissé,
                 et de quoi tout basculer d'un coup sur le bon. */}
             <TouchableOpacity style={[styles.tab, tab === 'accounts' && styles.tabActive]} onPress={() => setTab('accounts')}>
-              <Text style={[styles.tabText, tab === 'accounts' && styles.tabTextActive]}>Par compte</Text>
+              <Ionicons name="wallet-outline" size={15} color={tab === 'accounts' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.tabText, tab === 'accounts' && styles.tabTextActive]} numberOfLines={1}>Par compte</Text>
             </TouchableOpacity>
           </View>
 
@@ -942,8 +945,8 @@ function makeStyles(c: any) {
     archiveHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginBottom: 12 },
     editCurrencyHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, marginBottom: 4 },
     editEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
-    tabs: { flexDirection: 'row', backgroundColor: c.background, borderRadius: 12, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: c.border },
-    tab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 9 },
+    tabs: { flexDirection: 'row', gap: 4, backgroundColor: c.background, borderRadius: 12, padding: 4, marginBottom: 12, borderWidth: 1, borderColor: c.border },
+    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, paddingHorizontal: 4, borderRadius: 9 },
     tabActive: { backgroundColor: c.primary + '1F' },
     tabText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, flexShrink: 1 },
     tabTextActive: { color: c.primary, fontWeight: '800' },

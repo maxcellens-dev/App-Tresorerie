@@ -55,10 +55,10 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
 type AccountTab = 'solde' | 'transactions' | 'parametres';
 
-const TABS: Array<{ id: AccountTab; label: string }> = [
-  { id: 'solde', label: 'Solde' },
-  { id: 'transactions', label: 'Transactions' },
-  { id: 'parametres', label: 'Paramètres' },
+const TABS: Array<{ id: AccountTab; label: string; icon: string }> = [
+  { id: 'solde', label: 'Solde', icon: 'stats-chart-outline' },
+  { id: 'transactions', label: 'Transactions', icon: 'list-outline' },
+  { id: 'parametres', label: 'Paramètres', icon: 'settings-outline' },
 ];
 
 const TYPE_LABELS: Record<string, string> = {
@@ -501,6 +501,7 @@ function AccountDetailScreen() {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
               >
+                <Ionicons name={t.icon as any} size={15} color={active ? COLORS.primary : COLORS.textSecondary} />
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>{t.label}</Text>
               </TouchableOpacity>
             );
@@ -963,10 +964,11 @@ function makeStyles(c: any) {
   // ── Onglets de la fiche (Solde / Transactions / Paramètres) ──
   tabBar: {
     flexDirection: 'row',
+    gap: 4,
     backgroundColor: c.background,
     borderRadius: 12,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: c.border,
   },
@@ -975,8 +977,9 @@ function makeStyles(c: any) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
     paddingVertical: 9,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     borderRadius: 9,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
