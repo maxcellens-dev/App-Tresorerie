@@ -31,8 +31,7 @@ import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
 import { notePlaceholder } from '../../../../lib/finance/txPlaceholders';
 import { appAlert } from '../../../../lib/ui/appDialog';
 import PageLoader from '../../../../components/layout/PageLoader';
-import { sanitizeAmountInput, parseAmountInput } from '../../../../lib/ui/amountInput';
-import BudgetInlineBlock from '../../../../components/budget/BudgetInlineBlock';
+import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
 
 
 function EditTransactionScreen() {
@@ -928,20 +927,10 @@ function EditTransactionScreen() {
             )}
           </View>
 
-          {/* AVANCEMENT DU BUDGET — même bloc qu'à la saisie, avec la transaction en cours d'édition
-              EXCLUE du consommé : sans ça, elle se compterait une fois dans l'historique et une
-              seconde fois dans la projection « après cette opération ». */}
-          {!isRecurring && (
-            <BudgetInlineBlock
-              categoryId={categoryId || null}
-              date={date}
-              amount={Math.abs(parseAmountInput(amount) ?? 0)}
-              // Même garde qu'à la saisie : hors compte courant, l'opération ne consomme aucun budget.
-              accountType={accounts.find((a: any) => a.id === accountId)?.type ?? null}
-              excludeTxId={params.id}
-              hidden={!isExpense}
-            />
-          )}
+          {/* PAS DE BLOC BUDGET ICI, volontairement. À la SAISIE, il aide à décider : on voit ce
+              que l'opération va consommer avant de la valider. En MODIFICATION, la dépense est déjà
+              faite et déjà comptée — le budget n'est plus qu'un chiffre de plus dans un écran qui en
+              a beaucoup, et il se consulte à sa place, dans l'onglet Budget. */}
 
           <View style={styles.submitRow}>
             <AppButton
