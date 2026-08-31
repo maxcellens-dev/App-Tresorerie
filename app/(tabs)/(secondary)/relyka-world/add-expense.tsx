@@ -14,6 +14,7 @@
  * Chacune a son mode « égal / personnalisé » : le mode égal reste le chemin par défaut, en un tap.
  */
 import React, { useMemo, useState } from 'react';
+import { chipStyles } from '../../../../lib/ui/controls';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -592,10 +593,10 @@ function makeStyles(c: any) {
     emojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
     emojiPickActive: { borderColor: c.emerald, borderWidth: 2 },
     chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-    chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
-    chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    chipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    chipTextActive: { color: c.onAccent },
+    chip: { ...chipStyles(c).chip, flexDirection: 'row', alignItems: 'center' },
+    chipActive: { ...chipStyles(c).chipActive },
+    chipText: { ...chipStyles(c).label },
+    chipTextActive: { ...chipStyles(c).labelActive },
 
     // En-tête de section : le libellé à gauche, la bascule de mode à droite.
     sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, marginBottom: 8 },
@@ -619,9 +620,9 @@ function makeStyles(c: any) {
     tallyBtn: { alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 13, borderRadius: 999, backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '55' },
     tallyBtnText: { fontSize: 12, fontWeight: '800', color: c.emerald },
 
-    cta: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
+    cta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
     ctaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
-    deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 10, borderRadius: 12, backgroundColor: c.danger + '14' },
+    deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 10, borderRadius: 12, backgroundColor: c.danger + '14' },
     deleteBtnText: { fontSize: 14, fontWeight: '700', color: c.danger },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },
     calCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 18, borderWidth: 1, borderColor: c.cardBorder, padding: 10 },

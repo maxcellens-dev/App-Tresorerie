@@ -37,7 +37,10 @@ import { computeAmortization, addMonthsISO } from '../../lib/finance/amortizatio
 import { projectMode } from '../../lib/finance/projectTx';
 import { isRegul } from '../../lib/finance/regul';
 import { todayISO } from '../../lib/dateUtils';
-import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotRecurringTransfer, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../../lib/ai/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotRecurringTransfer, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming, type SnapshotBudgets } from '../../lib/ai/aiSnapshot';
+import { useBudgetData } from './useBudgetData';
+import { buildBudgetHistory, countMonthsRespected, monthKeyOf } from '../../lib/finance/budgetEngine';
+import { addMonthKey } from '../../lib/finance/monthKeys';
 import { detectUpcomingChanges, type UpcomingTx } from '../../lib/ai/aiUpcoming';
 import { deriveEngaged, computeHealthScore } from '../../lib/ai/aiScore';
 import { usePreviousBilanMetrics, type BilanMetricsRow } from '../admin/useAi';
@@ -98,6 +101,9 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   const { data: preSavings } = usePreSavings(userId);
   // Dernier bilan global persisté → section ÉVOLUTION (« je vais dans le bon sens ? »).
   const { data: previousBilan } = usePreviousBilanMetrics(userId);
+  /* Budgets DÉCLARÉS : ce que l'utilisateur a décidé, là où tout le reste du snapshot dit ce qu'il
+     fait. Sans ça, l'IA ne peut parler que de constat — jamais d'objectif. */
+  const budgetData = useBudgetData(userId);
   // Profil financier P0-P9 : cadre les conseils (pas d'invest à un P1, etc.).
   const { data: financialProfile } = useFinancialProfile(userId);
   const snapshotProfile = useMemo(() => {
@@ -632,6 +638,30 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
     };
   }, [pilotage, incomeRef, recurrings, creditsSummary, jointContributionMonthly, history, realMonthlyIncome]);
 
+  /* Mise en forme pour l'IA : à plat, sans arborescence — une hiérarchie parente/enfant dans un
+     texte de prompt se relit mal et n'apporte rien au raisonnement. Les sous-catégories budgétées
+     sont donc listées comme les autres, avec leur propre nom. */
+  const budgetsForAi = useMemo<SnapshotBudgets | null>(() => {
+    const r = budgetData.result;
+    if (r.isEmpty) return null;
+    const flat: SnapshotBudgets['categories'] = [];
+    const walk = (l: (typeof r.rows)[number]) => {
+      flat.push({ category: l.name, amount: l.budget, spent: l.spent, period: l.period });
+      l.children.forEach(walk);
+    };
+    r.rows.forEach(walk);
+    r.annual.forEach(walk);
+    const points = buildBudgetHistory(
+      Array.from({ length: 6 }, (_, i) => addMonthKey(monthKeyOf(todayISO()), i - 5)),
+      budgetData.fluxTx, budgetData.accountTypeById, budgetData.budgets ?? [], budgetData.today,
+    );
+    return {
+      global: r.total.hasBudget ? { amount: r.total.budget, spent: r.total.spent, pct: r.total.pct ?? 0 } : null,
+      categories: flat,
+      history: countMonthsRespected(points),
+    };
+  }, [budgetData.result, budgetData.fluxTx, budgetData.accountTypeById, budgetData.budgets, budgetData.today]);
+
   const build = () => {
     const now = new Date();
     return buildSnapshot({
@@ -668,6 +698,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       jointContributionMonthly,
       investContributed,
       incomeByMonth: (pilotage?.projection_income_12m ?? []).slice(0, 6),
+      budgets: budgetsForAi,
       realMonthlyIncome,
       evolution: previousBilan && currentBilanMetrics
         ? { previousDate: previousBilan.date, previous: previousBilan.metrics, current: currentBilanMetrics }

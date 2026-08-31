@@ -16,6 +16,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AppButton from '../ui/AppButton';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCredits } from '../../hooks/data/useCredits';
@@ -437,10 +438,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
         </>
       )}
 
-      <TouchableOpacity style={styles.addBtn} onPress={() => setShowType(true)} accessibilityRole="button">
-        <Ionicons name="add" size={18} color={COLORS.onAccent} />
-        <Text style={styles.addBtnLabel}>Ajouter un crédit</Text>
-      </TouchableOpacity>
+      <AppButton label="Ajouter un crédit" icon="add" size="lg" onPress={() => setShowType(true)} style={{ marginTop: 14 }} />
 
       {/* Modal type de crédit (perso / partagé) */}
       <Modal visible={showType} transparent animationType="fade" onRequestClose={() => setShowType(false)}>
@@ -541,7 +539,7 @@ function makeStyles(c: any) {
     emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
     emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text },
     emptyText: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
-    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 12, marginTop: 14 },
+    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12, marginTop: 14 },
     addBtnLabel: { color: c.onAccent, fontWeight: '800', fontSize: 14 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
     card: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 12 },

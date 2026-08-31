@@ -994,10 +994,10 @@ function makeStyles(c: any) {
     },
     errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
     confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
-    confirmBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
+    confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
     confirmText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     // Volontairement discret : c'est une sortie, pas une action concurrente de la clôture.
-    laterBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
+    laterBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 2 },
     laterText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
   });
 }

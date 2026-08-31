@@ -67,6 +67,8 @@ import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } 
 /* Calculs dérivés du tableau de bord : purs dans lib/pilotageView, câblés par ce hook
    (cf. docs/PLAN_REFACTOR_TESTS.md, phase C2). L'écran ne fait plus que du rendu. */
 import { usePilotageViewModel } from '../../hooks/pilotage/usePilotageViewModel';
+import { useBudgetData } from '../../hooks/data/useBudgetData';
+import { composeBudgetMessage } from '../../lib/finance/recoMessages';
 import { shortDay, eur, computeRelykaBreakdown, staleReservationIds } from '../../lib/finance/pilotageView';
 
 
@@ -375,6 +377,17 @@ function PilotageScreen() {
      état d'installation, recommandations. C'était ~400 lignes ici même — donc intestables autrement
      qu'à l'œil, sur l'écran. Les calculs sont désormais purs (lib/pilotageView, horloge injectable)
      et ce hook ne fait que les mémoïser. Cf. docs/PLAN_REFACTOR_TESTS.md, phase C2. */
+  /* BUDGET — un commentaire, jamais un calcul. La phrase (une seule, cf. `composeBudgetMessage`)
+     rejoint le carrousel du Relyka en dernière position. Aucun montant de l'écran n'en dépend :
+     sans budget, `budgetMessage` vaut `null` et le tableau de bord est celui d'avant. */
+  const budgetForReco = useBudgetData(user?.id);
+  const budgetMessage = useMemo(() => composeBudgetMessage({
+    budget: budgetForReco.result.total.budget,
+    spent: budgetForReco.result.total.spent,
+    pace: budgetForReco.result.pace,
+    envelope: pilotageData?.variable_envelope_initial ?? 0,
+  }), [budgetForReco.result, pilotageData?.variable_envelope_initial]);
+
   const vm = usePilotageViewModel({
     pilotageData,
     accounts,
@@ -393,6 +406,7 @@ function PilotageScreen() {
     colors: COLORS,
     baseDataReady,
     guideIs: (s) => userGuide.is(s as any),
+    budgetMessage,
   });
   const {
     preEpargneTotal, preInvestTotal, reservationsTotal, mainCheckingId,

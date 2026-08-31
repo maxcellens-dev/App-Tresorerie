@@ -34,6 +34,9 @@ import { todayISO } from '../../lib/dateUtils';
 import { addMonthKey } from '../../lib/finance/monthKeys';
 import { computeSecurityCushion, securityBaseLabel } from '../../lib/finance/securityCushion';
 import { buildPerimeterCtx, transformFluxTransactions, fluxFactor, effectiveSharedMode } from '../../lib/finance/perimeter';
+import { useBudgets } from '../../hooks/data/useBudgets';
+import { buildBudgetHistory, countMonthsRespected } from '../../lib/finance/budgetEngine';
+import BudgetBars from '../../components/charts/BudgetBars';
 import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMonthOverrides';
 import {
   monthsWindow, futureMonthsWindow, buildMonthlyFlux, buildForecastFlux, variableShareByAccount,
@@ -709,6 +712,24 @@ function ReportingBody() {
   /** L'historique affiché est-il RACCOURCI par la troncature (et pas simplement par l'ancienneté du compte) ? */
   const historyTruncated = !!historyFloorYM && months.length < 6 && months[0]?.ym === historyFloorYM;
 
+  /* ══ TENUE DES BUDGETS ═══════════════════════════════════════════════════════════════════════
+     Le Reporting montre la TENDANCE — dépensé contre budget, mois après mois. Le DÉTAIL par
+     catégorie, lui, vit dans l'onglet Budget, qui sait faire mieux (périodes, année, édition) : le
+     redire ici ne donnait pas une seconde lecture, seulement un second endroit à tenir d'accord.
+     Même moteur que l'onglet Budget, et les mêmes transactions passées par le périmètre flux. */
+  const { data: budgetRows } = useBudgets(user?.id);
+  const budgetHistory = useMemo(
+    () => buildBudgetHistory(
+      months.map((m) => m.ym), fluxTx as any[], typeById, budgetRows ?? [], today,
+      (categories ?? []).map((c: any) => ({ id: c.id, name: c.name, parent_id: c.parent_id ?? null, type: c.type })),
+    ),
+    [months, fluxTx, typeById, budgetRows, today, categories],
+  );
+  const budgetRespected = useMemo(() => countMonthsRespected(budgetHistory), [budgetHistory]);
+  /** Colonne choisie dans le graphe (le bandeau de détail sous les barres la suit). */
+  const [budgetSel, setBudgetSel] = useState<number | null>(null);
+  const budgetSelIndex = budgetSel != null && budgetSel < budgetHistory.length ? budgetSel : Math.max(0, budgetHistory.length - 1);
+
   /* ══ Revenus vs Dépenses — filtre par compte courant + 3 mois d'anticipation ══════════════════
      Le filtre ne vaut QUE pour cette section : le reste de la page (patrimoine, catégories, bilan)
      raisonne sur l'ensemble, et le restreindre à un compte n'aurait pas de sens.
@@ -1169,6 +1190,34 @@ function ReportingBody() {
               <View style={s.chartCard} onLayout={onChartCardLayout}><HBarCompare rows={topCategories} width={chartWidth} /></View>
             </View>
           </FadeIn>
+
+          {/* ══ TENUE DES BUDGETS ══
+              Ne s'affiche QUE si au moins un mois de la fenêtre porte un budget : sans budget, la
+              page reste rigoureusement celle d'avant — pas de bloc vide invitant à en créer un. */}
+          {budgetHistory.some((h) => h.hasBudget) && (
+            <>
+              <FadeIn delay={385}>
+                <View style={s.section}>
+                  <View style={s.sectionHeader}>
+                    <Ionicons name="flag-outline" size={20} color={C.income} />
+                    <Text style={[s.sectionTitle, { flex: 1 }]}>Dépensé vs budget</Text>
+                  </View>
+                  <Text style={s.sectionSub}>
+                    Le trait est ton budget du mois · {budgetHistory.length} mois
+                    {budgetRespected.total > 0 ? ` · tenu ${budgetRespected.respected} mois sur ${budgetRespected.total}` : ''}
+                  </Text>
+                  <View style={s.chartCard} onLayout={onChartCardLayout}>
+                    <BudgetBars data={budgetHistory} width={chartWidth} selected={budgetSelIndex} onSelect={setBudgetSel} />
+                  </View>
+                </View>
+              </FadeIn>
+              {/* Il y avait ici un second bloc « Budgets par catégorie ». Il redisait exactement ce
+                  que montre l'onglet Budget, en moins bien : pas de sélection de période, pas
+                  d'année, pas d'édition. Le Reporting garde ce qu'il sait faire de mieux — la
+                  TENDANCE sur plusieurs mois — et laisse le détail par catégorie à l'écran dont
+                  c'est le métier. */}
+            </>
+          )}
 
           {/* ══ ÉPARGNE & INVESTISSEMENT ══ */}
           <FadeIn delay={410}><GroupHeader icon="leaf-outline" title="Épargne et Investissement" color={ACCOUNT_COLORS.savings} /></FadeIn>

@@ -13,6 +13,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, Modal, Pressable, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import type { AppColors } from '../../theme/palette';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import AppButton from '../ui/AppButton';
 // Règle de saisie PARTAGÉE par tous les champs de montant de l'app (cf. lib/ui/amountInput).
 import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 
@@ -85,20 +86,11 @@ export default function PilotageInputModal({
             <Text style={s.varModalUnit} numberOfLines={1}>{unit}</Text>
           </View>
           {children}
+          {/* « Annuler » à GAUCHE et en creux, l'action à droite et pleine : l'ordre et le poids
+              sont les mêmes dans tous les modaux de l'app (cf. components/ui/AppButton). */}
           <View style={s.varModalActions}>
-            {canCancel && (
-              <TouchableOpacity style={s.varModalCancel} onPress={onCancel} accessibilityRole="button">
-                <Text style={s.varModalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[s.varModalSave, saveDisabled && { opacity: 0.45 }]}
-              onPress={saveOnce}
-              disabled={saveDisabled}
-              accessibilityRole="button"
-            >
-              <Text style={s.varModalSaveText}>{saveLabel}</Text>
-            </TouchableOpacity>
+            {canCancel && <AppButton label="Annuler" variant="secondary" size="lg" full onPress={onCancel} />}
+            <AppButton label={saveLabel} size="lg" full disabled={saveDisabled} onPress={saveOnce} />
           </View>
         </Pressable>
       </KeyboardAwareOverlay>
@@ -121,9 +113,6 @@ export function makeStyles(c: AppColors) {
     },
     varModalUnit: { fontSize: 14, color: c.textSecondary, fontWeight: '600', flexShrink: 0 },
     varModalActions: { flexDirection: 'row', gap: 12, marginTop: 22 },
-    varModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-    varModalCancelText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
-    varModalSave: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
-    varModalSaveText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
+    // Boutons du modal : `components/ui/AppButton`.
   });
 }

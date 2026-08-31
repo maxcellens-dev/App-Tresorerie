@@ -47,7 +47,7 @@ function TabsHeader({ desktop = false }: { desktop?: boolean }) {
     '(tabs)/projection': 'Projection',
     '(tabs)/transactions': 'Transactions',
     '(tabs)/comptes': 'Comptes',
-    '(tabs)/projects': 'Projets',
+    '(tabs)/projects': 'Budget',
     '(tabs)/reporting': 'Reporting',
     '(tabs)/conseils-ia': 'Conseils Intelligents',
     '(tabs)/tresorerie': 'Plan de trésorerie',
@@ -183,10 +183,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="projects"
         options={{
-          title: 'Projets',
-          tabBarLabel: 'Projets',
+          title: 'Budget',
+          tabBarLabel: 'Budget',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'flag' : 'flag-outline'} size={24} color={color} style={styles.icon} />
+            <Ionicons name={focused ? 'pie-chart' : 'pie-chart-outline'} size={24} color={color} style={styles.icon} />
           ),
         }}
       />

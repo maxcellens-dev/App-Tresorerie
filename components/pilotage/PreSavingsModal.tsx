@@ -6,6 +6,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Alert, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AppButton from '../ui/AppButton';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import type { PreSavingType } from '../../types/database';
@@ -121,25 +122,27 @@ export default function PreSavingsModal({
             </View>
           )}
 
-          {/* Boutons */}
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: accent }, saisi <= 0 && { opacity: 0.5 }]}
-            onPress={once(() => { if (saisi > 0) onSave(saisi); })}
+          {/* Boutons — teintés par le DOMAINE (vert épargne / violet investissement), qui a déjà
+              sa couleur partout ailleurs dans l'app. L'encre du libellé est déduite de cette
+              teinte : elle était écrite en dur (`#06281f`), donc illisible dès que l'accent
+              changeait. */}
+          <AppButton
+            label="Enregistrer"
+            size="lg"
+            tone={accent}
             disabled={saisi <= 0}
-          >
-            <Text style={styles.primaryLabel}>Enregistrer</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: accent + '60' }]}
-            onPress={once(() => onCreateTransfer(nouveauTotal))}
+            onPress={once(() => { if (saisi > 0) onSave(saisi); })}
+            style={{ marginTop: 4 }}
+          />
+          <AppButton
+            label={`Créer le virement global (${Math.round(nouveauTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL})`}
+            variant="secondary"
+            icon="swap-horizontal"
+            tone={accent}
             disabled={nouveauTotal <= 0}
-          >
-            <Ionicons name="swap-horizontal" size={16} color={accent} />
-            <Text style={[styles.secondaryLabel, { color: accent }]}>
-              Créer le virement global ({Math.round(nouveauTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL})
-            </Text>
-          </TouchableOpacity>
+            onPress={once(() => onCreateTransfer(nouveauTotal))}
+            style={{ marginTop: 8 }}
+          />
 
           {total > 0 && (
             <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
@@ -184,7 +187,6 @@ function makeStyles(c: any) {
     },
     warnText: { flex: 1, fontSize: 12, color: '#f87171', fontWeight: '500' },
     primaryBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-    primaryLabel: { fontSize: 15, fontWeight: '700', color: '#06281f' },
     secondaryBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       borderRadius: 12, paddingVertical: 13, borderWidth: 1,

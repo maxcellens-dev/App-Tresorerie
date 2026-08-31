@@ -56,7 +56,7 @@ export interface PulseFeedback {
   chips: PulseDeltaChip[];
   /** Solde projeté au 1er du mois suivant, recalculé PAR ARITHMÉTIQUE (cf. computeEndOfMonth). */
   endOfMonth: EndOfMonthPreview | null;
-  /** Budget du quotidien : le SEUL chiffre qu'une dépense variable déplace (cf. EnvelopePreview). */
+  /** Dépenses variables du mois : le SEUL chiffre qu'une dépense variable déplace. */
   envelope: EnvelopePreview | null;
 }
 
@@ -262,7 +262,7 @@ function directChip(op: PulseOp): PulseDeltaChip {
       tone: 'caution',
     };
   }
-  // Courant → courant : l'argent ne quitte pas le budget du quotidien.
+  // Courant → courant : l'argent ne quitte pas le périmètre des dépenses variables.
   return { key: 'direct', text: `${eur(amount)} déplacés — ton budget ne change pas`, tone: 'neutral' };
 }
 

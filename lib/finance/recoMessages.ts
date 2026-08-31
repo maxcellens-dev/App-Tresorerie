@@ -171,6 +171,57 @@ export function unverifiedRelykaMessage(conf: {
  * Séparés de ceux des décisions — ils vivent à un autre endroit de l'écran et ne doivent pas se
  * mélanger à des explications d'épargne ou d'investissement.
  */
+/**
+ * LES TROIS SIGNAUX DU BUDGET, réduits à UNE phrase — ou à rien.
+ *
+ * ⚠️ Le budget n'entre dans AUCUN calcul : il ne change ni le Relyka, ni sa répartition, ni le
+ * profil. Il ne fait que se DIRE. Cette fonction est donc le seul endroit où il touche les recos.
+ *
+ * Un seul message maximum, par ordre de ce qui apprend le plus :
+ *   1. `over`  — dépassement CONSTATÉ : un fait, on le nomme et on s'arrête là ;
+ *   2. `pace`  — rythme qui mènerait au dépassement, mais SEULEMENT une fois le mois assez avancé
+ *                (`variablePacePercentage` rend `null` avant 25 % du mois — le 4 du mois, 10 %
+ *                consommé n'est ni un exploit ni une alerte) ;
+ *   3. `gap`   — budget volontairement sous les dépenses habituelles : ce n'est pas une erreur,
+ *                c'est un objectif de réduction. On dit l'écart à combler, sans jugement.
+ *
+ * Le ton ne culpabilise jamais : un dépassement est une information. Il ne casse aucune série, ne
+ * retire aucun succès et ne déclenche aucune notification.
+ */
+export function composeBudgetMessage(input: {
+  /** Budget global du mois (0 = aucun). */
+  budget: number;
+  spent: number;
+  /** Rythme rapporté à l'avancement du mois, ou `null` s'il est trop tôt pour conclure. */
+  pace: number | null;
+  /** Enveloppe variable habituelle — pour l'écart « budget sous mes dépenses habituelles ». */
+  envelope: number;
+}): string | null {
+  const { budget, spent, pace, envelope } = input;
+  if (!(budget > 0)) return null;
+
+  if (spent > budget) {
+    return `Tu as dépassé ton budget de ${eur(spent - budget)} ce mois-ci (${eur(spent)} sur ${eur(budget)}). Si l'écart revient tous les mois, le budget est peut-être à revoir.`;
+  }
+
+  // Seuil à 115 % : en dessous, l'écart tient dans le bruit d'un mois normal et une alerte serait
+  // du bruit elle aussi.
+  if (pace != null && pace > 115) {
+    const projected = (pace / 100) * budget;
+    return `À ce rythme, tu terminerais le mois autour de ${eur(projected)} pour un budget de ${eur(budget)}. Il te reste ${eur(budget - spent)} à dépenser pour le tenir.`;
+  }
+
+  // 5 % de marge : un budget à 990 € pour 1 000 € de dépenses habituelles ne mérite pas un discours.
+  if (envelope > 0 && budget < envelope * 0.95) {
+    return `Ton budget de ${eur(budget)} est ${eur(envelope - budget)} en dessous de ce que tu dépenses d'habitude (${eur(envelope)}). C'est l'écart à combler — Relyka continue de prévoir tes dépenses habituelles, lui, tant qu'elles n'ont pas changé.`;
+  }
+
+  if (spent > 0) {
+    return `Tu as dépensé ${eur(spent)} sur ton budget de ${eur(budget)}. Il te reste ${eur(budget - spent)} pour le mois.`;
+  }
+  return null;
+}
+
 export function buildRelykaMessages(input: {
   /** Ce qu'EST le chiffre. Voir `baseIsGeneric`. */
   baseMessage?: string;
@@ -190,12 +241,14 @@ export function buildRelykaMessages(input: {
   guardMessage?: string | null;
   /** Solde non vérifié depuis longtemps : la phrase que portait le bandeau ambre des recos. */
   unverifiedMessage?: UnverifiedMessage | string | null;
+  /** UN SEUL message budget, déjà composé (cf. composeBudgetMessage) — ou rien. */
+  budgetMessage?: string | null;
   relykaColor: string;
   warnColor: string;
 }): RecoMessage[] {
   const {
     baseMessage, baseIsGeneric, troughMessage, incomeGuessedMessage,
-    guardMessage, unverifiedMessage, relykaColor, warnColor,
+    guardMessage, unverifiedMessage, budgetMessage, relykaColor, warnColor,
   } = input;
 
   const base: RecoMessage | null = baseMessage?.trim()
@@ -225,6 +278,13 @@ export function buildRelykaMessages(input: {
   }
   if (incomeGuessedMessage?.trim()) {
     substantive.push({ key: 'relyka:income', label: 'Ta rentrée d’argent', color: warnColor, text: incomeGuessedMessage.trim(), icon: 'help-circle-outline', tone: 'warn' });
+  }
+  /* LE BUDGET PARLE EN DERNIER, et une seule fois. C'est une information sur une intention, pas une
+     contrainte de trésorerie : la faire passer devant le point bas ou le garde-fou inverserait la
+     hiérarchie de ce qui est réellement urgent. Ton `info`, jamais `warn` — même en dépassement :
+     dépasser un budget qu'on s'est fixé n'est pas un incident. */
+  if (budgetMessage?.trim()) {
+    substantive.push({ key: 'relyka:budget', label: 'Ton budget', color: relykaColor, text: budgetMessage.trim(), icon: 'flag-outline', tone: 'info' });
   }
 
   if (!base) return substantive;

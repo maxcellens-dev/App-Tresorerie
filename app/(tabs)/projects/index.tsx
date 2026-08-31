@@ -13,6 +13,8 @@ import {
   Alert,
 } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
+import SegmentedControl from '../../../components/ui/SegmentedControl';
+import BudgetsView from '../../../components/budget/BudgetsView';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
 import AdSlot from '../../../components/marketing/AdSlot';
@@ -57,6 +59,9 @@ const MODE_CARD: Record<ProjectMode, { badge: string; icon: string; target: stri
 };
 
 
+/** Les deux façons de regarder son argent à venir : le mois (budgets) et les mois (projets). */
+type SubView = 'budgets' | 'projects';
+
 function ProjectsScreen() {
   const COLORS = useAppColors();
   const onbProject = useOnbHighlight('project');
@@ -83,6 +88,19 @@ function ProjectsScreen() {
   // Stats des projets partagés (participants, total, répartition) → visibles SUR la carte.
   const { data: rwStats = {} } = useRwProjectsStats(user?.id, activeRwProjects.map((p) => p.id));
   const RW_MEMBER_COLORS = [COLORS.emerald, COLORS.violet, COLORS.orange, COLORS.blue, COLORS.teal];
+  /* Sous-onglet affiché. « Budgets » par défaut — c'est le nom de l'onglet — SAUF quand une
+     invitation à un projet partagé attend : la pastille promet quelque chose, l'écran doit le tenir
+     sans obliger à un clic de plus. */
+  const [view, setView] = useState<SubView>('budgets');
+  /** Bas du segment « Budgets / Projets » — la vue Budgets en a besoin pour aligner ses onglets. */
+  const [segBottom, setSegBottom] = useState(0);
+  const invitesSeen = useRef(false);
+  useEffect(() => {
+    if (invitesSeen.current || rwInvitations.length === 0) return;
+    invitesSeen.current = true;
+    setView('projects');
+  }, [rwInvitations.length]);
+
   const [showInfo, setShowInfo] = useState(false);
   const [showTypeChoice, setShowTypeChoice] = useState(false);
   // Bannière interne « Projets › + Projet » : on arrive ici avec le choix du type déjà ouvert.
@@ -481,6 +499,29 @@ function ProjectsScreen() {
       <ScreenGradient />
       <OnboardingHintBanner />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={['left', 'right']}>
+        {/* BUDGETS ET PROJETS RÉPONDENT À LA MÊME QUESTION — où va mon argent, et où je veux qu'il
+            aille — l'un dans le mois, l'autre sur plusieurs. Ils partagent donc l'onglet. La ROUTE
+            reste `projects` : seul le libellé de l'onglet devient « Budget » (cf. CustomTabBar).
+
+            Un SEGMENT et non des onglets de page : les onglets de page de cet écran sont
+            « Catégories / Historique », dans la vue Budgets.
+
+            `onLayout` : ce segment fait partie de ce que la page pose AU-DESSUS de ces onglets-là.
+            La vue Budgets ne peut pas le mesurer (il vit ici), et l'oublier faussait tout le calcul
+            d'alignement — d'où `y + height`, transmis en `aboveOffset`. */}
+        <View onLayout={(e) => setSegBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
+          <SegmentedControl
+            options={[
+              { value: 'budgets', label: 'Budgets', icon: 'pie-chart-outline' },
+              { value: 'projects', label: 'Projets', icon: 'flag-outline', badge: rwInvitations.length },
+            ]}
+            value={view}
+            onChange={(v) => setView(v as SubView)}
+            style={{ marginBottom: 12 }}
+          />
+        </View>
+        {view === 'budgets' ? <BudgetsView aboveOffset={segBottom} /> : (
+        <>
         <View style={styles.header}>
           <TouchableOpacity
             ref={addBtnRef}
@@ -647,6 +688,8 @@ function ProjectsScreen() {
               />
             }
           />
+        )}
+        </>
         )}
       </SafeAreaView>
 
@@ -959,6 +1002,8 @@ function ProjectsScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.background },
+  /* Retrait de page. Le `paddingTop` sépare le premier bloc de l'en-tête global.
+     */
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, width: '100%' },
   addBtn: {

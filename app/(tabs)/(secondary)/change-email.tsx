@@ -235,14 +235,14 @@ function makeStyles(c: any) {
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 18, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hint: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: -8, marginBottom: 16 },
     error: { fontSize: 13, fontWeight: '600', color: c.danger, marginBottom: 14, lineHeight: 18 },
-    btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 2 },
+    btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 2 },
     btnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     sentCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.emerald + '40', borderRadius: 16, padding: 20, alignItems: 'center', gap: 10 },
     sentTitle: { fontSize: 17, fontWeight: '800', color: c.text },
     sentText: { fontSize: 13.5, color: c.textSecondary, textAlign: 'center', lineHeight: 19 },
     sentEmail: { fontWeight: '700', color: c.text },
     strong: { fontWeight: '700', color: c.text },
-    secondaryBtn: { paddingVertical: 10, paddingHorizontal: 16, marginTop: 4 },
+    secondaryBtn: { paddingVertical: 14, paddingHorizontal: 16, marginTop: 4 },
     secondaryLabel: { fontSize: 13.5, fontWeight: '700', color: c.accentText },
   });
 }

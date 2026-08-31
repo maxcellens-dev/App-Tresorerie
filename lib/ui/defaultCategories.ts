@@ -16,6 +16,23 @@ export interface DefaultCategoryItem {
   children?: string[];
 }
 
+/**
+ * « MOUVEMENTS » — la catégorie des écritures NEUTRES : l'argent change de poche sans quitter le
+ * patrimoine (virement vers l'épargne, vers l'investissement).
+ *
+ * Elle n'a rien à faire dans un choix de catégorie de DÉPENSE : on ne « dépense » pas un virement
+ * interne, et on ne se fixe pas un budget dessus. Le test se faisait par nom, recopié à
+ * l'identique dans le sélecteur de catégorie et dans le formulaire de projet — voici la troisième
+ * occurrence, donc le bon moment pour n'en garder qu'une.
+ *
+ * Le nom est ÉDITABLE par l'utilisateur (et par l'admin, cf. migration 106) : le test est donc
+ * insensible à la casse et aux accents, mais il reste un test par nom. C'est le prix d'une
+ * catégorie qui n'a pas de marqueur en base — si elle en gagne un un jour, c'est ici que ça change.
+ */
+export function isMovementsCategory(name: string | null | undefined): boolean {
+  return String(name ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim() === 'mouvements';
+}
+
 export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   // RECETTES — ordre : Revenu, Autres recettes, Aides & Subventions, Prêts & Finance
   { name: 'Revenu', type: 'income', sort_order: 0, children: ['Gérant Société', 'Salaire, Traitement', 'Dividendes'] },

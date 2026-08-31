@@ -13,7 +13,7 @@ import { useCreditInvitations, useSharedCreditsRealtime } from '../../hooks/data
 import { UnreadBadge } from './HeaderWithProfile';
 
 type TabName = 'comptes' | 'projects' | 'pilotage' | 'transactions' | 'projection';
-type IconName = 'wallet' | 'flag' | 'home' | 'list' | 'trending-up';
+type IconName = 'wallet' | 'pie-chart' | 'home' | 'list' | 'trending-up';
 
 interface TabItem {
   name: TabName;
@@ -25,7 +25,12 @@ const ITEMS: TabItem[] = [
   { name: 'comptes', label: 'Comptes', icon: 'wallet' },
   { name: 'transactions', label: 'Transactions', icon: 'list' },
   { name: 'pilotage', label: 'Pilotage', icon: 'home' },
-  { name: 'projects', label: 'Projets', icon: 'flag' },
+  /* Le SEGMENT de route reste `projects` alors que le libellé dit « Budget » : renommer l'URL
+     casserait huit références (nav web, config publicitaire, cibles du guide, liens Relyka World)
+     et surtout les liens profonds déjà envoyés en notification. Personne ne lit l'URL ; tout le
+     monde lit l'étiquette. C'est aussi ce qui garde vivante la pastille d'invitations ci-dessous,
+     qui se teste sur `it.name === 'projects'`. */
+  { name: 'projects', label: 'Budget', icon: 'pie-chart' },
   { name: 'projection', label: 'Projection', icon: 'trending-up' },
 ];
 

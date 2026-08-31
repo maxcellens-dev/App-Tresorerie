@@ -470,7 +470,7 @@ function makeStyles(c: any) {
     cardTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 2 },
     bullet: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     bulletText: { flex: 1, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
-    exportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 16 },
+    exportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14 },
     exportText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
     note: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 16, textAlign: 'center' },
   });

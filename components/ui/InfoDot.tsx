@@ -334,7 +334,7 @@ function makeStyles(c: any) {
     bodyFade: { position: 'absolute', left: 0, right: 0, height: 22 },
     text: { fontSize: 14.5, lineHeight: 21, color: c.text },
     hint: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
-    btn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
+    btn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
     btnLabel: { fontSize: 15, fontWeight: '700' },
     // Échelle des profils (fiche « Ton profil financier » uniquement).
     scale: { gap: 8 },

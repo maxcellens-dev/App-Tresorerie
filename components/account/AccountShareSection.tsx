@@ -10,6 +10,8 @@
  */
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import AppButton from '../ui/AppButton';
+import SegmentedControl from '../ui/SegmentedControl';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
@@ -154,18 +156,18 @@ export default function AccountShareSection({ account }: { account: Account }) {
             placeholder="Nom (optionnel, ou simple nom externe)"
             placeholderTextColor={COLORS.textSecondary}
           />
-          <View style={styles.roleRow}>
-            {(['write', 'read'] as const).map((r) => (
-              <TouchableOpacity key={r} style={[styles.roleChip, role === r && styles.roleChipActive]} onPress={() => setRole_(r)}>
-                <Text style={[styles.roleChipText, role === r && styles.roleChipTextActive]}>
-                  {r === 'write' ? 'Écriture' : 'Consultation'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity style={[styles.inviteBtn, invite.isPending && { opacity: 0.6 }]} onPress={doInvite} disabled={invite.isPending}>
-            {invite.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.inviteBtnText}>Envoyer l'invitation / Ajouter membre</Text>}
-          </TouchableOpacity>
+          <SegmentedControl
+            options={[{ value: 'write', label: 'Écriture' }, { value: 'read', label: 'Consultation' }]}
+            value={role}
+            onChange={(v) => setRole_(v as 'write' | 'read')}
+            role="radio"
+            style={{ marginBottom: 10 }}
+          />
+          <AppButton
+            label="Envoyer l'invitation / Ajouter membre"
+            loading={invite.isPending}
+            onPress={doInvite}
+          />
         </View>
       ) : (
         <Text style={styles.disabledNote}>Le partage de comptes perso est actuellement désactivé.</Text>
@@ -192,12 +194,9 @@ function makeStyles(c: any) {
     inviteLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 14 },
     roleRow: { flexDirection: 'row', gap: 8 },
-    roleChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-    roleChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
-    roleChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    roleChipTextActive: { color: c.text, fontWeight: '700' },
-    inviteBtn: { backgroundColor: c.text, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 2 },
-    inviteBtnText: { fontSize: 14.5, fontWeight: '800', color: c.bg },
+    /* Rôle et bouton d'invitation : `SegmentedControl` + `AppButton`. Le bouton était en `c.text`
+       sur `c.bg` — une troisième couleur de bouton, propre à cet écran, qui ne suivait pas
+       l'accent. */
     disabledNote: { fontSize: 12, color: c.textSecondary, fontStyle: 'italic', marginTop: 10 },
   });
 }

@@ -7,6 +7,7 @@
  *  - Historique des envois (table admin_notifications).
  */
 import React, { useMemo, useState } from 'react';
+import { chipStyles } from '../../../../lib/ui/controls';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, Switch, Modal, Pressable } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -780,10 +781,10 @@ function makeStyles(c: any) {
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     modalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-    chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
+    chip: { ...chipStyles(c).chip },
     chipSm: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
-    chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    chipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    chipTextActive: { color: c.onAccent },
+    chipActive: { ...chipStyles(c).chipActive },
+    chipText: { ...chipStyles(c).label },
+    chipTextActive: { ...chipStyles(c).labelActive },
   });
 }

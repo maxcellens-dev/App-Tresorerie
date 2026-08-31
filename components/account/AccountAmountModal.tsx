@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import AppButton from '../ui/AppButton';
 import CalendarWithPicker from '../transaction/CalendarWithPicker';
 import { formatDateFrench, todayISO } from '../../lib/dateUtils';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
@@ -237,18 +238,11 @@ export default function AccountAmountModal({
               placeholderTextColor={COLORS.textSecondary}
             />
 
+            {/* Teinté par le type de compte (`accent`), comme le reste de la modale. L'encre du
+                libellé était en `#000` : illisible dès que la teinte devenait sombre. */}
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.cancel} onPress={onClose} activeOpacity={0.7}>
-                <Text style={styles.cancelLabel}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirm, { backgroundColor: accent }, busy && { opacity: 0.5 }]}
-                onPress={submit}
-                disabled={busy}
-                activeOpacity={0.8}
-              >
-                {busy ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.confirmLabel}>Valider</Text>}
-              </TouchableOpacity>
+              <AppButton label="Annuler" variant="secondary" size="lg" full onPress={onClose} />
+              <AppButton label="Valider" size="lg" full tone={accent} loading={busy} onPress={submit} />
             </View>
           </View>
         </KeyboardAwareOverlay>
@@ -332,15 +326,6 @@ function makeStyles(c: any) {
     dropdownOptionLabel: { color: c.text, fontSize: 15 },
     calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 },
     actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-    cancel: {
-      flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center',
-      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-    },
-    cancelLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
-    confirm: {
-      flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center',
-      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-    },
-    confirmLabel: { fontSize: 15, fontWeight: '700', color: '#000' },
+    // Boutons : `components/ui/AppButton`.
   });
 }

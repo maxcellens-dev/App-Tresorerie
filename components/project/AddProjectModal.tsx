@@ -42,8 +42,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ScreenGradient from '../layout/ScreenGradient';
 import ScreenHeader from '../layout/ScreenHeader';
+import SegmentedControl from '../ui/SegmentedControl';
 import CalendarWithPicker from '../transaction/CalendarWithPicker';
 import CategoryPicker, { useSubCategoriesGrouped } from '../transaction/CategoryPicker';
+import { isMovementsCategory } from '../../lib/ui/defaultCategories';
 import KeyboardAwareScrollView from '../layout/KeyboardAwareScrollView';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
@@ -210,7 +212,7 @@ export default function AddProjectModal() {
     () =>
       categories
         .filter((c) => (c.parent_id == null || c.parent_id === '') && String(c.type).toLowerCase() === 'expense')
-        .filter((c) => c.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim() !== 'mouvements')
+        .filter((c) => !isMovementsCategory(c.name))
         .map((c) => ({ id: c.id, name: c.name })),
     [categories]
   );
@@ -738,24 +740,12 @@ export default function AddProjectModal() {
                   soit l'endroit où on se trouve dans un onglet long (la planification ponctuelle
                   fait à elle seule douze lignes). */}
               {isEdit && (
-                <View style={styles.tabBar}>
-                  {EDIT_TABS.map((t) => {
-                    const active = step === t.step;
-                    return (
-                      <TouchableOpacity
-                        key={t.step}
-                        style={[styles.tabBtn, active && styles.tabBtnActive]}
-                        onPress={() => { setStep(t.step); setFormError(null); setErrorFields([]); }}
-                        activeOpacity={0.8}
-                        accessibilityRole="tab"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Ionicons name={t.icon as any} size={15} color={active ? COLORS.primary : COLORS.textSecondary} />
-                        <Text style={[styles.tabText, active && styles.tabTextActive]} numberOfLines={1}>{t.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                <SegmentedControl
+                  options={EDIT_TABS.map((t) => ({ value: String(t.step), label: t.label, icon: t.icon }))}
+                  value={String(step)}
+                  onChange={(v) => { setStep(Number(v)); setFormError(null); setErrorFields([]); }}
+                  style={{ marginBottom: 12 }}
+                />
               )}
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined} style={{ flex: 1 }}>
               <KeyboardAwareScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
@@ -1428,12 +1418,7 @@ function makeStyles(c: any) {
   form: { flex: 1, marginBottom: 12 },
   field: { marginBottom: 12 },
   fieldHint: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 6 },
-  // Onglets de la modification (rendus hors défilement, sous l'en-tête).
-  tabBar: { flexDirection: 'row', gap: 4, marginBottom: 12, padding: 4, backgroundColor: c.background, borderRadius: 12, borderWidth: 1, borderColor: c.border },
-  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, paddingHorizontal: 4, borderRadius: 9 },
-  tabBtnActive: { backgroundColor: c.primary + '1F' },
-  tabText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
-  tabTextActive: { color: c.primary, fontWeight: '800' },
+  // Onglets de la modification : `components/ui/SegmentedControl`, rendus hors défilement.
   stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, gap: 0 },
   stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background, borderWidth: 1, borderColor: c.border },
   stepDotActive: { backgroundColor: c.primary, borderColor: c.primary },
@@ -1459,7 +1444,7 @@ function makeStyles(c: any) {
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
   textarea: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, textAlignVertical: 'top' },
   toggleGroup: { flexDirection: 'row', gap: 6 },
-  toggleButton: { flex: 1, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+  toggleButton: { flex: 1, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleText: { fontSize: 12, fontWeight: '500' },
   calculatedAmount: { fontSize: 18, fontWeight: '700', marginTop: 8 },
   dateInputContainer: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -1476,7 +1461,7 @@ function makeStyles(c: any) {
   accountType: { fontSize: 12 },
   checkmark: { fontSize: 18, fontWeight: '600', marginLeft: 12 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  button: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  button: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cancelButton: { borderWidth: 1 },
   buttonText: { fontSize: 14, fontWeight: '600' },
   submitButtonText: { fontSize: 14, fontWeight: '600', color: '#fff' },

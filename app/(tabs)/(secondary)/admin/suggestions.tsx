@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
+import { chipStyles } from '../../../../lib/ui/controls';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, Platform } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -279,13 +280,13 @@ function makeStyles(c: any) {
 
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
-  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  chipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
-  chipTextActive: { color: c.onAccent },
+  chip: { ...chipStyles(c).chip },
+  chipActive: { ...chipStyles(c).chipActive },
+  chipText: { ...chipStyles(c).label },
+  chipTextActive: { ...chipStyles(c).labelActive },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 4 },
   subtitle: { fontSize: 13, color: c.textSecondary },
-  deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   deleteAllText: { fontSize: 12, fontWeight: '600', color: c.red },
   emptyCard: { alignItems: 'center', marginTop: 60, gap: 12 },
   emptyText: { fontSize: 14, color: c.textSecondary },

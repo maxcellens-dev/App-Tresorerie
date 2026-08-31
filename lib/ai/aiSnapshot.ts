@@ -127,6 +127,19 @@ export interface SnapshotInput {
    * même assurance un conseil tiré d'un matelas mesuré et un conseil tiré d'un matelas deviné.
    */
   profileReliability?: { level: string; title: string; gaps: string[] } | null;
+  /**
+   * Budgets DÉCLARÉS par l'utilisateur — son intention, à ne jamais confondre avec l'enveloppe
+   * variable, qui est une prévision calculée. C'est ce qui permet à l'IA de parler d'objectif
+   * plutôt que de simple constat.
+   */
+  budgets?: SnapshotBudgets | null;
+}
+
+/** Budgets du mois affiché + tenue sur la fenêtre d'historique. */
+export interface SnapshotBudgets {
+  global: { amount: number; spent: number; pct: number } | null;
+  categories: { category: string; amount: number; spent: number; period: 'month' | 'year' }[];
+  history?: { respected: number; total: number };
 }
 
 /** Métriques top-line d'un bilan, persistées pour comparer d'un bilan à l'autre (~8 nombres). */
@@ -155,7 +168,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     recurringExpenses = [], recurringIncomes = [], recurringTransfers = [], topOneOff = [], forecast = [],
     variableDetail = [], sharedAccounts = [], incomeRef, firstMonthPartial = false,
     upcoming, savingsInvestForecast, jointContributionMonthly = 0, investContributed = null,
-    incomeByMonth = [], evolution = null, relyka = null,
+    incomeByMonth = [], evolution = null, relyka = null, budgets = null,
   } = input;
   // Revenu récurrent « réel » : moyenne des prochains mois (overrides inclus) plutôt que l'override
   // d'un seul mois multiplié — sinon des revenus qui varient chaque mois affichent un faux « /mois ».
@@ -503,6 +516,30 @@ export function buildSnapshot(input: SnapshotInput): string {
     L.push(`- Dépenses VARIABLES : enveloppe mensuelle ${m(envelope)} (${envelopeSrc} — c'est LA référence pour les variables) ; dépensé ce mois ${m(spentVar)} au jour ${dayOfMonth}/${daysInMonth}, reste ${m(p.variable_envelope_remaining)}${paceTxt}.`);
   }
   L.push(`- Total dépenses du mois (partiel) : ${m(p.month_expenses_total)} (déjà passées ${m(p.month_expenses_past)}, encore à venir ${m(p.month_expenses_remaining)} — distingue bien le réalisé du prévu dans tes conseils).`);
+
+  /* ── BUDGETS : ce que l'utilisateur a DÉCIDÉ ──────────────────────────────────────────────────
+     C'est l'apport le plus fort du module côté IA. Jusqu'ici elle voyait ce qu'il DÉPENSE mais
+     ignorait ce qu'il VOULAIT dépenser : elle ne pouvait donc parler que de constat, jamais
+     d'intention. Avec ça, elle peut diagnostiquer un budget IRRÉALISTE (« tu te fixes 400 € et tu
+     atterris à 470 depuis quatre mois : ce n'est pas un problème de discipline, c'est un budget de
+     470 € qui ne s'assume pas ») plutôt que de répéter « fais attention ».
+     Rien de nouveau à anonymiser : les noms de catégories le sont déjà partout ailleurs. */
+  if (budgets && (budgets.global != null || budgets.categories.length > 0)) {
+    L.push('\nBUDGETS FIXÉS PAR L\'UTILISATEUR — une INTENTION, à ne pas confondre avec l\'enveloppe variable (une prévision)');
+    L.push('  Un écart budget/enveloppe n\'est PAS une erreur : c\'est un objectif de réduction assumé. Un dépassement est une INFORMATION, jamais un reproche.');
+    if (budgets.global != null) {
+      const g = budgets.global;
+      L.push(`- Budget global du mois : ${m(g.amount)} — dépensé ${m(g.spent)} (${Math.round(g.pct)} %), ${g.amount - g.spent >= 0 ? `reste ${m(g.amount - g.spent)}` : `DÉPASSÉ de ${m(g.spent - g.amount)}`}.`);
+    }
+    for (const c of budgets.categories) {
+      const gap = c.amount - c.spent;
+      const per = c.period === 'year' ? '/an' : '/mois';
+      L.push(`  • ${c.category} : budget ${m(c.amount)}${per}, dépensé ${m(c.spent)} — ${gap >= 0 ? `reste ${m(gap)}` : `dépassé de ${m(-gap)}`}.`);
+    }
+    if (budgets.history && budgets.history.total > 0) {
+      L.push(`- Tenue sur ${budgets.history.total} mois : budget respecté ${budgets.history.respected} fois. Un dépassement SYSTÉMATIQUE sur une catégorie signale un budget mal calibré, pas un manque de volonté — dis-le.`);
+    }
+  }
   if (expensesByCategory.length) {
     L.push('- Détail par grande catégorie (mois en cours, partiel) :');
     for (const c of expensesByCategory.slice(0, 12)) if (c.amount > 0) L.push(`  • ${c.name} : ${m(c.amount)}`);

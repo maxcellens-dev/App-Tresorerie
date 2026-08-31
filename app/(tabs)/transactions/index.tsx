@@ -39,6 +39,8 @@ import { compareTransactionsForDisplay, getEffectiveDate } from '../../../lib/fi
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { hoverRow } from '../../../lib/ui/webLayout';
+import { chipStyles } from '../../../lib/ui/controls';
+import AppButton from '../../../components/ui/AppButton';
 import { iconForTransaction, iconForCategory } from '../../../lib/ui/categoryIcons';
 import { isProjectSpendTx } from '../../../lib/finance/projectTx';
 import { useRwLinkedTransactionIds } from '../../../hooks/engagement/useRelykaWorld';
@@ -1065,11 +1067,12 @@ function TransactionsListBody() {
               </>
             )}
 
-            <TouchableOpacity style={styles.filterDoneBtn} onPress={closeFilters} activeOpacity={0.85}>
-              <Text style={styles.filterDoneText}>
-                {filtered.length === 0 ? 'Aucune transaction' : `Voir ${filtered.length} transaction${filtered.length > 1 ? 's' : ''}`}
-              </Text>
-            </TouchableOpacity>
+            <AppButton
+              label={filtered.length === 0 ? 'Aucune transaction' : `Voir ${filtered.length} transaction${filtered.length > 1 ? 's' : ''}`}
+              size="lg"
+              onPress={closeFilters}
+              style={{ marginTop: 16 }}
+            />
           </View>
         )}
         {SHOW_TOP_ACTIONS && (
@@ -1332,8 +1335,11 @@ function makeStyles(c: any) {
   clearFilter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingVertical: 8 },
   clearFilterText: { fontSize: 14, color: c.emerald, fontWeight: '600' },
   activeFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  filterChipText: { fontSize: 13, color: c.emerald, fontWeight: '600' },
+  /* Pastille de filtre ACTIF. Le vert était écrit en dur (rgba(52,211,153,…)) : elle restait donc
+     émeraude même quand l'utilisateur avait choisi un accent violet ou ambre, et gardait un rayon
+     de 20 quand toutes les autres pastilles de l'app en ont un de 10. */
+  filterChip: { ...chipStyles(c).chip, ...chipStyles(c).chipActive, gap: 5, paddingVertical: 6, paddingHorizontal: 11 },
+  filterChipText: { fontSize: 13, color: c.primary, fontWeight: '700' },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
@@ -1500,35 +1506,24 @@ function makeStyles(c: any) {
   filterCatText: { flex: 1, fontSize: 13.5, color: c.text },
   filterCatTextActive: { color: c.emerald, fontWeight: '700' },
   filterEmptyText: { fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
-  filterDoneBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
-  filterDoneText: { fontSize: 14.5, fontWeight: '800', color: c.onAccent },
+  /* Pastilles de compte du panneau de filtres : géométrie et états COMMUNS (lib/ui/controls).
+     Elles étaient des gélules de rayon 20 avec un aplat émeraude en dur, à côté de pastilles de
+     rayon 10 ailleurs dans la même app — et elles restaient vertes quel que soit l'accent choisi. */
   accountFilterChip: {
+    ...chipStyles(c).chip,
     height: 36,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
+    paddingVertical: 0,
     marginRight: 8,
-    backgroundColor: c.card,
-    alignItems: 'center',
     justifyContent: 'center',
   },
-  accountFilterChipActive: {
-    backgroundColor: c.emerald,
-    borderColor: c.emerald,
-  },
+  accountFilterChipActive: { ...chipStyles(c).chipActive },
   accountFilterChipText: {
-    fontSize: 13,
-    color: c.text,
-    fontWeight: '500',
+    ...chipStyles(c).label,
     textAlign: 'center',
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
-  accountFilterChipTextActive: {
-    color: c.onAccent,
-    fontWeight: '600',
-  },
+  accountFilterChipTextActive: { ...chipStyles(c).labelActive },
   periodLabel: {
     flex: 1,
     alignItems: 'center',

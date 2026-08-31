@@ -19,6 +19,7 @@ import { convertAmount, type RatesMap } from './currency';
 import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } from './perimeter';
 import { isRegul } from './regul';
 import { isProjectSpendTx, projectMode } from './projectTx';
+import { isBudgetExpense as isBudgetExpenseOf, isRecurringTx, sumVariableSpent, monthPrefix } from './variableSpend';
 import { computeTresoRows } from './tresoProjection';
 import { computeCashflowTrough } from './relyka';
 import { computeReferenceMonthlyIncome } from './incomeAverage';
@@ -480,31 +481,15 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   // structurellement plus large que sa propre référence → « 1 890 € dépensés / 303 € estimés »,
   // « 133 % des dépenses prévues », et une enveloppe restante tombée à 0 dès le début du mois.
   // Une seule règle, appliquée des DEUX côtés (mois courant et mois d'historique).
+  //
+  // ⚠️ La règle vit désormais dans `lib/finance/variableSpend` — DÉPLACÉE À L'IDENTIQUE, aucune
+  // condition changée. Elle y est partagée avec le module Budgets, qui doit compter EXACTEMENT le
+  // même « dépensé » : deux définitions parallèles, c'est la faute que le paragraphe ci-dessus
+  // raconte avoir déjà coûté cher.
   // =====================================================================
 
-  /** Sortie qui pèse sur le budget : depuis un compte courant, hors virement, hors projet (sauf
-   *  « dépenser petit à petit » qui sort vraiment), catégorie de dépense (ou sans catégorie),
-   *  hors régularisation de solde. */
-  const isBudgetExpense = (t: any): boolean => {
-    if (accountTypeById[t.account_id] !== 'checking') return false;
-    if (t.linked_account_id) return false;
-    if (t.project_id && !isProjectSpendTx(t)) return false;
-    const cat = t.category;
-    if (cat && cat.type !== 'expense') return false;
-    /* La RÉGULARISATION compte désormais comme une dépense variable, et porte sa propre
-       sous-catégorie « Frais variables › Régularisation Solde » (migration 175). Un filtre par nom
-       la rejetait ici : elle se serait rangée dans une catégorie qui ne totalise rien. Constater
-       après coup qu'il manque 80 € sur le compte, c'est 80 € dépensés — la seule différence avec
-       les courses, c'est qu'on ne sait pas en quoi. */
-    return true;
-  };
-
-  /** « Variable » = tout ce qui n'est PAS récurrent.
-   *  ⚠ Une occurrence MATÉRIALISÉE d'une récurrente est une vraie ligne avec `is_recurring = false`
-   *  et `materialized_from` renseigné : sans ce second test, chaque loyer déjà matérialisé
-   *  basculerait en « variable » et gonflerait à la fois l'historique et le dépensé du mois. */
-  const isRecurringTx = (t: any): boolean =>
-    (Boolean(t.is_recurring) && Boolean(t.recurrence_rule)) || Boolean(t.materialized_from);
+  /** Raccourci local : la règle partagée, liée aux comptes de CE calcul. */
+  const isBudgetExpense = (t: any): boolean => isBudgetExpenseOf(t, accountTypeById);
 
   /**
    * Dépenses VARIABLES réellement passées sur un mois donné, en NET (un remboursement sur une
@@ -512,25 +497,8 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
    * exclut tout ce qui est daté à cette date ou avant (pour ne garder que le futur connu).
    * MÊME fonction pour le dépensé du mois et pour les mois d'historique qui calibrent l'enveloppe.
    */
-  const monthVariableSpent = (year: number, month: number, upTo?: string, after?: string): number => {
-    const prefix = `${year}-${String(month).padStart(2, '0')}`;
-    let sum = 0;
-    for (const t of transactions as any[]) {
-      if (t.is_draft || t.is_reserved) continue;
-      if (isRecurringTx(t)) continue;
-      const d = String(t.date ?? '');
-      if (!d.startsWith(prefix)) continue;
-      if (upTo && d > upTo) continue;
-      if (after && d <= after) continue;
-      if (!isBudgetExpense(t)) continue;
-      const amt = Number(t.amount);
-      // Montant positif : ce n'est un remboursement (à déduire) que sur une VRAIE catégorie de
-      // dépense. Sinon c'est une recette / un apport / une régul → hors dépenses variables.
-      if (amt >= 0 && !(t.category && t.category.type === 'expense')) continue;
-      sum += -amt; // dépense (−) → +, remboursement (+) → −
-    }
-    return Math.max(0, sum);
-  };
+  const monthVariableSpent = (year: number, month: number, upTo?: string, after?: string): number =>
+    sumVariableSpent(transactions as any[], accountTypeById, { prefix: monthPrefix(year, month), upTo, after });
 
   // Engagements : allocations mensuelles des projets actifs.
   const committed_project_allocations = projects

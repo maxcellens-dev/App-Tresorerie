@@ -60,6 +60,12 @@ export interface PilotageViewModelInput {
   baseDataReady: boolean;
   /** `userGuide.is` — l'étape en cours du parcours de démarrage. */
   guideIs: (step: string) => boolean;
+  /**
+   * Phrase sur le budget, DÉJÀ composée par l'écran (cf. `composeBudgetMessage`) — `null` s'il n'y
+   * a pas de budget ou rien d'utile à dire. Elle arrive toute faite parce que ce module est un
+   * calcul pur : lui faire lire la table `budgets` le rendrait dépendant du réseau.
+   */
+  budgetMessage?: string | null;
 }
 
 export interface PilotageViewModel extends RelykaBreakdown {
@@ -93,7 +99,7 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
   const {
     pilotageData, accounts, accountsForSuivi, txForSuivi, txPerso, reservations, preSavings,
     profile, rates, reliabilityCfg, financialProfile, recoThresholds, profileAllocations, colors,
-    baseDataReady, guideIs,
+    baseDataReady, guideIs, budgetMessage,
   } = input;
 
   const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
@@ -258,6 +264,12 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
        `entriesKeptUp`) : c'est lui qui permet de dater les SAISIES plutôt que la dernière
        vérification de solde. */
     unverifiedMessage: relConf ? unverifiedRelykaMessage(relConf.result) : null,
+    /* Le budget parle DERNIER et une seule fois (cf. composeBudgetMessage). Il ne modifie aucun
+       montant de l'écran : c'est un commentaire sur une intention, pas une contrainte de
+       trésorerie. Absent de budget → `null`, et le carrousel est celui d'avant.
+       La phrase arrive COMPOSÉE depuis l'écran : ce module est un calcul pur, il ne lit pas la
+       base — c'est ce qui le rend testable sans réseau. */
+    budgetMessage,
     relykaColor,
     warnColor: colors.orange,
   }), [relykaBase, breakdown.troughExplain, breakdown.incomeIsGuessed, recoList, relConf, relykaColor, colors]);

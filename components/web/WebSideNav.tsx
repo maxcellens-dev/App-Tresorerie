@@ -79,7 +79,7 @@ export default function WebSideNav() {
     { key: 'pilotage', label: 'Tableau de bord', icon: 'grid-outline', route: '/(tabs)/pilotage' },
     { key: 'transactions', label: 'Transactions', icon: 'swap-vertical-outline', route: '/(tabs)/transactions' },
     { key: 'comptes', label: 'Comptes', icon: 'wallet-outline', route: '/(tabs)/comptes', badge: acctInviteCount },
-    { key: 'projects', label: 'Projets', icon: 'flag-outline', route: '/(tabs)/projects', badge: rwInvitations.length },
+    { key: 'projects', label: 'Budget', icon: 'pie-chart-outline', route: '/(tabs)/projects', badge: rwInvitations.length },
     { key: 'projection', label: 'Projection', icon: 'trending-up-outline', route: '/(tabs)/projection' },
   ];
 

@@ -917,7 +917,7 @@ function makeStyles(c: any) {
     previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     previewK: { fontSize: 13, color: c.textSecondary, flex: 1 },
     previewV: { fontSize: 14, fontWeight: '700', color: c.text },
-    saveBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 22 },
+    saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 22 },
     saveLabel: { color: c.onAccent, fontSize: 15, fontWeight: '800' },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 18 },
     calCard: { backgroundColor: c.cardSolid ?? c.card, borderRadius: 18, padding: 12 },

@@ -279,7 +279,7 @@ function makeStyles(c: any) {
     chipTxt: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
     chipTxtOn: { color: c.onAccent, fontWeight: '800' },
     note: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 14 },
-    saveBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+    saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
     saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

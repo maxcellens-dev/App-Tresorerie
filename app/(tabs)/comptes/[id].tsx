@@ -16,6 +16,7 @@ import {
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
+import SegmentedControl from '../../../components/ui/SegmentedControl';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/ui/categoryIcons';
 import { todayISO } from '../../../lib/dateUtils';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
@@ -489,24 +490,12 @@ function AccountDetailScreen() {
         {/* TROIS FAÇONS DE REGARDER UN COMPTE, une seule à la fois. La fiche empilait tout —
             actions, solde, historique — et envoyait sur un AUTRE écran pour le moindre réglage.
             Les réglages sont donc devenus un onglet : plus de bouton « Modifier » en en-tête. */}
-        <View style={styles.tabBar}>
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <TouchableOpacity
-                key={t.id}
-                style={[styles.tabBtn, active && styles.tabBtnActive]}
-                onPress={() => setTab(t.id)}
-                activeOpacity={0.8}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-              >
-                <Ionicons name={t.icon as any} size={15} color={active ? COLORS.primary : COLORS.textSecondary} />
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>{t.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <SegmentedControl
+          options={TABS.map((t) => ({ value: t.id, label: t.label, icon: t.icon }))}
+          value={tab}
+          onChange={setTab}
+          style={{ marginBottom: 12 }}
+        />
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
 
@@ -961,31 +950,8 @@ function makeStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   scrollContent: { paddingTop: 4 },
 
-  // ── Onglets de la fiche (Solde / Transactions / Paramètres) ──
-  tabBar: {
-    flexDirection: 'row',
-    gap: 4,
-    backgroundColor: c.background,
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: c.border,
-  },
-  tabBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 9,
-    paddingHorizontal: 4,
-    borderRadius: 9,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
-  },
-  tabBtnActive: { backgroundColor: c.primary + '1F' },
-  tabLabel: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, flexShrink: 1 },
-  tabLabelActive: { color: c.primary, fontWeight: '800' },
+  // Onglets (Solde / Transactions / Paramètres) : `components/ui/SegmentedControl`. Le style vivait
+  // ici en trois copies divergentes dans l'app — il n'en existe plus qu'une.
 
   balanceCard: {
     backgroundColor: c.card,

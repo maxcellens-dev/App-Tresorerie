@@ -674,7 +674,7 @@ function makeStyles(c: AppColors) {
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
       paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 12,
     },
-    saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
+    saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginBottom: 28 },
     saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.onAccent },
 
     sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },

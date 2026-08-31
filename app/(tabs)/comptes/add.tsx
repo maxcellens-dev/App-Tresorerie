@@ -1,5 +1,9 @@
 ﻿import { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { chipStyles } from '../../../lib/ui/controls';
+import AppButton from '../../../components/ui/AppButton';
+import AccountTypeRow from '../../../components/account/AccountTypeRow';
+import { accountColor } from '../../../theme/colors';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -245,17 +249,7 @@ export default function AddAccountScreen() {
           )}
 
           <Text style={styles.label}>Type</Text>
-          <View style={styles.chipRow}>
-            {TYPES.map((t) => (
-              <TouchableOpacity
-                key={t.value}
-                style={[styles.chip, type === t.value && styles.chipActive]}
-                onPress={() => setType(t.value)}
-              >
-                <Text style={[styles.chipText, type === t.value && styles.chipTextActive]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <AccountTypeRow options={TYPES} value={type} onSelect={setType} />
 
           {/* Compte principal (migration 146) — uniquement pour un compte COURANT perso :
               pré-sélectionné à la saisie d'une transaction et affiché en tête des listes. */}
@@ -292,19 +286,11 @@ export default function AddAccountScreen() {
           {type === 'investment' && (
             <>
               <Text style={styles.label}>Enveloppe fiscale</Text>
-              <View style={styles.chipRow}>
-                {fiscalRates.map((r) => (
-                  <TouchableOpacity
-                    key={r.envelope}
-                    style={[styles.chip, fiscalEnvelope === r.envelope && styles.chipActive]}
-                    onPress={() => setFiscalEnvelope(r.envelope)}
-                  >
-                    <Text style={[styles.chipText, fiscalEnvelope === r.envelope && styles.chipTextActive]}>
-                      {r.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <AccountTypeRow
+                options={fiscalRates.map((r) => ({ value: r.envelope, label: r.label, tone: accountColor('investment') }))}
+                value={fiscalEnvelope}
+                onSelect={setFiscalEnvelope}
+              />
 
               <Text style={styles.label}>Apport (Montant total des apports à date)</Text>
               <TextInput
@@ -364,18 +350,13 @@ export default function AddAccountScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.submitBtn, addAccount.isPending && styles.submitBtnDisabled]}
+          <AppButton
+            label="Créer le compte"
+            size="lg"
+            loading={addAccount.isPending}
             onPress={handleSubmit}
-            disabled={addAccount.isPending}
-            accessibilityRole="button"
-          >
-            {addAccount.isPending ? (
-              <ActivityIndicator color={COLORS.onAccent} />
-            ) : (
-              <Text style={styles.submitLabel}>Créer le compte</Text>
-            )}
-          </TouchableOpacity>
+            style={{ marginTop: 8 }}
+          />
         </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -457,10 +438,10 @@ function makeStyles(c: any) {
   jointCheckOn: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
-  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  chipText: { fontSize: 14, color: c.text },
-  chipTextActive: { color: c.onAccent, fontWeight: '600' },
+  chip: { ...chipStyles(c).chip },
+  chipActive: { ...chipStyles(c).chipActive },
+  chipText: { ...chipStyles(c).label },
+  chipTextActive: { ...chipStyles(c).labelActive },
   defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, marginBottom: 8 },
   defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
   defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
@@ -480,9 +461,7 @@ function makeStyles(c: any) {
   text: { color: c.text, marginBottom: 16 },
   btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
   btnLabel: { color: c.text, fontWeight: '600' },
-  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+  // Bouton : `components/ui/AppButton`.
   calendarBtn: {
     backgroundColor: c.card,
     borderWidth: 1,

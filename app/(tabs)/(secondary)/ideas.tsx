@@ -206,7 +206,7 @@ function makeStyles(c: any) {
     backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
     paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, color: c.text, minHeight: 120, marginBottom: 16,
   },
-  btn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  btn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   btnText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
   successCard: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.emerald + '40',

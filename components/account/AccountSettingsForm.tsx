@@ -10,9 +10,13 @@
  * ScrollView se dispute le geste vertical).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { chipStyles } from '../../lib/ui/controls';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AppButton from '../ui/AppButton';
+import AccountTypeRow from './AccountTypeRow';
+import { accountColor } from '../../theme/colors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useUpdateAccount, useCloseAccount, useSetDefaultAccount } from '../../hooks/data/useAccounts';
@@ -153,34 +157,24 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
       />
 
       <Text style={styles.label}>Type</Text>
-      <View style={styles.chipRow}>
-        {TYPES.map((t) => (
-          <TouchableOpacity
-            key={t.value}
-            style={[styles.chip, type === t.value && styles.chipActive]}
-            onPress={() => setType(t.value)}
-            disabled={account._role !== 'owner'}
-          >
-            <Text style={[styles.chipText, type === t.value && styles.chipTextActive]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <AccountTypeRow
+        options={TYPES}
+        value={type}
+        onSelect={(v) => setType(v as AccountType)}
+        disabled={account._role !== 'owner'}
+      />
 
       {type === 'investment' && (
         <>
           <Text style={styles.label}>Enveloppe fiscale</Text>
-          <View style={styles.chipRow}>
-            {fiscalRates.map((r) => (
-              <TouchableOpacity
-                key={r.envelope}
-                style={[styles.chip, fiscalEnvelope === r.envelope && styles.chipActive]}
-                onPress={() => setFiscalEnvelope(r.envelope)}
-                disabled={account._role !== 'owner'}
-              >
-                <Text style={[styles.chipText, fiscalEnvelope === r.envelope && styles.chipTextActive]}>{r.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Même rangée défilante, mais teintée en INVESTISSEMENT : une enveloppe fiscale n'est pas
+              un type de compte, elle qualifie celui qu'on vient de choisir. */}
+          <AccountTypeRow
+            options={fiscalRates.map((r) => ({ value: r.envelope, label: r.label, tone: accountColor('investment') }))}
+            value={fiscalEnvelope}
+            onSelect={setFiscalEnvelope}
+            disabled={account._role !== 'owner'}
+          />
         </>
       )}
 
@@ -222,34 +216,24 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
 
       {account._role === 'owner' ? (
         <>
-          <TouchableOpacity
-            style={[styles.submitBtn, (updateAccount.isPending || saved) && styles.submitBtnBusy]}
+          {/* « Enregistré » garde l'aplat plein et gagne une coche : la confirmation ne doit pas
+              faire changer le bouton de forme, sinon la page saute au moment où l'on relit. */}
+          <AppButton
+            label={saved ? 'Enregistré' : 'Enregistrer'}
+            icon={saved ? 'checkmark' : undefined}
+            size="lg"
+            loading={updateAccount.isPending}
             onPress={handleSubmit}
-            disabled={updateAccount.isPending}
-            accessibilityRole="button"
-          >
-            {updateAccount.isPending ? (
-              <ActivityIndicator color={COLORS.onAccent} />
-            ) : saved ? (
-              <View style={styles.submitDone}>
-                <Ionicons name="checkmark" size={18} color={COLORS.onAccent} />
-                <Text style={styles.submitLabel}>Enregistré</Text>
-              </View>
-            ) : (
-              <Text style={styles.submitLabel}>Enregistrer</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.closeBtn, closeAccount.isPending && styles.submitBtnBusy]}
+            style={{ marginTop: 24 }}
+          />
+          <AppButton
+            label="Fermer le compte"
+            variant="danger"
+            size="lg"
+            loading={closeAccount.isPending}
             onPress={handleClose}
-            disabled={closeAccount.isPending}
-            accessibilityRole="button"
-          >
-            {closeAccount.isPending
-              ? <ActivityIndicator color={COLORS.danger} />
-              : <Text style={styles.closeBtnLabel}>Fermer le compte</Text>}
-          </TouchableOpacity>
+            style={{ marginTop: 12 }}
+          />
         </>
       ) : (
         <View style={styles.infoRow}>
@@ -278,10 +262,10 @@ function makeStyles(c: AppColors) {
     },
     errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-    chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    chipText: { fontSize: 14, color: c.text },
-    chipTextActive: { color: c.onAccent, fontWeight: '600' },
+    chip: { ...chipStyles(c).chip },
+    chipActive: { ...chipStyles(c).chipActive },
+    chipText: { ...chipStyles(c).label },
+    chipTextActive: { ...chipStyles(c).labelActive },
     infoRow: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       backgroundColor: c.card, padding: 14, borderRadius: 10,
@@ -291,11 +275,6 @@ function makeStyles(c: AppColors) {
     defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, marginTop: 4 },
     defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
     defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
-    submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    submitBtnBusy: { opacity: 0.75 },
-    submitDone: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
-    closeBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 20, borderWidth: 1, borderColor: c.danger, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    closeBtnLabel: { fontSize: 16, fontWeight: '600', color: c.danger },
+    // Boutons : `components/ui/AppButton`.
   });
 }

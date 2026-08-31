@@ -261,7 +261,7 @@ function makeStyles(c: any) {
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text },
     textarea: { minHeight: 160, textAlignVertical: 'top', fontSize: 12.5, lineHeight: 18 },
     noteBuiltin: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 10 },
-    saveBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+    saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
     saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });
 }

@@ -125,7 +125,7 @@ function makeStyles(c: any) {
     gapAction: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
 
     footNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16.5, fontStyle: 'italic' },
-    btn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 2 },
+    btn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 2 },
     btnLabel: { fontSize: 15, fontWeight: '800' },
   });
 }

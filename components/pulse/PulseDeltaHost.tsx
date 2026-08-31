@@ -10,7 +10,7 @@
  *
  * FERMETURE : par la croix, en tapant la carte, en balayant vers le haut, ou en CHANGEANT DE PAGE.
  * Jamais toute seule. Elle disparaissait au bout de 5 s : le temps de lire les pastilles, puis la
- * ligne « fin de mois », puis le budget du quotidien, elle s'était volatilisée — et les chiffres
+ * ligne « fin de mois », puis les dépenses variables, elle s'était volatilisée — et les chiffres
  * qu'elle attend (le Relyka recalculé) peuvent justement arriver APRÈS. On ne fait donc plus courser
  * l'utilisateur : c'est lui qui décide quand il a fini de lire.
  *
@@ -34,6 +34,8 @@ import { usePulseConfig } from '../../hooks/pulse/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../../lib/pulse/pulseBus';
 import { computeOpFeedback, consumesVariableEnvelope, type PulseFeedback, type PulseOp, type PulseTone } from '../../lib/pulse/pulseDelta';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { todayISO } from '../../lib/dateUtils';
+import BudgetInlineBlock from '../budget/BudgetInlineBlock';
 
 /**
  * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
@@ -289,7 +291,6 @@ export default function PulseDeltaHost() {
   if (!feedback) return null;
 
   // D'où vient l'enveloppe variable (moyenne constatée / estimation donnée) — décide du mot employé.
-  const envSource = pulse?.variableEnvelopeSource ?? 'none';
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -335,15 +336,8 @@ export default function PulseDeltaHost() {
             devient la conséquence lisible d'un budget respecté plutôt qu'un doute sur la saisie. */}
         {!!feedback.envelope && (() => {
           const env = feedback.envelope;
-          /* « Ton estimation » ou « ta moyenne » : l'enveloppe vient soit du chiffre que
-             l'utilisateur a donné, soit de ses dépenses réellement constatées. Lui parler
-             d'« estimation » alors qu'on lui oppose ses propres relevés (ou l'inverse) rendrait le
-             message contestable — et un message contestable ne fait pas changer d'avis. */
-          const envelopeSourceLabel = envSource === 'history'
-            ? 'ta moyenne de dépenses variables'
-            : 'ton estimation de dépenses variables';
           /* ── CE QUE LA LIGNE PRINCIPALE DOIT DIRE ───────────────────────────────────────────
-             Une fois l'enveloppe épuisée, la phrase de tête annonçait « Budget du quotidien : 0 €
+             Une fois l'enveloppe épuisée, la phrase de tête annonçait « Dépenses variables : 0 €
              restants ce mois sur 600 € ». Techniquement exact, mais c'est l'information la MOINS
              utile de la carte : « 0 € restants » se lit comme « tu es à l'équilibre », alors que
              la vraie nouvelle — un dépassement de 1 438 € — était reléguée en petit, en dessous.
@@ -359,12 +353,12 @@ export default function PulseDeltaHost() {
               <Text style={styles.envText}>
                 {over ? (
                   <>
-                    🛒 Budget du quotidien <Text style={[styles.envValue, { color }]}>dépassé de {eurSigned(env.monthOverflow, false)}</Text>
+                    🛒 Dépenses variables <Text style={[styles.envValue, { color }]}>dépassé de {eurSigned(env.monthOverflow, false)}</Text>
                     {' '}ce mois-ci
                   </>
                 ) : (
                   <>
-                    🛒 Budget du quotidien : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
+                    🛒 Dépenses variables : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
                     {' '}restants ce mois sur {eurSigned(env.initial, false)}
                   </>
                 )}
@@ -372,17 +366,17 @@ export default function PulseDeltaHost() {
               <View style={styles.envTrack}>
                 <View style={[styles.envFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
               </View>
-              {/* LE DÉPASSEMENT SE LIT SUR LE MOIS, PAS SUR L'OPÉRATION.
-                  Une fois l'enveloppe épuisée, `remaining` vaut 0 : la part « hors enveloppe » de
-                  chaque nouvelle dépense valait donc son montant entier, et la carte annonçait
-                  « ces 40 € dépassent de 40 € », puis « ces 12 € dépassent de 12 € »… On croyait le
-                  compteur remis à zéro à chaque saisie alors qu'il s'accumule. Le chiffre du mois
-                  est désormais EN TÊTE ; il ne reste ici que ce qui le documente. */}
-              <Text style={styles.envHint}>
-                {env.absorbed
-                  ? `Ces ${eurSigned(env.used, false)} y étaient déjà prévus : ton Relyka ne bouge pas.`
-                  : `${eurSigned(env.spentTotal, false)} dépensés sur ${envelopeSourceLabel} de ${eurSigned(env.initial, false)}.`}
-              </Text>
+              {/* La phrase de détail (« X dépensés sur ton estimation de Y ») est PARTIE : la ligne
+                  de tête porte déjà les deux chiffres qui comptent — le dépassement, ou le reste sur
+                  l'estimation. La répéter en dessous allongeait la carte sans rien apprendre.
+                  Reste le seul cas où la ligne de tête ne suffit pas : une dépense DÉJÀ PROVISIONNÉE
+                  ne bouge ni le Relyka ni la fin de mois, et sans un mot ça ressemble à une saisie
+                  qui n'a pas pris. */}
+              {env.absorbed && (
+                <Text style={styles.envHint}>
+                  Ces {eurSigned(env.used, false)} y étaient déjà prévus : ton Relyka ne bouge pas.
+                </Text>
+              )}
             </View>
           );
         })()}
@@ -413,6 +407,24 @@ export default function PulseDeltaHost() {
             </View>
           );
         })()}
+
+        {/* BUDGET DE LA CATÉGORIE — carte de plus, jamais d'invitation.
+            Sans budget sur la (sous-)catégorie touchée, RIEN ne s'affiche : la carte reste
+            exactement celle d'avant. On ne démarche pas quelqu'un qui vient de saisir une dépense
+            — il n'est pas venu là pour découvrir une fonctionnalité, il est venu enregistrer. */}
+        {/* BUDGET DE LA CATÉGORIE — EXACTEMENT le même bloc qu'à l'étape 2 de la saisie, en mode
+            récapitulatif. Le budget se reconnaît ainsi au même endroit du regard avant et après
+            l'enregistrement, au lieu d'être une quatrième boîte colorée de plus. */}
+        {active.current?.event.kind === 'expense'
+          && !!active.current.event.categoryId
+          && !active.current.event.isRecurring && (
+          <BudgetInlineBlock
+            categoryId={active.current.event.categoryId}
+            date={active.current.event.date ?? todayISO()}
+            amount={0}
+            variant="recap"
+          />
+        )}
 
         <Pressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fermer">
           <Text style={styles.hint}>Balaie vers le haut ou tape ici pour fermer</Text>
@@ -445,12 +457,12 @@ function makeStyles(c: AppColors) {
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     chipText: { fontSize: 12.5, fontWeight: '800' },
 
-    // Ligne « Fin de mois » : une seule ligne, pas une carte — elle complète les pastilles sans
-    // rallonger la confirmation.
+    /* Ligne « Fin de mois » : une seule ligne, pas une carte — elle complète les pastilles sans
+       rallonger la confirmation. */
     eom: {
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10,
     },
-    // Ligne « Budget du quotidien » : le chiffre qu'une dépense variable déplace RÉELLEMENT.
+    /* Ligne « Dépenses variables » : le chiffre qu'une dépense variable déplace RÉELLEMENT. */
     env: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10 },
     envText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, lineHeight: 18 },
     envValue: { fontSize: 14, fontWeight: '800' },

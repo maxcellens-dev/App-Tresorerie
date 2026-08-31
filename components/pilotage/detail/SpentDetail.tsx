@@ -81,6 +81,10 @@ export default function SpentDetail({
   const recurSpentTotal = recurSpent.reduce((s, t) => s + toRef(t), 0);
   const upcomingTotal = recurUpcoming.amount;
 
+  /* Il y avait ici un second onglet « Budget ». Il faisait DOUBLON avec l'onglet Budget de la barre
+     principale, qui montre les mêmes chiffres en mieux (périodes, année, historique, édition). Deux
+     endroits pour la même information, c'est deux endroits à tenir d'accord — et un utilisateur qui
+     ne sait plus lequel fait foi. */
   return (
     <>
       {arr.length > 0 && (

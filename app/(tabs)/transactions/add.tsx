@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, BackHandler, Keyboard } from 'react-native';
+import { chipStyles } from '../../../lib/ui/controls';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Modal, Pressable, KeyboardAvoidingView, Platform, BackHandler, Keyboard } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +18,8 @@ import { useMonthlyClosure } from '../../../hooks/pilotage/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/transaction/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
+import AppButton from '../../../components/ui/AppButton';
+import SegmentedControl from '../../../components/ui/SegmentedControl';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import { useGuide } from '../../../contexts/GuideContext';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
@@ -33,7 +36,8 @@ import { notePlaceholder } from '../../../lib/finance/txPlaceholders';
 import { useProjects } from '../../../hooks/data/useProjects';
 import { useProjectAttach } from '../../../hooks/data/useProjectAttach';
 import { matchProjectsForTransaction } from '../../../lib/finance/projectMatch';
-import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { sanitizeAmountInput, parseAmountInput } from '../../../lib/ui/amountInput';
+import BudgetInlineBlock from '../../../components/budget/BudgetInlineBlock';
 import AccountChipRow from '../../../components/transaction/AccountChipRow';
 import { computeContributed } from '../../../lib/finance/contributed';
 import { useResetPreSaving } from '../../../hooks/data/usePreSavings';
@@ -654,21 +658,18 @@ function AddTransactionScreen() {
           )}
           {/* Sélecteur de type — étape 1 uniquement */}
           {step === 1 && (
-            <View style={styles.typeSelector}>
-              {/* Ordre unifié avec la page Transactions : Virement, Dépense, Recette. */}
-              <TouchableOpacity style={[styles.typeBtn, isTransfer && styles.typeBtnActive]} onPress={() => changeType('transfer')} accessibilityRole="button">
-                <Ionicons name="swap-horizontal" size={18} color={isTransfer ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-                <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.typeBtn, isExpense && styles.typeBtnActive]} onPress={() => changeType('expense')} accessibilityRole="button">
-                <Ionicons name="arrow-down" size={18} color={isExpense ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-                <Text style={[styles.typeBtnLabel, isExpense && styles.typeBtnLabelActive]}>Dépense</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.typeBtn, isIncome && styles.typeBtnActive]} onPress={() => changeType('income')} accessibilityRole="button">
-                <Ionicons name="arrow-up" size={18} color={isIncome ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-                <Text style={[styles.typeBtnLabel, isIncome && styles.typeBtnLabelActive]}>Recette</Text>
-              </TouchableOpacity>
-            </View>
+            /* Ordre unifié avec la page Transactions : Virement, Dépense, Recette. */
+            <SegmentedControl
+              options={[
+                { value: 'transfer', label: 'Virement', icon: 'swap-horizontal' },
+                { value: 'expense', label: 'Dépense', icon: 'arrow-down' },
+                { value: 'income', label: 'Recette', icon: 'arrow-up' },
+              ]}
+              value={transactionType}
+              onChange={(v: string) => changeType(v as TransactionType)}
+              role="radio"
+              style={{ marginBottom: 20 }}
+            />
           )}
 
           {/* Fil d'étapes */}
@@ -907,32 +908,43 @@ function AddTransactionScreen() {
                   })()}
                 </View>
               )}
+
+              {/* AVANCEMENT DU BUDGET — sous la récurrence, parce que c'est la DATE réglée juste
+                  au-dessus qui décide de la période lue. Rien ne s'affiche si la (sous-)catégorie
+                  n'a pas de budget : le formulaire ne démarche pas. Jamais sur un virement (il ne
+                  sort pas du périmètre) ni sur une récurrente (hors dépenses variables). */}
+              {!isTransfer && !isRecurring && (
+                <BudgetInlineBlock
+                  categoryId={categoryId || null}
+                  date={date}
+                  amount={Math.abs(parseAmountInput(amount) ?? 0)}
+                  hidden={!isExpense}
+                />
+              )}
             </>
           )}
 
           {/* Actions : Suivant (étape 1) ou Enregistrer/Brouillon (étape 2) */}
           {step === 1 ? (
-            <TouchableOpacity style={[styles.submitBtn, styles.submitBtnPrimary, { marginTop: 8 }]} onPress={goNext} accessibilityRole="button">
-              <Text style={styles.submitLabel}>Suivant</Text>
-            </TouchableOpacity>
+            <AppButton label="Suivant" size="lg" icon="arrow-forward" iconRight onPress={goNext} style={{ marginTop: 8 }} />
           ) : (
             <View style={styles.submitRow}>
-              <TouchableOpacity
-                style={[styles.submitBtn, styles.submitBtnPrimary, (addTransaction.isPending || guideNeedsRecurring) && styles.submitBtnDisabled]}
+              <AppButton
+                label="Enregistrer"
+                size="lg"
+                full
+                loading={addTransaction.isPending}
+                disabled={guideNeedsRecurring}
                 onPress={() => handleSubmit(false)}
+              />
+              <AppButton
+                label="Brouillon"
+                size="lg"
+                variant="secondary"
+                full
                 disabled={addTransaction.isPending || guideNeedsRecurring}
-                accessibilityRole="button"
-              >
-                {addTransaction.isPending ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, styles.submitBtnDraft, (addTransaction.isPending || guideNeedsRecurring) && styles.submitBtnDisabled]}
                 onPress={() => handleSubmit(true)}
-                disabled={addTransaction.isPending || guideNeedsRecurring}
-                accessibilityRole="button"
-              >
-                <Text style={styles.submitLabelDraft}>Brouillon</Text>
-              </TouchableOpacity>
+              />
             </View>
           )}
         </ScrollView>
@@ -990,7 +1002,8 @@ function makeStyles(c: any) {
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
-  typeSelector: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  /* Sélecteur de type : `components/ui/SegmentedControl` — même composant que tous les autres
+     choix « une option parmi peu » de l'app. */
   stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
   stepDotActive: { backgroundColor: c.emerald, borderColor: c.emerald },
@@ -1024,10 +1037,10 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 20,
   },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8, alignItems: 'center', justifyContent: 'center' },
-  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  chipText: { fontSize: 14, lineHeight: 18, color: c.text, textAlign: 'center' },
-  chipTextActive: { color: c.onAccent, fontWeight: '600' },
+  chip: { ...chipStyles(c).chip, marginRight: 8, alignItems: 'center', justifyContent: 'center' },
+  chipActive: { ...chipStyles(c).chipActive },
+  chipText: { ...chipStyles(c).label },
+  chipTextActive: { ...chipStyles(c).labelActive },
   inputError: { borderColor: c.danger },
   // Retrait d'un compte d'investissement : la décomposition capital / plus-value, avant validation.
   withdrawCard: { backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '55', borderRadius: 12, padding: 14, marginBottom: 20 },
@@ -1089,13 +1102,10 @@ function makeStyles(c: any) {
   periodChipText: { fontSize: 12.5, fontWeight: '600', color: c.text },
   projectSection: { marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '44', backgroundColor: c.blue + '0D', gap: 8 },
   projectHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+  /* Les boutons eux-mêmes viennent de `components/ui/AppButton` : leurs styles vivaient ici, avec
+     des couleurs écrites en dur (#475569 / #94a3b8) qui ne suivaient ni le thème clair ni l'accent
+     choisi — « Brouillon » restait gris ardoise à côté d'un « Enregistrer » vert. */
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
-  submitBtn: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  submitBtnPrimary: { backgroundColor: c.emerald },
-  submitBtnDraft: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, lineHeight: 20, fontWeight: '700', color: c.onAccent, textAlign: 'center' },
-  submitLabelDraft: { fontSize: 16, fontWeight: '600', color: '#94a3b8' },
   calendarBtn: {
     backgroundColor: c.card,
     borderWidth: 1,

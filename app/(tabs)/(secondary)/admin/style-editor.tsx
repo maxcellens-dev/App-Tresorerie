@@ -1095,7 +1095,7 @@ function makeStyles(c: any) {
   fontLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '600', textAlign: 'center' },
   fontCheck: { position: 'absolute', top: 5, right: 5, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 8, marginBottom: 16 },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 12, paddingVertical: 16, marginTop: 8, marginBottom: 16 },
   saveBtnLabel: { fontSize: 16, fontWeight: '700', color: '#fff' },
   footnote: { fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 16 },
   body: { color: c.text, padding: 20 },

@@ -638,7 +638,7 @@ function makeStyles(c: any) {
     },
     amountInput: { flex: 1, fontSize: 24, fontWeight: '800', color: c.text, padding: 0 },
     amountUnit: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
-    saveBtn: { backgroundColor: c.emerald, borderRadius: 13, paddingVertical: 12, alignItems: 'center' },
+    saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     saveBtnText: { fontSize: 14.5, fontWeight: '800', color: c.onAccent },
 
     note: {

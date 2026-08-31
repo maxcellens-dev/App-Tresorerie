@@ -3,6 +3,9 @@ import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter, Alert } from 'react-native';
 import { COMPTES_TAB_PRESSED } from '../../../components/layout/CustomTabBar';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
+import AppButton from '../../../components/ui/AppButton';
+import PageTabs from '../../../components/ui/PageTabs';
+import { useAlignedTabsTop } from '../../../lib/ui/tabsAlign';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
 import AdSlot from '../../../components/marketing/AdSlot';
@@ -122,6 +125,7 @@ function AccountsListScreen() {
   const overviewRef = useRef<View>(null);
   const tabsRef = useRef<View>(null);
 
+
   const { data: allAccounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
 
@@ -168,6 +172,12 @@ function AccountsListScreen() {
      Le calcul lui-même vit dans lib/finance/accountTotals — testé, avec pour règle que la somme des
      cartes rendues égale le total affiché juste en dessous (le type « Autre » y compris). */
   const totalScope = allAccounts;
+
+  /* Alignement des onglets avec ceux de la page Budget : chaque page mesure ce qu'elle place
+     au-dessus des siens et complète jusqu'au plus haut des deux (cf. lib/ui/tabsAlign). Sans
+     `totalScope`, la vue d'ensemble n'est pas rendue — la hauteur au-dessus est alors nulle. */
+  const [aboveTabsH, setAboveTabsH] = useState<number | null>(null);
+  const tabsTopPad = useAlignedTabsTop('accounts', totalScope.length > 0 ? aboveTabsH : 0);
   const T = computeAccountTotals(totalScope as any, totalsFilter, (v: number, cur: string) => toRef({ balance: v, currency: cur }));
   const activeFilter = T.appliedFilter;
   const hasSharedAccounts = totalScope.some(isSharedAccount as any);
@@ -221,11 +231,22 @@ function AccountsListScreen() {
         >
           {/* Question du profil progressif — la 1ʳᵉ visite des Comptes est un déclencheur sûr. */}
 
-          {/* ── Totaux par type de compte (courant / épargne / investi / autre) ── */}
-          {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
-          {/* totalScope : un utilisateur qui n'a QUE des comptes partagés a droit à sa vue d'ensemble. */}
+          {/* ── Totaux par type de compte (courant / épargne / investi / autre) ──
+              Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence).
+              `totalScope` : un utilisateur qui n'a QUE des comptes partagés a droit à sa vue d'ensemble. */}
+          {/* La hauteur de ce bloc est MESURÉE : c'est ce que la page place au-dessus de ses
+              onglets, et c'est sur elle que la page Budget se cale pour que les deux rangées
+              d'onglets tombent au même endroit (cf. lib/ui/tabsAlign). Elle varie selon les
+              données — trois ou quatre cartes de totaux, filtre présent ou non — d'où la mesure
+              plutôt qu'une constante. */}
           {totalScope.length > 0 && (
-            <View ref={overviewRef} collapsable={false}>
+            <View
+              ref={overviewRef}
+              collapsable={false}
+              /* `y + height` et non `height` seule : c'est le BAS du bloc dans la page qui compte,
+                 pas sa taille — sur l'autre écran, une marge la précède. */
+              onLayout={(e) => setAboveTabsH(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}
+            >
             {/* UNE seule ligne au-dessus des cartes, et elle ne sert qu'à une chose à la fois :
                  • des comptes partagés → le filtre Tout/Perso/Partagés, à la place exacte du titre
                    (même bord gauche). Il y a un choix à faire, c'est lui qui doit occuper la ligne
@@ -291,14 +312,17 @@ function AccountsListScreen() {
               Les anciennes « actions rapides » (deux ronds de 52 px + libellés, ~120 px de hauteur
               avant la première carte de compte) ont disparu d'ici : le virement vit dans l'accès
               rapide, et la création de compte est passée SOUS la liste, à la même place et sous la
-              même forme que « Ajouter un crédit » de l'onglet voisin. */}
-          <View style={styles.tabsRow} ref={tabsRef} collapsable={false}>
-            {(['comptes', 'credits'] as const).map((t) => (
-              <TouchableOpacity key={t} style={[styles.tabItem, tab === t && styles.tabItemActive]} onPress={() => setTab(t)} activeOpacity={0.8} accessibilityRole="button">
-                <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>{t === 'comptes' ? 'Comptes' : 'Crédits'}</Text>
-              </TouchableOpacity>
-            ))}
+              même forme que « Ajouter un crédit » de l'onglet voisin.
+              `paddingTop` : le complément d'alignement avec les onglets de la page Budget — il vaut
+              0 ici tant que ce bloc-ci est le plus haut des deux (cf. lib/ui/tabsAlign). */}
+          <View ref={tabsRef} collapsable={false} style={[styles.tabsWrap, { paddingTop: tabsTopPad }]}>
+            <PageTabs
+              options={[{ value: 'comptes', label: 'Comptes' }, { value: 'credits', label: 'Crédits' }]}
+              value={tab}
+              onChange={(v: string) => setTab(v as 'comptes' | 'credits')}
+            />
           </View>
+
 
           {tab === 'credits' ? (
             <CreditsTab userId={user?.id} openCreateSignal={creditCreateSignal} />
@@ -466,16 +490,9 @@ function AccountsListScreen() {
               listes, pleine largeur, fond plein. Les deux onglets de la page se terminent donc par
               le même geste, au même endroit — et la liste des comptes n'est plus repoussée vers le
               bas par un bloc d'actions en haut de page. */}
-          <TouchableOpacity
-            ref={actionsRef}
-            style={styles.addAccountBtn}
-            onPress={() => setShowCreateType(true)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-          >
-            <Ionicons name="add" size={18} color={COLORS.onAccent} />
-            <Text style={styles.addAccountBtnLabel}>Ajouter un compte</Text>
-          </TouchableOpacity>
+          <View ref={actionsRef} style={styles.addAccountWrap}>
+            <AppButton label="Ajouter un compte" icon="add" size="lg" onPress={() => setShowCreateType(true)} />
+          </View>
 
           {archivedAccounts.length > 0 && (
             <View style={styles.archivedSection}>
@@ -639,21 +656,17 @@ function makeStyles(c: any) {
      `alignItems: 'flex-end'` fait reposer le soulignement de l'onglet actif sur le filet du bas ;
      les pastilles d'action, plus courtes que les onglets (31 px contre 32), s'alignent dessus sans
      rallonger la ligne d'un pixel. */
-  tabsRow: {
-    flexDirection: 'row', gap: 22,
-    paddingHorizontal: 24, marginTop: 14, marginBottom: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder,
-  },
-  tabItem: { paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabItemActive: { borderBottomColor: c.text },
-  tabLabel: { fontSize: 17, fontWeight: '700', color: c.textSecondary },
-  tabLabelActive: { color: c.text, fontWeight: '800' },
+  /* Onglets : `components/ui/PageTabs`. L'appelant ne fournit QUE le retrait horizontal de 16 ;
+     les décalages verticaux appartiennent au composant (cf. lib/ui/controls → pageTabStyles). */
+  tabsWrap: { paddingHorizontal: 16 },
   /* Copie conforme de « Ajouter un crédit » (CreditsTab.addBtn) : mêmes espacements, même rayon,
      même graisse. Seul `marginHorizontal` diffère (16), pour tomber sur les bords de la liste des
      comptes — l'onglet Crédits, lui, tient déjà ce retrait par son conteneur. */
+  // Le bouton vient de `components/ui/AppButton` ; il ne reste ici que son logement.
+  addAccountWrap: { marginTop: 14, marginHorizontal: 16 },
   addAccountBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: c.emerald, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
     marginTop: 14, marginHorizontal: 16,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },

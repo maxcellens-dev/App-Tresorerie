@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { chipStyles } from '../../../../lib/ui/controls';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -211,10 +212,10 @@ function makeStyles(c: any) {
     bulkDeleteBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', marginBottom: 14 },
     bulkDeleteText: { fontSize: 12, fontWeight: '700', color: c.danger },
     cardDeleteBtn: { padding: 4 },
-    chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
-    chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    chipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
-    chipTextActive: { color: c.onAccent },
+    chip: { ...chipStyles(c).chip },
+    chipActive: { ...chipStyles(c).chipActive },
+    chipText: { ...chipStyles(c).label },
+    chipTextActive: { ...chipStyles(c).labelActive },
     scroll: { flex: 1 },
     empty: { color: c.textSecondary, textAlign: 'center', marginTop: 32, fontSize: 14 },
     reqCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10 },

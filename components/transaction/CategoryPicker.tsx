@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CATEGORY_ICON_GLOSSARY, iconForCategory } from '../../lib/ui/categoryIcons';
+import { isMovementsCategory } from '../../lib/ui/defaultCategories';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 /** Normalise pour une recherche insensible à la casse et aux accents. */
@@ -34,7 +35,7 @@ export function useSubCategoriesGrouped(
           .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999) || a.name.localeCompare(b.name));
         return { parentId, parentName: parent?.name ?? 'Catégorie', children };
       })
-      .filter((g) => g.children.length > 0 && norm(g.parentName) !== 'mouvements')
+      .filter((g) => g.children.length > 0 && !isMovementsCategory(g.parentName))
       .sort((a, b) => {
         const pa = (parentMap.get(a.parentId)?.sort_order ?? 9999);
         const pb = (parentMap.get(b.parentId)?.sort_order ?? 9999);

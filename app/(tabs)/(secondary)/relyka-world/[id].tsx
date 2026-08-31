@@ -10,6 +10,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import SegmentedControl from '../../../../components/ui/SegmentedControl';
 import CurrencyPicker from '../../../../components/account/CurrencyPicker';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/theme/useAppColors';
@@ -438,22 +439,18 @@ export default function RelykaWorldDetail() {
           )}
 
           {/* Onglets */}
-          <View style={styles.tabs}>
-            <TouchableOpacity style={[styles.tab, tab === 'expenses' && styles.tabActive]} onPress={() => setTab('expenses')}>
-              <Ionicons name="receipt-outline" size={15} color={tab === 'expenses' ? COLORS.primary : COLORS.textSecondary} />
-              <Text style={[styles.tabText, tab === 'expenses' && styles.tabTextActive]} numberOfLines={1}>Dépenses</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.tab, tab === 'balances' && styles.tabActive]} onPress={() => setTab('balances')}>
-              <Ionicons name="swap-horizontal-outline" size={15} color={tab === 'balances' ? COLORS.primary : COLORS.textSecondary} />
-              <Text style={[styles.tabText, tab === 'balances' && styles.tabTextActive]} numberOfLines={1}>Équilibres</Text>
-            </TouchableOpacity>
-            {/* « Par compte » : la vue de fin de projet — ce que chaque compte a réellement encaissé,
-                et de quoi tout basculer d'un coup sur le bon. */}
-            <TouchableOpacity style={[styles.tab, tab === 'accounts' && styles.tabActive]} onPress={() => setTab('accounts')}>
-              <Ionicons name="wallet-outline" size={15} color={tab === 'accounts' ? COLORS.primary : COLORS.textSecondary} />
-              <Text style={[styles.tabText, tab === 'accounts' && styles.tabTextActive]} numberOfLines={1}>Par compte</Text>
-            </TouchableOpacity>
-          </View>
+          {/* « Par compte » : la vue de fin de projet — ce que chaque compte a réellement encaissé,
+              et de quoi tout basculer d'un coup sur le bon. */}
+          <SegmentedControl
+            options={[
+              { value: 'expenses', label: 'Dépenses', icon: 'receipt-outline' },
+              { value: 'balances', label: 'Équilibres', icon: 'swap-horizontal-outline' },
+              { value: 'accounts', label: 'Par compte', icon: 'wallet-outline' },
+            ]}
+            value={tab}
+            onChange={(v) => setTab(v as any)}
+            style={{ marginBottom: 12 }}
+          />
 
           {tab === 'accounts' ? (
             <>
@@ -945,11 +942,7 @@ function makeStyles(c: any) {
     archiveHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginBottom: 12 },
     editCurrencyHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, marginBottom: 4 },
     editEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
-    tabs: { flexDirection: 'row', gap: 4, backgroundColor: c.background, borderRadius: 12, padding: 4, marginBottom: 12, borderWidth: 1, borderColor: c.border },
-    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, paddingHorizontal: 4, borderRadius: 9 },
-    tabActive: { backgroundColor: c.primary + '1F' },
-    tabText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, flexShrink: 1 },
-    tabTextActive: { color: c.primary, fontWeight: '800' },
+    // Onglets : `components/ui/SegmentedControl` (source unique du style dans toute l'app).
     totalsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
     totalCol: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center' },
     totalLabel: { fontSize: 11, color: c.textSecondary, textAlign: 'center' },
@@ -978,14 +971,14 @@ function makeStyles(c: any) {
     label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 10, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     errText: { fontSize: 12, color: c.danger, marginBottom: 8 },
-    modalCta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 2 },
+    modalCta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 2 },
     modalCtaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
     addNameBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
     sep: { height: 1, backgroundColor: c.cardBorder, marginVertical: 16 },
     partItem: { fontSize: 13, color: c.text, marginBottom: 4 },
     partRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 4 },
     partHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 10, marginTop: -2 },
-    removeCta: { backgroundColor: c.danger, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
+    removeCta: { backgroundColor: c.danger, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
     blockNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '4D', borderRadius: 12, padding: 12, marginBottom: 10 },
     blockNoteText: { flex: 1, fontSize: 12.5, color: c.text, lineHeight: 18 },
     removeBack: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
@@ -1019,7 +1012,7 @@ function makeStyles(c: any) {
     detailActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
     editExpBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
     editExpText: { fontSize: 13, fontWeight: '700', color: c.text },
-    deleteExpBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: c.danger + '14' },
+    deleteExpBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: c.danger + '14' },
     deleteExpText: { fontSize: 13, fontWeight: '700', color: c.danger },
   });
 }

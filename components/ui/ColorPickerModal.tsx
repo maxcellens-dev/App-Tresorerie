@@ -222,7 +222,7 @@ function makeStyles(c: any) {
     rgbLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, marginRight: 6 },
     rgbInput: { flex: 1, minWidth: 0, paddingVertical: 9, color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hexInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 15, fontWeight: '700', letterSpacing: 1, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-    confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+    confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     // `onAccent` : lisible même quand l'accent courant est une teinte claire (cf. AppColors).
     confirmText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
   });

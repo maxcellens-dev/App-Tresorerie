@@ -158,7 +158,7 @@ function makeStyles(c: any) {
     addChild: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 26, paddingVertical: 4 },
     addChildText: { color: c.blue, fontSize: 12.5, fontWeight: '600' },
     addParent: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 20 },
-    applyBtn: { position: 'absolute', left: 20, right: 20, bottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, paddingVertical: 15, borderRadius: 14 },
+    applyBtn: { position: 'absolute', left: 20, right: 20, bottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, paddingVertical: 15, borderRadius: 12 },
     applyLabel: { color: c.onAccent, fontSize: 15, fontWeight: '800' },
   });
 }

@@ -56,7 +56,7 @@ function makeStyles(c: AppColors) {
     bilanEmoji: { fontSize: 52 },
     bilanTitle: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
     bilanText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 21 },
-    bilanBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 40, marginTop: 8 },
+    bilanBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 40, marginTop: 8 },
     bilanBtnText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
   });
 }

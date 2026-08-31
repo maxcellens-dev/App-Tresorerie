@@ -14,10 +14,11 @@
  * à ressortir de la saisie pour aller le vérifier.
  */
 import { useEffect, useMemo, useRef } from 'react';
-import { Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { accountColor } from '../../theme/colors';
 import { currencySymbolFor } from '../../lib/finance/currency';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { chipStyles, chipTone, DISABLED_OPACITY } from '../../lib/ui/controls';
 
 export interface ChipAccount {
   id: string;
@@ -63,17 +64,18 @@ export default function AccountChipRow({ accounts, activeId, disabledId, onSelec
               posRef.current[acc.id] = e.nativeEvent.layout.x;
               if (acc.id === activeId) scrollToActive(false);
             }}
-            style={[styles.chip, {
-              borderColor: isActive ? color : COLORS.cardBorder,
-              backgroundColor: isActive ? color + '22' : 'transparent',
-              opacity: isDisabled ? 0.35 : 1,
-            }]}
+            style={[
+              styles.chip,
+              chipTone(isActive, color, COLORS).container,
+              isDisabled && { opacity: DISABLED_OPACITY },
+            ]}
             onPress={() => onSelect(acc.id)}
             disabled={isDisabled}
-            accessibilityRole="button"
+            activeOpacity={0.85}
+            accessibilityRole="radio"
             accessibilityState={{ selected: isActive, disabled: isDisabled }}
           >
-            <Text style={[styles.name, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+            <Text style={[styles.name, { color: isActive ? color : COLORS.text, fontWeight: isActive ? '700' : '600' }]}>{acc.name}</Text>
             <Text style={styles.balance}>
               {Number(acc.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
             </Text>
@@ -85,12 +87,21 @@ export default function AccountChipRow({ accounts, activeId, disabledId, onSelec
 }
 
 function makeStyles(c: any) {
+  const base = chipStyles(c);
   return StyleSheet.create({
     scroll: { marginBottom: 16 },
+    /* Géométrie COMMUNE à toutes les pastilles de l'app (lib/ui/controls) : seule la teinte change
+       d'un contexte à l'autre. Avant, celle-ci était une gélule de rayon 20 quand les filtres de la
+       page Transactions en avaient une de rayon 8 — le même geste, deux formes. */
     chip: {
-      paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1,
-      marginRight: 8, alignItems: 'center', justifyContent: 'center',
-      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+      ...base.chip,
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 0,
+      paddingVertical: 9,
+      paddingHorizontal: 14,
+      marginRight: 8,
     },
     name: { fontSize: 14, lineHeight: 18, textAlign: 'center' },
     balance: { fontSize: 11, lineHeight: 14, color: c.textSecondary, marginTop: 2 },

@@ -765,7 +765,7 @@ function makeStyles(c: any) {
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 16 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
-  modalBtn: { paddingVertical: 10, paddingHorizontal: 16 },
+  modalBtn: { paddingVertical: 14, paddingHorizontal: 16 },
   modalBtnPrimary: { backgroundColor: c.emerald, borderRadius: 12 },
   modalBtnLabel: { fontSize: 16, color: c.textSecondary },
   modalBtnLabelPrimary: { color: c.onAccent, fontWeight: '600' },
