@@ -55,10 +55,10 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
 type AccountTab = 'solde' | 'transactions' | 'parametres';
 
-const TABS: Array<{ id: AccountTab; label: string; icon: string }> = [
-  { id: 'solde', label: 'Solde', icon: 'stats-chart-outline' },
-  { id: 'transactions', label: 'Transactions', icon: 'list-outline' },
-  { id: 'parametres', label: 'Paramètres', icon: 'settings-outline' },
+const TABS: Array<{ id: AccountTab; label: string }> = [
+  { id: 'solde', label: 'Solde' },
+  { id: 'transactions', label: 'Transactions' },
+  { id: 'parametres', label: 'Paramètres' },
 ];
 
 const TYPE_LABELS: Record<string, string> = {
@@ -501,7 +501,6 @@ function AccountDetailScreen() {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
               >
-                <Ionicons name={t.icon as any} size={15} color={active ? COLORS.bg : COLORS.textSecondary} />
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>{t.label}</Text>
               </TouchableOpacity>
             );
@@ -963,17 +962,27 @@ function makeStyles(c: any) {
 
   // ── Onglets de la fiche (Solde / Transactions / Paramètres) ──
   tabBar: {
-    flexDirection: 'row', gap: 6, padding: 4, marginBottom: 16,
-    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
+    flexDirection: 'row',
+    backgroundColor: c.background,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: c.border,
   },
   tabBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 9,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
-  tabBtnActive: { backgroundColor: c.emerald },
-  tabLabel: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
-  tabLabelActive: { color: c.onAccent },
+  tabBtnActive: { backgroundColor: c.primary + '1F' },
+  tabLabel: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, flexShrink: 1 },
+  tabLabelActive: { color: c.primary, fontWeight: '800' },
 
   balanceCard: {
     backgroundColor: c.card,
