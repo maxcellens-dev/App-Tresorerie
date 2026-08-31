@@ -29,6 +29,17 @@ interface Props {
   date: string;
   /** Montant en cours de saisie, positif. */
   amount: number;
+  /**
+   * Compte choisi pour l'opération. Il DÉCIDE si le bloc a le droit de parler.
+   *
+   * Une dépense payée depuis un livret ou un compte-titres n'entre pas dans les dépenses variables
+   * (`isBudgetExpense` n'accepte que les comptes COURANTS) : elle ne consommera donc aucun budget.
+   * Sans ce garde-fou, le bloc annonçait « après cette opération : 340 € » pour une opération qui,
+   * une fois enregistrée, ne bougeait pas d'un centime — une promesse démentie à l'écran suivant.
+   * Non renseigné = pas de vérification (le bloc parle), pour les appelants qui n'ont pas de compte
+   * à donner, comme le récapitulatif d'après enregistrement.
+   */
+  accountType?: string | null;
   /** Transaction en cours de modification — exclue du consommé pour ne pas se compter deux fois. */
   excludeTxId?: string | null;
   /** Une récurrente n'entre pas dans le budget variable : le bloc n'a alors rien à dire. */
@@ -44,14 +55,16 @@ interface Props {
 
 const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
 
-export default function BudgetInlineBlock({ categoryId, date, amount, excludeTxId, hidden, variant = 'form' }: Props) {
+export default function BudgetInlineBlock({ categoryId, date, amount, excludeTxId, hidden, accountType, variant = 'form' }: Props) {
   const C = useAppColors();
   const s = useMemo(() => makeStyles(C), [C]);
   const { user } = useAuth();
   const ctx = useBudgetContext(user?.id);
+  // Compte non courant : l'opération ne pèsera sur aucun budget, le bloc se tait.
+  const countsTowardBudget = accountType == null || accountType === 'checking';
 
   const resolved = useMemo(() => {
-    if (hidden || !ctx.isReady) return null;
+    if (hidden || !countsTowardBudget || !ctx.isReady) return null;
     return resolveBudgetFor({
       categoryId, date, amount,
       fluxTx: ctx.fluxTx,
@@ -61,7 +74,7 @@ export default function BudgetInlineBlock({ categoryId, date, amount, excludeTxI
       today: ctx.today,
       excludeTxId,
     });
-  }, [hidden, ctx.isReady, ctx.fluxTx, ctx.accountTypeById, ctx.categories, ctx.budgets, ctx.today, categoryId, date, amount, excludeTxId]);
+  }, [hidden, countsTowardBudget, ctx.isReady, ctx.fluxTx, ctx.accountTypeById, ctx.categories, ctx.budgets, ctx.today, categoryId, date, amount, excludeTxId]);
 
   // Aucun budget sur ce périmètre : AUCUNE ligne, aucun espace réservé, aucune invitation à en
   // créer un. Le formulaire de saisie n'est pas un endroit où l'on démarche l'utilisateur.

@@ -32,6 +32,8 @@ import {
   useCheckProjectTransactions,
   useDeleteProjectFromDate,
 } from '../../../hooks/data/useProjects';
+// Sert UNIQUEMENT à choisir l'onglet d'arrivée : la page Budget lit ses budgets elle-même.
+import { useBudgets } from '../../../hooks/data/useBudgets';
 import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -77,7 +79,8 @@ function ProjectsScreen() {
   const onRwInviteError = (e: unknown) =>
     Alert.alert('Un souci', e instanceof Error ? e.message : "L'invitation n'a pas pu être traitée. Réessaie dans un instant.");
   // Relyka World (projets partagés) — affichés dans cette même page.
-  const { data: rwProjects = [] } = useRwProjects(user?.id);
+  const rwProjectsQuery = useRwProjects(user?.id);
+  const rwProjects = rwProjectsQuery.data ?? [];
   const { data: rwInvitations = [], error: rwInvitesError } = useRwInvitations(user?.id);
   const respondInvite = useRwRespondInvitation(user?.id);
   const createRwProject = useCreateRwProject(user?.id);
@@ -94,12 +97,33 @@ function ProjectsScreen() {
   const [view, setView] = useState<SubView>('budgets');
   /** Bas du segment « Budgets / Projets » — la vue Budgets en a besoin pour aligner ses onglets. */
   const [segBottom, setSegBottom] = useState(0);
+  /* DEUX MÉMOIRES, et la distinction compte.
+     `userPickedView` : l'utilisateur a touché le segment lui-même. Plus rien d'automatique ne le
+     déplace ensuite — une page qui change d'onglet toute seule pendant qu'on la lit est un bug, même
+     quand la raison est bonne.
+     `autoViewSettled` : une règle a déjà tranché. Elle ne rejoue pas à chaque arrivée de données,
+     sinon l'onglet sauterait au fil des requêtes qui aboutissent. */
+  const userPickedView = useRef(false);
+  const autoViewSettled = useRef(false);
+  const pickView = (v: SubView) => { userPickedView.current = true; setView(v); };
   const invitesSeen = useRef(false);
   useEffect(() => {
-    if (invitesSeen.current || rwInvitations.length === 0) return;
+    if (userPickedView.current || invitesSeen.current || rwInvitations.length === 0) return;
     invitesSeen.current = true;
+    autoViewSettled.current = true;
     setView('projects');
   }, [rwInvitations.length]);
+  /* ON ARRIVE ICI POUR UN PROJET : le guide « Pour bien démarrer » envoie sur cette page avec
+     `?onb=project` et met en évidence le bouton « + Projet »… qui vit dans l'autre sous-onglet.
+     Depuis la fusion des deux écrans, cette étape du guide menait donc sur les budgets, sans le
+     bouton promis ni sa surbrillance. Même chose pour l'action « Projets › + Projet » des bannières
+     internes, qui ouvre le choix du type par-dessus une page qui ne parle pas de projets. */
+  const onbParams = useLocalSearchParams<{ onb?: string }>();
+  useEffect(() => {
+    if (onbParams.onb !== 'project') return;
+    autoViewSettled.current = true;
+    setView('projects');
+  }, [onbParams.onb]);
 
   const [showInfo, setShowInfo] = useState(false);
   const [showTypeChoice, setShowTypeChoice] = useState(false);
@@ -107,7 +131,11 @@ function ProjectsScreen() {
   // `adNonce` change à chaque clic → l'action rejoue même si l'on est déjà sur la page.
   const adParams = useLocalSearchParams<{ adAction?: string; adNonce?: string }>();
   useEffect(() => {
-    if (adParams.adAction === 'new') setShowTypeChoice(true);
+    if (adParams.adAction !== 'new') return;
+    // Le choix du type s'ouvre SUR la liste des projets : sinon on referme la feuille et l'on se
+    // retrouve sur les budgets, sans rapport avec ce qu'on venait de demander.
+    setView('projects');
+    setShowTypeChoice(true);
   }, [adParams.adAction, adParams.adNonce]);
   const [showRwCreate, setShowRwCreate] = useState(false);
   const [rwName, setRwName] = useState('');
@@ -137,6 +165,35 @@ function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const projectsQuery = useProjects(user?.id || '');
   const { data: projects = [], isLoading, refetch } = projectsQuery;
+
+  /* ── SUR QUEL ONGLET ON ARRIVE ─────────────────────────────────────────────────────────────────
+     L'onglet s'appelle « Budget », donc les budgets sont la porte d'entrée — sauf quand cette porte
+     ouvre sur du vide. Quelqu'un qui n'a fixé aucun budget mais qui suit des projets arrivait sur un
+     écran d'invitation à créer un budget, alors que ce qu'il vient consulter est deux centimètres
+     plus loin. On le pose donc sur ce qu'il a réellement.
+       • un budget existe          → Budgets (c'est le nom de l'onglet, et il y a de quoi lire) ;
+       • aucun budget, des projets → Projets ;
+       • ni l'un ni l'autre        → Budgets (l'écran de départ explique la fonctionnalité).
+     Une invitation à un projet partagé reste prioritaire : elle porte une pastille, l'écran doit la
+     tenir. Et rien de tout ça ne se déclenche si l'utilisateur a déjà choisi son onglet. */
+  const budgetsQuery = useBudgets(user?.id);
+  /* Relyka World peut être DÉSACTIVÉ (requête jamais lancée) : elle reste alors « en attente » à
+     jamais. On la considère réglée dès qu'elle n'a plus rien à faire — sinon la règle ne tranchait
+     jamais chez ces utilisateurs, et l'onglet par défaut ne changeait plus. */
+  const rwSettled = rwProjectsQuery.isSuccess || rwProjectsQuery.isError || rwProjectsQuery.fetchStatus === 'idle';
+  useEffect(() => {
+    if (userPickedView.current || autoViewSettled.current) return;
+    // On attend d'avoir la réponse aux DEUX questions : trancher sur des données à moitié arrivées
+    // ferait basculer l'onglet une seconde après l'ouverture, sous les yeux de l'utilisateur.
+    if (!budgetsQuery.isSuccess || !projectsQuery.isSuccess || !rwSettled) return;
+    autoViewSettled.current = true;
+    // Un budget à 0 n'est pas un budget : c'est la façon de le retirer (cf. hooks/data/useBudgets).
+    const hasBudget = (budgetsQuery.data ?? []).some((b) => b.amount > 0);
+    // Ce que l'onglet Projets montrerait vraiment : on n'y envoie personne pour une liste vide.
+    const hasProject = (projectsQuery.data ?? []).some((p: any) => p.status !== 'completed' && p.status !== 'archived')
+      || (rwProjectsQuery.data ?? []).some((p: any) => !p.archived_at);
+    if (!hasBudget && hasProject) setView('projects');
+  }, [budgetsQuery.isSuccess, budgetsQuery.data, projectsQuery.isSuccess, projectsQuery.data, rwSettled, rwProjectsQuery.data]);
   // C4 — crédits liés à un projet : map projectId → [{ label, crd }].
   const { data: creditsList = [] } = useCredits(user?.id);
   // Sans les ÉVÉNEMENTS, le capital restant dû reste celui du plan d'origine : un remboursement
@@ -516,7 +573,9 @@ function ProjectsScreen() {
               { value: 'projects', label: 'Projets', icon: 'flag-outline', badge: rwInvitations.length },
             ]}
             value={view}
-            onChange={(v) => setView(v as SubView)}
+            // `pickView` et non `setView` : le choix de l'utilisateur fige l'onglet. Sans ça, une
+            // requête qui aboutit une seconde plus tard le ramenait sur l'autre vue.
+            onChange={(v) => pickView(v as SubView)}
             style={{ marginBottom: 12 }}
           />
         </View>

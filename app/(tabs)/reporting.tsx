@@ -1202,9 +1202,11 @@ function ReportingBody() {
                     <Ionicons name="flag-outline" size={20} color={C.income} />
                     <Text style={[s.sectionTitle, { flex: 1 }]}>Dépensé vs budget</Text>
                   </View>
+                  {/* Le bilan ne porte que sur les mois TERMINÉS : le mois en cours n'a pas encore
+                      de verdict, et l'annoncer « tenu » le 2 du mois décrédibilise le chiffre. */}
                   <Text style={s.sectionSub}>
                     Le trait est ton budget du mois · {budgetHistory.length} mois
-                    {budgetRespected.total > 0 ? ` · tenu ${budgetRespected.respected} mois sur ${budgetRespected.total}` : ''}
+                    {budgetRespected.total > 0 ? ` · tenu ${budgetRespected.respected} mois sur ${budgetRespected.total} terminé${budgetRespected.total > 1 ? 's' : ''}` : ''}
                   </Text>
                   <View style={s.chartCard} onLayout={onChartCardLayout}>
                     <BudgetBars data={budgetHistory} width={chartWidth} selected={budgetSelIndex} onSelect={setBudgetSel} />

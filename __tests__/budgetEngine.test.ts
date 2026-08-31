@@ -304,6 +304,28 @@ describe('cadence annuelle — deux fenêtres, jamais une division', () => {
   });
 });
 
+describe('budget annuel — la fenêtre suit l’ANNÉE affichée, pas le mois consulté', () => {
+  const txs = [
+    tx({ category_id: 'vac', amount: -1200, date: '2026-04-10' }),
+    tx({ category_id: 'vac', amount: -650, date: '2026-09-02' }),
+  ];
+  const budgets = [budget({ category_id: 'vac', period: 'year', period_key: '2026', amount: 2400 })];
+
+  it('le même budget annuel donne le même dépensé, quel que soit le mois qu’on regarde', () => {
+    const enCours = run(txs, budgets, '2026-09');
+    const moisPasse = run(txs, budgets, '2026-03');
+    expect(enCours.annual[0].spent).toBe(1850);
+    expect(moisPasse.annual[0].spent).toBe(1850);
+  });
+
+  it('une année FUTURE se lit en entier — pas à zéro parce qu’elle est après aujourd’hui', () => {
+    const futur = [tx({ category_id: 'vac', amount: -900, date: '2027-02-10' })];
+    const r = run(futur, [budget({ category_id: 'vac', period: 'year', period_key: '2026', amount: 2400 })], '2027-01');
+    expect(r.annual).toHaveLength(1);
+    expect(r.annual[0].spent).toBe(900);
+  });
+});
+
 describe('régularisation — elle compte, mais isolée', () => {
   it('entre dans le dépensé ET ressort dans regulPart', () => {
     const r = run(
@@ -363,6 +385,32 @@ describe('resolveBudgetFor — la saisie', () => {
     expect(r?.spentBefore).toBe(60);   // novembre seulement
     expect(r?.spentAfter).toBe(100);
     expect(r?.isFuture).toBe(true);
+  });
+
+  it('une dépense datée plus tard DANS le mois en cours compte ce qui y est déjà saisi', () => {
+    /* Le bloc annonce « déjà saisis » quand la date est à venir : il doit donc lire tout le mois,
+       et pas s'arrêter à aujourd'hui. Sinon l'étiquette promettait une chose et le chiffre en
+       disait une autre. Ici le 25 septembre existe déjà, et l'on saisit au 28. */
+    const r = resolveBudgetFor({
+      ...base,
+      fluxTx: [tx({ category_id: 'courses', amount: -100, date: '2026-09-10' }), tx({ category_id: 'courses', amount: -45, date: '2026-09-25' })],
+      categoryId: 'courses', date: '2026-09-28', amount: 30,
+      budgets: [budget({ category_id: 'courses', amount: 400 })],
+    });
+    expect(r?.isFuture).toBe(true);
+    expect(r?.spentBefore).toBe(145); // 100 + 45, et pas 100
+    expect(r?.spentAfter).toBe(175);
+  });
+
+  it('une dépense datée d’aujourd’hui s’arrête bien à aujourd’hui', () => {
+    const r = resolveBudgetFor({
+      ...base,
+      fluxTx: [tx({ category_id: 'courses', amount: -100, date: '2026-09-10' }), tx({ category_id: 'courses', amount: -45, date: '2026-09-25' })],
+      categoryId: 'courses', date: TODAY, amount: 30,
+      budgets: [budget({ category_id: 'courses', amount: 400 })],
+    });
+    expect(r?.isFuture).toBe(false);
+    expect(r?.spentBefore).toBe(100); // le 25 n'est pas encore arrivé
   });
 
   it('une modification n’est pas comptée deux fois', () => {
@@ -425,6 +473,34 @@ describe('historique', () => {
     ]);
     expect(pts[0].budget).toBe(400);
     expect(pts[0].spent).toBe(300);
+  });
+
+  it('un mois EN COURS est marqué comme tel et ne se juge pas', () => {
+    const pts = hist(['2026-08', '2026-09'], [budget({ category_id: 'alim', period_key: '2026-08', amount: 1000 })]);
+    expect(pts.map((p) => p.inProgress)).toEqual([false, true]);
+    // Septembre est à 300 € sur 1 000 € le 18 : « tenu » serait une félicitation prématurée.
+    expect(countMonthsRespected(pts)).toEqual({ respected: 0, total: 1 });
+  });
+
+  it('un mois à VENIR ne se juge pas non plus', () => {
+    const pts = hist(['2026-10'], [budget({ category_id: 'alim', period_key: '2026-08', amount: 1000 })]);
+    expect(pts[0].inProgress).toBe(true);
+    expect(countMonthsRespected(pts)).toEqual({ respected: 0, total: 0 });
+  });
+
+  it('« Mouvements » reste hors budget, ici aussi', () => {
+    const pts = hist(['2026-08'], [budget({ category_id: 'mvt', period_key: '2026-08', amount: 500 })]);
+    expect(pts[0].hasBudget).toBe(false);
+    expect(pts[0].budget).toBe(0);
+  });
+
+  it('sans les catégories, la hiérarchie serait perdue — elles sont donc exigées par l’appelant', () => {
+    // Le rollup parent → enfants ne peut se faire qu'avec l'arbre : c'est ce que l'instantané IA
+    // omettait, et son historique disait « budget tenu » sur des mois largement dépassés.
+    const sansArbre = buildBudgetHistory(['2026-08'], txs, ACCOUNTS, [budget({ category_id: 'alim', period_key: '2026-08', amount: 1000 })], TODAY);
+    const avecArbre = hist(['2026-08'], [budget({ category_id: 'alim', period_key: '2026-08', amount: 1000 })]);
+    expect(sansArbre[0].spent).toBe(0);      // les 1 080 € sont sur « Courses », enfant d'« Alimentation »
+    expect(avecArbre[0].spent).toBe(1080);
   });
 });
 

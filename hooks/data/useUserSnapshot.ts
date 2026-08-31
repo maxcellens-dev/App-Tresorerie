@@ -651,16 +651,22 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
     };
     r.rows.forEach(walk);
     r.annual.forEach(walk);
+    /* ⚠️ Les CATÉGORIES sont indispensables ici, et leur oubli ne se voyait pas : sans elles, le
+       moteur ignore la hiérarchie. Le dépensé d'un budget posé sur « Alimentation » ne remontait
+       alors PAS celui de « Courses » ni de « Restaurants » — donc un budget quasiment toujours
+       « tenu », et une sous-catégorie budgétée sous sa parente comptée deux fois. L'IA recevait un
+       historique faux et conseillait dessus. */
     const points = buildBudgetHistory(
       Array.from({ length: 6 }, (_, i) => addMonthKey(monthKeyOf(todayISO()), i - 5)),
       budgetData.fluxTx, budgetData.accountTypeById, budgetData.budgets ?? [], budgetData.today,
+      budgetData.categories,
     );
     return {
       global: r.total.hasBudget ? { amount: r.total.budget, spent: r.total.spent, pct: r.total.pct ?? 0 } : null,
       categories: flat,
       history: countMonthsRespected(points),
     };
-  }, [budgetData.result, budgetData.fluxTx, budgetData.accountTypeById, budgetData.budgets, budgetData.today]);
+  }, [budgetData.result, budgetData.fluxTx, budgetData.accountTypeById, budgetData.budgets, budgetData.today, budgetData.categories]);
 
   const build = () => {
     const now = new Date();

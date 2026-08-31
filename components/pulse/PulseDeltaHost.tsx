@@ -415,9 +415,12 @@ export default function PulseDeltaHost() {
         {/* BUDGET DE LA CATÉGORIE — EXACTEMENT le même bloc qu'à l'étape 2 de la saisie, en mode
             récapitulatif. Le budget se reconnaît ainsi au même endroit du regard avant et après
             l'enregistrement, au lieu d'être une quatrième boîte colorée de plus. */}
-        {active.current?.event.kind === 'expense'
-          && !!active.current.event.categoryId
-          && !active.current.event.isRecurring && (
+        {/* MÊME RÈGLE QUE PARTOUT : le bloc ne s'affiche que si l'opération consomme réellement
+            l'enveloppe variable (`consumesVariableEnvelope`, la règle partagée avec le patch
+            optimiste). Les conditions écrites à la main ici ne testaient ni le TYPE DU COMPTE ni le
+            rattachement à un PROJET : une dépense payée depuis un livret affichait donc une carte
+            « Budget du mois » que la dépense ne touchait pas — un budget annoncé, puis inchangé. */}
+        {!!active.current?.event.categoryId && toOp(active.current.event).hitsVariableEnvelope && (
           <BudgetInlineBlock
             categoryId={active.current.event.categoryId}
             date={active.current.event.date ?? todayISO()}

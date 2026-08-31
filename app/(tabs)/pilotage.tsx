@@ -385,8 +385,7 @@ function PilotageScreen() {
     budget: budgetForReco.result.total.budget,
     spent: budgetForReco.result.total.spent,
     pace: budgetForReco.result.pace,
-    envelope: pilotageData?.variable_envelope_initial ?? 0,
-  }), [budgetForReco.result, pilotageData?.variable_envelope_initial]);
+  }), [budgetForReco.result]);
 
   const vm = usePilotageViewModel({
     pilotageData,

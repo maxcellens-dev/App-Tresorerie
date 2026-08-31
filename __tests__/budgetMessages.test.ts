@@ -5,15 +5,15 @@ import { composeBudgetMessage, buildRelykaMessages } from '../lib/finance/recoMe
 
 describe('composeBudgetMessage — un message, ou rien', () => {
   it('se tait sans budget', () => {
-    expect(composeBudgetMessage({ budget: 0, spent: 400, pace: 200, envelope: 1000 })).toBeNull();
+    expect(composeBudgetMessage({ budget: 0, spent: 400, pace: 200 })).toBeNull();
   });
 
   it('se tait quand rien n’est encore dépensé et que rien ne cloche', () => {
-    expect(composeBudgetMessage({ budget: 1000, spent: 0, pace: null, envelope: 1000 })).toBeNull();
+    expect(composeBudgetMessage({ budget: 1000, spent: 0, pace: null })).toBeNull();
   });
 
   it('le DÉPASSEMENT constaté prime sur tout le reste', () => {
-    const msg = composeBudgetMessage({ budget: 400, spent: 470, pace: 300, envelope: 200 });
+    const msg = composeBudgetMessage({ budget: 400, spent: 470, pace: 300 });
     expect(msg).toContain('dépassé');
     // Le montant du dépassement, pas seulement le fait qu'il y en ait un.
     expect(msg).toContain('70');
@@ -27,9 +27,9 @@ describe('composeBudgetMessage — un message, ou rien', () => {
      budget est une information, jamais un reproche ni une consigne. */
   it('ne culpabilise pas et ne donne pas d’ordre', () => {
     const msgs = [
-      composeBudgetMessage({ budget: 400, spent: 470, pace: 300, envelope: 200 }),
-      composeBudgetMessage({ budget: 1000, spent: 300, pace: 130, envelope: 1000 }),
-      composeBudgetMessage({ budget: 800, spent: 100, pace: null, envelope: 1000 }),
+      composeBudgetMessage({ budget: 400, spent: 470, pace: 300 }),
+      composeBudgetMessage({ budget: 1000, spent: 300, pace: 130 }),
+      composeBudgetMessage({ budget: 800, spent: 100, pace: null }),
     ].join(' ').toLowerCase();
     for (const banned of ['attention', 'tu dois', 'il faut', 'trop', 'erreur', 'échec', 'mauvais', '!']) {
       expect(msgs).not.toContain(banned);
@@ -37,28 +37,31 @@ describe('composeBudgetMessage — un message, ou rien', () => {
   });
 
   it('le RYTHME ne parle qu’au-delà de 115 %', () => {
-    expect(composeBudgetMessage({ budget: 1000, spent: 300, pace: 110, envelope: 1000 })).not.toContain('À ce rythme');
-    expect(composeBudgetMessage({ budget: 1000, spent: 300, pace: 130, envelope: 1000 })).toContain('À ce rythme');
+    expect(composeBudgetMessage({ budget: 1000, spent: 300, pace: 110 })).not.toContain('À ce rythme');
+    expect(composeBudgetMessage({ budget: 1000, spent: 300, pace: 130 })).toContain('À ce rythme');
   });
 
   it('le rythme reste MUET tant qu’il est trop tôt (pace null avant 25 % du mois)', () => {
-    const msg = composeBudgetMessage({ budget: 1000, spent: 80, pace: null, envelope: 1000 });
+    const msg = composeBudgetMessage({ budget: 1000, spent: 80, pace: null });
     expect(msg).not.toContain('À ce rythme');
   });
 
-  it('l’ÉCART budget/habitudes est présenté comme un objectif, pas comme une erreur', () => {
-    const msg = composeBudgetMessage({ budget: 800, spent: 100, pace: null, envelope: 1000 });
-    expect(msg).toContain('200');
-    expect(msg).toContain('en dessous de ce que tu dépenses d\'habitude');
-  });
-
-  it('ne signale pas un écart négligeable (moins de 5 %)', () => {
-    const msg = composeBudgetMessage({ budget: 990, spent: 100, pace: null, envelope: 1000 });
+  /* L'app ne COMPARE PLUS le budget aux dépenses habituelles. L'utilisateur sait qu'il a visé plus
+     bas — c'est le geste qu'il vient de faire ; le lui rappeler chaque mois transformait son
+     intention en écart à justifier. Ce test verrouille le retrait : viser 800 € quand on dépense
+     1 000 € d'habitude ne déclenche aucun commentaire, seulement l'état d'avancement. */
+  it('ne commente jamais l’écart entre le budget et les dépenses habituelles', () => {
+    const msg = composeBudgetMessage({ budget: 800, spent: 100, pace: null });
     expect(msg).not.toContain('en dessous');
+    expect(msg).not.toContain('habitude');
+    // Il reste néanmoins quelque chose à dire : où en est le mois.
+    expect(msg).toContain('100');
+    expect(msg).toContain('800');
+    expect(msg).toContain('700');
   });
 
   it('à défaut, il rend simplement compte — dépensé, budget, reste', () => {
-    const msg = composeBudgetMessage({ budget: 800, spent: 620, pace: 100, envelope: 800 });
+    const msg = composeBudgetMessage({ budget: 800, spent: 620, pace: 100 });
     expect(msg).toContain('620');
     expect(msg).toContain('800');
     expect(msg).toContain('180');

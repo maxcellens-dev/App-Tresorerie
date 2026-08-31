@@ -120,7 +120,10 @@ export default function BudgetBars({ data, width, selected, onSelect }: Props) {
           une tendance, pas quand la question est « de combien ai-je dépassé ». */}
       {selData && (
         <View style={s.detail}>
-          <Text style={s.detailMonth}>{selData.label}</Text>
+          {/* Un mois EN COURS est annoncé comme tel : ses chiffres se compareront encore. */}
+          <Text style={s.detailMonth}>
+            {selData.label}{selData.inProgress ? ' · en cours' : ''}
+          </Text>
           {selData.hasBudget ? (
             <View style={s.detailVals}>
               <View style={s.detailItem}>
@@ -131,10 +134,14 @@ export default function BudgetBars({ data, width, selected, onSelect }: Props) {
                 <Text style={s.detailLabel}>Dépensé</Text>
                 <Text style={s.detailValue}>{fmtFull(selData.spent)}</Text>
               </View>
+              {/* NI SIGNE, NI CONVENTION À DEVINER. La colonne s'intitulait « Écart » et affichait
+                  « −1 234 € » en vert pour un budget tenu : un moins devant un bon chiffre, un plus
+                  devant un mauvais. Sur de l'argent, une convention de signe qu'il faut apprendre
+                  est une erreur de lecture qui attend. On nomme donc ce qu'on montre. */}
               <View style={s.detailItem}>
-                <Text style={s.detailLabel}>Écart</Text>
+                <Text style={s.detailLabel}>{(selData.gap ?? 0) >= 0 ? 'Restant' : 'Dépassé'}</Text>
                 <Text style={[s.detailValue, { color: (selData.gap ?? 0) >= 0 ? C.success : C.warning, fontWeight: '800' }]}>
-                  {(selData.gap ?? 0) >= 0 ? `−${fmtFull(selData.gap ?? 0)}` : `+${fmtFull(-(selData.gap ?? 0))}`}
+                  {fmtFull(Math.abs(selData.gap ?? 0))}
                 </Text>
               </View>
             </View>

@@ -936,6 +936,8 @@ function EditTransactionScreen() {
               categoryId={categoryId || null}
               date={date}
               amount={Math.abs(parseAmountInput(amount) ?? 0)}
+              // Même garde qu'à la saisie : hors compte courant, l'opération ne consomme aucun budget.
+              accountType={accounts.find((a: any) => a.id === accountId)?.type ?? null}
               excludeTxId={params.id}
               hidden={!isExpense}
             />

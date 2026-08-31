@@ -16,8 +16,8 @@
  * veut, on enregistre, on revient quand on veut. Un champ vidé retire le budget (montant 0 : on ne
  * supprime pas la ligne, sinon le report ferait revenir celle du mois précédent).
  */
-import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,7 @@ import { useKeyboardAwareScroll } from '../../hooks/platform/useKeyboardAwareScr
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { sanitizeAmountInput, parseAmountInput } from '../../lib/ui/amountInput';
+import { describeWriteError } from '../../lib/ui/writeErrors';
 import { todayISO } from '../../lib/dateUtils';
 import { addMonthKey, monthLabel } from '../../lib/finance/monthKeys';
 import { variableSpentByCategory } from '../../lib/finance/variableSpend';
@@ -60,10 +61,22 @@ export default function BudgetEditScreen() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ month?: string }>();
-  const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll, keyboardPadding, keyboardHeight } = useKeyboardAwareScroll();
 
   const today = todayISO();
-  const monthKey = params.month || monthKeyOf(today);
+  const currentMonth = monthKeyOf(today);
+  /* Le paramètre d'URL est VALIDÉ, jamais utilisé tel quel : on arrive aussi ici par un lien, un
+     favori ou un retour de navigateur. Une clé fantaisiste donnait un titre « Invalid Date » puis un
+     refus du serveur à l'enregistrement (la contrainte SQL exige 'YYYY-MM'), sans que rien
+     n'explique pourquoi. */
+  const paramMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(params.month ?? '')) ? String(params.month) : null;
+  /* ON N'ÉCRIT JAMAIS DANS LE PASSÉ. Un budget est une décision qu'on prend AVANT ; le réécrire
+     après coup permettrait de se fabriquer un historique flatteur. Surtout, ça ne restait pas dans
+     le passé : par le report implicite, poser 1 200 € sur mars changeait avril, mai et tous les mois
+     suivants qui n'ont pas leur propre ligne. On édite donc le mois affiché s'il est à venir, le
+     mois en cours sinon — et on le DIT. */
+  const monthKey = paramMonth && paramMonth > currentMonth ? paramMonth : currentMonth;
+  const redirectedFromPast = paramMonth != null && paramMonth < currentMonth;
   const yearKey = yearKeyOf(monthKey);
 
   const ctx = useBudgetContext(user?.id);
@@ -80,21 +93,40 @@ export default function BudgetEditScreen() {
   const avgByCat = useMemo(() => {
     const totals = new Map<string, number>();
     if (!ctx.isReady) return totals;
+    /* On divise par les mois RÉELLEMENT VÉCUS, pas par 3.
+       Quelqu'un qui utilise l'app depuis cinq semaines n'a qu'un mois complet derrière lui : diviser
+       ses 300 € de courses par trois affichait « ~ 100 €/mois » sous le champ. C'est le seul repère
+       de l'écran, celui sur lequel il va caler son budget — le donner trois fois trop bas fabrique un
+       budget intenable, puis un dépassement, puis l'impression que l'app se trompe. */
+    let monthsWithData = 0;
     for (let i = 1; i <= 3; i++) {
       const mk = addMonthKey(monthKey, -i);
-      for (const [catId, amount] of variableSpentByCategory(ctx.fluxTx, ctx.accountTypeById, { prefix: mk })) {
-        if (!catId || amount <= 0) continue;
+      const byCat = variableSpentByCategory(ctx.fluxTx, ctx.accountTypeById, { prefix: mk });
+      let monthHasSpending = false;
+      for (const [catId, amount] of byCat) {
+        if (amount <= 0) continue;
+        monthHasSpending = true;
+        if (!catId) continue;
         totals.set(catId, (totals.get(catId) ?? 0) + amount);
       }
+      if (monthHasSpending) monthsWithData += 1;
     }
-    for (const [k, v] of totals) totals.set(k, v / 3);
+    const divisor = Math.max(1, monthsWithData);
+    for (const [k, v] of totals) totals.set(k, v / divisor);
     return totals;
   }, [ctx.isReady, ctx.fluxTx, ctx.accountTypeById, monthKey]);
 
-  /** Moyenne d'une parente = la sienne PLUS celle de ses enfants (une dépense est rangée au niveau fin). */
-  const rolledAvg = (id: string): number => {
+  /**
+   * Moyenne d'une parente = la sienne PLUS celle de TOUTE sa descendance (une dépense est rangée au
+   * niveau fin). Récursif comme le rollup du moteur : s'arrêter au premier niveau sous-estimait le
+   * repère dès qu'une hiérarchie descend plus bas, et les deux écrans n'auraient pas dit la même
+   * chose de la même catégorie.
+   */
+  const rolledAvg = (id: string, seen = new Set<string>()): number => {
+    if (seen.has(id)) return 0;
+    seen.add(id);
     let sum = avgByCat.get(id) ?? 0;
-    for (const c of ctx.categories) if (c.parent_id === id) sum += avgByCat.get(c.id) ?? 0;
+    for (const c of ctx.categories) if (c.parent_id === id) sum += rolledAvg(c.id, seen);
     return sum;
   };
 
@@ -148,9 +180,18 @@ export default function BudgetEditScreen() {
   const hasRows = sections.some((sec) => sec.items.length > 0);
 
   /* On part TOUJOURS de ce qui est enregistré : rouvrir l'écran sur un brouillon abandonné
-     laisserait croire qu'il a été enregistré. */
+     laisserait croire qu'il a été enregistré.
+     ── MAIS UNE SEULE FOIS ────────────────────────────────────────────────────────────────────────
+     Cet effet dépendait de `ctx.budgets`, dont la RÉFÉRENCE change à chaque relecture — au retour de
+     l'app en avant-plan, notamment. Il repartait alors de la base et remplaçait tout l'état du
+     formulaire : les montants tapés depuis l'ouverture disparaissaient sous les yeux de
+     l'utilisateur, sans message. Une fois amorcé, le formulaire s'appartient : il ne se laisse plus
+     réécrire par une lecture de fond. */
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
     if (!ctx.isReady) return;
+    if (seededFor.current === monthKey) return;
+    seededFor.current = monthKey;
     const next: Record<string, Draft> = {};
     for (const c of ctx.categories) {
       const m = effectiveBudget(ctx.budgets ?? [], 'month', monthKey, c.id);
@@ -211,7 +252,10 @@ export default function BudgetEditScreen() {
       if (inputs.length) await setBudgets.mutateAsync(inputs);
       goBack();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Les budgets n'ont pas pu être enregistrés. Réessaie.");
+      /* `describeWriteError` plutôt que le message brut : sinon on affichait la phrase de Postgres
+         (« duplicate key value violates unique constraint… »), qui n'apprend rien à quelqu'un qui
+         voulait juste fixer 200 € de courses, et ne dit pas quoi faire. */
+      setError(describeWriteError(e));
     } finally {
       lock.release();
       setBusy(false);
@@ -225,31 +269,43 @@ export default function BudgetEditScreen() {
       <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'form')]} edges={['left', 'right']}>
         <ScreenHeader title="Budgets" onBack={goBack} />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        {/* Pas de `KeyboardAvoidingView` : `useKeyboardAwareScroll` réserve DÉJÀ la hauteur du
+            clavier sous le contenu (`keyboardPadding`) et remonte le champ actif. Les deux ensemble
+            réservaient cette hauteur deux fois sur iOS — un grand vide sous la dernière ligne — et
+            empêchaient de remonter proprement la barre d'action. */}
+        <ScrollView
+          ref={scrollRef}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          // `flex: 1` EXPLICITE : la liste doit occuper la place restante et défiler DEDANS. Sans
+          // lui, elle prend la hauteur de ses quarante lignes et repousse la barre « Enregistrer »
+          // hors de l'écran — c'est le conteneur retiré au-dessus qui le portait jusqu'ici.
           style={{ flex: 1 }}
+          contentContainerStyle={[s.content, { paddingBottom: 120 }, keyboardPadding]}
         >
-          <ScrollView
-            ref={scrollRef}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.content, { paddingBottom: 120 }, keyboardPadding]}
-          >
             <Text style={s.month}>{monthLabel(monthKey)}</Text>
             <Text style={s.lede}>
-              Renseigne ce que tu veux cadrer, laisse le reste vide. Tu peux revenir modifier à tout
-              moment — les mois passés ne bougent jamais.
+              {redirectedFromPast
+                ? 'Un budget se décide à l’avance : tu modifies le mois en cours, pas un mois déjà passé. Renseigne ce que tu veux cadrer, laisse le reste vide.'
+                : 'Renseigne ce que tu veux cadrer, laisse le reste vide. Tu peux revenir modifier à tout moment — les mois passés ne bougent jamais.'}
             </Text>
 
-            {!!error && (
-              <View style={s.errorBanner}>
-                <Ionicons name="alert-circle-outline" size={16} color={C.danger} />
-                <Text style={s.errorText}>{error}</Text>
+            {/* TANT QUE TOUT N'EST PAS LU, AUCUN CHAMP. Les champs se remplissent depuis la base :
+                les afficher vides pendant la lecture donnait à croire que les budgets avaient été
+                perdus — et si l'on commençait à taper, l'arrivée des données écrasait la saisie. */}
+            {ctx.isError ? (
+              <View style={s.card}>
+                <Text style={s.empty}>
+                  Tes budgets n’ont pas pu être chargés. Vérifie ta connexion et reviens sur cet
+                  écran — rien n’a été modifié.
+                </Text>
               </View>
-            )}
-
+            ) : !ctx.isReady ? (
+              <View style={s.loading}><ActivityIndicator color={C.primary} /></View>
+            ) : (
+            <>
             {/* Le NIVEAU se choisit ici, pas ailleurs : cadrer « Alimentation » ou seulement
                 « Restaurants » sont deux intentions différentes, et l'une n'empêche pas l'autre. */}
             <SegmentedControl
@@ -306,7 +362,10 @@ export default function BudgetEditScreen() {
                               placeholder="0"
                               placeholderTextColor={C.textSecondary}
                               keyboardType="decimal-pad"
-                              maxLength={7}
+                              /* 7 caractères plafonnaient à 9 999,99 — impossible d'y écrire un
+                                 budget ANNUEL de 12 000 € pour les vacances, ni un budget mensuel
+                                 dans une devise à gros nombres (l'app est multi-devises). */
+                              maxLength={10}
                               // Retaper par-dessus plutôt que corriger caractère par caractère :
                               // on ajuste un budget, on ne l'édite pas.
                               selectTextOnFocus
@@ -341,6 +400,8 @@ export default function BudgetEditScreen() {
                 </View>
               </View>
             ))}
+            </>
+            )}
 
             <TouchableOpacity
               style={s.catLink}
@@ -351,17 +412,30 @@ export default function BudgetEditScreen() {
               <Ionicons name="chevron-forward" size={14} color={C.primary} />
             </TouchableOpacity>
           </ScrollView>
-        </KeyboardAvoidingView>
 
         {/* Barre d'action ÉPINGLÉE : avec quarante lignes, un bouton en fin de liste obligerait à
-            tout parcourir pour enregistrer trois chiffres saisis en haut. */}
-        <View style={s.bar}>
+            tout parcourir pour enregistrer trois chiffres saisis en haut.
+            Elle est REMONTÉE au-dessus du clavier : en edge-to-edge, la fenêtre n'est jamais
+            redimensionnée (cf. useKeyboardHeight), donc le clavier recouvrait purement et simplement
+            le bouton — on tapait un montant et il n'y avait plus rien à toucher pour l'enregistrer. */}
+        <View style={[s.bar, keyboardHeight > 0 && { marginBottom: keyboardHeight }]}>
+          {/* L'ERREUR SE LIT OÙ L'ON A CLIQUÉ. Elle s'affichait en haut de la page : après avoir
+              rempli quarante lignes, on appuyait sur « Enregistrer » et il ne se passait
+              visiblement rien — le message était trois écrans plus haut. */}
+          {!!error && (
+            <View style={s.errorBanner}>
+              <Ionicons name="alert-circle-outline" size={16} color={C.danger} />
+              <Text style={s.errorText}>{error}</Text>
+            </View>
+          )}
           <Text style={s.barSummary} numberOfLines={1}>
             {filledCount === 0
               ? 'Aucun budget pour l’instant'
               : `${filledCount} budget${filledCount > 1 ? 's' : ''} · ${fmt(monthlyTotal)} ${CURRENCY_SYMBOL}/mois`}
           </Text>
-          <AppButton label="Enregistrer" size="lg" loading={busy} onPress={save} />
+          {/* Désactivé tant que la lecture n'a pas abouti : enregistrer un formulaire qu'on n'a pas
+              encore pu remplir depuis la base n'écrirait rien, tout en affichant un succès. */}
+          <AppButton label="Enregistrer" size="lg" loading={busy} disabled={!ctx.isReady} onPress={save} />
         </View>
       </SafeAreaView>
     </View>
@@ -375,6 +449,7 @@ function makeStyles(c: any) {
     content: { paddingTop: 4 },
     month: { fontSize: 15, fontWeight: '800', color: c.text, textTransform: 'capitalize', marginBottom: 4 },
     lede: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginBottom: 14 },
+    loading: { paddingVertical: 60, alignItems: 'center' },
     errorBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12,
       backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '55',

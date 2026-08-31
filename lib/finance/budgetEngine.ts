@@ -262,9 +262,17 @@ export function computeBudgets(input: ComputeBudgetsInput): ComputeBudgetsResult
 
   const spentAll = sumVariableSpent(fluxTx, accountTypeById, monthWindow);
   const spentByCat = variableSpentByCategory(fluxTx, accountTypeById, monthWindow);
+  /* L'ANNÉE suit exactement la même règle que le mois, et elle se juge sur L'ANNÉE affichée — pas
+     sur le mois qu'on regarde à l'intérieur. Le test portait auparavant sur le mois, avec deux
+     conséquences fausses :
+       • sur une année FUTURE, la borne « jusqu'à aujourd'hui » excluait la totalité de l'année →
+         un budget annuel 2027 s'affichait à 0 alors que des dépenses y étaient déjà saisies ;
+       • en revenant sur un mois PASSÉ de l'année en cours, la borne sautait → le même budget annuel
+         changeait de montant selon le mois qu'on consultait.
+     Année en cours → arrêtée à aujourd'hui ; année passée ou future → lue en entier. */
   const spentByCatYear = variableSpentByCategory(fluxTx, accountTypeById, {
     prefix: yearKey,
-    upTo: isCurrentMonth || monthKey > monthKeyOf(today) ? today : undefined,
+    upTo: yearKey === yearKeyOf(today) ? today : undefined,
   });
 
   // ── Lignes de catégories ──────────────────────────────────────────────────
@@ -451,6 +459,9 @@ export function resolveBudgetFor(input: ResolveBudgetInput): ResolvedBudget | nu
 
   const mKey = monthKeyOf(date);
   const yKey = yearKeyOf(date);
+  // Construit UNE fois : c'était refait à chaque candidat × chaque cadence, sur chaque frappe.
+  const kids = childrenIndex(categories);
+  const isFuture = date > today;
 
   // Candidats, du plus spécifique au moins spécifique. Chaque candidat est testé sur les DEUX
   // cadences : un poste annuel doit gagner sur sa parente mensuelle s'il est plus spécifique.
@@ -470,14 +481,16 @@ export function resolveBudgetFor(input: ResolveBudgetInput): ResolvedBudget | nu
       if (!eff || !(eff.amount > 0)) continue;
 
       const name = byId.get(c.id)?.name ?? '';
-      const kids = childrenIndex(categories);
-      // Le mois/l'année en cours s'arrête à aujourd'hui ; une période passée ou future se lit en
-      // entier — sinon un mois futur afficherait 0 alors qu'il porte déjà des dépenses saisies.
+      /* Fenêtre de lecture. La période en cours s'arrête à aujourd'hui — SAUF si l'opération saisie
+         est datée plus loin : le bloc annonce alors « déjà saisis », et il doit donc compter tout ce
+         qui est déjà posé sur la période, y compris après aujourd'hui. Sans cette exception, dater
+         une dépense au 25 affichait le consommé arrêté au 10, sous une étiquette qui promettait
+         l'inverse. Une période passée ou future se lit toujours en entier. */
       const isCurrent = period === 'year' ? yearKeyOf(today) === key : monthKeyOf(today) === key;
       const source = excludeTxId ? fluxTx.filter((t) => t.id !== excludeTxId) : fluxTx;
       const spentMap = variableSpentByCategory(source, accountTypeById, {
         prefix: key,
-        upTo: isCurrent ? today : undefined,
+        upTo: isCurrent && !isFuture ? today : undefined,
       });
       const spentBefore = rolledSpent(c.id, spentMap, kids);
       const spentAfter = spentBefore + Math.max(0, amount);
@@ -494,7 +507,7 @@ export function resolveBudgetFor(input: ResolveBudgetInput): ResolvedBudget | nu
         spentBefore,
         spentAfter,
         remainingAfter: eff.amount - spentAfter,
-        isFuture: date > today,
+        isFuture,
       };
     }
   }
@@ -513,6 +526,15 @@ export interface BudgetMonthPoint {
   /** `budget - spent` : positif = tenu, négatif = dépassé. `null` si aucun budget ce mois-là. */
   gap: number | null;
   hasBudget: boolean;
+  /**
+   * Le mois n'est pas TERMINÉ (mois en cours, ou à venir).
+   *
+   * Son écart n'est donc pas un verdict : le 3 du mois, un budget de 1 000 € face à 40 € dépensés
+   * n'est pas « tenu », il est simplement à peine entamé. Sans ce drapeau, l'app annonçait « budget
+   * tenu 5 mois sur 5 » dès le premier jour du mois — une félicitation pour un mois qui n'a pas
+   * commencé, et le genre de chiffre qui décrédibilise tout le reste de l'écran.
+   */
+  inProgress: boolean;
 }
 
 /**
@@ -535,19 +557,28 @@ export function buildBudgetHistory(
   const todayMonth = monthKeyOf(today);
   const byId = new Map(categories.map((c) => [c.id, c]));
   const kids = childrenIndex(categories);
+  /* Même exclusion que `computeBudgets` : « Mouvements » et ses enfants n'ont pas de budget. Sans
+     ce filtre, un budget hérité d'avant cette règle gonflait le repère de l'historique alors que la
+     page Budget ne l'affichait plus — deux écrans, deux chiffres, pour les mêmes données. */
+  const excluded = movementCategoryIds(categories);
   // Toutes les catégories jamais budgétées au mois : c'est sur elles qu'on cumule, mois par mois.
-  const everBudgeted = [...new Set(budgets.filter((b) => b.period === 'month').map((b) => b.category_id))];
+  const everBudgeted = [...new Set(
+    budgets.filter((b) => b.period === 'month' && !excluded.has(b.category_id)).map((b) => b.category_id),
+  )];
 
   return monthKeys.map((mk) => {
     const upTo = mk === todayMonth ? today : undefined;
     const spentMap = variableSpentByCategory(fluxTx, accountTypeById, { prefix: mk, upTo });
+    // Le mois en cours n'est pas fini ; un mois à venir n'a pas commencé. Ni l'un ni l'autre ne se
+    // juge — c'est l'appelant qui décide quoi en dire, mais il doit pouvoir le savoir.
+    const inProgress = mk >= todayMonth;
 
     if (categoryId) {
       const eff = effectiveBudget(budgets, 'month', mk, categoryId);
       const budget = eff?.amount ?? 0;
       const spent = Math.max(0, rolledSpent(categoryId, spentMap, kids));
       const hasBudget = budget > 0;
-      return { monthKey: mk, label: periodLabel('month', mk), budget, spent, gap: hasBudget ? budget - spent : null, hasBudget };
+      return { monthKey: mk, label: periodLabel('month', mk), budget, spent, gap: hasBudget ? budget - spent : null, hasBudget, inProgress };
     }
 
     /* Cumul : on ne retient que les catégories RACINES du mois — celles dont aucun ancêtre n'est
@@ -566,15 +597,21 @@ export function buildBudgetHistory(
     }
     spent = Math.max(0, spent);
     const hasBudget = budget > 0;
-    return { monthKey: mk, label: periodLabel('month', mk), budget, spent, gap: hasBudget ? budget - spent : null, hasBudget };
+    return { monthKey: mk, label: periodLabel('month', mk), budget, spent, gap: hasBudget ? budget - spent : null, hasBudget, inProgress };
   });
 }
 
-/** « Tu tiens ton budget 4 mois sur 6 » — sur les seuls mois qui portaient un budget. */
+/**
+ * « Tu tiens ton budget 4 mois sur 6 » — sur les seuls mois TERMINÉS qui portaient un budget.
+ *
+ * Le mois en cours est exclu des DEUX termes, et c'est le point important : le compter au numérateur
+ * revenait à féliciter le 2 du mois, et le compter au seul dénominateur revenait à sanctionner un
+ * mois à peine commencé. Un mois se juge quand il est fini.
+ */
 export function countMonthsRespected(points: BudgetMonthPoint[]): { respected: number; total: number } {
-  const withBudget = points.filter((p) => p.hasBudget);
+  const judgeable = points.filter((p) => p.hasBudget && !p.inProgress);
   return {
-    respected: withBudget.filter((p) => (p.gap ?? 0) >= 0).length,
-    total: withBudget.length,
+    respected: judgeable.filter((p) => (p.gap ?? 0) >= 0).length,
+    total: judgeable.length,
   };
 }

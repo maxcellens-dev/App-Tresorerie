@@ -913,11 +913,15 @@ function AddTransactionScreen() {
                   au-dessus qui décide de la période lue. Rien ne s'affiche si la (sous-)catégorie
                   n'a pas de budget : le formulaire ne démarche pas. Jamais sur un virement (il ne
                   sort pas du périmètre) ni sur une récurrente (hors dépenses variables). */}
+              {/* Le TYPE de compte est transmis : une dépense payée depuis un livret n'entre pas
+                  dans les dépenses variables, donc elle ne consomme aucun budget — et le bloc ne
+                  doit pas annoncer un « après cette opération » qui n'arrivera jamais. */}
               {!isTransfer && !isRecurring && (
                 <BudgetInlineBlock
                   categoryId={categoryId || null}
                   date={date}
                   amount={Math.abs(parseAmountInput(amount) ?? 0)}
+                  accountType={accounts.find((a: any) => a.id === accountId)?.type ?? null}
                   hidden={!isExpense}
                 />
               )}

@@ -172,7 +172,7 @@ export function unverifiedRelykaMessage(conf: {
  * mélanger à des explications d'épargne ou d'investissement.
  */
 /**
- * LES TROIS SIGNAUX DU BUDGET, réduits à UNE phrase — ou à rien.
+ * LES SIGNAUX DU BUDGET, réduits à UNE phrase — ou à rien.
  *
  * ⚠️ Le budget n'entre dans AUCUN calcul : il ne change ni le Relyka, ni sa répartition, ni le
  * profil. Il ne fait que se DIRE. Cette fonction est donc le seul endroit où il touche les recos.
@@ -182,22 +182,29 @@ export function unverifiedRelykaMessage(conf: {
  *   2. `pace`  — rythme qui mènerait au dépassement, mais SEULEMENT une fois le mois assez avancé
  *                (`variablePacePercentage` rend `null` avant 25 % du mois — le 4 du mois, 10 %
  *                consommé n'est ni un exploit ni une alerte) ;
- *   3. `gap`   — budget volontairement sous les dépenses habituelles : ce n'est pas une erreur,
- *                c'est un objectif de réduction. On dit l'écart à combler, sans jugement.
+ *   3. sinon, l'ÉTAT D'AVANCEMENT : dépensé, budget, reste.
+ *
+ * ── CE QU'ON NE DIT PLUS ────────────────────────────────────────────────────────────────────────
+ * Un troisième signal comparait le budget aux dépenses habituelles (« ton budget de 900 € est 140 €
+ * en dessous de ce que tu dépenses d'habitude »). Il a été retiré : l'utilisateur SAIT qu'il a visé
+ * plus bas — c'est le geste qu'il vient de faire — et le lui rappeler chaque mois transformait une
+ * intention en écart à justifier. On se rabat sur l'état d'avancement, qui lui dit où il en est.
  *
  * Le ton ne culpabilise jamais : un dépassement est une information. Il ne casse aucune série, ne
  * retire aucun succès et ne déclenche aucune notification.
  */
 export function composeBudgetMessage(input: {
-  /** Budget global du mois (0 = aucun). */
+  /**
+   * CUMUL des budgets mensuels posés (0 = aucun) — et non un « budget global », qui n'existe plus
+   * depuis la migration 218 : l'utilisateur n'en déclare aucun, c'est la somme de ce qu'il a décidé.
+   */
   budget: number;
+  /** Dépensé des seules catégories budgétées, en face de ce cumul. */
   spent: number;
   /** Rythme rapporté à l'avancement du mois, ou `null` s'il est trop tôt pour conclure. */
   pace: number | null;
-  /** Enveloppe variable habituelle — pour l'écart « budget sous mes dépenses habituelles ». */
-  envelope: number;
 }): string | null {
-  const { budget, spent, pace, envelope } = input;
+  const { budget, spent, pace } = input;
   if (!(budget > 0)) return null;
 
   if (spent > budget) {
@@ -208,12 +215,7 @@ export function composeBudgetMessage(input: {
   // du bruit elle aussi.
   if (pace != null && pace > 115) {
     const projected = (pace / 100) * budget;
-    return `À ce rythme, tu terminerais le mois autour de ${eur(projected)} pour un budget de ${eur(budget)}. Il te reste ${eur(budget - spent)} à dépenser pour le tenir.`;
-  }
-
-  // 5 % de marge : un budget à 990 € pour 1 000 € de dépenses habituelles ne mérite pas un discours.
-  if (envelope > 0 && budget < envelope * 0.95) {
-    return `Ton budget de ${eur(budget)} est ${eur(envelope - budget)} en dessous de ce que tu dépenses d'habitude (${eur(envelope)}). C'est l'écart à combler — Relyka continue de prévoir tes dépenses habituelles, lui, tant qu'elles n'ont pas changé.`;
+    return `À ce rythme, tu terminerais le mois autour de ${eur(projected)} pour un budget prévude ${eur(budget)}. Il te reste ${eur(budget - spent)}.`;
   }
 
   if (spent > 0) {

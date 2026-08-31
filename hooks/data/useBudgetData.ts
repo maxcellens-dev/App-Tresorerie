@@ -32,15 +32,22 @@ export interface BudgetContext {
   isLoading: boolean;
   /** Les lectures ont toutes abouti — condition pour afficher, jamais `isFetched`. */
   isReady: boolean;
+  /**
+   * Une lecture a ÉCHOUÉ. Sans ce drapeau, `isReady` restait faux indéfiniment et l'écran tournait
+   * sans fin : l'utilisateur attendait une page qui n'arriverait jamais, sans savoir pourquoi ni
+   * quoi faire. Un échec de lecture doit se DIRE — c'est aussi ce qui distingue « tu n'as pas de
+   * budget » de « je n'ai pas réussi à les lire ».
+   */
+  isError: boolean;
 }
 
 /** Le contexte brut, sans calcul : pour la saisie, qui appelle `resolveBudgetFor` elle-même. */
 export function useBudgetContext(profileId: string | undefined): BudgetContext {
-  const { data: rawTx, isSuccess: txOk, isLoading: txLoading } = useTransactions(profileId);
-  const { data: rawAcc, isSuccess: accOk, isLoading: accLoading } = useAllAccounts(profileId);
-  const { data: categories, isSuccess: catOk } = useCategories(profileId);
+  const { data: rawTx, isSuccess: txOk, isLoading: txLoading, isError: txErr } = useTransactions(profileId);
+  const { data: rawAcc, isSuccess: accOk, isLoading: accLoading, isError: accErr } = useAllAccounts(profileId);
+  const { data: categories, isSuccess: catOk, isError: catErr } = useCategories(profileId);
   const { data: sharedContrib } = useSharedContribution(profileId);
-  const { data: budgets, isSuccess: budOk, isLoading: budLoading } = useBudgets(profileId);
+  const { data: budgets, isSuccess: budOk, isLoading: budLoading, isError: budErr } = useBudgets(profileId);
   const { data: rates } = useCurrencyRates();
   const { code: refCode } = useCurrency();
 
@@ -101,6 +108,7 @@ export function useBudgetContext(profileId: string | undefined): BudgetContext {
     today: todayISO(),
     isLoading: txLoading || accLoading || budLoading,
     isReady: txOk && accOk && catOk && budOk,
+    isError: txErr || accErr || catErr || budErr,
   };
 }
 

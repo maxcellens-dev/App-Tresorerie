@@ -16,8 +16,8 @@
  *  • un dépassement en rouge (l'ambre du variable, cf. `BudgetGauge`) ;
  *  • un chiffre hérité sans le dire (« repris d'août » est toujours écrit).
  */
-import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -69,7 +69,12 @@ export default function BudgetsView({ aboveOffset = 0 }: {
   const yearKey = yearKeyOf(monthKey);
   const atCurrent = monthKey === currentMonth;
 
-  const { result, budgets, categories, fluxTx, accountTypeById, isReady } = useBudgetData(user?.id, monthKey);
+  /* La mise en lumière désigne une ligne DE CETTE liste-ci. En changeant de période ou de cadence,
+     on change de liste : garder la sélection laissait une ligne surlignée qui ne correspondait plus
+     à aucune tranche de l'anneau — ou, pire, à la tranche d'une autre catégorie. */
+  useEffect(() => { setSelected(null); }, [monthKey, scope]);
+
+  const { result, budgets, categories, fluxTx, accountTypeById, isReady, isError } = useBudgetData(user?.id, monthKey);
 
   const history = useMemo(
     () => buildBudgetHistory(
@@ -109,7 +114,11 @@ export default function BudgetsView({ aboveOffset = 0 }: {
     const segments = lines
       .filter((l) => l.spent > 0)
       .map((l) => ({ key: l.categoryId, value: l.spent, color: colors.get(l.categoryId)! }));
-    const left = Math.max(0, budget - spent);
+    /* Le reste se calcule sur ce que les TRANCHES totalisent, pas sur le dépensé cumulé. Les deux
+       diffèrent quand une catégorie est en négatif (remboursements supérieurs aux dépenses) : elle
+       est écartée des tranches mais compte dans le cumul, et l'anneau dépassait alors le tour. */
+    const shown = segments.reduce((sum, seg) => sum + seg.value, 0);
+    const left = Math.max(0, budget - shown);
     if (left > 0) segments.push({ key: '__left', value: left, color: C.cardBorder });
     /* Une ligne SÉLECTIONNÉE prend le centre de l'anneau : on y lit alors SON taux de consommation
        à elle (270 € sur 200 € = 130 %), pas celui de l'ensemble. Même geste que le camembert
@@ -152,13 +161,43 @@ export default function BudgetsView({ aboveOffset = 0 }: {
   const actionIconColor = contrastRatio(C.bg, actionInk) >= 4.5 ? C.bg : readableOn(actionInk);
 
   const edit = () => router.push(`/(tabs)/projects/budget-edit?month=${monthKey}` as any);
-  // La bascule n'a de sens que s'il y a quelque chose à basculer VERS.
-  const canShowYear = result.annual.length > 0;
+  /* La bascule reste offerte dès que le profil porte UN budget annuel, même si l'année affichée n'en
+     a pas encore. Adossée aux seules lignes de l'année en cours, elle disparaissait en reculant
+     d'un an : la page repassait d'elle-même en mensuel, les flèches reprenaient un pas d'un mois, et
+     l'on se retrouvait douze mois en arrière sans avoir rien demandé. */
+  // La catégorie doit encore EXISTER : sinon la bascule menait à une vue annuelle vide (« 0 / 0 € »).
+  const canShowYear = useMemo(() => {
+    const known = new Set(categories.map((c) => c.id));
+    return (budgets ?? []).some((b) => b.period === 'year' && b.amount > 0 && known.has(b.category_id));
+  }, [budgets, categories]);
   const showYear = scope === 'year' && canShowYear;
+
+  /* ── CHARGEMENT ───────────────────────────────────────────────────────────
+     Tant que les lectures n'ont pas TOUTES abouti, le calcul porte sur des tableaux vides et rendrait
+     « 0 / 0 € · aucune catégorie budgétée » — c'est-à-dire l'écran de quelqu'un qui n'a pas de
+     budget, montré à quelqu'un qui en a. Sur un réseau lent, ce faux état vide dure ; si une lecture
+     échoue, il ne s'en va jamais. On ne montre donc aucun chiffre avant de les avoir tous. */
+  if (isError) {
+    return (
+      <View style={s.loading}>
+        <Ionicons name="cloud-offline-outline" size={28} color={C.textSecondary} />
+        <Text style={[s.emptyText, { marginTop: 12 }]}>
+          Tes budgets n’ont pas pu être chargés. Vérifie ta connexion et reviens sur cette page.
+        </Text>
+      </View>
+    );
+  }
+  if (!isReady) {
+    return (
+      <View style={s.loading}>
+        <ActivityIndicator color={C.primary} />
+      </View>
+    );
+  }
 
   /* ── ÉTAT VIDE ────────────────────────────────────────────────────────────
      Un écran qui explique ce qu'il ferait s'il était rempli, et un seul bouton. */
-  if (isReady && result.isEmpty) {
+  if (result.isEmpty) {
     return (
       <ScrollView contentContainerStyle={s.emptyWrap} showsVerticalScrollIndicator={false}>
         <View style={s.emptyIcon}><Ionicons name="pie-chart-outline" size={30} color={C.primary} /></View>
@@ -316,7 +355,10 @@ export default function BudgetsView({ aboveOffset = 0 }: {
                     ? `${fmt(showYear ? annualTotal.remaining : t.remaining)} ${CURRENCY_SYMBOL} restants`
                     : `Dépassé de ${fmt(-(showYear ? annualTotal.remaining : t.remaining))} ${CURRENCY_SYMBOL}`}
                 </Text>
-                {!showYear && result.pace != null && t.budget > 0 && (
+                {/* Une PROJECTION n'a de sens que sur un mois en cours. Sur un mois révolu, la
+                    phrase annonçait « prévus fin de mois » pour un mois terminé — et le chiffre
+                    valait exactement le dépensé affiché juste au-dessus. */}
+                {!showYear && atCurrent && result.pace != null && t.budget > 0 && (
                   <Text style={s.heroSub}>{fmt((result.pace / 100) * t.budget)} {CURRENCY_SYMBOL} prévus fin de mois</Text>
                 )}
                 {/* Le dépensé TOTAL situe le cumul : sans lui, on croirait que 533 € est tout ce
@@ -326,6 +368,13 @@ export default function BudgetsView({ aboveOffset = 0 }: {
                 )}
                 {!showYear && result.plannedRest > 0 && (
                   <Text style={s.heroSub}>+ {fmt(result.plannedRest)} {CURRENCY_SYMBOL} déjà saisis</Text>
+                )}
+                {/* LA RÉGULARISATION DE SOLDE, ISOLÉE. Elle compte dans le dépensé — constater qu'il
+                    manque 80 € sur le compte, c'est 80 € partis — mais elle n'a pas été CHOISIE. La
+                    confondre avec des courses fausserait le jugement qu'on porte sur son propre
+                    mois : on se croit dépensier alors qu'on a surtout un écart de saisie. */}
+                {!showYear && result.regulPart > 0 && (
+                  <Text style={s.heroSub}>dont {fmt(result.regulPart)} {CURRENCY_SYMBOL} de régularisation</Text>
                 )}
               </View>
             </View>
@@ -364,7 +413,7 @@ export default function BudgetsView({ aboveOffset = 0 }: {
         </>
       ) : (
         <View style={s.card}>
-          {respected.total === 0 ? (
+          {history.filter((h) => h.hasBudget).length === 0 ? (
             <Text style={s.sub}>Pas encore de mois budgété à comparer. Reviens le mois prochain.</Text>
           ) : (
             <>
@@ -375,14 +424,28 @@ export default function BudgetsView({ aboveOffset = 0 }: {
                     <BudgetAmounts spent={h.spent} budget={h.budget} symbol={CURRENCY_SYMBOL} />
                   </View>
                   <BudgetGauge spent={h.spent} budget={h.budget} compact />
-                  <Text style={[s.rowNote, { color: (h.gap ?? 0) >= 0 ? C.success : C.warning }]}>
-                    {(h.gap ?? 0) >= 0 ? `Tenu · ${fmt(h.gap ?? 0)} ${CURRENCY_SYMBOL} sous le budget` : `Dépassé de ${fmt(-(h.gap ?? 0))} ${CURRENCY_SYMBOL}`}
+                  {/* UN MOIS EN COURS NE SE JUGE PAS. Le 3 du mois, 40 € face à 1 000 € n'est pas
+                      un budget « tenu » : c'est un mois qui commence. Écrire « tenu · 960 € sous le
+                      budget » revenait à féliciter par avance, et le verdict s'inversait ensuite
+                      sous les yeux de l'utilisateur. On dit donc simplement où l'on en est. */}
+                  <Text style={[s.rowNote, h.inProgress ? null : { color: (h.gap ?? 0) >= 0 ? C.success : C.warning }]}>
+                    {h.inProgress
+                      ? ((h.gap ?? 0) >= 0
+                        ? `En cours · ${fmt(h.gap ?? 0)} ${CURRENCY_SYMBOL} restants`
+                        : `En cours · dépassé de ${fmt(-(h.gap ?? 0))} ${CURRENCY_SYMBOL}`)
+                      : ((h.gap ?? 0) >= 0
+                        ? `Tenu · ${fmt(h.gap ?? 0)} ${CURRENCY_SYMBOL} sous le budget`
+                        : `Dépassé de ${fmt(-(h.gap ?? 0))} ${CURRENCY_SYMBOL}`)}
                   </Text>
                 </View>
               ))}
-              <Text style={[s.sub, { marginTop: 14 }]}>
-                Budget tenu {respected.respected} mois sur {respected.total}.
-              </Text>
+              {/* Le bilan ne porte que sur les mois TERMINÉS (cf. countMonthsRespected). */}
+              {respected.total > 0 && (
+                <Text style={[s.sub, { marginTop: 14 }]}>
+                  Budget tenu {respected.respected} mois sur {respected.total}
+                  {respected.total === 1 ? ' terminé.' : ' terminés.'}
+                </Text>
+              )}
             </>
           )}
         </View>
@@ -463,6 +526,7 @@ function Row({ line, first, styles: s, yearly, depth = 0, dotColor, selectedId, 
 function makeStyles(c: any) {
   return StyleSheet.create({
     content: { paddingBottom: 110 },
+    loading: { paddingTop: 80, alignItems: 'center' },
     monthRow: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
