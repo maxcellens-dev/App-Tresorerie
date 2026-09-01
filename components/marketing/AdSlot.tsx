@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { usePlan } from '../../hooks/config/usePlan';
-import { useAdsConfig, bannerPlacements, bannerLink, type AdPlacement } from '../../hooks/config/useAdsConfig';
+import { useAdsConfig, bannerPlacements, bannerLink, placementFormat, type AdPlacement } from '../../hooks/config/useAdsConfig';
 import { logEvent } from '../../lib/platform/analytics';
 
 // Impressions déjà comptées dans la session (1 par bannière × emplacement) → évite le flood.
@@ -34,7 +34,16 @@ function placementOffset(placement: string, count: number): number {
   return (h + SESSION_SEED) % count;
 }
 
-export default function AdSlot({ placement, compact = false, style }: { placement: AdPlacement; compact?: boolean; style?: ViewStyle }) {
+/**
+ * La FORME de la zone vient de l'emplacement (cf. AD_FORMATS), plus d'une prop du point d'appel.
+ * `compact` restait à la main de l'écran : rien ne garantissait que les deux endroits qui rendent
+ * « Comptes › À côté des actions » soient d'accord, et l'admin ne pouvait pas savoir quelle image
+ * fournir. Un seul endroit décide, et c'est celui que l'écran d'administration affiche.
+ */
+export default function AdSlot({ placement, style }: { placement: AdPlacement; style?: ViewStyle }) {
+  const format = placementFormat(placement);
+  const compact = format === 'compact';
+  const square = format === 'square';
   const COLORS = useAppColors();
   const router = useRouter();
   const { user } = useAuth();
@@ -94,9 +103,9 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
   };
 
   return (
-    <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, style]}>
+    <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, square ? styles.squareWrap : null, style]}>
       <TouchableOpacity
-        style={[styles.slot, compact && styles.slotCompact, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
+        style={[styles.slot, compact && styles.slotCompact, square && styles.slotSquare, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
         onPress={open}
         activeOpacity={link ? 0.85 : 1}
         disabled={!link}
@@ -105,17 +114,25 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
           // Image quasi pleine zone + tag « Sponsorisé » en overlay (pastille sombre
           // + ombre du texte → lisible quelle que soit l'image).
           <>
-            <Image source={{ uri: banner.image }} style={compact ? styles.imgCompact : styles.img} resizeMode="cover" />
+            <Image source={{ uri: banner.image }} style={compact ? styles.imgCompact : square ? styles.imgSquare : styles.img} resizeMode="cover" />
             <View style={styles.tagOverlay}>
               <Text style={styles.tagOverlayText}>Sponsorisé</Text>
             </View>
           </>
         ) : (
-          <View style={compact ? styles.textWrapCompact : styles.textWrap}>
+          /* Repli SANS image. En carré, le texte se centre dans la boîte (une rangée horizontale
+             collée en haut d'un carré vide se lit comme une bannière ratée) ; ailleurs, la mise en
+             page d'origine est inchangée. */
+          <View style={compact ? styles.textWrapCompact : square ? styles.textWrapSquare : styles.textWrap}>
             {!compact && <Text style={[styles.tag, { color: COLORS.textSecondary }]}>Sponsorisé</Text>}
-            <Animated.View style={styles.textRow}>
-              <Ionicons name="megaphone-outline" size={compact ? 15 : 18} color={COLORS.emerald} />
-              <Text style={[compact ? styles.textCompact : styles.text, { color: COLORS.text }]} numberOfLines={2}>{banner.text ?? banner.label ?? 'Découvrez nos partenaires'}</Text>
+            <Animated.View style={square ? styles.textColSquare : styles.textRow}>
+              <Ionicons name="megaphone-outline" size={compact ? 15 : square ? 26 : 18} color={COLORS.emerald} />
+              <Text
+                style={[compact ? styles.textCompact : square ? styles.textSquare : styles.text, { color: COLORS.text }]}
+                numberOfLines={square ? 4 : 2}
+              >
+                {banner.text ?? banner.label ?? 'Découvrez nos partenaires'}
+              </Text>
               {link ? <Ionicons name="chevron-forward" size={compact ? 13 : 16} color={COLORS.textSecondary} /> : null}
             </Animated.View>
           </View>
@@ -136,6 +153,17 @@ const styles = StyleSheet.create({
   // Image pleine largeur à RATIO FORCÉ (≈3,5:1) → même forme sur toutes les pages, quelle que
   // soit la largeur disponible. Uploader au ratio 3,5:1 (ex. 1400×400) pour éviter tout recadrage.
   img: { width: '100%', aspectRatio: 3.5 },
+
+  /* ── Variante CARRÉE (1:1) ──────────────────────────────────────────────────────────────────
+     Réservée aux cartes (confirmation de saisie), jamais à une page qui défile. La largeur est
+     PLAFONNÉE à 260 pt : dans une carte de 560 de large, un vrai 1:1 ferait 560 de haut et
+     mangerait tout l'écran — la pub passerait avant le message qu'elle accompagne. */
+  squareWrap: { alignItems: 'center' },
+  slotSquare: { width: '100%', maxWidth: 260, alignSelf: 'center' },
+  imgSquare: { width: '100%', aspectRatio: 1 },
+  textWrapSquare: { width: '100%', aspectRatio: 1, padding: 14, alignItems: 'center', justifyContent: 'center' },
+  textColSquare: { flexDirection: 'column', alignItems: 'center', gap: 10 },
+  textSquare: { fontSize: 13.5, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
   // Pastille « Sponsorisé » : discrète (−20 % par rapport à la taille d'origine) — elle doit se
   // lire, pas concurrencer le message de la bannière.
   tagOverlay: { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 5.5, paddingVertical: 2.5, borderRadius: 5 },

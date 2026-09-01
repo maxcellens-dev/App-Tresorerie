@@ -6,23 +6,55 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 
 /**
+ * FORMATS d'emplacement — la FORME de la zone, et donc l'image à fournir.
+ *
+ * Le format était une propriété du POINT D'APPEL (`<AdSlot compact />`) : rien, dans la config, ne
+ * disait qu'une bannière posée sur « À côté des actions » serait rendue dans une boîte de 64 pt de
+ * haut. L'admin téléversait une image 1400×400 pour un emplacement qui la rognait, et il n'y avait
+ * aucun moyen de le savoir avant de regarder l'app. Le format appartient donc à l'EMPLACEMENT.
+ */
+export const AD_FORMATS = {
+  /** Pleine largeur, ratio 3,5 : 1 — le bandeau classique de bas/milieu de page. */
+  banner:  { label: 'Bandeau',  ratio: 3.5, ideal: '1400 × 400 px', hint: 'Pleine largeur, ratio 3,5 : 1' },
+  /** Hauteur fixe 64 pt, largeur variable — se glisse à côté d'autres éléments. */
+  compact: { label: 'Compacte', ratio: 3,   ideal: '600 × 200 px',  hint: 'Hauteur fixe 64 pt, largeur variable (~3 : 1)' },
+  /** CARRÉ (1 : 1), largeur plafonnée — pour une carte, pas pour une page qui défile. */
+  square:  { label: 'Carrée',   ratio: 1,   ideal: '600 × 600 px',  hint: 'Carré 1 : 1, largeur plafonnée à 260 pt' },
+} as const;
+export type AdFormat = keyof typeof AD_FORMATS;
+
+/**
  * Emplacements de pub, regroupés par page (`group`) pour une sélection compacte en admin.
- * `label` = description courte de la position dans la page.
+ * `label` = description courte de la position dans la page ; `format` = la forme de la zone.
  */
 export const AD_PLACEMENTS = [
-  { value: 'comptes',            group: 'Comptes',      label: 'Bas de page' },
-  { value: 'comptes_actions',    group: 'Comptes',      label: 'À côté des actions' },
-  { value: 'transactions',       group: 'Transactions', label: 'Bas de page' },
-  { value: 'transactions_mois',  group: 'Transactions', label: 'Entre 2 mois' },
-  { value: 'pilotage',           group: 'Pilotage',     label: 'Bas de page' },
-  { value: 'pilotage_suivi',     group: 'Pilotage',     label: 'Avant « Suivi du mois »' },
-  { value: 'projets',            group: 'Projets',      label: 'Bas de page' },
-  { value: 'projets_perso',      group: 'Projets',      label: 'Avant « Projets personnels »' },
-  { value: 'projection',         group: 'Projection',   label: 'Bas de page' },
-  { value: 'projection_mois',    group: 'Projection',   label: 'Entre 2 mois' },
-  { value: 'projection_invest',  group: 'Projection',   label: 'Avant « Détail année par année »' },
+  { value: 'comptes',            group: 'Comptes',      label: 'Bas de page',                      format: 'banner' },
+  { value: 'comptes_actions',    group: 'Comptes',      label: 'À côté des actions',               format: 'compact' },
+  { value: 'transactions',       group: 'Transactions', label: 'Bas de page',                      format: 'banner' },
+  { value: 'transactions_mois',  group: 'Transactions', label: 'Entre 2 mois',                     format: 'banner' },
+  { value: 'pilotage',           group: 'Pilotage',     label: 'Bas de page',                      format: 'banner' },
+  { value: 'pilotage_suivi',     group: 'Pilotage',     label: 'Avant « Suivi du mois »',          format: 'banner' },
+  { value: 'projets',            group: 'Projets',      label: 'Bas de page',                      format: 'banner' },
+  { value: 'projets_perso',      group: 'Projets',      label: 'Avant « Projets personnels »',     format: 'banner' },
+  { value: 'projection',         group: 'Projection',   label: 'Bas de page',                      format: 'banner' },
+  { value: 'projection_mois',    group: 'Projection',   label: 'Entre 2 mois',                     format: 'banner' },
+  { value: 'projection_invest',  group: 'Projection',   label: 'Avant « Détail année par année »', format: 'banner' },
+  /* La carte de confirmation de saisie (« C'est enregistré ») : le seul emplacement CARRÉ. C'est une
+     carte étroite et flottante, pas une page qui défile — un bandeau 3,5 : 1 y serait un filet. */
+  { value: 'saisie_confirmation', group: 'Saisie',      label: 'Fin de « C’est enregistré »',      format: 'square' },
 ] as const;
 export type AdPlacement = typeof AD_PLACEMENTS[number]['value'];
+
+/** Format d'un emplacement. Repli `banner` : un emplacement inconnu ne doit pas casser le rendu. */
+export function placementFormat(placement: string): AdFormat {
+  return (AD_PLACEMENTS.find((p) => p.value === placement)?.format as AdFormat) ?? 'banner';
+}
+
+/** Libellé lisible d'un emplacement : « Pilotage · Bas de page ». Sinon la valeur brute. */
+export function placementLabel(placement: string): string {
+  const p = AD_PLACEMENTS.find((x) => x.value === placement);
+  return p ? `${p.group} · ${p.label}` : placement;
+}
 
 /**
  * Destinations INTERNES d'une bannière (au clic, on reste dans l'app).

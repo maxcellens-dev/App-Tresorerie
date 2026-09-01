@@ -165,9 +165,17 @@ async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: s
   await admin.from('email_campaigns').update({ status: 'sending', error: null }).eq('id', campaignId);
 
   try {
-    // Destinataires : opt-in + adresse renseignée, filtrés par audience.
+    /* Destinataires : opt-in + adresse renseignée, filtrés par audience.
+       ⚠️ MÊME DÉFINITION QUE `email_audience_count` (migration 165), qui est le nombre annoncé à
+       l'admin AVANT l'envoi. Ce filtre disait `.eq('email_opt_in', true)` là où la fonction SQL dit
+       `COALESCE(email_opt_in, true) = true` : sur un profil dont l'opt-in est NULL — une ligne créée
+       avant la migration 165, ou par un chemin qui ne renseigne pas la colonne — l'écran comptait la
+       personne et l'envoi la sautait. L'admin lisait « 47 destinataires » puis « Envoyé · 2 », sans
+       rien pour expliquer l'écart. Deux réponses à la même question : c'est l'écran qui a raison
+       (un opt-in inconnu vaut consentement par défaut, comme le dit la colonne). */
     let q = admin.from('profiles').select('id, email, full_name, is_premium, email_unsub_token')
-      .eq('email_opt_in', true).not('email', 'is', null);
+      .or('email_opt_in.is.null,email_opt_in.eq.true')
+      .not('email', 'is', null);
     if (c.audience === 'premium') q = q.eq('is_premium', true);
     if (c.audience === 'free') q = q.or('is_premium.is.null,is_premium.eq.false');
     const { data: rows, error: readErr } = await q;

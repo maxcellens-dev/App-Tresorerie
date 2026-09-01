@@ -332,7 +332,8 @@ function AccountsListScreen() {
               la zone de publicité « maison » (vide pour un abonné Premium ou sans bannière) — et
               l'air qui sépare l'en-tête de la liste. */}
           <View style={styles.tabTopGap}>
-            <AdSlot placement="comptes_actions" compact />
+            {/* Le format (compacte, 64 pt) vient de l'emplacement — cf. AD_PLACEMENTS. */}
+            <AdSlot placement="comptes_actions" />
           </View>
 
           {/* Banner de bienvenue */}

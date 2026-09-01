@@ -36,6 +36,7 @@ import { computeOpFeedback, consumesVariableEnvelope, type PulseFeedback, type P
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { todayISO } from '../../lib/dateUtils';
 import BudgetInlineBlock from '../budget/BudgetInlineBlock';
+import AdSlot from '../marketing/AdSlot';
 
 /**
  * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
@@ -428,6 +429,13 @@ export default function PulseDeltaHost() {
             variant="recap"
           />
         )}
+
+        {/* PUBLICITÉ — en PIED de carte, après tout ce qui parle de la saisie.
+            Format CARRÉ (cf. AD_PLACEMENTS : `saisie_confirmation`), largeur plafonnée : cette carte
+            est étroite et flottante, un bandeau 3,5 : 1 y serait un filet illisible.
+            `AdSlot` se charge seul de ne rien rendre pour un Premium, pubs coupées, ou sans bannière
+            sur cet emplacement — la carte reste alors exactement celle d'avant. */}
+        <AdSlot placement="saisie_confirmation" style={{ marginTop: 12 }} />
 
         <Pressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fermer">
           <Text style={styles.hint}>Balaie vers le haut ou tape ici pour fermer</Text>

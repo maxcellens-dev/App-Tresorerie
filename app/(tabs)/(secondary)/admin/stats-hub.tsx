@@ -20,6 +20,7 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
+import { AD_FORMATS, placementFormat, placementLabel } from '../../../../hooks/config/useAdsConfig';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
 
@@ -422,8 +423,24 @@ export default function StatsHub() {
                   <View style={{ marginTop: 6 }}>
                     <Text style={styles.sectionHint}>Par emplacement (impressions · clics · CTR)</Text>
                     <View style={{ marginTop: 8 }}>
+                      {/* `placementLabel` et non `prettyScreen` : ce champ ne porte pas une ROUTE
+                          mais un identifiant d'emplacement. On lisait donc « projection_invest » et
+                          « saisie_confirmation » en brut, là où l'écran Publicités affiche
+                          « Projection · Avant "Détail année par année" ». Même vocabulaire des deux
+                          côtés, sinon on ne relie pas une ligne de stats à la case qu'on a cochée.
+                          Le FORMAT est rappelé en second : un carré et un bandeau ne se vendent pas
+                          au même prix, et leurs CTR ne se comparent pas. */}
                       {agg.adPlacements.map((p) => (
-                        <HBar key={p.placement} label={prettyScreen(p.placement)} value={p.impr} sub={`${p.clk} clics · ${p.ctr}%`} max={agg.maxImpr} color={COLORS.emerald} styles={styles} c={COLORS} />
+                        <HBar
+                          key={p.placement}
+                          label={placementLabel(p.placement)}
+                          value={p.impr}
+                          sub={`${AD_FORMATS[placementFormat(p.placement)].label} · ${p.clk} clics · ${p.ctr}%`}
+                          max={agg.maxImpr}
+                          color={COLORS.emerald}
+                          styles={styles}
+                          c={COLORS}
+                        />
                       ))}
                     </View>
                   </View>
