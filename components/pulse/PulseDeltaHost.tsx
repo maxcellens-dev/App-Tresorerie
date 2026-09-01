@@ -431,9 +431,10 @@ export default function PulseDeltaHost() {
         )}
 
         {/* PUBLICITÉ — en PIED de carte, après tout ce qui parle de la saisie.
-            Format RECTANGLE 1,2 : 1 (cf. AD_PLACEMENTS : `saisie_confirmation`), largeur plafonnée
-            par la hauteur de l'écran : cette carte est étroite, flottante, et n'a NI hauteur
-            maximale NI défilement — un encart trop haut pousse son propre pied hors de l'écran.
+            Format ENCART 1,91 : 1, PLEINE LARGEUR (cf. AD_PLACEMENTS : `saisie_confirmation`) : il
+            s'aligne ainsi sur les blocs « Dépenses variables » et « Fin de mois » juste au-dessus.
+            C'est le ratio qui borne sa hauteur — cette carte est étroite, flottante, et n'a NI
+            hauteur maximale NI défilement : un encart trop haut pousse son propre pied hors écran.
             `AdSlot` se charge seul de ne rien rendre pour un Premium, pubs coupées, ou sans bannière
             sur cet emplacement — la carte reste alors exactement celle d'avant. */}
         <AdSlot placement="saisie_confirmation" style={{ marginTop: 12 }} />

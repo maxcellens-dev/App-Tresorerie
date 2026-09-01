@@ -6,7 +6,7 @@
  *   paramétrable en admin (rotation_seconds).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, useWindowDimensions, type ViewStyle } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -45,13 +45,6 @@ export default function AdSlot({ placement, style }: { placement: AdPlacement; s
   const compact = format === 'compact';
   const rect = format === 'rect';
   const COLORS = useAppColors();
-  const { height: winH } = useWindowDimensions();
-  /* Largeur de l'encart RECTANGLE, bornée par la HAUTEUR de l'écran et pas seulement par une
-     constante. Il vit dans une carte flottante qui n'a ni hauteur maximale ni défilement : sur un
-     petit téléphone, un encart figé à 260 pt poussait le pied de carte — « Balaie vers le haut pour
-     fermer » compris — sous le bas de l'écran. Plafonné à ~25 % de la hauteur utile, il reste une
-     illustration et jamais l'élément principal. */
-  const rectW = Math.round(Math.min(280, winH * 0.3));
   const router = useRouter();
   const { user } = useAuth();
   const { showAds } = usePlan(user?.id);
@@ -112,7 +105,7 @@ export default function AdSlot({ placement, style }: { placement: AdPlacement; s
   return (
     <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, rect ? styles.rectWrap : null, style]}>
       <TouchableOpacity
-        style={[styles.slot, compact && styles.slotCompact, rect && styles.slotRect, rect && { maxWidth: rectW }, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
+        style={[styles.slot, compact && styles.slotCompact, rect && styles.slotRect, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
         onPress={open}
         activeOpacity={link ? 0.85 : 1}
         disabled={!link}
@@ -161,18 +154,18 @@ const styles = StyleSheet.create({
   // soit la largeur disponible. Uploader au ratio 3,5:1 (ex. 1400×400) pour éviter tout recadrage.
   img: { width: '100%', aspectRatio: 3.5 },
 
-  /* ── Variante RECTANGLE (1,2 : 1 — le « Medium Rectangle » 300 × 250) ───────────────────────
+  /* ── Variante ENCART (1,91 : 1, PLEINE LARGEUR) ─────────────────────────────────────────────
      Réservée aux cartes (confirmation de saisie), jamais à une page qui défile.
-     Elle était en 1 : 1 : dans une carte étroite, le carré occupait à lui seul plus de hauteur que
-     les trois blocs de chiffres réunis — la pub passait avant le message qu'elle accompagne, dans
-     une fenêtre qu'on referme en trois secondes. Le 1,2 : 1 rend ~17 % de cette hauteur en gardant
-     assez de surface pour un visuel + un logo, et c'est le format d'encart le plus répandu (donc
-     celui que les annonceurs ont déjà). La largeur, elle, est plafonnée par la HAUTEUR de l'écran
-     (cf. `rectW`) — pas par une constante qui débordait sur les petits téléphones. */
-  rectWrap: { alignItems: 'center' },
-  slotRect: { width: '100%', alignSelf: 'center' },
-  imgRect: { width: '100%', aspectRatio: 1.2 },
-  textWrapRect: { width: '100%', aspectRatio: 1.2, padding: 14, alignItems: 'center', justifyContent: 'center' },
+     AUCUN plafond de largeur : les plafonds précédents (260 pt, puis 30 % de la hauteur d'écran)
+     laissaient ~35 pt de vide de chaque côté, et l'encart était le seul bloc de la carte à ne pas
+     aller bord à bord — l'œil le lisait comme un élément mal posé. C'est le RATIO qui borne
+     désormais la hauteur : à 1,91 : 1, pleine largeur, l'encart est plus BAS qu'avec les plafonds
+     (~172 pt contre ~217 sur un téléphone standard), donc le pied de carte ne risque plus de
+     passer sous l'écran. */
+  rectWrap: { width: '100%' },
+  slotRect: { width: '100%' },
+  imgRect: { width: '100%', aspectRatio: 1.91 },
+  textWrapRect: { width: '100%', aspectRatio: 1.91, padding: 14, alignItems: 'center', justifyContent: 'center' },
   textColRect: { flexDirection: 'column', alignItems: 'center', gap: 10 },
   textRect: { fontSize: 13.5, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
   // Pastille « Sponsorisé » : discrète (−20 % par rapport à la taille d'origine) — elle doit se

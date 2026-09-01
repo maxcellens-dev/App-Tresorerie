@@ -19,16 +19,21 @@ export const AD_FORMATS = {
   /** Hauteur fixe 64 pt, largeur variable — se glisse à côté d'autres éléments. */
   compact: { label: 'Compacte', ratio: 3,   ideal: '600 × 200 px',  hint: 'Hauteur fixe 64 pt, largeur variable (~3 : 1)' },
   /**
-   * RECTANGLE 1,2 : 1 — le « Medium Rectangle » (300 × 250), format d'encart le plus répandu au
-   * monde. Pour une CARTE, pas pour une page qui défile.
+   * ENCART 1,91 : 1 — pleine largeur de la carte qui l'accueille. Pour une CARTE, pas pour une page
+   * qui défile.
    *
-   * Ce n'était pas le bon choix en carré : dans la carte de confirmation, un 1 : 1 occupait à lui
-   * seul plus de hauteur que les trois blocs de chiffres réunis — la pub passait avant le message
-   * qu'elle accompagne, dans une fenêtre qu'on referme en trois secondes. Le 1,2 : 1 rend ~17 % de
-   * cette hauteur en gardant assez de surface pour un visuel + un logo (ce qu'un bandeau 3 : 1
-   * n'a pas), et c'est un format que tout annonceur a déjà en stock.
+   * Deux essais avant celui-ci, et c'est la LARGEUR qui était le vrai sujet :
+   *   • 1 : 1 plafonné — le carré occupait à lui seul plus de hauteur que les trois blocs de
+   *     chiffres réunis, dans une fenêtre qu'on referme en trois secondes ;
+   *   • 1,2 : 1 plafonné — moins haut, mais l'encart restait le SEUL bloc de la carte à ne pas
+   *     aller bord à bord, avec ~35 pt de vide de chaque côté. Ce n'est pas de la place perdue,
+   *     c'est un désalignement : l'œil le lit comme un élément mal posé.
+   * En pleine largeur, le 1,91 : 1 donne EXACTEMENT la même surface que le 1,2 : 1 plafonné
+   * (~56 000 pt² sur un téléphone standard) pour 45 pt de hauteur en moins — et il s'aligne sur
+   * l'enveloppe variable et la fin de mois juste au-dessus. C'est en prime le format d'image de
+   * lien universel (Open Graph, Meta, LinkedIn) : tout annonceur l'a déjà.
    */
-  rect:    { label: 'Rectangle', ratio: 1.2, ideal: '600 × 500 px', hint: 'Rectangle 1,2 : 1 (standard 300 × 250), largeur plafonnée' },
+  rect:    { label: 'Encart', ratio: 1.91, ideal: '1200 × 628 px', hint: 'Pleine largeur de la carte, ratio 1,91 : 1' },
 } as const;
 export type AdFormat = keyof typeof AD_FORMATS;
 
