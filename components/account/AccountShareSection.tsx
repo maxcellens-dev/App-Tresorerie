@@ -163,8 +163,14 @@ export default function AccountShareSection({ account }: { account: Account }) {
             role="radio"
             style={{ marginBottom: 10 }}
           />
+          {/* `secondary` : aplat d'accent très dilué + contour d'accent — le skin de « + Projet »
+              (page Projets) et de « Modifier budgets ». On INVITE quelqu'un depuis un panneau de
+              réglages : c'est une action offerte, pas la validation d'un formulaire qu'on vient de
+              remplir. L'aplat plein la faisait passer pour l'action principale de la page. */}
           <AppButton
             label="Envoyer l'invitation / Ajouter membre"
+            variant="secondary"
+            icon="person-add-outline"
             loading={invite.isPending}
             onPress={doInvite}
           />

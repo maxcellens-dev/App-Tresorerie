@@ -386,11 +386,13 @@ champs de saisie) ne portent pas la même intention. Ils étaient en revanche ju
 seuls changeaient les libellés, le filtre de comptes et l'action de validation : **une** coquille
 paramétrée, donc, et non deux composants.
 
-**Clôture mensuelle — les trois responsabilités sont séparées :**
+**Clôture mensuelle — les responsabilités sont séparées :**
 1. bannière → `ClosureBannerCard` (l'était déjà) ;
-2. pop-up de bilan → `components/closure/ClosureBilanModal.tsx` ;
-3. formulaire de clôture → son **calcul** est sorti dans `lib/closureForm.ts` (**26 tests**,
+2. formulaire de clôture → son **calcul** est sorti dans `lib/closureForm.ts` (**26 tests**,
    horloge injectable).
+
+*(La pop-up de bilan `ClosureBilanModal` a depuis été supprimée — elle n'apprenait rien que l'état
+des lieux ne dise mieux, et son second `<Modal>` concurrençait celui de la clôture.)*
 
 Le JSX du formulaire (319 lignes) est resté dans `MonthlyClosure`, **délibérément**. Son état est
 réellement partagé — `confirm()` lit `mode`, `flash`, `balances`, `unknownShare`, `unknownDate` — il

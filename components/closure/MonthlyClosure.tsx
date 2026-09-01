@@ -1,7 +1,20 @@
 /**
- * MonthlyClosure — bannière de clôture + modale de clôture + pop-up de bilan éphémère.
+ * MonthlyClosure — bannière de clôture + modale de clôture.
  * Activé seulement si le drapeau admin monthly_closure_enabled est vrai (sinon rien ne s'affiche).
  * Monté sur le Pilotage.
+ *
+ * ⚠️ IL N'Y A PLUS DE POP-UP DE BILAN. Une fenêtre « Félicitations ! Il te restait X € sur ton
+ * enveloppe le mois dernier » s'affichait après une clôture. Elle est supprimée pour trois raisons :
+ *   • elle n'apprenait rien — l'état des lieux mensuel dit déjà ce qu'a donné le mois, en mieux ;
+ *   • son montant était stocké en base (`profiles.last_closure_bilan`) avec un `seen` qui n'était
+ *     posé qu'à la fermeture : une pop-up jamais fermée (app tuée, écran quitté) revenait
+ *     indéfiniment, en annonçant « le mois dernier » pour un mois qui ne l'était plus depuis
+ *     longtemps ;
+ *   • surtout, elle vivait HORS de la file des sollicitations (lib/interruptQueue) et se montait en
+ *     même temps que la modale de clôture. Deux `<Modal>` natifs concurrents sur Android : celle de
+ *     clôture pouvait ne jamais apparaître, et comme l'ouverture automatique est à usage unique par
+ *     montage (`autoOpened`), elle ne réessayait pas de la session.
+ * Rien ne la remplace — c'est l'état des lieux qui porte ce rôle.
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator, ScrollView } from 'react-native';
@@ -24,7 +37,6 @@ import { sheetWidth } from '../../lib/ui/appLayout';
 import { useRecalibrateReliability } from '../../hooks/pilotage/useReliability';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { openPulse } from '../pulse/PulseHost';
-import ClosureBilanModal from './ClosureBilanModal';
 import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct, parseTypedAmount } from '../../lib/finance/closureForm';
 import { laterVerification } from '../../lib/finance/balanceAt';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
@@ -96,7 +108,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   const { user, isImpersonating } = useAuth();
   // Catégories du profil : la régularisation de clôture est rangée selon son sens (cf. lib/regul).
   const { data: categories = [] } = useCategories(user?.id);
-  const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
+  const { enabled, pendingMonths, closeMonths } = useMonthlyClosure(user?.id);
   /* `isSuccess` et pas seulement les données : en cas d'échec de lecture, `data` vaut `undefined` et
      retombait sur `[]` — c'est-à-dire « aucun compte n'est clôturé ». Sur un compte JOINT déjà
      régularisé par un autre participant, clôturer dans cet état empile une seconde régularisation
@@ -229,13 +241,25 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
      il la referme sans lire, au pire il n'ouvre plus l'app.
      On garde donc l'ouverture automatique, avec un report explicite de 24 h : l'invitation reste
      insistante (elle revient le lendemain, et la bannière ne disparaît jamais), sans se répéter
-     dans la même journée. Le report est LOCAL à l'appareil et porte sur le mois concerné — un
-     nouveau mois à clôturer reprend la main immédiatement. */
-  const SNOOZE_KEY = 'closure_snooze_v1';
+     dans la même journée. Le report est local à l'appareil et porte sur le mois concerné — un
+     nouveau mois à clôturer reprend la main immédiatement.
+
+     ⚠️ LA CLÉ EST NOMMÉE PAR UTILISATEUR. Elle était globale à l'APPAREIL (`closure_snooze_v1`) :
+     sur un téléphone qui porte plusieurs comptes — le cas de tout testeur, et de tout foyer qui
+     partage un appareil — « Me le rappeler demain » sur un compte faisait taire la clôture de
+     TOUS les autres, pour peu qu'ils aient le même mois en attente. Le second compte voyait alors
+     la bannière sans jamais voir la modale, sans rien qui l'explique. */
+  const SNOOZE_KEY = user?.id ? `closure_snooze_v2:${user.id}` : null;
   const SNOOZE_MS = 24 * 60 * 60 * 1000;
   const [snoozeChecked, setSnoozeChecked] = React.useState(false);
   const [snoozedMonth, setSnoozedMonth] = React.useState<string | null>(null);
+  /* Dépend de l'UTILISATEUR : changer de compte doit relire SON report, jamais garder en mémoire
+     celui du précédent. On repart donc d'un état « non lu » AVANT l'await, dans le même effet —
+     séparer la remise à zéro dans un second effet la ferait dépendre de l'ordre des effets. */
   React.useEffect(() => {
+    setSnoozeChecked(false);
+    setSnoozedMonth(null);
+    if (!SNOOZE_KEY) return;                 // pas encore d'utilisateur : rien à lire
     let cancelled = false;
     (async () => {
       try {
@@ -248,11 +272,11 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
       if (!cancelled) setSnoozeChecked(true);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [SNOOZE_KEY]);
 
   const snoozeAndClose = () => {
     const m = oldest;
-    if (m) {
+    if (m && SNOOZE_KEY) {
       setSnoozedMonth(m);
       AsyncStorage.setItem(SNOOZE_KEY, JSON.stringify({ month: m, until: Date.now() + SNOOZE_MS })).catch(() => {});
     }
@@ -281,6 +305,9 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
      Un deeplink explicite (`?closure=1`) ou le bouton de la bannière passent outre : là,
      l'utilisateur DEMANDE la clôture. */
   const autoOpened = React.useRef(false);
+  /* « Une fois par montage » se compte PAR UTILISATEUR : si l'arbre n'est pas remonté au changement
+     de compte, le second héritait du « déjà ouvert » du premier et n'avait jamais sa clôture. */
+  React.useEffect(() => { autoOpened.current = false; }, [user?.id]);
   React.useEffect(() => {
     if (!autoOpen || !myTurn || autoOpened.current || !snoozeChecked) return;
     if (oldest && snoozedMonth === oldest) return;
@@ -915,14 +942,6 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
         </KeyboardAwareOverlay>
       </Modal>
 
-      {/* Pop-up de bilan éphémère — masquée en consultation admin (ne pas consommer le bilan du compte cible) */}
-      <ClosureBilanModal
-        visible={!isImpersonating && !!bilan}
-        surplus={bilan?.surplus ?? 0}
-        formatAmount={fmt}
-        onClose={() => markBilanSeen.mutate()}
-        colors={COLORS}
-      />
     </>
   );
 }

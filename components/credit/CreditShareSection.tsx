@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useCreditMembers, useInviteToCredit, useSetCreditMemberRole, useRemoveCreditMember } from '../../hooks/data/useSharedCredits';
 import { useUpdateCredit } from '../../hooks/data/useCredits';
+import AppButton from '../ui/AppButton';
 import type { Credit } from '../../types/database';
 
 export default function CreditShareSection({ credit }: { credit: Credit }) {
@@ -121,10 +122,17 @@ export default function CreditShareSection({ credit }: { credit: Credit }) {
           </TouchableOpacity>
         ))}
       </View>
-      <TouchableOpacity style={styles.inviteBtn} onPress={doInvite} disabled={invite.isPending}>
-        <Ionicons name="person-add-outline" size={16} color={COLORS.onAccent} />
-        <Text style={styles.inviteLabel}>Inviter</Text>
-      </TouchableOpacity>
+      {/* LE bouton de l'app, en `secondary` — même skin que « + Projet » et « Modifier budgets ».
+          Il était refait à la main ici, en aplat d'accent plein : deux écarts d'un coup, la forme
+          d'un bouton principal pour une action offerte, et une implémentation de plus. */}
+      <AppButton
+        label="Inviter"
+        variant="secondary"
+        icon="person-add-outline"
+        loading={invite.isPending}
+        onPress={doInvite}
+        style={{ marginTop: 10 }}
+      />
     </View>
   );
 }
@@ -154,7 +162,5 @@ function makeStyles(c: any) {
     roleChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
     roleChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
     roleChipTextActive: { color: c.text, fontWeight: '700' },
-    inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, paddingVertical: 11, borderRadius: 12, marginTop: 10 },
-    inviteLabel: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
   });
 }

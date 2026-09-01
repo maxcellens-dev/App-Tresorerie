@@ -1,5 +1,5 @@
 /**
- * Clôture mensuelle — détection des mois à clôturer, statut souple (confirmed/estimated) et bilan.
+ * Clôture mensuelle — détection des mois à clôturer et statut souple (confirmed/estimated).
  * Activable via l'admin (feature flag monthly_closure_enabled). Désactivé → aucun effet.
  *
  * Un mois passé IGNORÉ (non confirmé après un délai de grâce) est marqué `estimated` : il reste
@@ -28,7 +28,6 @@ export const CLOSURE_REGUL_NOTES = [
   'Régularisation clôture (mois)',
   'Régularisation clôture (mois courant)',
 ];
-export interface ClosureBilan { month_key: string; surplus: number; seen?: boolean; }
 
 /**
  * Mois ROUVERTS pendant cette session — au niveau du MODULE, et pas dans un `useRef`.
@@ -131,11 +130,6 @@ export function useMonthlyClosure(userId: string | undefined) {
   // La valeur stockée (closure_lock_date) est conservée → réactiver la fonctionnalité re-fige.
   const rawLock: string | null = (profile as any)?.closure_lock_date ?? null;
   const lockDate: string | null = enabled ? rawLock : null;
-  const bilanRaw = (profile as any)?.last_closure_bilan as ClosureBilan | null | undefined;
-  /* `surplus > 0` : un bilan sans reliquat n'a rien à annoncer. La condition est ici, et pas
-     seulement à l'affichage, pour que les bilans vides DÉJÀ enregistrés dans les profils cessent
-     de remonter — sinon la pop-up continuerait d'apparaître chez ceux qui en portent un. */
-  const bilan = bilanRaw && !bilanRaw.seen && Number(bilanRaw.surplus) > 0 ? bilanRaw : null;
 
   /**
    * Mois RÉELLEMENT clôturés — c'est-à-dire CONFIRMÉS par l'utilisateur.
@@ -211,33 +205,19 @@ export function useMonthlyClosure(userId: string | undefined) {
       const rows = monthKeys.map((mk) => ({ profile_id: userId, month_key: mk, surplus: mk === monthKeys[monthKeys.length - 1] ? surplus : 0, status }));
       const { error } = await supabase.from('month_closures').upsert(rows, { onConflict: 'profile_id,month_key' });
       if (error) throw error;
-      const maxKey = monthKeys.reduce((a, b) => (a > b ? a : b));
       // AUCUN blocage (décision produit) : on ne pose plus de verrou dur — les mois restent modifiables,
       // le statut confirmed/estimated suffit à la fiabilité. On efface un éventuel verrou hérité.
-      const prevMonth = addMonthKey(ym(new Date()), -1);
-      const patch: Record<string, any> = { closure_lock_date: null };
-      /* On n'enregistre un bilan QUE s'il a un montant à annoncer. Sans reliquat d'enveloppe, la
-         pop-up se contentait de dire « période clôturée » — ce que l'écran venait de montrer. Et
-         comme elle est rendue depuis le Pilotage, elle réapparaissait par-dessus n'importe quel
-         écran ouvert ensuite, jusqu'à ce qu'on la ferme. Rien à dire ⇒ rien à stocker. */
-      patch.last_closure_bilan =
-        (status === 'confirmed' && maxKey === prevMonth && surplus > 0)
-          ? { month_key: maxKey, surplus, seen: false }
-          : null;
-      await supabase.from('profiles').update(patch).eq('id', userId);
+      /* `last_closure_bilan` n'est PLUS écrit : la pop-up de félicitations qu'il alimentait est
+         supprimée (cf. components/closure/MonthlyClosure). La colonne survit en base — un bundle
+         plus ancien encore déployé continue de la lire, et la retirer ferait échouer TOUT ce
+         `update`, donc la clôture avec. Le reliquat reste enregistré là où il sert vraiment :
+         `month_closures.surplus` (repris dans l'export de données). */
+      await supabase.from('profiles').update({ closure_lock_date: null }).eq('id', userId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['month_closures', userId] });
       qc.invalidateQueries({ queryKey: ['profile', userId] });
     },
-  });
-
-  const markBilanSeen = useMutation({
-    mutationFn: async () => {
-      if (!supabase || !userId || !bilanRaw) return;
-      await supabase.from('profiles').update({ last_closure_bilan: { ...bilanRaw, seen: true } }).eq('id', userId);
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['profile', userId] }); },
   });
 
   /**
@@ -311,8 +291,9 @@ export function useMonthlyClosure(userId: string | undefined) {
 
       const remaining = closures.filter((c) => c.month_key !== monthKey).map((c) => c.month_key);
       const newLock = remaining.length ? lastDayOfMonthKey(remaining.reduce((a, b) => (a > b ? a : b))) : null;
-      /* On efface AUSSI le bilan éphémère : rouvrir un mois puis se voir féliciter pour l'enveloppe
-         qu'il restait dessus n'a aucun sens — c'est précisément le mois qu'on vient d'annuler. */
+      /* `last_closure_bilan: null` reste écrit ici, alors que plus rien ne le lit : c'est ce qui
+         purge la valeur héritée chez les utilisateurs déjà passés par une clôture, et qui coupe la
+         pop-up sur un bundle plus ancien encore déployé. */
       await supabase.from('profiles').update({ closure_lock_date: newLock, last_closure_bilan: null }).eq('id', userId);
     },
     onSuccess: () => {
@@ -326,5 +307,5 @@ export function useMonthlyClosure(userId: string | undefined) {
     },
   });
 
-  return { enabled, pendingMonths, lockDate, bilan, closures, confirmedClosures, closeMonths, markBilanSeen, reopenMonth, reopenableMonth };
+  return { enabled, pendingMonths, lockDate, closures, confirmedClosures, closeMonths, reopenMonth, reopenableMonth };
 }

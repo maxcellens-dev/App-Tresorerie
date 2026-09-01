@@ -20,9 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { contrastRatio, darken, lighten, readableOn } from '../../theme/palette';
 import { useAuth } from '../../contexts/AuthContext';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { addMonthKey, monthLabel } from '../../lib/finance/monthKeys';
@@ -150,16 +148,6 @@ export default function BudgetsView({ aboveOffset = 0 }: {
     monthRowBottom == null ? null : aboveOffset + monthRowBottom,
   );
 
-  /* Couleurs de la tuile d'action, reprises À L'IDENTIQUE de la fiche compte : un rond d'encre
-     dégradé (on éclaircit le haut d'un rond noir, on assombrit le bas d'un rond blanc — la lumière
-     vient toujours d'en haut) et une icône en négatif. Encre et fond étant réglables en
-     administration, on retombe sur un noir/blanc garanti si le couple choisi ne contraste pas. */
-  const actionInk = C.text;
-  const actionGradient: [string, string] = C.mode === 'light'
-    ? [lighten(actionInk, 0.24), actionInk]
-    : [actionInk, darken(actionInk, 0.16)];
-  const actionIconColor = contrastRatio(C.bg, actionInk) >= 4.5 ? C.bg : readableOn(actionInk);
-
   const edit = () => router.push(`/(tabs)/projects/budget-edit?month=${monthKey}` as any);
   /* La bascule reste offerte dès que le profil porte UN budget annuel, même si l'année affichée n'en
      a pas encore. Adossée aux seules lignes de l'année en cours, elle disparaissait en reculant
@@ -260,28 +248,20 @@ export default function BudgetsView({ aboveOffset = 0 }: {
           n'aurait aucun sens — sans changer la hauteur de la rangée : seule la largeur du bouton
           varie. Une rangée qui change de hauteur ferait sauter les onglets à chaque bascule. */}
       <View style={s.actionRow}>
-        {/* TUILE D'ACTION, pas un bouton de formulaire — le langage EXACT des actions de la fiche
-            compte (« Dépense », « Recette », « Nouveau solde ») : aucun fond ni contour, juste un
-            rond d'ENCRE (noir en thème clair, blanc en sombre) portant l'icône en négatif, puis le
-            libellé. Posée à l'horizontale plutôt qu'en colonne, pour tenir dans la hauteur de cette
-            rangée sans rien décaler. Elle se distingue ainsi des boutons « Enregistrer / Annuler »,
-            qui concluent une saisie — ici, on ouvre un écran. */}
+        {/* Même bouton que « + Projet » de la page Projets : aplat d'accent très dilué, contour
+            d'accent, icône et libellé dans l'accent. C'est le geste jumeau — on ouvre un écran de
+            création/édition depuis l'en-tête d'une liste — donc il se dit avec la même forme.
+            Il prend TOUTE la largeur (flexBasis 0 + flexGrow dans une rangée qui n'a plus qu'un
+            enfant), comme « Créer un budget » de l'état vide. */}
         <TouchableOpacity
-          style={s.editTile}
+          style={s.editBtn}
           onPress={edit}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel="Modifier mes budgets"
         >
-          <LinearGradient
-            colors={actionGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={s.editTileIcon}
-          >
-            <Ionicons name="create-outline" size={14} color={actionIconColor} />
-          </LinearGradient>
-          <Text style={s.editTileLabel} numberOfLines={1}>Modifier budgets</Text>
+          <Ionicons name="create-outline" size={18} color={C.primary} />
+          <Text style={s.editBtnLabel} numberOfLines={1}>Modifier budgets</Text>
         </TouchableOpacity>
 
       </View>
@@ -542,22 +522,21 @@ function makeStyles(c: any) {
        Elle est serrée exprès : cette rangée doit tenir dans l'espace qui existait déjà entre la
        période et les onglets. */
     actionRow: { flexDirection: 'row', alignItems: 'stretch', height: 40, gap: 8, marginBottom: 8 },
-    /* Ni fond ni contour — la tuile est posée À NU, comme les actions de la fiche compte. */
-    editTile: {
+    /* Skin de « + Projet » (app/(tabs)/projects) — aplat d'accent dilué + contour d'accent.
+       ⚠️ AUCUN `paddingVertical` : la rangée impose sa hauteur (40) via `alignItems: 'stretch'`,
+       et un padding vertical ici la ferait grandir — donc descendre les onglets « Catégories /
+       Historique », que ce bloc mesuré est justement chargé de ne pas bouger. */
+    editBtn: {
       flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      backgroundColor: c.primary + '15',
+      borderColor: c.primary + '44',
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
     },
-    /* Le rond d'ENCRE : c'est lui qui rattache la tuile aux actions de la fiche compte. Il prend la
-       couleur du texte (donc noir en clair, blanc en sombre) et l'icône prend celle du fond — le
-       négatif exact, comme là-bas. */
-    editTileIcon: {
-      width: 26, height: 26, borderRadius: 999,
-      alignItems: 'center', justifyContent: 'center',
-      // `overflow` : le dégradé suit l'arrondi au lieu d'en déborder (Android).
-      overflow: 'hidden',
-    },
-    editTileLabel: { fontSize: 12.5, fontWeight: '700', color: c.text },
+    editBtnLabel: { fontSize: 14, fontWeight: '700', color: c.primary },
     card: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 14, padding: 16, marginBottom: 10,
