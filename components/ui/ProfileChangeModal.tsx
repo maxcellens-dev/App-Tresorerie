@@ -70,13 +70,16 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
   'P4_P5|downgrade':  { title: '🚀 Ton profil évolue', body: 'Ta réserve est passée sous six mois. Rien d\'alarmant : on la reconstitue avant tout le reste.' },
   'exceptional_one|exceptional': { title: '⚠️ Profil ajusté suite à une baisse de revenus', body: 'Tes revenus des 2 derniers mois sont inférieurs à ta moyenne habituelle.' },
   'exceptional_two|exceptional': { title: '⚠️ Profil ajusté — aucun revenu détecté', body: 'Aucun revenu enregistré ces 2 derniers mois.' },
-  'P1|same': { title: '🌱 Tu conserves le profil', body: 'Ce mois-ci, ton profil reste inchangé. \nContinue à constituer ton matelas de sécurité.' },
-  'P2|same': { title: '🌿 Tu conserves le profil', body: 'Ton profil reste stable ce mois-ci. \nPoursuis le renforcement de ta réserve.' },
-  'P3|same': { title: '⚖️ Tu conserves le profil', body: 'Ta situation reste stable ce mois-ci. \nContinue sur cette lancée.' },
+  /* Bilans de MAINTIEN : le constat, puis le geste — deux temps, donc deux lignes. Le `\n` est ici
+     un VRAI saut de ligne (chaîne JS) ; c'est côté SQL qu'il faut se méfier (cf. migration 221).
+     L'espace qui traînait devant chaque `\n` est retiré : il finissait la première ligne. */
+  'P1|same': { title: '🌱 Tu conserves le profil', body: 'Ce mois-ci, ton profil reste inchangé.\nContinue à constituer ton matelas de sécurité.' },
+  'P2|same': { title: '🌿 Tu conserves le profil', body: 'Ton profil reste stable ce mois-ci.\nPoursuis le renforcement de ta réserve.' },
+  'P3|same': { title: '⚖️ Tu conserves le profil', body: 'Ta situation reste stable ce mois-ci.\nContinue sur cette lancée.' },
   /* P4 n'investit pas encore (réserve pas pleine) : « ta dynamique d'investissement se confirme »
      décrivait un palier plus haut. P5, lui, vient tout juste de commencer. */
-  'P4|same': { title: '🚀 Tu conserves le profil', body: 'Ton profil reste solide ce mois-ci. \nContinue jusqu\'à six mois de réserve.' },
-  'P5|same': { title: '🎯 Tu conserves le profil', body: 'Ta sécurité se maintient ce mois-ci. \nTa réserve est faite : tu peux en placer une part.' },
+  'P4|same': { title: '🚀 Tu conserves le profil', body: 'Ton profil reste solide ce mois-ci.\nContinue jusqu\'à six mois de réserve.' },
+  'P5|same': { title: '🎯 Tu conserves le profil', body: 'Ta sécurité se maintient ce mois-ci.\nTa réserve est faite : tu peux en placer une part.' },
 };
 
 /* Repli de DERNIER recours, par sens de variation ET par AMPLITUDE.
@@ -241,6 +244,13 @@ export default function ProfileChangeModal({ userId }: Props) {
       else body = GENERIC_BY_DIRECTION[key.direction] ?? '';
     }
   }
+
+  /* Un « \n » SAISI — les deux caractères, pas le saut de ligne — devient un vrai retour à la ligne.
+     Ces textes sont écrits en administration, et rien là-bas ne distingue les deux : une chaîne SQL
+     ordinaire stocke `\` + `n` littéralement (standard_conforming_strings), et un admin qui tape
+     « \n » dans le champ croit poser une coupure. Dans les deux cas, la phrase s'affichait avec un
+     « \n » en plein milieu. La migration 221 répare la donnée ; ceci empêche que ça revienne. */
+  body = body.replace(/\\n/g, '\n');
 
   /* Ramené sur le référentiel de CE bundle : un identifiant venu d'une migration plus récente que
      l'application installée laissait la table des profils sans réponse, et la fenêtre s'ouvrait sans

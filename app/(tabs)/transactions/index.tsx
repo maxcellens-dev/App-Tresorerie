@@ -39,7 +39,7 @@ import { compareTransactionsForDisplay, getEffectiveDate } from '../../../lib/fi
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { hoverRow, pageColumn } from '../../../lib/ui/webLayout';
-import { chipStyles } from '../../../lib/ui/controls';
+import { chipStyles, chipTone } from '../../../lib/ui/controls';
 import AppButton from '../../../components/ui/AppButton';
 import { iconForTransaction, iconForCategory } from '../../../lib/ui/categoryIcons';
 import { isProjectSpendTx } from '../../../lib/finance/projectTx';
@@ -985,25 +985,36 @@ function TransactionsListBody() {
 
             <Text style={styles.filterSectionTitle}>Comptes</Text>
             <View style={styles.filterChipsWrap}>
+              {/* « Tous » ne désigne aucun type : il garde donc l'accent du thème, là où les
+                  pastilles de compte prennent la couleur de LEUR type (juste en dessous). */}
               <TouchableOpacity
                 style={[styles.accountFilterChip, accountFilterIds.length === 0 && styles.accountFilterChipActive]}
                 onPress={() => setAccountFilterIds([])}
               >
                 <Text style={[styles.accountFilterChipText, accountFilterIds.length === 0 && styles.accountFilterChipTextActive]}>Tous</Text>
               </TouchableOpacity>
+              {/* TEINTE PAR TYPE DE COMPTE — la même que la rangée de comptes des écrans de saisie
+                  (components/transaction/AccountChipRow) : bleu pour un compte courant, vert pour
+                  l'épargne, violet pour l'investissement. Ces pastilles-ci désignent exactement les
+                  mêmes objets et prenaient pourtant l'accent du thème, quel que soit le compte —
+                  le code couleur s'arrêtait donc à la porte du panneau de filtres.
+                  `chipTone` ne change que la teinte : la géométrie reste celle de `chipStyles`. */}
               {sortedAccounts.map((acc) => {
                 const selected = accountFilterIds.includes(acc.id);
+                const tone = chipTone(selected, accountColor(acc.type as any), COLORS);
                 return (
                   <TouchableOpacity
                     key={acc.id}
-                    style={[styles.accountFilterChip, selected && styles.accountFilterChipActive]}
+                    style={[styles.accountFilterChip, tone.container]}
                     onPress={() => {
                       setAccountFilterIds((prev) =>
                         prev.includes(acc.id) ? prev.filter((id) => id !== acc.id) : [...prev, acc.id]
                       );
                     }}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
                   >
-                    <Text style={[styles.accountFilterChipText, selected && styles.accountFilterChipTextActive]}>{acc.name}</Text>
+                    <Text style={[styles.accountFilterChipText, tone.label]}>{acc.name}</Text>
                   </TouchableOpacity>
                 );
               })}
