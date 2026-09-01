@@ -25,7 +25,7 @@ import { useRecalibrateReliability } from '../../hooks/pilotage/useReliability';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { openPulse } from '../pulse/PulseHost';
 import ClosureBilanModal from './ClosureBilanModal';
-import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct } from '../../lib/finance/closureForm';
+import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct, parseTypedAmount } from '../../lib/finance/closureForm';
 import { laterVerification } from '../../lib/finance/balanceAt';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
@@ -356,13 +356,26 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
             /* « Je ne sais pas » : le solde donné vaut à `unknownDate` (postérieure à la fin du
                mois). L'écart est mesuré contre le solde REMONTÉ à cette date (cf. `unknownGapOf`,
                définition unique partagée avec le curseur et l'aperçu), puis réparti selon le
-               curseur — c'est l'utilisateur qui tranche, pas une règle qu'il n'a pas choisie. */
-            const raw = balances[acc.id];
-            if (raw == null || raw.trim() === '') continue;
+               curseur — c'est l'utilisateur qui tranche, pas une règle qu'il n'a pas choisie.
+
+               CHAMP VIDE = « ce compte est à jour », comme en « Solde réel » : `unknownGap` rend
+               déjà 0 quand rien n'est saisi, il n'y a donc pas d'écart à répartir. Restait à
+               ÉCRIRE quelque chose — ce compte était sauté en silence. */
             const gap = unknownGapOf(acc);
-            closedAccounts.push({ account_id: acc.id, balance: balAtEnd + gap * (unknownSharePct(acc.id) / 100) });
-            if (Math.abs(gap) <= 0.005) continue;
             const pct = unknownSharePct(acc.id) / 100;
+            /* AUCUN ÉCART (champ vide, ou solde qui tombe pile) → ancre de vérification à 0 €,
+               datée de la fin du mois : exactement ce qu'écrivent la Validation directe et le mode
+               « Solde réel ». Un solde saisi qui tombait juste ne laissait lui non plus aucune
+               trace — le compte passait pour non vérifié alors qu'il venait de l'être. */
+            if (Math.abs(gap) <= 0.005) {
+              closedAccounts.push({ account_id: acc.id, balance: balAtEnd });
+              await addTransaction.mutateAsync({
+                account_id: acc.id, category_id: null, amount: 0, date: monthEnd,
+                note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false, ...stamp,
+              } as any);
+              continue;
+            }
+            closedAccounts.push({ account_id: acc.id, balance: balAtEnd + gap * pct });
             const closingPart = gap * pct;
             const currentPart = gap - closingPart;
             if (Math.abs(closingPart) > 0.005) {
@@ -380,11 +393,22 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
             continue;
           }
 
-          // Mode « solde réel ».
-          const raw = balances[acc.id];
-          if (raw == null || raw.trim() === '') continue;
-          const newBalance = parseFloat(raw.replace(',', '.'));
-          if (Number.isNaN(newBalance)) continue;
+          /* Mode « solde réel ».
+             CHAMP LAISSÉ VIDE = « ce compte est à jour ». C'est la même écriture que la Validation
+             directe : une ancre de vérification à 0 €, datée de la fin du mois.
+
+             Ce compte était auparavant SAUTÉ — aucune écriture, et pas même une ligne dans
+             `account_closures`. Trois conséquences, toutes invisibles :
+               • rien dans le compte ne distinguait « vérifié » de « oublié » ;
+               • la question « déjà comptée dans ce solde ? » (posée quand une régul existe le même
+                 jour) se posait sur les comptes renseignés et PAS sur les autres — même geste de
+                 clôture, deux comportements ;
+               • la dernière vérification du compte n'avançait pas, donc le moteur de doute
+                 continuait à compter la dérive depuis une date bien plus ancienne.
+             Le placeholder du champ affiche déjà le solde calculé : ne rien saisir, c'est le
+             confirmer. */
+          const typed = parseTypedAmount(balances[acc.id]);
+          const newBalance = typed ?? balAtEnd;
           const diff = newBalance - balAtEnd;
           closedAccounts.push({ account_id: acc.id, balance: newBalance });
           if (Math.abs(diff) <= 0.005) {
@@ -590,6 +614,13 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                     />
                   </View>
                 ))}
+                {/* Même règle qu'en « Solde réel », et dite au même endroit : un champ vide n'est
+                    pas un compte oublié, c'est un compte confirmé. */}
+                <Text style={styles.hint}>
+                  {checkingAccounts.length > 1
+                    ? 'Laisse vide les comptes déjà bons : aucun écart pour eux, ils seront simplement marqués comme vérifiés.'
+                    : 'Laisse vide si le montant proposé est déjà le bon : aucun écart, il sera simplement marqué comme vérifié.'}
+                </Text>
 
                 <Text style={styles.stepLabel}>3 · À quel mois appartient l'écart ?</Text>
                 {/* Répartition — la position de départ est le prorata par jours, mais c'est
@@ -694,7 +725,16 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                     />
                   </View>
                 ))}
-                <Text style={styles.hint}>Une transaction d'ajustement sera créée au {lastDayOfMonthKey(targetKey ?? '')} pour chaque compte renseigné.</Text>
+                {/* La règle du CHAMP VIDE est dite ici, et pas seulement appliquée : c'est la seule
+                    chose non devinable de cet écran. Le placeholder montre déjà le solde calculé,
+                    donc ne rien saisir revient à le confirmer — et ça s'enregistre, comme le reste. */}
+                <Text style={styles.hint}>
+                  Une transaction d'ajustement sera créée au {formatDateFrench(lastDayOfMonthKey(targetKey ?? ''))} pour
+                  chaque compte dont tu corriges le solde.
+                  {checkingAccounts.length > 1
+                    ? ' Laisse vide ceux qui sont déjà bons : ils seront simplement marqués comme vérifiés.'
+                    : ' Laisse vide si le montant proposé est déjà le bon : il sera simplement marqué comme vérifié.'}
+                </Text>
               </>
             )}
 

@@ -35,6 +35,15 @@ export interface DialogRequest {
   title?: string; message?: string; buttons: DialogButton[]; input?: DialogInput;
   /** Si fourni, remplace la rangée de boutons par des cartes de choix illustrées. */
   options?: DialogOption[];
+  /**
+   * Le dialogue peut-il être quitté SANS répondre (tap sur le fond, retour Android) ? Défaut : oui.
+   *
+   * ⚠️ `false` pour toute question dont la réponse CHANGE ce qui va être écrit en base. Fermer sans
+   * choisir y retombait sur le bouton 'cancel' caché, donc sur une valeur par défaut silencieuse :
+   * l'écriture partait quand même, avec une réponse que l'utilisateur n'avait jamais donnée et
+   * qu'aucun écran ne lui montrait ensuite (cf. « Déjà comptée dans ce solde ? »).
+   */
+  dismissible?: boolean;
 }
 
 let controller: ((req: DialogRequest) => void) | null = null;
@@ -85,7 +94,13 @@ export function appPrompt(opts: {
 
 /**
  * Choix entre deux options ILLUSTRÉES (cf. DialogOption). Résout l'index choisi, ou −1 si le
- * dialogue est fermé sans rien choisir.
+ * dialogue n'a pas pu être posé.
+ *
+ * ⚠️ ON NE PEUT PAS PASSER À CÔTÉ. Ces cartes ne servent pas à confirmer, elles servent à TRANCHER :
+ * chacune décrit un enregistrement différent, et il n'existe pas de « bonne » valeur par défaut.
+ * Le tap sur le fond retombait pourtant sur le bouton 'cancel' de repli — l'opération partait avec
+ * la réponse « non », muette, alors que l'utilisateur croyait avoir annulé. Le dialogue est donc
+ * `dismissible: false` : la seule sortie est une des cartes.
  */
 export function appChoice(opts: {
   title?: string; message?: string; options: Omit<DialogOption, 'onPress'>[];
@@ -95,8 +110,10 @@ export function appChoice(opts: {
       title: opts.title,
       message: opts.message,
       options: opts.options.map((o, i) => ({ ...o, onPress: () => resolve(i) })),
-      // Repli si l'hôte ne sait pas rendre les options (et fermeture au tap à côté).
+      /* Repli si l'hôte ne sait pas rendre les options (jamais atteint tant qu'il y en a) : il faut
+         alors une sortie VISIBLE, sinon la promesse resterait pendante à jamais. */
       buttons: [{ text: 'Annuler', style: 'cancel', onPress: () => resolve(-1) }],
+      dismissible: false,
     };
     if (controller) controller(req); else resolve(-1);
   });

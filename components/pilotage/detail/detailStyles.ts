@@ -8,7 +8,7 @@
  *
  * Cf. docs/PLAN_REFACTOR_TESTS.md, phase C1 (DetailModal).
  */
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import type { AppColors } from '../../../theme/palette';
 
 export function makeDetailStyles(c: AppColors) {
@@ -47,6 +47,64 @@ export function makeDetailStyles(c: AppColors) {
   },
   filterChipText: { fontSize: 12, color: c.text, fontWeight: '700' },
   filterChipVal: { fontSize: 12, fontWeight: '800' },
+
+  /* ── « Ce qui va encore sortir » : LE TOTAL ET SON ADDITION ────────────────────────────────────
+     Le total flottait en tête, sur une simple ligne de tableau, et les deux montants qui le
+     composent arrivaient plus bas, séparés par tout le réglage de l'enveloppe : rien ne disait
+     que l'un était la somme des autres. On les réunit dans UNE carte, posés comme une addition —
+     colonne d'opérateurs à gauche, montants alignés à droite, sous le total. */
+  sumCard: {
+    backgroundColor: c.orange + '12', borderWidth: 1, borderColor: c.orange + '33',
+    borderRadius: 16, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, marginBottom: 12,
+  },
+  /* Libellé et total sur UNE ligne, alignés sur la même ligne de base : le libellé posé au-dessus
+     coûtait une rangée entière de hauteur dans une modale qui défile déjà. */
+  sumHead: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  sumLabel: {
+    flex: 1, fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase',
+    color: c.textSecondary,
+  },
+  sumTotal: { fontSize: 27, fontWeight: '900', letterSpacing: -0.6 },
+  sumRule: { height: 1, backgroundColor: c.orange + '2E', marginTop: 10, marginBottom: 2 },
+  sumRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  /* OPÉRATEUR + icône collés en une seule amorce de largeur fixe : les libellés restent alignés
+     d'une ligne à l'autre, et le « + » se lit comme appartenant à SA ligne. Posé dans la gouttière
+     avec l'écart d'une rangée normale, il flottait contre le bord de la carte, détaché des deux
+     lignes qu'il relie. */
+  sumLead: { flexDirection: 'row', alignItems: 'center', gap: 5, width: 32 },
+  /* Une ICÔNE et non un glyphe « + » : dans un Text, le signe se cale sur sa ligne de base et
+     remonte au-dessus du centre optique de la rangée. */
+  sumOp: { width: 12, alignItems: 'center', justifyContent: 'center' },
+  sumRowLabel: { flex: 1, fontSize: 13, color: c.text, fontWeight: '600' },
+  sumRowValue: { fontSize: 14.5, fontWeight: '800' },
+
+  /* ── Titres de section du modal ──
+     Les deux termes de l'addition se retrouvent plus bas, développés : même libellé, même icône,
+     pour qu'on relie sans effort la ligne du total au bloc qui l'explique. */
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 4 },
+  sectionTitle: { flex: 1, fontSize: 13.5, fontWeight: '800', color: c.text },
+  /* RAPPEL du montant, pas une seconde annonce : il est repris de l'addition du haut, en retrait,
+     pour qu'on retrouve le sous-total sans faire remonter le modal — et sans concurrencer le
+     chiffre de la carte. */
+  sectionAmount: { fontSize: 12.5, fontWeight: '800', color: c.textSecondary },
+  sectionSub: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginBottom: 6 },
+
+  /* Action « ouvrir un écran » posée À NU : rond d'encre en dégradé + libellé, exactement comme
+     « Modifier budgets » (components/budget/BudgetsView). Le bouton encadré pleine largeur qu'il
+     remplace occupait une bande entière pour une action secondaire. */
+  inkTile: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    paddingVertical: 4, paddingRight: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+  },
+  inkTileIcon: {
+    width: 26, height: 26, borderRadius: 999,
+    alignItems: 'center', justifyContent: 'center',
+    // `overflow` : le dégradé suit l'arrondi au lieu d'en déborder (Android).
+    overflow: 'hidden',
+  },
+  inkTileLabel: { fontSize: 12.5, fontWeight: '700', color: c.text },
+
   // ── Décomposition de l'enveloppe variable (modal « Ce qui va encore sortir ») ──
   // Une jauge + trois lignes : d'où vient le chiffre, ce qui a déjà été consommé, ce qui reste.
   envBlock: {
@@ -71,12 +129,7 @@ export function makeDetailStyles(c: AppColors) {
   varModeLabel: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary },
   varModeValue: { fontSize: 12, fontWeight: '800', color: c.text },
   varModeLabelOn: { color: c.emerald },
-  varModeActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  varModeSave: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14,
-  },
-  varModeSaveText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
+  varModeActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 2 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
   detailRowLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   detailRowSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
@@ -95,8 +148,6 @@ export function makeDetailStyles(c: AppColors) {
   pieLegendText: { fontSize: 12, color: c.text, fontWeight: '600', flexShrink: 1 },
   pieLegendVal: { fontSize: 12, fontWeight: '800' },
   detailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 4 },
-  detailEditBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '12' },
-  detailEditBtnText: { fontSize: 13, fontWeight: '700', color: c.emerald },
   suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
   });
 }

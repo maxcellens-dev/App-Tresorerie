@@ -36,16 +36,16 @@ INSERT INTO public.profile_notification_messages (transition, direction, title, 
    'Relyka n''a pas encore de quoi te classer. Ajoute tes comptes et tes rentrées d''argent récurrentes : ton profil apparaîtra tout seul.'),
   ('P6', 'same',
    '🌍 Tu conserves ton profil',
-   'Ta situation reste stable ce mois-ci. \nRéserve solide et placements en route : l''enjeu est la régularité, pas le montant.'),
+   'Ta situation reste stable ce mois-ci. Réserve solide et placements en route : l''enjeu est la régularité, pas le montant.'),
   ('P7', 'same',
    '🚀 Tu conserves ton profil',
-   'Ton profil reste stable ce mois-ci. \nTon patrimoine se construit : continue à faire travailler ce qui dépasse ta réserve.'),
+   'Ton profil reste stable ce mois-ci. Ton patrimoine se construit : continue à faire travailler ce qui dépasse ta réserve.'),
   ('P8', 'same',
    '🏛️ Tu conserves ton profil',
-   'Ta situation reste stable ce mois-ci. \nL''enjeu n''est plus d''accumuler mais de diversifier ce qui est déjà là.'),
+   'Ta situation reste stable ce mois-ci. L''enjeu n''est plus d''accumuler mais de diversifier ce qui est déjà là.'),
   ('P9', 'same',
    '💎 Tu conserves ton profil',
-   'Ton profil reste stable ce mois-ci. \nÀ ce niveau, chaque euro qui dort a un coût : surveille ce qui reste en liquide.')
+   'Ton profil reste stable ce mois-ci. À ce niveau, chaque euro qui dort a un coût : surveille ce qui reste en liquide.')
 ON CONFLICT (transition, direction) DO NOTHING;
 
 NOTIFY pgrst, 'reload schema';

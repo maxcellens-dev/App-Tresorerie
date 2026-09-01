@@ -3,15 +3,24 @@
  * d'ici la fin du mois, c'est-à-dire les dépenses variables estimées ET les récurrentes pas encore
  * prélevées.
  *
+ * MISE EN FORME : le modal s'ouvre sur UNE addition. Le total flottait auparavant en tête, sur une
+ * ligne de tableau identique à toutes les autres, et ses deux termes arrivaient bien plus bas,
+ * séparés par tout le réglage de l'enveloppe : rien ne disait que l'un était la somme des autres.
+ * Ils sont désormais posés ensemble dans la carte du haut — colonne d'opérateurs (« + ») à gauche,
+ * montants alignés à droite, sous le total. Le reste du modal DÉVELOPPE ces deux termes, dans le
+ * même ordre et sous les mêmes libellés.
+ *
  * ⚠️ À ne pas confondre avec `PlannedDetail` (branche `planned` de la vue détaillée), qui répond à
  * une AUTRE question et reste séparé pour cette raison.
  *
  * Aucun bouton de renvoi en pied (« Voir toutes mes récurrentes », « Répartition par catégorie ») :
  * la liste complète des récurrentes reste à un tap, par l'icône ↻ de l'entête du modal.
  */
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { semanticText, type AppColors } from '../../../theme/palette';
+import { LinearGradient } from 'expo-linear-gradient';
+import { contrastRatio, darken, lighten, readableOn, semanticText, type AppColors } from '../../../theme/palette';
+import AppButton from '../../ui/AppButton';
 import { iconForTransaction } from '../../../lib/ui/categoryIcons';
 import type { DetailStyles } from './detailStyles';
 import { fmtAmount, shortDate, rowLabel } from './detailShared';
@@ -44,6 +53,11 @@ export default function PlannedSimpleDetail({
      de l'argent qui va sortir, et le total du modal doit retomber sur la ligne du tableau de bord. */
   const varPlanned = Math.max(0, pilotageData.variable_envelope_planned ?? 0);
   const recurLeft = Math.max(0, recurUpcoming.amount);
+  /* DEUX termes, jamais trois : les variables « déjà saisies » sont des dépenses variables comme
+     les autres, elles rejoignent donc le même terme (et sont détaillées dans son bloc). Sans ça,
+     l'addition du haut changeait de forme d'un mois à l'autre. */
+  const varTotal = varLeft + varPlanned;
+  const total = varTotal + recurLeft;
   /* CONTEXTE de l'enveloppe variable. Sans lui, la ligne affichait « 0 € » sans rien qui
      l'explique : l'enveloppe était simplement déjà consommée, mais ni le montant estimé ni ce qui
      avait été dépensé n'apparaissaient nulle part. */
@@ -55,31 +69,67 @@ export default function PlannedSimpleDetail({
   const varConsumed = varUsed + varPlanned;
   const varRatio = varEnvelope > 0 ? Math.min(1, varConsumed / varEnvelope) : 0;
   const varExhausted = varEnvelope > 0 && varConsumed >= varEnvelope;
-  const barColor = varExhausted ? semanticText(colors.danger, colors) : semanticText(colors.orange, colors);
+  const orange = semanticText(colors.orange, colors);
+  const barColor = varExhausted ? semanticText(colors.danger, colors) : orange;
+
+  /* Rond d'ENCRE de l'action « Modifier l'estimation » — même fabrique que « Modifier budgets »
+     (components/budget/BudgetsView) : on éclaircit le haut d'un rond noir, on assombrit le bas d'un
+     rond blanc, la lumière vient toujours d'en haut. */
+  const actionInk = colors.text;
+  const actionGradient: [string, string] = colors.mode === 'light'
+    ? [lighten(actionInk, 0.24), actionInk]
+    : [actionInk, darken(actionInk, 0.16)];
+  const actionIconColor = contrastRatio(colors.bg, actionInk) >= 4.5 ? colors.bg : readableOn(actionInk);
 
   return (
-    <View style={{ gap: 6, paddingTop: 4 }}>
-      <View style={styles.detailRow}>
-        <Text style={[styles.detailRowLabel, { flex: 1 }]}>Total à venir</Text>
-        <Text style={[styles.detailRowValue, { color: semanticText(colors.yellow, colors) }]}>{fmtAmount(varLeft + varPlanned + recurLeft)}</Text>
-      </View>
-
-      <View style={styles.suiviDivider} />
-
-      {varPlanned > 0 && (
-        <View style={styles.detailRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.detailRowLabel}>Dépenses variables déjà saisies</Text>
-            <Text style={styles.detailRowSub}>datées d’ici la fin de la période — déjà comptées dans ton Relyka</Text>
-          </View>
-          <Text style={[styles.detailRowValue, { color: semanticText(colors.orange, colors) }]}>{fmtAmount(varPlanned)}</Text>
+    <View style={{ paddingTop: 4 }}>
+      {/* ── L'ADDITION ─────────────────────────────────────────────────────────────────────────
+          Le total, puis ses deux termes juste dessous, sous un filet : c'est la seule chose à
+          comprendre en ouvrant ce modal. */}
+      <View style={styles.sumCard}>
+        <View style={styles.sumHead}>
+          <Text style={styles.sumLabel}>Total à venir</Text>
+          <Text style={[styles.sumTotal, { color: orange }]}>{fmtAmount(total)}</Text>
         </View>
-      )}
 
-      <View style={styles.detailRow}>
-        <Text style={[styles.detailRowLabel, { flex: 1 }]}>Dépenses variables estimées</Text>
-        <Text style={[styles.detailRowValue, { color: semanticText(colors.orange, colors) }]}>{fmtAmount(varLeft)}</Text>
+        <View style={styles.sumRule} />
+
+        {/* Libellés COURTS, sur une ligne : une addition qui se replie sur deux lignes cesse de
+            se lire comme une addition. Les sections qui les développent portent l'icône et le
+            même montant, c'est ce qui fait le lien. */}
+        <View style={styles.sumRow}>
+          <View style={styles.sumLead}>
+            <View style={styles.sumOp} />
+            <Ionicons name="cart-outline" size={15} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.sumRowLabel} numberOfLines={1}>Dépenses variables</Text>
+          <Text style={[styles.sumRowValue, { color: orange }]}>{fmtAmount(varTotal)}</Text>
+        </View>
+
+        <View style={styles.sumRow}>
+          <View style={styles.sumLead}>
+            <View style={styles.sumOp}>
+              <Ionicons name="add" size={13} color={colors.textSecondary} />
+            </View>
+            <Ionicons name="repeat" size={15} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.sumRowLabel} numberOfLines={1}>Récurrentes à venir</Text>
+          <Text style={[styles.sumRowValue, { color: orange }]}>{fmtAmount(recurLeft)}</Text>
+        </View>
       </View>
+
+      {/* ── TERME 1 : LES DÉPENSES VARIABLES ─────────────────────────────────────────────────── */}
+      <View style={styles.sectionHead}>
+        <Ionicons name="cart-outline" size={16} color={colors.text} />
+        <Text style={styles.sectionTitle}>Dépenses variables</Text>
+        <Text style={styles.sectionAmount}>{fmtAmount(varTotal)}</Text>
+      </View>
+      {varPlanned > 0 && (
+        <Text style={styles.sectionSub}>
+          Dont {fmtAmount(varPlanned)} déjà saisis, datés d’ici la fin de la période — ils sont déjà
+          comptés dans ton Relyka.
+        </Text>
+      )}
 
       {/* D'où sort ce chiffre — version COMPACTE : une barre, et l'enveloppe / le dépensé / le
           reste sur UNE ligne au lieu de trois. Le modal tenait sur deux écrans de haut ; il tient
@@ -104,7 +154,7 @@ export default function PlannedSimpleDetail({
             </View>
             <View style={styles.envInlineItem}>
               <Text style={styles.envInlineLabel}>Reste</Text>
-              <Text style={[styles.envInlineVal, { color: varLeft > 0 ? semanticText(colors.orange, colors) : colors.textSecondary }]}>{fmtAmount(varLeft)}</Text>
+              <Text style={[styles.envInlineVal, { color: varLeft > 0 ? orange : colors.textSecondary }]}>{fmtAmount(varLeft)}</Text>
             </View>
           </View>
         </View>
@@ -153,41 +203,60 @@ export default function PlannedSimpleDetail({
           ? `Calculé : moyenne de tes ${pilotageData.variable_real_months} derniers mois de dépenses variables (les mois non clôturés sont exclus).`
           : 'Estimation : le montant que tu as déclaré toi-même (ton budget hebdomadaire ramené au mois).'}
       </Text>
-      <Text style={styles.detailNote}>
-        {varEnvelope <= 0
-          ? `Aucun budget variable habituel n'est encore estimé : tant qu'il vaut ${fmtAmount(0)}, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation pour que le calcul démarre.`
-          : varExhausted
-          ? `Enveloppe déjà consommée (${fmtAmount(varConsumed)} sur ${fmtAmount(varEnvelope)}${varPlanned > 0 ? `, dont ${fmtAmount(varPlanned)} déjà saisis pour les jours à venir` : ''}) : c'est pour ça qu'il ne reste rien à prévoir de ce côté.`
-          : ''}
-      </Text>
+      {(varEnvelope <= 0 || varExhausted) && (
+        <Text style={styles.detailNote}>
+          {varEnvelope <= 0
+            ? `Aucun budget variable habituel n'est encore estimé : tant qu'il vaut ${fmtAmount(0)}, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation pour que le calcul démarre.`
+            : `Enveloppe déjà consommée (${fmtAmount(varConsumed)} sur ${fmtAmount(varEnvelope)}${varPlanned > 0 ? `, dont ${fmtAmount(varPlanned)} déjà saisis pour les jours à venir` : ''}) : c'est pour ça qu'il ne reste rien à prévoir de ce côté.`}
+        </Text>
+      )}
 
+      {/* Action SECONDAIRE : elle ouvre un écran, elle ne conclut pas une saisie. D'où la tuile à
+          nu (rond d'encre + libellé) plutôt qu'un bouton encadré pleine largeur, qui réclamait une
+          bande entière du modal pour lui seul. « Enregistrer » — lui, une vraie validation — garde
+          son bouton plein, à côté. */}
       <View style={styles.varModeActions}>
-        <TouchableOpacity style={styles.detailEditBtn} activeOpacity={0.7} onPress={onEditEstimate}>
-          <Ionicons name="create-outline" size={15} color={colors.emerald} />
-          <Text style={styles.detailEditBtnText}>Modifier l'estimation</Text>
-        </TouchableOpacity>
-        {varModeDirty && (
-          <TouchableOpacity
-            style={styles.varModeSave}
-            activeOpacity={0.85}
-            onPress={onSaveVarMode}
-            disabled={savingVarMode}
+        <TouchableOpacity
+          style={styles.inkTile}
+          activeOpacity={0.7}
+          onPress={onEditEstimate}
+          accessibilityRole="button"
+          accessibilityLabel="Modifier mon estimation"
+        >
+          <LinearGradient
+            colors={actionGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.inkTileIcon}
           >
-            {savingVarMode
-              ? <ActivityIndicator size="small" color={colors.bg} />
-              : <><Ionicons name="checkmark" size={15} color={colors.bg} /><Text style={styles.varModeSaveText}>Enregistrer</Text></>}
-          </TouchableOpacity>
+            <Ionicons name="create-outline" size={14} color={actionIconColor} />
+          </LinearGradient>
+          <Text style={styles.inkTileLabel} numberOfLines={1}>Modifier l'estimation</Text>
+        </TouchableOpacity>
+        {/* LE bouton de l'app (components/ui/AppButton) : hauteur fixe, ombre teintée, voile
+            d'appui. Il était refait à la main ici — un aplat vert sans rien de tout ça, qui ne
+            ressemblait à aucun autre « Enregistrer » de l'app. */}
+        {varModeDirty && (
+          <AppButton
+            label="Enregistrer"
+            icon="checkmark"
+            size="sm"
+            loading={savingVarMode}
+            onPress={onSaveVarMode}
+          />
         )}
       </View>
 
-      <View style={styles.suiviDivider} />
+      <View style={[styles.suiviDivider, { marginTop: 12 }]} />
 
-      <View style={styles.detailRow}>
-        <Text style={[styles.detailRowLabel, { flex: 1 }]}>
+      {/* ── TERME 2 : LES RÉCURRENTES ────────────────────────────────────────────────────────── */}
+      <View style={styles.sectionHead}>
+        <Ionicons name="repeat" size={16} color={colors.text} />
+        <Text style={styles.sectionTitle}>
           Récurrentes pas encore passées
           {recurUpcoming.count > 0 ? ` (${recurUpcoming.count})` : ''}
         </Text>
-        <Text style={[styles.detailRowValue, { color: semanticText(colors.orange, colors) }]}>{fmtAmount(recurLeft)}</Text>
+        <Text style={styles.sectionAmount}>{fmtAmount(recurLeft)}</Text>
       </View>
       {recurUpcoming.count === 0 ? (
         <Text style={styles.detailNote}>

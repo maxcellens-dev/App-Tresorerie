@@ -34,17 +34,19 @@ import { CURRENCY_SYMBOL } from '../finance/currency';
 /**
  * « Épargne du mois » et « Investissement du mois » n'existent PLUS comme signaux : l'anneau du
  * bilan et sa légende (mis de côté · placé · conservé) disent déjà ces montants, juste au-dessus.
+ *
+ * « Jamais dans le rouge » (no_overdraft) non plus : une série de mois sans découvert n'apprenait
+ * rien — elle ne dit ni un montant, ni où on en est, et se contentait de féliciter.
  */
 export type PulseSignalId =
   | 'end_of_month'    // « Fin de mois » : ce qu'il restera au 1er, vs la marge de sécurité
   | 'spending'        // « Dépenses variables » : dépensé vs budget variable habituel
   | 'cushion'         // « Matelas de sécurité » : combien de MOIS DE DÉPENSES l'épargne couvre
-  | 'no_overdraft'    // « Jamais dans le rouge » : mois consécutifs sans découvert
   | 'wealth'          // « Ton patrimoine » : total + évolution sur 3 mois
   | 'projects';       // « Tes projets » : le projet perso le plus avancé
 
 export const PULSE_SIGNAL_IDS: PulseSignalId[] = [
-  'end_of_month', 'spending', 'cushion', 'no_overdraft', 'wealth', 'projects',
+  'end_of_month', 'spending', 'cushion', 'wealth', 'projects',
 ];
 
 /** Libellés admin (liste de sélection des signaux par profil). */
@@ -52,7 +54,6 @@ export const PULSE_SIGNAL_LABELS: Record<PulseSignalId, string> = {
   end_of_month: 'Fin de mois (ce qu’il restera)',
   spending:     'Dépenses variables',
   cushion:      'Matelas de sécurité',
-  no_overdraft: 'Jamais dans le rouge',
   wealth:       'Patrimoine',
   projects:     'Projets perso',
 };
@@ -92,18 +93,18 @@ export interface PulseConfig {
  */
 export const DEFAULT_PULSE_SIGNALS: Record<FinancialProfileId, PulseSignalId[]> = {
   // Découverte : on ne sait presque rien encore — on s'en tient au concret du mois.
-  P0: ['spending', 'end_of_month', 'no_overdraft', 'projects'],
+  P0: ['spending', 'end_of_month', 'projects'],
   // Tant que la réserve n'est pas faite, c'est la fin de mois qui compte, pas le patrimoine.
-  P1: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
-  P2: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
-  P3: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
-  P4: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
+  P1: ['spending', 'cushion', 'end_of_month', 'projects'],
+  P2: ['spending', 'cushion', 'end_of_month', 'projects'],
+  P3: ['spending', 'cushion', 'end_of_month', 'projects'],
+  P4: ['spending', 'cushion', 'end_of_month', 'projects'],
   // Réserve constituée : le patrimoine devient le sujet, la fin de mois cesse d'être un enjeu.
-  P5: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
-  P6: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
-  P7: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
-  P8: ['spending', 'wealth', 'cushion', 'no_overdraft', 'projects'],
-  P9: ['spending', 'wealth', 'cushion', 'no_overdraft', 'projects'],
+  P5: ['spending', 'cushion', 'wealth', 'projects'],
+  P6: ['spending', 'cushion', 'wealth', 'projects'],
+  P7: ['spending', 'cushion', 'wealth', 'projects'],
+  P8: ['spending', 'wealth', 'cushion', 'projects'],
+  P9: ['spending', 'wealth', 'cushion', 'projects'],
 };
 
 export const DEFAULT_PULSE_CONFIG: PulseConfig = {
@@ -173,10 +174,6 @@ export interface PulseInputs {
   totalWealth: number;
   /** Patrimoine 3 mois plus tôt (snapshot). null = pas encore d'historique. */
   wealth3mAgo: number | null;
-
-  // Séries
-  /** Mois consécutifs terminés sans découvert. */
-  monthsWithoutOverdraft: number;
 
   // Projets perso
   projects: { id: string; name: string; target: number; saved: number; progressPct: number }[];
@@ -265,7 +262,7 @@ function buildSpending(i: PulseInputs): PulseSignal {
     label: 'Dépenses variables',
     emoji: '🛒',
     // « habituel » (pas « prévu ») : l'enveloppe variable est une ESTIMATION, pas un plan.
-    headline: `${eur(spent)} dépensés sur les ${eur(budget)} habituels`,
+    headline: `${eur(spent)} dépensés sur les ${eur(budget)} prévus`,
     detail: diff > 0
       ? `Soit ${eur(diff)} de plus que ton budget variable habituel.`
       : diff < 0
@@ -330,20 +327,6 @@ function buildCushion(i: PulseInputs): PulseSignal {
   };
 }
 
-function buildNoOverdraft(i: PulseInputs): PulseSignal {
-  const n = Math.max(0, i.monthsWithoutOverdraft);
-  return {
-    id: 'no_overdraft',
-    label: 'Jamais dans le rouge',
-    emoji: '✅',
-    headline: n === 0
-      ? 'Aucun mois complet passé au-dessus de zéro pour l’instant'
-      : n === 1
-        ? 'Le mois dernier, tu as fini dans le vert'
-        : `${n} mois de suite sans jamais être dans le rouge`,
-  };
-}
-
 function buildWealth(i: PulseInputs): PulseSignal {
   const total = i.totalWealth;
   const before = i.wealth3mAgo;
@@ -396,7 +379,6 @@ const BUILDERS: Record<PulseSignalId, (i: PulseInputs) => PulseSignal | null> = 
   end_of_month: buildEndOfMonth,
   spending: buildSpending,
   cushion: buildCushion,
-  no_overdraft: buildNoOverdraft,
   wealth: buildWealth,
   projects: buildProjects,
 };
@@ -405,8 +387,8 @@ const BUILDERS: Record<PulseSignalId, (i: PulseInputs) => PulseSignal | null> = 
  * ORDRE DE L'ÉTAT DES LIEUX.
  *
  * Le bilan du mois se lit APRÈS la clôture, donc plusieurs jours (voire semaines) après la fin du
- * mois concerné. Dans ce contexte, les signaux qui parlent de « maintenant » (patrimoine à date,
- * jamais dans le rouge…) passent après ceux qui racontent le mois écoulé. On ouvre donc sur les
+ * mois concerné. Dans ce contexte, les signaux qui parlent de « maintenant » (patrimoine à date…)
+ * passent après ceux qui racontent le mois écoulé. On ouvre donc sur les
  * deux repères du mois — DÉPENSES VARIABLES et MATELAS DE SÉCURITÉ — présents quel que soit le
  * profil (ils composent la carte de récapitulatif). Viennent ensuite « Ton projet » (s'il y en a),
  * puis « Fin de mois », puis le reste de la sélection du profil.

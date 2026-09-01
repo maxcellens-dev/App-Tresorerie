@@ -43,14 +43,21 @@ export default function AppDialogHost() {
   const dismissBtn = req?.buttons.find((b) => b.style === 'cancel')
     ?? (req?.buttons.length === 1 ? req.buttons[0] : undefined);
 
+  /* Question à RÉPONSE OBLIGATOIRE (cf. DialogRequest.dismissible) : le fond n'est plus cliquable
+     et le retour Android ne fait rien. Sans ça, quitter le dialogue jouait le bouton 'cancel' —
+     donc une réponse par défaut que personne n'avait donnée, sur une décision qui change ce qui
+     part en base. On ne ferme QUE par un des choix affichés. */
+  const dismissible = req?.dismissible !== false;
+  const dismiss = dismissible ? () => onPress(dismissBtn ?? { text: 'OK' }) : undefined;
+
   // On ne monte le Modal que lorsqu'un dialogue est demandé : son portail est alors ajouté EN
   // DERNIER dans le DOM → toujours au-dessus des autres modaux déjà ouverts (sinon la confirmation
   // s'affichait sous le modal courant, §P6).
   if (!req) return null;
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(dismissBtn ?? { text: 'OK' })}>
-      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={() => onPress(dismissBtn ?? { text: 'OK' })}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={dismiss ?? (() => {})}>
+      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={dismiss}>
         <Pressable style={styles.box} onPress={() => {}}>
           {!!req.title && <Text style={styles.title}>{req.title}</Text>}
           {!!req.message && <Text style={styles.message}>{req.message}</Text>}

@@ -6,7 +6,7 @@ import type { PulseSignalId } from '../lib/pulse/pulseEngine';
  * s'ouvrir sur les deux repères du mois (dépenses variables, matelas de sécurité — les lignes de
  * la carte de récapitulatif), puis « Ton projet », puis « Fin de mois », puis le reste du profil.
  */
-const full: PulseSignalId[] = ['end_of_month', 'spending', 'cushion', 'no_overdraft', 'wealth', 'projects'];
+const full: PulseSignalId[] = ['end_of_month', 'spending', 'cushion', 'wealth', 'projects'];
 
 describe('monthlyIds — ordre du bilan de fin de mois', () => {
   it('ouvre sur les deux repères du mois, et non sur « fin de mois »', () => {

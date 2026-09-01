@@ -22,49 +22,10 @@ import { monthReservationsTotal } from '../../lib/finance/pilotageView';
 import { resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 
-/** Dernier jour du mois « YYYY-MM » au format ISO. */
-function lastDayOf(key: string): string {
-  const [y, m] = key.split('-').map(Number);
-  const d = new Date(y, m, 0);
-  return `${y}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 /** Décale une clé de mois de `n` mois. */
 function shiftMonth(key: string, n: number): string {
   const [y, m] = key.split('-').map(Number);
   return monthKey(new Date(y, m - 1 + n, 1));
-}
-
-/**
- * Mois PASSÉS consécutifs terminés avec un compte courant dans le vert.
- * Le solde de fin de mois M est reconstruit depuis le solde actuel, en retirant tout ce qui est
- * arrivé APRÈS M (on n'historise pas les soldes : on les rejoue à l'envers, comme le détail de compte).
- */
-function computeMonthsWithoutOverdraft(
-  checkingBalance: number,
-  transactions: any[],
-  checkingIds: Set<string>,
-  today: Date,
-  maxMonths = 12,
-): number {
-  const real = transactions.filter(
-    (t) => checkingIds.has(t.account_id) && !t.is_draft && !t.is_recurring,
-  );
-  let streak = 0;
-  for (let back = 1; back <= maxMonths; back++) {
-    const key = monthKey(new Date(today.getFullYear(), today.getMonth() - back, 1));
-    const cutoff = lastDayOf(key);
-    const after = real
-      .filter((t) => String(t.date) > cutoff)
-      .reduce((s, t) => s + Number(t.amount), 0);
-    const balanceAtEnd = checkingBalance - after;
-    // Aucun mouvement avant ce mois → l'utilisateur n'existait pas encore : on arrête la série.
-    const hadActivity = real.some((t) => String(t.date) <= cutoff);
-    if (!hadActivity) break;
-    if (balanceAtEnd < 0) break;
-    streak++;
-  }
-  return streak;
 }
 
 export interface PulseData {
@@ -239,14 +200,6 @@ function buildPulse(deps: PulseDeps): PulseData | null {
   const confidence = relCfg ? deriveRelykaConfidence(pilotage, relyka, relCfg) : null;
   const lowConfidence = confidence?.result.level === 'low';
 
-  // ── Jamais dans le rouge : soldes de fin de mois rejoués à l'envers.
-  const checkingIds = new Set(
-    (accounts as any[]).filter((a) => a.type === 'checking' && !a.is_joint).map((a) => a.id),
-  );
-  const monthsWithoutOverdraft = computeMonthsWithoutOverdraft(
-    pilotage.total_checking, transactions as any[], checkingIds, today,
-  );
-
   // ── Patrimoine : total du jour, et celui d'il y a 3 mois (snapshot mensuel).
   const wealth = pilotage.total_checking + pilotage.total_savings + pilotage.total_invested;
   const key3mAgo = shiftMonth(currentMonth, -3);
@@ -326,7 +279,6 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     recurringExpensesKnown: !!pilotage.has_recurring_expenses,
     totalWealth: wealth,
     wealth3mAgo,
-    monthsWithoutOverdraft,
     projects: pulseProjects,
     lowConfidence,
   };

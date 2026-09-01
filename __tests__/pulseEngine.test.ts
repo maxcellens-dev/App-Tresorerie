@@ -19,7 +19,6 @@ function inputs(over: Partial<PulseInputs> = {}): PulseInputs {
     avgMonthlyIncome: 2000,
     totalWealth: 12000,
     wealth3mAgo: 11000,
-    monthsWithoutOverdraft: 3,
     projects: [],
     lowConfidence: false,
     ...over,
@@ -78,6 +77,14 @@ describe('computePulse — un ÉTAT, jamais un jugement', () => {
     expect(PULSE_SIGNAL_IDS).not.toContain('saving' as any);
     expect(PULSE_SIGNAL_IDS).not.toContain('investing' as any);
   });
+
+  /* « Jamais dans le rouge » : une série de mois sans découvert ne disait ni un montant, ni où on
+     en est — elle se contentait de féliciter. Retirée (cf. règles d'écriture du moteur). */
+  it('« Jamais dans le rouge » n’existe plus comme signal', () => {
+    expect(PULSE_SIGNAL_IDS).not.toContain('no_overdraft' as any);
+    const r = computePulse(inputs());
+    expect(r.signals.some((s) => s.label === 'Jamais dans le rouge')).toBe(false);
+  });
 });
 
 describe('computePulse — les signaux dépendent du profil', () => {
@@ -118,16 +125,16 @@ describe('computePulse — les signaux dépendent du profil', () => {
 });
 
 describe('computePulse — les constats', () => {
-  it('les dépenses variables se comparent au budget habituel, sans projeter un « rythme »', () => {
+  it('les dépenses variables se comparent au budget prévu, sans projeter un « rythme »', () => {
     const s = computePulse(inputs({ spendingSoFar: 720, spendingBudget: 600 }))
       .signals.find((x) => x.id === 'spending')!;
     expect(s.headline).toContain('720 €');
-    expect(s.headline).toContain('habituels');
+    expect(s.headline).toContain('prévu');
     expect(s.detail).toContain('120 € de plus');
     expect(s.detail).not.toMatch(/rythme|finirais/); // plus aucune projection
   });
 
-  it('sous le budget habituel, on dit l’écart dans l’autre sens', () => {
+  it('sous le budget prévu, on dit l’écart dans l’autre sens', () => {
     const s = computePulse(inputs({ spendingSoFar: 450, spendingBudget: 600 }))
       .signals.find((x) => x.id === 'spending')!;
     expect(s.detail).toContain('150 € de moins');
@@ -176,18 +183,18 @@ describe('resolvePulseConfig', () => {
     expect(resolvePulseConfig(null)).toEqual(DEFAULT_PULSE_CONFIG);
   });
 
-  /* Cinq signaux pour tous les profils CLASSANTS. P0 (Découverte) en a quatre : le matelas de
+  /* Quatre signaux pour tous les profils CLASSANTS. P0 (Découverte) en a trois : le matelas de
      sécurité n'y figure pas, faute de revenu constaté pour le calculer — annoncer « 0 mois de
      réserve » à quelqu'un qui n'a encore rien saisi serait un chiffre faux présenté comme un
      diagnostic. */
-  it('chaque profil classant affiche 5 signaux par défaut ; « Découverte » en a 4', () => {
+  it('chaque profil classant affiche 4 signaux par défaut ; « Découverte » en a 3', () => {
     for (const [id, ids] of Object.entries(DEFAULT_PULSE_CONFIG.signalsByProfile)) {
-      expect(`${id}:${ids.length}`).toBe(`${id}:${id === 'P0' ? 4 : 5}`);
+      expect(`${id}:${ids.length}`).toBe(`${id}:${id === 'P0' ? 3 : 4}`);
     }
   });
 
-  it('un signal supprimé du code est ignoré (config stockée obsolète : saving / investing)', () => {
-    const cfg = resolvePulseConfig({ signalsByProfile: { P1: ['cushion', 'saving', 'investing'] } as any });
+  it('un signal supprimé du code est ignoré (config stockée obsolète : saving / no_overdraft)', () => {
+    const cfg = resolvePulseConfig({ signalsByProfile: { P1: ['cushion', 'saving', 'no_overdraft'] } as any });
     expect(cfg.signalsByProfile.P1).toEqual(['cushion']);
   });
 

@@ -19,12 +19,12 @@ const OPTIONS: { mode: SharedMode; icon: string; title: string; desc: string }[]
   {
     mode: 'contribution', icon: 'home-outline',
     title: 'Pour les charges communes',
-    desc: 'Loyer, crédits, copro… Tes virements vers ce compte comptent comme des dépenses ; ce qui s’y passe ensuite n’encombre pas ton budget.',
+    desc: 'Loyer, crédits, copro… Tes virements vers ce compte comptent comme des dépenses ; ce qui s’y passe ensuite n’impacte pas ton Relyka.',
   },
   {
     mode: 'tracked', icon: 'cart-outline',
     title: 'Au quotidien',
-    desc: 'Courses, sorties… Ses dépenses et recettes comptent dans ton budget, à hauteur de ta part.',
+    desc: 'Courses, sorties… Ses dépenses et recettes comptent dans ton Relyka, à hauteur de ta part.',
   },
 ];
 
@@ -81,7 +81,7 @@ export default function AccountModeSection({ account }: { account: Account }) {
     <View style={styles.section}>
       <Text style={styles.title}>Comment utilises-tu ce compte ?</Text>
       <Text style={styles.subtitle}>
-        Cela n’affecte que la façon de compter dans TON budget — jamais le solde du compte ni tes transactions.
+        
       </Text>
 
       {OPTIONS.map((opt) => {
