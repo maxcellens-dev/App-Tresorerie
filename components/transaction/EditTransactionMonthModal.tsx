@@ -164,7 +164,9 @@ export default function EditTransactionMonthModal({
 
           {/* Info section */}
           <View style={styles.infoSection}>
-            {categoryName && (
+            {/* `!!` : une CHAÎNE, et l'un des appelants la construit en `cat?.name ?? ''` — sans
+                coercition, une catégorie introuvable rendait `''` comme nœud de texte. */}
+            {!!categoryName && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Catégorie:</Text>
                 <Text style={styles.infoValue}>{categoryName}</Text>

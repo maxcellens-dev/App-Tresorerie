@@ -56,7 +56,9 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
 
   return (
     <View>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {/* `!!` : `label` est une CHAÎNE. Un appelant qui passe `''` ferait rendre `''` — un nœud de
+          texte nu au milieu d'une View, que react-native-web refuse bruyamment. */}
+      {!!label && <Text style={styles.label}>{label}</Text>}
       <TouchableOpacity style={styles.trigger} onPress={() => setOpen(true)} activeOpacity={0.8}>
         <View style={styles.triggerLeft}>
           <Text style={styles.triggerSymbol}>{currencySymbolFor(value)}</Text>

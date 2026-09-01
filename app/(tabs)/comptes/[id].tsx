@@ -39,7 +39,7 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { contrastRatio, darken, lighten, readableOn } from '../../../theme/palette';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
-import { pageColumn } from '../../../lib/ui/webLayout';
+import { pageColumn, MAX_W, GUTTER } from '../../../lib/ui/webLayout';
 import { currencySymbolFor } from '../../../lib/finance/currency';
 import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLoss } from '../../../lib/finance/investment';
 import BalanceChart from '../../../components/charts/BalanceChart';
@@ -372,8 +372,18 @@ function AccountDetailScreen() {
     [transactions],
   );
 
-  /** Largeur utile de la courbe : la colonne d'écran moins ses marges (20 de chaque côté + carte). */
-  const chartWidth = Math.max(220, Math.min(isDesktop ? 640 : screenWidth, 640) - 40 - 28);
+  /* Largeur utile de la courbe : MESURÉE sur sa carte (`onLayout` plus bas), et non déduite de la
+     largeur de fenêtre.
+     Le plafond de 640 px valait pour une colonne de téléphone. Sur ordinateur, la page vit dans une
+     colonne de 1 180 px : la carte fait plus de 1 000 px de large, et la courbe restait plantée au
+     milieu à 572 px, entourée de vide (`chartCard` la centre). Mesurer, c'est aussi suivre les
+     changements que la fenêtre ne dit pas — repli de la barre latérale, redimensionnement.
+     Même schéma que la courbe de trésorerie (app/(tabs)/projection.tsx).
+     La valeur initiale n'est qu'un repli pour la 1ʳᵉ frame, avant la mesure. */
+  const [chartWidth, setChartWidth] = useState(() => Math.max(
+    220,
+    (isDesktop ? Math.min(screenWidth, MAX_W.dashboard) - 2 * GUTTER : screenWidth - 40) - 28,
+  ));
 
   // Fenêtre affichée : les `monthsShown` derniers MOIS CALENDAIRES (mois courant inclus).
   // On borne par mois plutôt que par nombre de lignes pour que « charger plus » ait un sens lisible
@@ -554,11 +564,23 @@ function AccountDetailScreen() {
             mouvement échu n'a pas d'histoire : on ne trace pas une ligne plate pour faire joli. */}
         {balanceHistory.length >= 2 && (
           <View style={styles.chartCard}>
-            <BalanceChart
-              points={balanceHistory}
-              width={chartWidth}
-              color={account.type === 'investment' ? COLORS.violet : account.type === 'savings' ? COLORS.green : COLORS.blue}
-            />
+            {/* Le cadre MESURE la place réellement offerte par la carte — c'est lui qui donne sa
+                largeur à la courbe. `overflow: hidden` : un SVG d'une frame de retard (fenêtre
+                rétrécie) est rogné plutôt que de déborder du cadre arrondi. */}
+            <View
+              style={styles.chartFrame}
+              onLayout={(e) => {
+                const w = Math.floor(e.nativeEvent.layout.width);
+                // Garde anti-boucle : `onLayout` se rejoue à chaque rendu qu'il provoque lui-même.
+                if (w > 0 && w !== chartWidth) setChartWidth(w);
+              }}
+            >
+              <BalanceChart
+                points={balanceHistory}
+                width={chartWidth}
+                color={account.type === 'investment' ? COLORS.violet : account.type === 'savings' ? COLORS.green : COLORS.blue}
+              />
+            </View>
             {/* La légende ne promet PAS « depuis l'ouverture » : sur un compte fourni, la courbe
                 démarre au plus ancien mouvement connu (cf. completeSince). Les mois sont lisibles
                 sous l'axe — inutile d'y ajouter une affirmation qu'on ne peut pas toujours tenir. */}
@@ -974,6 +996,10 @@ function makeStyles(c: any) {
     marginBottom: 16,
     alignItems: 'center',
   },
+  /* Cadre de mesure de la courbe : pleine largeur de la carte, c'est lui qu'on mesure (cf. le
+     `onLayout` de l'écran). Sans lui, `alignItems: 'center'` de la carte réduisait chaque enfant à
+     sa largeur intrinsèque — donc rien à mesurer. */
+  chartFrame: { width: '100%', alignItems: 'center', overflow: 'hidden' },
   // Montant et type sur UNE ligne : plus de libellé au-dessus ni de type en dessous.
   balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   balanceAmount: { flex: 1, minWidth: 0, fontSize: 27, fontWeight: '800', color: c.text, letterSpacing: -0.5 },

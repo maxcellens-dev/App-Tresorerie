@@ -210,7 +210,11 @@ export default function AssistanceScreen() {
           {/* Disponibilité de l'équipe : administrée (Admin › Mise à jour de l'app), parce qu'un
               engagement écrit en dur dans le code devient faux le jour où il change — et qu'il
               faut alors publier une version de l'app pour corriger une phrase. */}
-          {(supportHours || supportDelay) && (
+          {/* `!!` INDISPENSABLE : ces deux-là sont des CHAÎNES. Sans valeur administrée, elles
+              valent `''`, et `('' || '') && …` rend `''` — que React affiche comme un nœud de
+              texte au milieu du ScrollView (« Unexpected text node »). Un `&&` en JSX ne se garde
+              qu'avec un booléen. */}
+          {!!(supportHours || supportDelay) && (
             <View style={styles.card}>
               <Ionicons name="time-outline" size={28} color={COLORS.orange} style={{ alignSelf: 'center', marginBottom: 12 }} />
               <Text style={styles.cardTitle}>Nos disponibilités</Text>

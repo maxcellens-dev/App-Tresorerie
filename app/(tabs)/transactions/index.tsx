@@ -38,7 +38,7 @@ import { addRecurrenceToMonth } from '../../../lib/finance/recurrence';
 import { compareTransactionsForDisplay, getEffectiveDate } from '../../../lib/finance/txOrder';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
-import { hoverRow } from '../../../lib/ui/webLayout';
+import { hoverRow, pageColumn } from '../../../lib/ui/webLayout';
 import { chipStyles } from '../../../lib/ui/controls';
 import AppButton from '../../../components/ui/AppButton';
 import { iconForTransaction, iconForCategory } from '../../../lib/ui/categoryIcons';
@@ -901,7 +901,10 @@ function TransactionsListBody() {
       <OnboardingHintBanner />
       {/* Bureau : toute la page (filtres + liste) tient dans une colonne de lecture centrée —
           une liste de transactions étalée sur 1600 px devient illisible (l'œil perd la ligne). */}
-      <SafeAreaView style={[styles.safe, isDesktop && styles.safeDesktop]} edges={['left', 'right']}>
+      {/* Colonne de page PARTAGÉE (`pageColumn`), et non une copie locale : celle qui vivait ici
+          plafonnait à 1 000 px et n'a pas suivi quand les pages se sont alignées — la liste des
+          transactions était donc plus étroite que le Pilotage, sans raison. */}
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop)]} edges={['left', 'right']}>
         {/* Question du profil progressif — entrer dans ses transactions est un déclencheur sûr. */}
         {cameFromDeepLink && (
           <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
@@ -1313,8 +1316,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  // Web bureau : colonne de lecture centrée (max 1000) — filtres, en-tête et liste alignés.
-  safeDesktop: { width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: 32, paddingTop: 16 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   backText: { fontSize: 14, fontWeight: '600', color: c.text },
   header: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },

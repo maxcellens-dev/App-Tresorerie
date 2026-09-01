@@ -184,13 +184,17 @@ export default function LegalLayout({ title, children }: { title: string; childr
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    contentWrap: { width: '100%', maxWidth: 860, alignSelf: 'center' },
+    contentWrap: { width: '100%', maxWidth: MAX_W.reading, alignSelf: 'center' },
 
     // Mode « intégré à l'app » (bureau, connecté) — calqué sur app/(tabs)/_layout.
     appDesktopShell: { flex: 1, flexDirection: 'row', backgroundColor: c.bg },
     appDesktopMain: { flex: 1, minWidth: 0, height: '100%' },
     appDesktopScroll: { flexGrow: 1, paddingHorizontal: 32, paddingTop: 16, paddingBottom: 24 },
-    appDesktopColumn: { width: '100%', maxWidth: MAX_W.settings, alignSelf: 'center' },
+    /* Largeur de LECTURE, et non la colonne de page : ce sont des pages de prose, où une ligne de
+       1 180 px cesse d'être lisible. Elle valait `MAX_W.settings` — donc 820 px tant que les
+       réglages étaient étroits, et 1 180 le jour où ils se sont alignés sur les autres pages.
+       Même valeur que le mode public (`contentWrap`), qui disait déjà 860. */
+    appDesktopColumn: { width: '100%', maxWidth: MAX_W.reading, alignSelf: 'center' },
 
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12 },
     backText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },

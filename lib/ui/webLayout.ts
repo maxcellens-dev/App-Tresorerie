@@ -34,16 +34,39 @@ export const SIDEBAR_WIDTH_COLLAPSED = 76;
 /** Hauteur de la barre supérieure (titre + profil). */
 export const TOPBAR_HEIGHT = 68;
 
+/**
+ * LARGEUR DE PAGE — une seule, pour TOUTES les pages de l'app.
+ *
+ * Il y en avait trois (1180 / 1000 / 820) selon la « nature » de la page. Sur le papier c'était
+ * défendable ; à l'usage, non : en passant de Pilotage à Comptes puis à Apparence, la colonne
+ * rétrécissait de 180 px à chaque fois, et l'app avait l'air de se recadrer toute seule. Naviguer
+ * n'est pas changer de site — l'ossature ne doit pas bouger sous les pieds.
+ *
+ * Le repère est la page la plus large de l'app (Pilotage, Plan de trésorerie, Reporting) : les
+ * autres s'alignent dessus.
+ */
+const PAGE = 1180;
+
 /** Largeurs maximales de contenu, par nature de page. */
 export const MAX_W = {
+  /* ── Les trois variantes de PAGE valent la même chose (cf. `PAGE` ci-dessus) ──────────────────
+     Les noms survivent parce qu'ils disent l'intention de l'écran (et évitent de retoucher les 40
+     appels), mais ils ne se distinguent PLUS par leur largeur. Leur redonner des valeurs
+     différentes, c'est ramener le recadrage : voir `__tests__/webLayout.test.ts`. */
   /** Tableaux de bord, grilles de cartes, graphiques. */
-  dashboard: 1180,
+  dashboard: PAGE,
   /** Listes et pages de lecture (transactions, comptes). */
-  list: 1000,
-  /** Réglages et pages « une ligne = un réglage » : au-delà, libellé et valeur se perdent de vue. */
-  settings: 820,
+  list: PAGE,
+  /** Réglages et pages « une ligne = un réglage ». */
+  settings: PAGE,
+
+  /* ── Ce qui reste PLUS ÉTROIT, et pourquoi ───────────────────────────────────────────────────
+     Ces trois-là ne sont pas des pages qu'on parcourt : ce sont des blocs de saisie ou de lecture,
+     dont la largeur est dictée par le contenu et non par la fenêtre. */
   /** Formulaires : au-delà, les champs et boutons deviennent absurdement larges. */
   form: 640,
+  /** Prose (mentions légales, confidentialité) : une ligne de texte trop longue ne se lit plus. */
+  reading: 860,
   /** Écrans d'authentification : carte centrée. */
   auth: 460,
   /** Boîtes de dialogue centrées (remplacent les feuilles du bas). */
@@ -51,6 +74,9 @@ export const MAX_W = {
 } as const;
 
 export type ContentVariant = keyof typeof MAX_W;
+
+/** Les variantes qui décrivent une PAGE — elles partagent toutes la largeur `PAGE`. */
+export const PAGE_VARIANTS = ['dashboard', 'list', 'settings'] as const satisfies readonly ContentVariant[];
 
 /** Gouttière horizontale du contenu en bureau. */
 export const GUTTER = 32;
