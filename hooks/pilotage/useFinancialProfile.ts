@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { fetchAdminProfileIds } from '../../lib/admin/adminProfiles';
+import { withoutAdminRows } from '../../lib/admin/statsScope';
 import {
   resolveLiveProfile,
   resolveProfileId,
@@ -253,6 +255,10 @@ export function useUpdateProfileAllocation(userId: string | undefined) {
  *
  * Le chemin historique reste en REPLI : une OTA arrive avant une migration, et l'écran doit
  * continuer de fonctionner entre les deux. Il porte alors sa limite, signalée par `truncated`.
+ *
+ * ⚠️ PÉRIMÈTRE : les comptes ADMINISTRATEURS sont exclus, des deux côtés (migration 222 en base,
+ * `lib/admin/statsScope` dans le repli). Nos comptes de test se rangent dans des paliers comme les
+ * autres — sur une petite base, ils déforment l'histogramme qui sert à calibrer l'échelle.
  */
 const DISTRIBUTION_CLIENT_LIMIT = 5000;
 
@@ -282,22 +288,29 @@ export function useProfileDistribution(enabled = true) {
       }
 
       /* Repli : fonction pas encore déployée. On compte côté client, mais on DIT que le décompte
-         peut être incomplet — un total tronqué présenté comme exact est pire que pas de total. */
+         peut être incomplet — un total tronqué présenté comme exact est pire que pas de total.
+         Même périmètre que l'agrégat serveur : SANS les comptes administrateurs (nos comptes de
+         test déforment un histogramme qui sert justement à calibrer l'échelle). */
+      const adminIds = await fetchAdminProfileIds();
       const { data, error } = await supabase
         .from('user_financial_profile')
-        .select('profile_id, ladder_version')
+        .select('user_id, profile_id, ladder_version')
         .limit(DISTRIBUTION_CLIENT_LIMIT);
       if (error) throw error;
+      // ⚠️ ici la colonne d'identité est `user_id` : `profile_id` porte le PALIER (P1…P9).
+      const rows = withoutAdminRows((data ?? []) as any[], adminIds, 'user_id');
       const counts: Record<string, number> = {};
       let pending = 0;
-      for (const row of (data ?? []) as any[]) {
+      for (const row of rows) {
         const id = resolveProfileId(row.profile_id);
         counts[id] = (counts[id] ?? 0) + 1;
         // Encore sur les anciennes règles : sera reclassé en silence à la prochaine ouverture.
         if (Number(row.ladder_version ?? 0) < PROFILE_LADDER_VERSION) pending++;
       }
-      const total = (data ?? []).length;
-      return { counts, total, pending, truncated: total >= DISTRIBUTION_CLIENT_LIMIT };
+      const total = rows.length;
+      /* La troncature se juge sur ce qui a été TÉLÉCHARGÉ, pas sur ce qui reste après filtrage :
+         sinon retirer trois admins ferait passer un décompte tronqué pour complet. */
+      return { counts, total, pending, truncated: (data ?? []).length >= DISTRIBUTION_CLIENT_LIMIT };
     },
     enabled,
     staleTime: 1000 * 60 * 5,

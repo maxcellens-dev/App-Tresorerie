@@ -3,6 +3,15 @@
  * Agrège les évènements analytics_events : utilisateurs actifs (DAU/WAU/MAU), sessions,
  * vues de pages, répartition par heure / jour de semaine, plateformes, activité quotidienne.
  * Les données sont agrégées côté client sur une période sélectionnable (7 / 30 / 90 jours).
+ *
+ * ⚠️ PÉRIMÈTRE — TOUT ICI EXCLUT LES COMPTES ADMINISTRATEURS.
+ * Nos comptes vivent dans la base de production : vérifier qu'une OTA est passée, rejouer un bilan,
+ * cliquer sur ses propres bannières, créer un compte bidon pour reproduire un bug — c'est du
+ * travail, pas de l'usage, et sur quelques centaines d'inscrits deux ou trois administrateurs
+ * suffisent à déplacer un DAU, un CTR ou un taux de conversion de plusieurs points. L'exclusion est
+ * appliquée aux requêtes d'ici (`lib/admin/statsScope`) et aux agrégats faits en base
+ * (migration 222). Le sous-titre de l'écran le DIT : un chiffre dont on ignore l'assiette ne se
+ * compare à rien.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
@@ -21,6 +30,8 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
 import { AD_FORMATS, placementFormat, placementLabel } from '../../../../hooks/config/useAdsConfig';
+import { fetchAdminProfileIds } from '../../../../lib/admin/adminProfiles';
+import { withoutAdmins } from '../../../../lib/admin/statsScope';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
 
@@ -222,14 +233,29 @@ export default function StatsHub() {
     setLoading(true); setMessage(null);
     const since = new Date(Date.now() - periodDays * DAY_MS).toISOString();
     try {
+      /* HORS ADMINISTRATEURS — la liste d'abord, tout le reste en dépend.
+         Nos propres comptes vivent dans la base de production : sans cette exclusion, on lit ses
+         vérifications d'OTA et ses comptes de test en croyant lire l'usage réel (cf.
+         lib/admin/statsScope). L'erreur n'est pas avalée : mieux vaut pas de chiffre qu'un chiffre
+         pollué présenté comme propre. `true` = on relit la liste à chaque « Actualiser », pour
+         qu'un compte promu ou rétrogradé soit pris en compte tout de suite. */
+      const adminIds = await fetchAdminProfileIds(true);
+      /* `not.is.true` et non `eq(false)` : la colonne est nullable, et `is_admin = false` écarterait
+         tous les profils dont le drapeau n'a jamais été posé — c'est-à-dire presque tout le monde. */
+      const humans = () => supabase!.from('profiles').select('*', { count: 'exact', head: true }).not('is_admin', 'is', true);
       const [usersRes, accountsRes, txRes, newUsersRes, premiumRes, aiRes, crashRes] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('accounts').select('*', { count: 'exact', head: true }),
-        supabase.from('transactions').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', since),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
-        supabase.from('ai_usage').select('*', { count: 'exact', head: true }).gte('created_at', since),
-        supabase.from('client_errors').select('*', { count: 'exact', head: true }).eq('resolved', false),
+        humans(),
+        withoutAdmins(supabase.from('accounts').select('*', { count: 'exact', head: true }), adminIds),
+        withoutAdmins(supabase.from('transactions').select('*', { count: 'exact', head: true }), adminIds),
+        humans().gte('created_at', since),
+        humans().eq('is_premium', true),
+        withoutAdmins(supabase.from('ai_usage').select('*', { count: 'exact', head: true }).gte('created_at', since), adminIds),
+        /* Les crashs anonymes (profile_id nul — plantage sur l'écran de connexion) sont CONSERVÉS :
+           ils ne sont à personne, donc à aucun administrateur. C'est `withoutAdmins` qui le garantit.
+           ⚠️ Ce KPI mesure la santé VÉCUE PAR LES UTILISATEURS ; il ne s'aligne donc pas sur le badge
+           « crashs » de la page Admin, qui est une liste de TRAVAIL (un plantage rencontré par un
+           administrateur reste un bug à corriger, et Sécurité › Crashs continue de tous les montrer). */
+        withoutAdmins(supabase.from('client_errors').select('*', { count: 'exact', head: true }).eq('resolved', false), adminIds),
       ]);
       setCounts({
         users: usersRes.count ?? 0,
@@ -241,12 +267,15 @@ export default function StatsHub() {
         crashes: crashRes.count ?? 0,
       });
 
-      const { data, error } = await supabase
-        .from('analytics_events')
-        .select('profile_id, event, screen, platform, session_id, created_at')
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(50000);
+      const { data, error } = await withoutAdmins(
+        supabase
+          .from('analytics_events')
+          .select('profile_id, event, screen, platform, session_id, created_at')
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(50000),
+        adminIds,
+      );
       if (error) {
         // Table absente → migration non appliquée.
         if ((error.message || '').toLowerCase().includes('analytics_events')) {
@@ -261,19 +290,25 @@ export default function StatsHub() {
 
       // Stats mensuelles : fenêtre fixe de 6 mois (indépendante de la période).
       const sinceMonthly = new Date(Date.now() - 190 * DAY_MS).toISOString();
-      const { data: mdata, error: mErr } = await supabase
-        .from('analytics_events')
-        .select('event, profile_id, session_id, created_at')
-        .gte('created_at', sinceMonthly)
-        .limit(50000);
+      const { data: mdata, error: mErr } = await withoutAdmins(
+        supabase
+          .from('analytics_events')
+          .select('event, profile_id, session_id, created_at')
+          .gte('created_at', sinceMonthly)
+          .limit(50000),
+        adminIds,
+      );
       if (!mErr) setMonthly(computeMonthly((mdata ?? []) as RawEvent[]));
 
       // État des lieux : bilans archivés sur la période (table absente = migration 140 non appliquée → on ignore).
-      const { data: pdata, error: pErr } = await supabase
-        .from('pulse_snapshots')
-        .select('profile_id, estimated, signals, created_at')
-        .gte('created_at', since)
-        .limit(20000);
+      const { data: pdata, error: pErr } = await withoutAdmins(
+        supabase
+          .from('pulse_snapshots')
+          .select('profile_id, estimated, signals, created_at')
+          .gte('created_at', since)
+          .limit(20000),
+        adminIds,
+      );
       setPulse(pErr ? [] : ((pdata ?? []) as RawPulse[]));
 
       /* Parc installé (migration 215) : agrégé EN BASE — compter « le dernier évènement de chaque
@@ -330,7 +365,12 @@ export default function StatsHub() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.subtitle}>Usage de l'app sur {days} jours{updatedAt ? ` · maj ${updatedAt}` : ''}.</Text>
+              {/* Le périmètre se DIT : un chiffre dont on ignore l'assiette ne se compare à rien,
+                  ni à celui d'hier, ni à celui d'un autre écran. */}
+              <Text style={styles.subtitle}>
+                Usage de l'app sur {days} jours{updatedAt ? ` · maj ${updatedAt}` : ''}.{'\n'}
+                Comptes administrateurs exclus (nos vérifications ne sont pas de l'usage).
+              </Text>
             </View>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Actualiser les statistiques" style={styles.refreshIcon} onPress={() => loadStats(days)}>
               <Ionicons name="refresh" size={18} color={COLORS.emerald} />

@@ -532,8 +532,11 @@ function ProfileDistribution() {
 
   return (
     <View style={styles.matrixCard}>
+      {/* « Comptes admin exclus » n'est pas un détail : nos comptes de test se rangent dans des
+          paliers comme les autres, et sur une petite base ils déforment l'histogramme qui sert
+          justement à décider si l'échelle segmente (cf. migration 222). */}
       <Text style={styles.matrixLabel}>
-        Répartition de la base ({data.total} profils{data.truncated ? ' au moins' : ''})
+        Répartition de la base ({data.total} profils{data.truncated ? ' au moins' : ''}, comptes admin exclus)
       </Text>
       {/* Un total TRONQUÉ présenté comme exact est pire que pas de total : on calibre des seuils
           dessus. Le cas ne se produit que sur le repli client (fonction d'agrégation pas encore
