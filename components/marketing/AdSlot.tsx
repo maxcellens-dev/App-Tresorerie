@@ -6,7 +6,7 @@
  *   paramétrable en admin (rotation_seconds).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, type ViewStyle } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, useWindowDimensions, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,8 +43,15 @@ function placementOffset(placement: string, count: number): number {
 export default function AdSlot({ placement, style }: { placement: AdPlacement; style?: ViewStyle }) {
   const format = placementFormat(placement);
   const compact = format === 'compact';
-  const square = format === 'square';
+  const rect = format === 'rect';
   const COLORS = useAppColors();
+  const { height: winH } = useWindowDimensions();
+  /* Largeur de l'encart RECTANGLE, bornée par la HAUTEUR de l'écran et pas seulement par une
+     constante. Il vit dans une carte flottante qui n'a ni hauteur maximale ni défilement : sur un
+     petit téléphone, un encart figé à 260 pt poussait le pied de carte — « Balaie vers le haut pour
+     fermer » compris — sous le bas de l'écran. Plafonné à ~25 % de la hauteur utile, il reste une
+     illustration et jamais l'élément principal. */
+  const rectW = Math.round(Math.min(280, winH * 0.3));
   const router = useRouter();
   const { user } = useAuth();
   const { showAds } = usePlan(user?.id);
@@ -103,9 +110,9 @@ export default function AdSlot({ placement, style }: { placement: AdPlacement; s
   };
 
   return (
-    <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, square ? styles.squareWrap : null, style]}>
+    <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, rect ? styles.rectWrap : null, style]}>
       <TouchableOpacity
-        style={[styles.slot, compact && styles.slotCompact, square && styles.slotSquare, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
+        style={[styles.slot, compact && styles.slotCompact, rect && styles.slotRect, rect && { maxWidth: rectW }, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
         onPress={open}
         activeOpacity={link ? 0.85 : 1}
         disabled={!link}
@@ -114,22 +121,22 @@ export default function AdSlot({ placement, style }: { placement: AdPlacement; s
           // Image quasi pleine zone + tag « Sponsorisé » en overlay (pastille sombre
           // + ombre du texte → lisible quelle que soit l'image).
           <>
-            <Image source={{ uri: banner.image }} style={compact ? styles.imgCompact : square ? styles.imgSquare : styles.img} resizeMode="cover" />
+            <Image source={{ uri: banner.image }} style={compact ? styles.imgCompact : rect ? styles.imgRect : styles.img} resizeMode="cover" />
             <View style={styles.tagOverlay}>
               <Text style={styles.tagOverlayText}>Sponsorisé</Text>
             </View>
           </>
         ) : (
-          /* Repli SANS image. En carré, le texte se centre dans la boîte (une rangée horizontale
-             collée en haut d'un carré vide se lit comme une bannière ratée) ; ailleurs, la mise en
-             page d'origine est inchangée. */
-          <View style={compact ? styles.textWrapCompact : square ? styles.textWrapSquare : styles.textWrap}>
+          /* Repli SANS image. En rectangle, le texte se centre dans la boîte (une rangée
+             horizontale collée en haut d'un encart vide se lit comme une bannière ratée) ;
+             ailleurs, la mise en page d'origine est inchangée. */
+          <View style={compact ? styles.textWrapCompact : rect ? styles.textWrapRect : styles.textWrap}>
             {!compact && <Text style={[styles.tag, { color: COLORS.textSecondary }]}>Sponsorisé</Text>}
-            <Animated.View style={square ? styles.textColSquare : styles.textRow}>
-              <Ionicons name="megaphone-outline" size={compact ? 15 : square ? 26 : 18} color={COLORS.emerald} />
+            <Animated.View style={rect ? styles.textColRect : styles.textRow}>
+              <Ionicons name="megaphone-outline" size={compact ? 15 : rect ? 26 : 18} color={COLORS.emerald} />
               <Text
-                style={[compact ? styles.textCompact : square ? styles.textSquare : styles.text, { color: COLORS.text }]}
-                numberOfLines={square ? 4 : 2}
+                style={[compact ? styles.textCompact : rect ? styles.textRect : styles.text, { color: COLORS.text }]}
+                numberOfLines={rect ? 4 : 2}
               >
                 {banner.text ?? banner.label ?? 'Découvrez nos partenaires'}
               </Text>
@@ -154,16 +161,20 @@ const styles = StyleSheet.create({
   // soit la largeur disponible. Uploader au ratio 3,5:1 (ex. 1400×400) pour éviter tout recadrage.
   img: { width: '100%', aspectRatio: 3.5 },
 
-  /* ── Variante CARRÉE (1:1) ──────────────────────────────────────────────────────────────────
-     Réservée aux cartes (confirmation de saisie), jamais à une page qui défile. La largeur est
-     PLAFONNÉE à 260 pt : dans une carte de 560 de large, un vrai 1:1 ferait 560 de haut et
-     mangerait tout l'écran — la pub passerait avant le message qu'elle accompagne. */
-  squareWrap: { alignItems: 'center' },
-  slotSquare: { width: '100%', maxWidth: 260, alignSelf: 'center' },
-  imgSquare: { width: '100%', aspectRatio: 1 },
-  textWrapSquare: { width: '100%', aspectRatio: 1, padding: 14, alignItems: 'center', justifyContent: 'center' },
-  textColSquare: { flexDirection: 'column', alignItems: 'center', gap: 10 },
-  textSquare: { fontSize: 13.5, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
+  /* ── Variante RECTANGLE (1,2 : 1 — le « Medium Rectangle » 300 × 250) ───────────────────────
+     Réservée aux cartes (confirmation de saisie), jamais à une page qui défile.
+     Elle était en 1 : 1 : dans une carte étroite, le carré occupait à lui seul plus de hauteur que
+     les trois blocs de chiffres réunis — la pub passait avant le message qu'elle accompagne, dans
+     une fenêtre qu'on referme en trois secondes. Le 1,2 : 1 rend ~17 % de cette hauteur en gardant
+     assez de surface pour un visuel + un logo, et c'est le format d'encart le plus répandu (donc
+     celui que les annonceurs ont déjà). La largeur, elle, est plafonnée par la HAUTEUR de l'écran
+     (cf. `rectW`) — pas par une constante qui débordait sur les petits téléphones. */
+  rectWrap: { alignItems: 'center' },
+  slotRect: { width: '100%', alignSelf: 'center' },
+  imgRect: { width: '100%', aspectRatio: 1.2 },
+  textWrapRect: { width: '100%', aspectRatio: 1.2, padding: 14, alignItems: 'center', justifyContent: 'center' },
+  textColRect: { flexDirection: 'column', alignItems: 'center', gap: 10 },
+  textRect: { fontSize: 13.5, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
   // Pastille « Sponsorisé » : discrète (−20 % par rapport à la taille d'origine) — elle doit se
   // lire, pas concurrencer le message de la bannière.
   tagOverlay: { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 5.5, paddingVertical: 2.5, borderRadius: 5 },

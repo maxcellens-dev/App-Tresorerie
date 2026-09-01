@@ -431,8 +431,9 @@ export default function PulseDeltaHost() {
         )}
 
         {/* PUBLICITÉ — en PIED de carte, après tout ce qui parle de la saisie.
-            Format CARRÉ (cf. AD_PLACEMENTS : `saisie_confirmation`), largeur plafonnée : cette carte
-            est étroite et flottante, un bandeau 3,5 : 1 y serait un filet illisible.
+            Format RECTANGLE 1,2 : 1 (cf. AD_PLACEMENTS : `saisie_confirmation`), largeur plafonnée
+            par la hauteur de l'écran : cette carte est étroite, flottante, et n'a NI hauteur
+            maximale NI défilement — un encart trop haut pousse son propre pied hors de l'écran.
             `AdSlot` se charge seul de ne rien rendre pour un Premium, pubs coupées, ou sans bannière
             sur cet emplacement — la carte reste alors exactement celle d'avant. */}
         <AdSlot placement="saisie_confirmation" style={{ marginTop: 12 }} />

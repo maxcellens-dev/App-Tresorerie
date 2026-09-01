@@ -18,8 +18,17 @@ export const AD_FORMATS = {
   banner:  { label: 'Bandeau',  ratio: 3.5, ideal: '1400 × 400 px', hint: 'Pleine largeur, ratio 3,5 : 1' },
   /** Hauteur fixe 64 pt, largeur variable — se glisse à côté d'autres éléments. */
   compact: { label: 'Compacte', ratio: 3,   ideal: '600 × 200 px',  hint: 'Hauteur fixe 64 pt, largeur variable (~3 : 1)' },
-  /** CARRÉ (1 : 1), largeur plafonnée — pour une carte, pas pour une page qui défile. */
-  square:  { label: 'Carrée',   ratio: 1,   ideal: '600 × 600 px',  hint: 'Carré 1 : 1, largeur plafonnée à 260 pt' },
+  /**
+   * RECTANGLE 1,2 : 1 — le « Medium Rectangle » (300 × 250), format d'encart le plus répandu au
+   * monde. Pour une CARTE, pas pour une page qui défile.
+   *
+   * Ce n'était pas le bon choix en carré : dans la carte de confirmation, un 1 : 1 occupait à lui
+   * seul plus de hauteur que les trois blocs de chiffres réunis — la pub passait avant le message
+   * qu'elle accompagne, dans une fenêtre qu'on referme en trois secondes. Le 1,2 : 1 rend ~17 % de
+   * cette hauteur en gardant assez de surface pour un visuel + un logo (ce qu'un bandeau 3 : 1
+   * n'a pas), et c'est un format que tout annonceur a déjà en stock.
+   */
+  rect:    { label: 'Rectangle', ratio: 1.2, ideal: '600 × 500 px', hint: 'Rectangle 1,2 : 1 (standard 300 × 250), largeur plafonnée' },
 } as const;
 export type AdFormat = keyof typeof AD_FORMATS;
 
@@ -39,9 +48,10 @@ export const AD_PLACEMENTS = [
   { value: 'projection',         group: 'Projection',   label: 'Bas de page',                      format: 'banner' },
   { value: 'projection_mois',    group: 'Projection',   label: 'Entre 2 mois',                     format: 'banner' },
   { value: 'projection_invest',  group: 'Projection',   label: 'Avant « Détail année par année »', format: 'banner' },
-  /* La carte de confirmation de saisie (« C'est enregistré ») : le seul emplacement CARRÉ. C'est une
-     carte étroite et flottante, pas une page qui défile — un bandeau 3,5 : 1 y serait un filet. */
-  { value: 'saisie_confirmation', group: 'Saisie',      label: 'Fin de « C’est enregistré »',      format: 'square' },
+  /* La carte de confirmation de saisie (« C'est enregistré ») : le seul emplacement en RECTANGLE.
+     C'est une carte étroite et flottante, pas une page qui défile — un bandeau 3,5 : 1 y serait un
+     filet illisible, et un carré y mangeait la moitié de la fenêtre. */
+  { value: 'saisie_confirmation', group: 'Saisie',      label: 'Fin de « C’est enregistré »',      format: 'rect' },
 ] as const;
 export type AdPlacement = typeof AD_PLACEMENTS[number]['value'];
 
