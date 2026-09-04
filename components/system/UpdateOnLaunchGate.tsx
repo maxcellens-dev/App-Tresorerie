@@ -1,26 +1,27 @@
 /**
- * FirstLaunchUpdateGate — le voile de la TOUTE PREMIÈRE ouverture, pendant que la mise à jour OTA
- * téléchargée par le natif finit d'arriver.
+ * UpdateOnLaunchGate — le voile affiché pendant que la mise à jour OTA téléchargée par le natif
+ * finit d'arriver, pour qu'elle s'applique SUR CE LANCEMENT et pas au suivant.
  *
- * Il ne s'affiche qu'une fois par installation, et seulement s'il y a réellement quelque chose à
- * attendre (cf. lib/platform/otaUpdate). Le reste du temps, il ne rend rien.
+ * Il ne s'affiche que s'il y a réellement quelque chose à attendre — le natif en train de chercher
+ * ou de télécharger au moment où le JS démarre (cf. lib/platform/otaUpdate). Le reste du temps,
+ * c'est-à-dire à la quasi-totalité des lancements, il ne rend rien et ne coûte rien.
  *
- * Il reprend TRAIT POUR TRAIT le splash (même fond, même logo, même position) : l'utilisateur qui
- * vient d'installer l'app ne doit pas voir un écran de plus, mais le même écran qui met un peu plus
- * de temps — avec, pour ne pas le laisser dans le noir, une ligne qui dit ce qui se passe.
+ * Il reprend TRAIT POUR TRAIT le splash (même fond, même logo, même position) : l'utilisateur ne
+ * doit pas voir un écran de plus, mais le même écran qui met un peu plus de temps — avec, pour ne
+ * pas le laisser dans le noir, une ligne qui dit ce qui se passe.
  */
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions } from 'react-native';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
-import { useFirstLaunchUpdate } from '../../lib/platform/otaUpdate';
+import { useUpdateOnLaunch } from '../../lib/platform/otaUpdate';
 
 /** Doit correspondre au splash natif (app.json) et à AnimatedSplash — transition invisible. */
 const SPLASH_BG = '#F4EFE6';
 const BG_DARK = '#0D2E2A';
 const LOGO = 96;
 
-export default function FirstLaunchUpdateGate() {
-  const { waiting, downloading, progress } = useFirstLaunchUpdate();
+export default function UpdateOnLaunchGate() {
+  const { waiting, downloading, progress } = useUpdateOnLaunch();
   const COLORS = useBrandColors();
   const isLight = COLORS.mode === 'light';
 

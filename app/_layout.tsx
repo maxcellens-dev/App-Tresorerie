@@ -54,7 +54,7 @@ import { reportUnhandledWriteError } from '../lib/ui/writeErrors';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/platform/purchases';
 import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/platform/pushNotifications';
 import PushPermissionPrompt from '../components/system/PushPermissionPrompt';
-import FirstLaunchUpdateGate from '../components/system/FirstLaunchUpdateGate';
+import UpdateOnLaunchGate from '../components/system/UpdateOnLaunchGate';
 import './global.css';
 
 // expo-router v4 scanne TOUS les fichiers de app/ comme des routes : nos dossiers non-route
@@ -551,11 +551,12 @@ export default function RootLayout() {
                   onDone={() => setSplashDone(true)}
                 />
               )}
-              {/* PREMIÈRE ouverture après installation : on laisse la mise à jour OTA (téléchargée
-                  par le natif) finir d'arriver avant de montrer l'app, plutôt que d'ouvrir la
-                  version du store avec ses manques. Une fois par installation, plafonnée, et rien
-                  du tout sur le web (cf. lib/platform/otaUpdate). */}
-              {Platform.OS !== 'web' && <FirstLaunchUpdateGate />}
+              {/* Quand le natif est en train d'apporter une mise à jour OTA au moment où le JS
+                  démarre, on la laisse arriver et on l'applique SUR CE LANCEMENT — au lieu d'ouvrir
+                  l'app dans la version d'avant et de ne l'appliquer qu'à la prochaine ouverture.
+                  Aucun coût quand il n'y a rien à attendre, plafonné, et rien du tout sur le web
+                  (cf. lib/platform/otaUpdate). */}
+              {Platform.OS !== 'web' && <UpdateOnLaunchGate />}
             </CalculatorProvider>
           </AuthProvider>
         </ThemeProvider>
