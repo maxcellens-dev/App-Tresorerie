@@ -523,6 +523,12 @@ export function useAddTransaction(profileId: string | undefined) {
       /** Pour une ligne de régularisation : solde cible saisi (affichage). */
       regul_target?: number | null;
       /**
+       * NATURE de la régularisation (migration 223). 'wealth' = mise à jour du solde d'un compte
+       * d'épargne / d'investissement : elle ancre le solde comme les autres, mais se compte comme un
+       * virement entrant/sortant (hors trésorerie, hors budget). Cf. lib/finance/regul.
+       */
+      regul_kind?: 'wealth' | null;
+      /**
        * Compte d'investissement : NATURE de l'opération (migration 196).
        *  • 'gain' / 'loss' → plus ou moins-value : fait bouger la valeur, jamais l'apport ;
        *  • 'deposit'       → versement : fait bouger les deux.
@@ -629,6 +635,8 @@ export function useAddTransaction(profileId: string | undefined) {
           // Envoyé SEULEMENT s'il est renseigné : la colonne date de la migration 196, et une
           // installation qui ne l'a pas encore appliquée doit continuer d'enregistrer normalement.
           ...(input.investment_kind ? { investment_kind: input.investment_kind } : {}),
+          // Idem pour `regul_kind` (migration 223) : absent = régularisation de trésorerie.
+          ...(input.regul_kind ? { regul_kind: input.regul_kind } : {}),
           ...(input.closure_month ? { closure_month: input.closure_month } : {}),
           ...(input.on_behalf_member_id ? { on_behalf_member_id: input.on_behalf_member_id } : {}),
         })

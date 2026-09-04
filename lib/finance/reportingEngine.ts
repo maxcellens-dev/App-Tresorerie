@@ -15,7 +15,7 @@
  *  • Patrimoine : reconstruit à rebours du solde actuel en excluant brouillons ET transactions
  *    datées dans le FUTUR (sinon les points passés sont faussés).
  */
-import { isRegul } from './regul';
+import { isRegul, isWealthRegul } from './regul';
 import { isInvestmentDeposit } from './investment';
 import { CURRENCY_SYMBOL } from './currency';
 import { recurringAmountForMonth } from './recurrenceMonth';
@@ -47,6 +47,8 @@ export interface ReportTx {
    * de « mon placement a pris 5 000 € » quand la saisie est DIRECTE (pas un virement).
    */
   investment_kind?: string | null;
+  /** Mise à jour de solde d'épargne / d'investissement (migration 223) — cf. lib/finance/regul. */
+  regul_kind?: string | null;
   /** Échéance de crédit à venir (flux virtuel, cf. hooks/useCreditFlows) — jamais une dépense variable. */
   is_credit_flow?: boolean | null;
 }
@@ -108,6 +110,12 @@ export function isRecurringTemplate(t: ReportTx): boolean {
 export function isRealFlux(t: ReportTx): boolean {
   if (t.is_draft) return false;
   if (t.linked_account_id) return false; // virement interne (neutre)
+  /* MISE À JOUR DE SOLDE d'un livret / d'un placement (migration 223) : c'est un virement sans
+     jambe en face — de l'argent qui change de poche, pas une dépense ni une recette. La ligne
+     au-dessus écarte déjà les virements ; celle-ci écarte les mouvements que l'utilisateur n'avait
+     pas saisis. Sans elle, « j'ai repris 300 € sur mon livret » s'affichait en DÉPENSE du mois, et
+     venait grossir le poste « Mouvements » du graphe des dépenses. */
+  if (isWealthRegul(t)) return false;
   /* La RÉGULARISATION compte, désormais rangée dans sa sous-catégorie (migration 175) : c'est de
      l'argent réellement parti ou arrivé. L'écarter ici revenait à créer une catégorie qui
      n'apparaît dans aucun graphe — et à faire mentir le total des dépenses du mois.
@@ -299,8 +307,25 @@ export function buildSavingsSeries(
     if (t.is_draft) continue;
     if (today && (t.date ?? '') > today) continue; // pas encore arrivé
     const amt = Number(t.amount);
+    const destTypeRaw = typeById[t.account_id];
+
+    /* MISE À JOUR DE SOLDE d'un livret / d'un placement (migration 223) : « j'ai mis 500 € de côté
+       sans le noter ». Aucun virement en face, mais c'est bien de l'argent mis de côté ce mois-là —
+       et repris, si le montant est négatif. Elle compte donc, SIGNÉE : un mois où l'on pioche dans
+       son épargne doit apparaître en négatif, pas être arrondi à zéro.
+       Sur un compte d'investissement, c'est un APPORT : elle ne doit surtout pas se retrouver dans
+       le « gain hors apports », qui se déduit précisément de cette série. */
+    if (isWealthRegul(t as any)) {
+      if (destTypeRaw !== 'savings' && destTypeRaw !== 'investment') continue;
+      const wym = (t.date ?? '').substring(0, 7);
+      if (!acc[wym]) continue;
+      if (destTypeRaw === 'savings') acc[wym].savings += amt;
+      else acc[wym].invest += amt;
+      continue;
+    }
+
     if (amt <= 0) continue; // argent qui ARRIVE
-    const destType = typeById[t.account_id];
+    const destType = destTypeRaw;
     if (destType !== 'savings' && destType !== 'investment') continue;
     if (t.linked_account_id) {
       // Compte SEULEMENT si l'argent vient d'un compte d'un AUTRE type (courant→épargne, épargne→invest…).

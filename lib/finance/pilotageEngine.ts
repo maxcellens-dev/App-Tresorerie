@@ -17,7 +17,7 @@
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from './financialProfileEngine';
 import { convertAmount, type RatesMap } from './currency';
 import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } from './perimeter';
-import { isRegul } from './regul';
+import { isRegul, isCashRegul, isWealthRegul } from './regul';
 import { isProjectSpendTx, projectMode } from './projectTx';
 import { isBudgetExpense as isBudgetExpenseOf, isRecurringTx, sumVariableSpent, monthPrefix } from './variableSpend';
 import { computeTresoRows } from './tresoProjection';
@@ -816,6 +816,25 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     if ((t as any).is_draft && !isProjectDraft) continue;
     if ((t as any).is_reserved) continue; // une transaction réservée (« conservée ») n'est pas de l'épargne/invest
     const amt = Number(t.amount);
+
+    /* ── MISE À JOUR DE SOLDE D'UN LIVRET / D'UN PLACEMENT (migration 223) ────────────────────
+       « J'ai mis 500 € de côté le mois dernier sans le noter. » Il n'y a pas de virement en face —
+       donc rien que la boucle ci-dessous puisse voir — mais l'argent est bel et bien de l'épargne
+       mise de côté ce mois-ci : elle compte comme un virement ENTRANT, et comme un virement
+       SORTANT si le montant est négatif (on a repris de l'argent). Signée, donc : un mois où l'on
+       reprend plus qu'on ne met de côté doit l'afficher, pas afficher zéro.
+
+       Jamais dans la part « à venir » : ces mises à jour sont datées d'aujourd'hui ou d'avant (la
+       saisie l'impose), donc déjà dans le solde. Rien à redéduire du budget libre. */
+    if (isWealthRegul(t as any)) {
+      const [wY, wM] = t.date.split('-').map(Number);
+      if (wY !== currentYear || wM !== currentMonth || t.date > todayStr) continue;
+      const wType = accountTypeById[t.account_id];
+      if (wType === 'savings') month_savings_total += amt;
+      else if (wType === 'investment') month_invest_total += amt;
+      continue;
+    }
+
     if (amt >= 0) continue; // sortie depuis le compte source
     const srcType = accountTypeById[t.account_id];
     const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
@@ -1090,7 +1109,11 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   // d'aujourd'hui ont déjà été contrôlés. Même borne que l'ancre de création juste en dessous.
   let lastRegulAt: string | null = null;
   for (const t of transactions) {
-    if (!isRegul(t)) continue;
+    /* Une mise à jour de solde d'ÉPARGNE ne vérifie pas les comptes courants (migration 223) :
+       relever son livret ne dit rien de ce qui a été dépensé au quotidien. La compter ici faisait
+       repasser toute l'app en « à jour » — et le doute à zéro — pour un geste qui ne portait pas
+       sur l'argent du mois. */
+    if (!isCashRegul(t)) continue;
     const d = String((t as any).date ?? '').slice(0, 10);
     if (d && d <= todayStr && (!lastRegulAt || d > lastRegulAt)) lastRegulAt = d;
   }

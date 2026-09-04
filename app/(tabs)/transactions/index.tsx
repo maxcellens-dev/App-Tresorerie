@@ -30,7 +30,7 @@ import RecurringTransactionsModal from '../../../components/transaction/Recurrin
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 // Plus de `CURRENCY_SYMBOL` ici : cette page raisonne PAR COMPTE, jamais en devise de référence.
 import { currencySymbolFor } from '../../../lib/finance/currency';
-import { isRegul, REGUL_CATEGORY_NAME } from '../../../lib/finance/regul';
+import { isRegul, isCashRegul, isWealthRegul, REGUL_CATEGORY_NAME } from '../../../lib/finance/regul';
 // `todayISO` : la date du jour en heure LOCALE. Elle était recalculée à la main juste en dessous.
 import { todayISO } from '../../../lib/dateUtils';
 import { getMonthKey, getMonthsFromOffset } from '../../../lib/finance/treasuryTable';
@@ -448,8 +448,13 @@ function TransactionsListBody() {
        ad hoc que `isRegul` a justement été créé pour remplacer : il ignorait le marqueur de
        référence `regul_target`, et laissait donc échapper toute régularisation dont la note ne
        commence pas par ce mot — alors qu'elle en est une pour tout le reste de l'app. */
+    /* ⚠️ Les régularisations de TRÉSORERIE seulement. On arrive ici depuis la ligne
+       « Régularisation solde » du plan de trésorerie, qui ne compte que les comptes courants : y
+       faire apparaître la mise à jour d'un livret (migration 223) montrerait des lignes qui ne sont
+       pas dans le total qu'on vient de cliquer. Ces mises à jour se retrouvent par leur propre
+       catégorie, sous « Mouvements ». */
     if (regulFilter) {
-      list = list.filter((t) => isRegul(t as any));
+      list = list.filter((t) => isCashRegul(t as any));
     }
     // Filtre Mouvements (virements épargne/invest + transactions projet).
     // `mouvTypeFilter` affine selon la ligne cliquée dans la Tréso : épargne / invest / projets.
@@ -459,19 +464,26 @@ function TransactionsListBody() {
         const linkedType = t.linked_account?.type;
         // Les dépenses de projet ne sont pas des « mouvements » (elles vivent dans leur catégorie).
         const isProjectTx = outOfCategories(t);
-        if (mouvTypeFilter === 'epargne') return isChecking && linkedType === 'savings' && !isProjectTx;
-        if (mouvTypeFilter === 'invest') return isChecking && linkedType === 'investment' && !isProjectTx;
+        /* La mise à jour de solde d'un livret ou d'un placement EST un mouvement (migration 223) :
+           elle vaut virement entrant ou sortant, et c'est bien là qu'on la cherche. Elle n'a pas de
+           compte lié — d'où ce test à part, sur le type de SON compte. */
+        const wealthType = isWealthRegul(t as any) ? t.account?.type : null;
+        if (mouvTypeFilter === 'epargne') return (isChecking && linkedType === 'savings' && !isProjectTx) || wealthType === 'savings';
+        if (mouvTypeFilter === 'invest') return (isChecking && linkedType === 'investment' && !isProjectTx) || wealthType === 'investment';
         if (mouvTypeFilter === 'projets') return isProjectTx;
-        return isChecking && (linkedType === 'savings' || linkedType === 'investment' || isProjectTx);
+        return (isChecking && (linkedType === 'savings' || linkedType === 'investment' || isProjectTx)) || !!wealthType;
       });
     }
     // Filtre Recettes
     if (recettesFilter) {
       list = list.filter((t) => t.category?.type === 'income');
     }
-    // Filtre Dépenses (hors virements/réservations de projet, qui sont dans Mouvements)
+    /* Filtre Dépenses (hors virements/réservations de projet, qui sont dans Mouvements).
+       La mise à jour de solde d'un livret porte une catégorie de type « expense » — elle vit sous
+       « Mouvements », le tiroir des écritures neutres, où le type ne veut rien dire. Ce n'est pas
+       une dépense pour autant : elle n'a rien à faire dans cette liste. */
     if (depensesFilter) {
-      list = list.filter((t) => t.category?.type === 'expense' && !outOfCategories(t));
+      list = list.filter((t) => t.category?.type === 'expense' && !outOfCategories(t) && !isWealthRegul(t as any));
     }
     // Filtre par comptes sélectionnés
     if (accountFilterIds.length > 0) {

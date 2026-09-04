@@ -442,6 +442,14 @@ function AccountDetailScreen() {
     accountActions.push({ key: 'expense', label: 'Dépense', icon: 'arrow-down', onPress: () => goAdd('expense') });
     accountActions.push({ key: 'income', label: 'Recette', icon: 'arrow-up', onPress: () => goAdd('income') });
   }
+  /* NOUVEAU SOLDE sur un LIVRET / UN PLACEMENT — le même écran, le même geste que sur un compte
+     courant (migration 223). Il manquait, et il n'y avait aucun moyen de recoller à la réalité sans
+     ressaisir a posteriori les virements oubliés — y compris sur des mois clôturés, où justement on
+     ne veut plus rien toucher. L'écart écrit ici n'est pas une correction de trésorerie : il compte
+     comme un virement entrant (ou sortant), cf. lib/finance/regul. */
+  if (account.type === 'savings' || account.type === 'investment') {
+    accountActions.push({ key: 'balance', label: 'Nouveau solde', icon: 'wallet-outline', onPress: openBalanceUpdate });
+  }
   if (account.type === 'investment') {
     accountActions.push({ key: 'gainloss', label: '+/− value', icon: 'trending-up-outline', onPress: () => setEntryModal('gainloss') });
   }

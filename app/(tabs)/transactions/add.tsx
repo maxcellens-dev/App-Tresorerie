@@ -20,6 +20,7 @@ import type { RecurrenceRule } from '../../../types/database';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
 import AppButton from '../../../components/ui/AppButton';
 import SegmentedControl from '../../../components/ui/SegmentedControl';
+import StepRail from '../../../components/ui/StepRail';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import { useGuide } from '../../../contexts/GuideContext';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
@@ -672,12 +673,8 @@ function AddTransactionScreen() {
             />
           )}
 
-          {/* Fil d'étapes */}
-          <View style={styles.stepsRow}>
-            <View style={[styles.stepDot, styles.stepDotActive]}><Text style={styles.stepDotText}>1</Text></View>
-            <View style={[styles.stepBar, step >= 2 && styles.stepBarActive]} />
-            <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]}><Text style={[styles.stepDotText, step < 2 && { color: COLORS.textSecondary }]}>2</Text></View>
-          </View>
+          {/* Fil d'étapes — composant partagé avec la clôture mensuelle (components/ui/StepRail). */}
+          <StepRail current={step} total={2} style={{ marginBottom: 10 }} />
           <Text style={styles.stepTitle}>
             {step === 1
               ? (isTransfer ? 'De quel compte vers quel compte ?' : 'Détails de la ' + (isExpense ? 'dépense' : 'recette'))
@@ -1008,12 +1005,7 @@ function makeStyles(c: any) {
   scrollContent: { paddingBottom: 120 },
   /* Sélecteur de type : `components/ui/SegmentedControl` — même composant que tous les autres
      choix « une option parmi peu » de l'app. */
-  stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
-  stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
-  stepDotActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  stepDotText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
-  stepBar: { width: 60, height: 2, backgroundColor: c.cardBorder },
-  stepBarActive: { backgroundColor: c.emerald },
+  // (Le fil d'étapes est un composant partagé : components/ui/StepRail.)
   stepTitle: { fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 },
   prevLink: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 14 },
   prevLinkText: { fontSize: 14, fontWeight: '700', color: c.emerald },

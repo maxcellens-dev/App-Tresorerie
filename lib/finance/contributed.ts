@@ -8,6 +8,7 @@
  * Retourne null si non suivi (compte non-investissement ou aucun apport de base défini).
  */
 import { isInvestmentDeposit } from './investment';
+import { isWealthRegul } from './regul';
 
 interface TxLike {
   account_id: string;
@@ -18,6 +19,8 @@ interface TxLike {
   note?: string | null;
   /** Marqueur de nature (migration 196) — prime toujours sur le libellé. */
   investment_kind?: string | null;
+  /** Mise à jour de solde d'un compte d'épargne / d'investissement (migration 223). */
+  regul_kind?: string | null;
 }
 
 interface AccountLike {
@@ -71,8 +74,13 @@ export function computeContributed(
        renommer sa plus-value la faisait basculer en apport, ce qui gonflait le capital investi et
        écrasait la performance affichée du compte. Le repli par libellé ne sert plus qu'aux lignes
        d'avant la migration (cf. lib/finance/investment). */
-    const isDepositIn = amt > 0 && (!!t.linked_account_id || isInvestmentDeposit(t));
-    const isWithdrawal = amt < 0 && !!t.linked_account_id;
+    /* MISE À JOUR DE SOLDE (migration 223) : « j'ai versé 500 € sans le noter ». Elle vaut virement
+       — entrant si positive, sortant si négative — donc apport de capital dans un sens, retrait au
+       prorata dans l'autre. La traiter comme une plus-value aurait affiché une performance qui n'a
+       jamais eu lieu : le capital serait resté au même niveau pendant que la valeur montait. */
+    const wealth = isWealthRegul(t);
+    const isDepositIn = amt > 0 && (!!t.linked_account_id || wealth || isInvestmentDeposit(t));
+    const isWithdrawal = amt < 0 && (!!t.linked_account_id || wealth);
     if (isDepositIn) {
       apport += amt;
       value += amt;

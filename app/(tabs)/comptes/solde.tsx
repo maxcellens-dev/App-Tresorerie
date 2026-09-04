@@ -16,9 +16,18 @@
  * « connu » était calculé par une soustraction naïve qui ignorait les ancres de régularisation
  * (donc faux dès la deuxième mise à jour). Elle envoie désormais ici, pré-filtrée sur son compte :
  * un seul geste, un seul calcul, un seul endroit à corriger.
+ *
+ * ── ÉPARGNE / INVESTISSEMENT : LE MÊME GESTE, UNE AUTRE HISTOIRE (migration 223) ─────────────────
+ * Sur un livret ou un placement, l'écart ne dit pas « il manque 80 € que je n'avais pas saisis »
+ * mais « j'ai mis 500 € de côté sans le noter ». Ce n'est ni une dépense ni une recette du
+ * quotidien : c'est un mouvement de patrimoine, à compter comme un virement entrant (ou sortant si
+ * le montant baisse). L'écriture porte donc le marqueur `regul_kind = 'wealth'` : elle ancre le
+ * solde comme n'importe quelle régularisation, mais reste HORS du plan de trésorerie, HORS du
+ * budget et HORS de la calibration du doute — tout en comptant dans l'épargne du mois.
+ * Cf. lib/finance/regul.
  */
 import React, { useMemo, useState } from 'react';
-import { findRegulCategoryId } from '../../../lib/finance/regul';
+import { findRegulCategoryId, findWealthRegulCategoryId, isWealthAccountType, WEALTH_REGUL_KIND, WEALTH_REGUL_NOTE } from '../../../lib/finance/regul';
 import { balanceAtDate } from '../../../lib/finance/balanceAt';
 import { useCategories } from '../../../hooks/data/useCategories';
 import {
@@ -139,9 +148,10 @@ export default function BalanceUpdateScreen() {
         if (typed === null) return null;
         // Écart mesuré contre le solde À LA DATE du relevé, pas contre le solde d'aujourd'hui.
         const known = balanceAtDateFor(a.id, Number(a.balance));
-        return { account: a, target: typed, gap: typed - known, known };
+        // Livret / placement : l'écart est un MOUVEMENT (cf. l'en-tête), pas une correction de flux.
+        return { account: a, target: typed, gap: typed - known, known, wealth: isWealthAccountType(a.type) };
       })
-      .filter(Boolean) as { account: any; target: number; gap: number; known: number }[];
+      .filter(Boolean) as { account: any; target: number; gap: number; known: number; wealth: boolean }[];
   }, [checking, inputs, balanceAtDateFor]);
 
   /* Écart TOTAL, en devise de RÉFÉRENCE. Chaque écart est libellé dans la devise de son compte :
@@ -158,6 +168,10 @@ export default function BalanceUpdateScreen() {
    *  et retaper exactement le solde connu pouvait laisser un résidu de l'ordre de 1e-13. */
   const isZeroGap = (v: number) => Math.abs(v) < 0.005;
   const touched = gaps.length > 0;
+  /** Seuls des livrets / placements sont renseignés → le résumé ne parle ni de budget ni de Relyka. */
+  const onlyWealth = touched && gaps.every((g) => g.wealth);
+  /** Écran ouvert SUR un compte d'épargne ou d'investissement (depuis sa fiche). */
+  const wealthOnlyScreen = checking.length > 0 && checking.every((a: any) => isWealthAccountType(a.type));
 
   async function submit() {
     if (!user?.id || gaps.length === 0) return;
@@ -178,18 +192,25 @@ export default function BalanceUpdateScreen() {
         // écart 0) : elle calibre sa dérive vers zéro et fait remonter la confiance. On l'écrit.
         await addTransaction.mutateAsync({
           account_id: g.account.id,
-          // Rangée selon son sens (cf. lib/regul). Le moteur de solde ne s'appuie plus sur
-          // l'absence de catégorie mais sur `regul_target` — migration 175.
-          category_id: findRegulCategoryId(categories, g.gap),
+          /* Rangée selon son sens (cf. lib/regul). Le moteur de solde ne s'appuie plus sur
+             l'absence de catégorie mais sur `regul_target` — migration 175.
+             Sur un livret / un placement : une seule catégorie, sous « Mouvements » (le tiroir des
+             écritures neutres), parce que l'écart n'y est ni une dépense ni une recette. */
+          category_id: g.wealth ? findWealthRegulCategoryId(categories) : findRegulCategoryId(categories, g.gap),
           amount: g.gap,
           date,
-          note: 'Régularisation solde',
+          note: g.wealth ? WEALTH_REGUL_NOTE : 'Régularisation solde',
           is_recurring: false,
           regul_target: g.target,
+          // Le MARQUEUR, pas la catégorie : c'est lui qui fait foi partout (migration 223).
+          ...(g.wealth ? { regul_kind: WEALTH_REGUL_KIND as 'wealth' } : {}),
         });
         done.push(g.account.id);
       }
-      recalibrate.mutate();
+      /* La dérive ne se recalibre que sur les vérifications de TRÉSORERIE : une mise à jour de
+         livret n'est pas un écart constaté sur le quotidien (cf. lib/finance/reliabilityCalib, qui
+         les ignore). Sans ce test, on payait un aller-retour serveur pour un calcul inchangé. */
+      if (gaps.some((g) => !g.wealth)) recalibrate.mutate();
       // Le profil, lui, suit tout seul : l'observateur global voit les soldes bouger
       // (components/LiveProfileSync).
       router.replace(backTo as any);
@@ -228,9 +249,14 @@ export default function BalanceUpdateScreen() {
         </View>
 
         <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* Le geste est le même, l'enjeu ne l'est pas : sur un livret, la question n'est pas
+              « où est passé l'argent du mois ? » mais « combien ai-je mis de côté sans le noter ? ».
+              On l'annonce dès la première ligne, sinon l'écran promet le mauvais résultat. */}
           <Text style={styles.lede}>
-            Ouvre ton appli bancaire et recopie le solde affiché. On s’occupe du reste.
-            <InfoDot term="maj_solde" size={14} />
+            {wealthOnlyScreen
+              ? 'Recopie le solde affiché par ta banque. L’écart sera enregistré comme un mouvement d’épargne — pas comme une dépense.'
+              : 'Ouvre ton appli bancaire et recopie le solde affiché. On s’occupe du reste.'}
+            {!wealthOnlyScreen && <InfoDot term="maj_solde" size={14} />}
           </Text>
 
           {/* Date du relevé — obligatoire, comme sur la fiche d'un compte. */}
@@ -277,10 +303,20 @@ export default function BalanceUpdateScreen() {
           {checking.map((a: any) => {
             const sym = currencySymbolFor(a.currency);
             const g = gaps.find((x) => x.account.id === a.id);
+            /* Livret / placement : la couleur et l'icône du TYPE, celles que l'utilisateur voit
+               déjà sur la liste des comptes et sur la fiche. Le même bleu « compte courant » pour
+               tout le monde laissait croire qu'on corrigeait un compte courant. */
+            const wealth = isWealthAccountType(a.type);
+            const tone = a.type === 'savings' ? COLORS.savings
+              : a.type === 'investment' ? COLORS.investment
+              : COLORS.checking;
+            const icon = a.type === 'savings' ? 'leaf-outline'
+              : a.type === 'investment' ? 'trending-up-outline'
+              : 'wallet-outline';
             return (
               <View key={a.id} style={styles.card}>
                 <View style={styles.cardHead}>
-                  <Ionicons name="wallet-outline" size={16} color={COLORS.blue} />
+                  <Ionicons name={icon as any} size={16} color={tone} />
                   <Text style={styles.cardName} numberOfLines={1}>{a.name}</Text>
                   {!!a.is_default && <Text style={styles.badge}>principal</Text>}
                 </View>
@@ -305,16 +341,28 @@ export default function BalanceUpdateScreen() {
                   <View style={[styles.gapBox, { borderColor: (isZeroGap(g.gap) ? COLORS.emerald : g.gap < 0 ? COLORS.orange : COLORS.emerald) + '4D' }]}>
                     {isZeroGap(g.gap) ? (
                       <Text style={[styles.gapText, { color: COLORS.emerald }]}>
-                        Aucun écart — tu confirmes ton solde. C’est une vérification à part entière.
+                        {/* Une ancre à 0 € est bien écrite (elle date la vérification), mais elle
+                            ne crée AUCUN mouvement : le dire évite de chercher une ligne d'épargne
+                            qui n'existera pas. */}
+                        {wealth
+                          ? 'Aucun écart — ce solde est déjà le bon. Aucun mouvement ne sera créé.'
+                          : 'Aucun écart — tu confirmes ton solde. C’est une vérification à part entière.'}
                       </Text>
                     ) : (
                       <Text style={[styles.gapText, { color: g.gap < 0 ? COLORS.orange : COLORS.emerald }]}>
                         {/* Jusqu'à 2 décimales : `Math.round` affichait « Écart de + 0 € » pour un
                             écart réel de 40 centimes — un message qui se contredit lui-même. */}
                         Écart de {g.gap > 0 ? '+' : '−'} {Math.abs(g.gap).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} {sym}
-                        {g.gap < 0
-                          ? ' — on le place en dépenses variables du mois.'
-                          : ' — on l’enregistre comme une rentrée non saisie.'}
+                        {/* Livret / placement : l'écart n'est ni une dépense ni une recette, c'est
+                            un mouvement — on le dit avec les mots du geste que l'utilisateur a
+                            oublié de saisir (un virement), pas avec ceux du budget. */}
+                        {wealth
+                          ? (g.gap > 0
+                              ? ` — compté comme un virement entrant sur ${a.type === 'investment' ? 'ce placement' : 'cette épargne'}.`
+                              : ` — compté comme une reprise sur ${a.type === 'investment' ? 'ce placement' : 'cette épargne'}.`)
+                          : (g.gap < 0
+                              ? ' — on le place en dépenses variables du mois.'
+                              : ' — on l’enregistre comme une rentrée non saisie.')}
                       </Text>
                     )}
                   </View>
@@ -326,16 +374,28 @@ export default function BalanceUpdateScreen() {
           {touched && (
             <View style={styles.summary}>
               <Text style={styles.summaryTitle}>Ce qui va se passer</Text>
-              <Text style={styles.summaryText}>
-                {/* Total en devise de RÉFÉRENCE (chaque écart y est converti) : sans symbole, un
-                    nombre nu laissait croire qu'il s'agissait de la devise du dernier compte. */}
-                • Ton Relyka est recalculé{!isZeroGap(totalGap) ? ` (${totalGap > 0 ? '+' : '−'} ${Math.abs(Math.round(totalGap)).toLocaleString('fr-FR')} ${currencySymbolFor(refCode)} environ)` : ''}.{'\n'}
-                • Tes recommandations du mois sont mises à jour.{'\n'}
-                {/* « au lieu d'être affichés en fourchette » a été retiré : « fourchette » décrit la
-                    mécanique d'affichage, pas ce que l'utilisateur y gagne. */}
-                • Tes montants repassent en <Text style={{ fontWeight: '700', color: COLORS.emerald }}>« à jour »</Text> : plus d’estimation, un Relyka au chiffre près.
-                {'  '}<InfoDot term="confiance" size={13} />
-              </Text>
+              {/* Deux histoires différentes, donc deux résumés. Sur un livret, promettre « ton
+                  Relyka est recalculé » et « tes montants repassent à jour » serait faux : le
+                  budget du mois ne bouge pas d'un centime, et vérifier son épargne ne dit rien de
+                  ce qui a été dépensé au quotidien. */}
+              {onlyWealth ? (
+                <Text style={styles.summaryText}>
+                  • L’écart est enregistré comme un <Text style={{ fontWeight: '700', color: COLORS.emerald }}>mouvement</Text> : un virement entrant s’il monte le solde, une reprise s’il le baisse.{'\n'}
+                  • Il compte dans ton épargne du mois (Pilotage, Reporting, patrimoine).{'\n'}
+                  • Ton plan de trésorerie et ton budget du quotidien ne bougent pas : cet argent n’est pas passé par ton compte courant.
+                </Text>
+              ) : (
+                <Text style={styles.summaryText}>
+                  {/* Total en devise de RÉFÉRENCE (chaque écart y est converti) : sans symbole, un
+                      nombre nu laissait croire qu'il s'agissait de la devise du dernier compte. */}
+                  • Ton Relyka est recalculé{!isZeroGap(totalGap) ? ` (${totalGap > 0 ? '+' : '−'} ${Math.abs(Math.round(totalGap)).toLocaleString('fr-FR')} ${currencySymbolFor(refCode)} environ)` : ''}.{'\n'}
+                  • Tes recommandations du mois sont mises à jour.{'\n'}
+                  {/* « au lieu d'être affichés en fourchette » a été retiré : « fourchette » décrit la
+                      mécanique d'affichage, pas ce que l'utilisateur y gagne. */}
+                  • Tes montants repassent en <Text style={{ fontWeight: '700', color: COLORS.emerald }}>« à jour »</Text> : plus d’estimation, un Relyka au chiffre près.
+                  {'  '}<InfoDot term="confiance" size={13} />
+                </Text>
+              )}
             </View>
           )}
 

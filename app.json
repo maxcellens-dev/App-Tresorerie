@@ -3,7 +3,7 @@
     "name": "Relyka",
     "owner": "relykadevs-team",
     "slug": "relyka-app",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "scheme": "relyka-app",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 42
+      "versionCode": 43
     },
     "plugins": [
       "./plugins/withJitpackAuth",

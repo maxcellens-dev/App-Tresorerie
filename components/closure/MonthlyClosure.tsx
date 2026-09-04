@@ -17,7 +17,7 @@
  * Rien ne la remplace — c'est l'état des lieux qui porte ce rôle.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +40,9 @@ import { openPulse } from '../pulse/PulseHost';
 import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct, parseTypedAmount } from '../../lib/finance/closureForm';
 import { laterVerification } from '../../lib/finance/balanceAt';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import AppButton from '../ui/AppButton';
+import SegmentedControl from '../ui/SegmentedControl';
+import StepRail from '../ui/StepRail';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
 
 interface Props {
@@ -127,6 +130,17 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
      le mois en cours. Sans ce mode, clôturer un mois ancien exigeait de reconstituer un solde
      passé — ce que personne ne fait — ou de subir un prorata par jours qu'on ne lui demandait pas. */
   const [mode, setMode] = useState<'direct' | 'balance' | 'unknown'>('direct');
+  /* ── UNE ÉTAPE, UNE QUESTION ──────────────────────────────────────────────────────────────────
+     Cet écran posait TOUT en même temps : le mois concerné, le mode de saisie, un champ par compte,
+     la répartition de l'écart, l'aperçu, deux encadrés d'explication et le bouton — dans une feuille
+     qu'il fallait faire défiler pour atteindre la validation. On y arrivait sans savoir ce qu'on
+     allait devoir répondre, et on validait sans avoir vu la moitié de ce qui était écrit.
+     Le parcours suit désormais celui d'une saisie de dépense (app/(tabs)/transactions/add) :
+       1. de quoi il s'agit, et comment on veut s'y prendre ;
+       2. la saisie elle-même (ou la simple validation si on est à jour) ;
+       3. — mode « je ne sais pas » uniquement — à quel mois appartient l'écart.
+     Le fil d'étapes est le composant partagé `components/ui/StepRail`. */
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   /** Part de l'écart attribuée au mois CLÔTURÉ, en % (curseur). Défaut : le prorata par jours. */
   const [unknownShare, setUnknownShare] = useState<number | null>(null);
   const [unknownDate, setUnknownDate] = useState(todayISO());
@@ -229,7 +243,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
     return Math.max(0, variableEnvelope - spent);
   };
 
-  const resetForm = () => { setMode('direct'); setFlash(false); setBalances({}); setUnknownShare(null); setUnknownDate(todayISO()); setError(null); };
+  const resetForm = () => { setStep(1); setMode('direct'); setFlash(false); setBalances({}); setUnknownShare(null); setUnknownDate(todayISO()); setError(null); };
   const openModal = () => { setClosedLocally([]); resetForm(); setOpen(true); };
   const closeModal = () => { setOpen(false); setClosedLocally([]); resetForm(); };
 
@@ -488,9 +502,13 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
       // Mois par mois : s'il reste des mois en attente, on enchaîne directement sur le suivant.
       const remaining = effectivePending.filter((m) => !monthsToClose.includes(m));
       if (!flash && remaining.length > 0) {
+        // On enchaîne sur le mois suivant : le parcours repart de son début, pas au milieu d'une
+        // saisie qui portait sur le mois précédent.
         setClosedLocally((prev) => [...prev, ...monthsToClose]);
         setBalances({});
         setMode('direct');
+        setUnknownShare(null);
+        setStep(1);
       } else {
         closeModal();
         /* PLUS RIEN À CLÔTURER → on ENCHAÎNE sur l'état des lieux du mois.
@@ -520,6 +538,55 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
     return null;
   }
 
+  /* ── LES TROIS FAÇONS DE CLÔTURER, ÉNONCÉES COMME DES PHRASES ────────────────────────────────
+     C'étaient trois segments de deux mots (« Validation directe », « Solde réel », « Je ne sais
+     pas ») : des étiquettes de développeur, qu'il fallait essayer pour comprendre ce qu'elles
+     changeaient. Chacune dit maintenant ce que l'utilisateur AURA À FAIRE — c'est le seul critère
+     qui l'aide à choisir. */
+  const modeCards: { key: 'direct' | 'balance' | 'unknown'; icon: string; title: string; sub: string }[] = [
+    {
+      key: 'direct',
+      icon: 'checkmark-circle-outline',
+      title: 'Je suis à jour',
+      sub: 'Tout est saisi : rien à recopier, je valide le mois tel quel.',
+    },
+    {
+      key: 'balance',
+      icon: 'wallet-outline',
+      title: targetKey ? `Je connais mon solde à fin ${monthLabel(targetKey)}` : 'Je connais mon solde de fin de mois',
+      sub: 'Je recopie le solde de mon relevé : l’écart est corrigé sur ce mois-là.',
+    },
+    {
+      key: 'unknown',
+      icon: 'time-outline',
+      title: 'Je ne sais plus',
+      sub: 'Je donne le solde que j’ai sous les yeux : on remonte le temps ensemble.',
+    },
+  ];
+
+  /** Nombre d'étapes : la répartition de l'écart n'existe qu'en « je ne sais plus ». */
+  const totalSteps = mode === 'unknown' ? 3 : 2;
+  /** Dernière étape → le bouton clôture ; avant → il fait avancer. */
+  const isLastStep = step === totalSteps;
+  /** Titre de l'étape en cours (l'étape 1 n'en porte pas : son bloc de tête parle pour elle). */
+  const stepTitle =
+    step === 1 ? ''
+    : step === 2
+      ? (mode === 'direct'
+          ? 'Vérifie, puis valide'
+          : mode === 'balance'
+            ? `Ton solde réel à fin ${targetKey ? monthLabel(targetKey) : 'ce mois'}`
+            : 'Le solde que tu as sous les yeux')
+      : 'À quel mois appartient l’écart ?';
+
+  const goPrevStep = () => { setError(null); setStep((s) => (s === 3 ? 2 : 1)); };
+  const goNextStep = () => {
+    setError(null);
+    if (step === 1) { setStep(2); return; }
+    if (step === 2 && mode === 'unknown') { setStep(3); return; }
+    confirm();
+  };
+
   return (
     <>
       {/* UNE SEULE invitation à clôturer, et c'est celle-ci.
@@ -530,7 +597,15 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
       <ClosureBannerCard pendingMonths={effectivePending} onPress={openModal} />
 
       {/* Modale de clôture */}
-      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeModal}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        /* Retour physique Android : on recule d'une ÉTAPE avant de fermer — comme dans la saisie
+           d'une dépense. Fermer d'un coup ferait perdre les soldes déjà recopiés. */
+        onRequestClose={() => { if (step > 1) goPrevStep(); else closeModal(); }}
+      >
         <KeyboardAwareOverlay style={styles.overlay} scroll={false}>
           {/* `maxHeight` porté par la FEUILLE elle-même (et non par un conteneur au-dessus) : une View
               a `flexShrink: 0` par défaut, donc une feuille enveloppée dans un parent plafonné ne se
@@ -544,79 +619,123 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
+
+            {/* Le parcours, annoncé avant d'être parcouru (composant partagé avec la saisie).
+                Pas de titre à l'étape 1 : le bloc du mois juste en dessous dit déjà de quoi il
+                s'agit, et deux phrases d'introduction l'une sur l'autre n'aident personne. */}
+            <StepRail current={step} total={totalSteps} style={{ marginTop: 2, marginBottom: 10 }} />
+            {step > 1 && <Text style={styles.stepHeading}>{stepTitle}</Text>}
+
             {/* Contenu défilant : le mode « je ne sais pas » ajoute une date, un champ par compte
                 et un curseur — sur un petit écran, la feuille dépassait sans qu'on puisse atteindre
                 le bouton. */}
             <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
 
-            <View style={styles.monthRow}>
-              <Text style={styles.sub}>{flash ? `Clôture de ${effectivePending.length} mois, jusqu'à` : 'Mois à clôturer :'}</Text>
-              <Text style={styles.monthHighlight}>
-                {flash ? monthLabel(effectivePending[effectivePending.length - 1] ?? oldest ?? '') : (oldest ? monthLabel(oldest) : '—')}
-              </Text>
-            </View>
-
-            {/* Compte joint déjà clôturé par quelqu'un d'autre : on l'ANNONCE plutôt que de le faire
-                disparaître sans explication — sinon on cherche son compte dans la liste. */}
-            {alreadyClosed.length > 0 && (
-              <View style={styles.jointNote}>
-                <Ionicons name="people-outline" size={15} color={COLORS.emerald} />
-                <Text style={styles.jointNoteText}>
-                  {alreadyClosed.length === 1
-                    ? `« ${alreadyClosed[0].name} » porte déjà une clôture pour ce mois${alreadyClosed[0].joint ? ' (faite par un autre participant)' : ''} : rien à refaire de ton côté.`
-                    : `${alreadyClosed.length} comptes portent déjà une clôture pour ce mois : ${alreadyClosed.map((a) => a.name).join(', ')}.`}
-                </Text>
-              </View>
-            )}
-
-            {multiple && (
-              <View style={styles.segRow}>
-                <TouchableOpacity style={[styles.seg, !flash && styles.segActive]} onPress={() => setFlash(false)}>
-                  <Text style={[styles.segText, !flash && styles.segTextActive]}>Mois par mois</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.seg, flash && styles.segActive]} onPress={() => setFlash(true)}>
-                  <Text style={[styles.segText, flash && styles.segTextActive]}>Tout d'un coup</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Le choix du mode n'a de sens que s'il reste un compte à vérifier. Sans ça, deux
-                options sur trois étaient grisées et la troisième ne faisait rien de ce qu'elle
-                annonçait. */}
-            {!nothingToVerify && (
-              <View style={styles.segRow}>
-                <TouchableOpacity style={[styles.seg, mode === 'direct' && styles.segActive]} onPress={() => setMode('direct')}>
-                  <Text style={[styles.segText, mode === 'direct' && styles.segTextActive]}>Validation directe</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.seg, mode === 'balance' && styles.segActive]} onPress={() => setMode('balance')}>
-                  <Text style={[styles.segText, mode === 'balance' && styles.segTextActive]}>Solde réel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.seg, mode === 'unknown' && styles.segActive]} onPress={() => setMode('unknown')}>
-                  <Text style={[styles.segText, mode === 'unknown' && styles.segTextActive]}>Je ne sais pas</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {mode === 'unknown' ? (
+            {/* ══ ÉTAPE 1 — de quoi il s'agit, et comment on veut s'y prendre ══════════════════ */}
+            {step === 1 && (
               <>
-                {/* Le parcours est annoncé AVANT d'être parcouru. Sans ça, l'écran s'ouvrait sur
-                    deux champs et un bouton « Clôturer » : rien ne laissait deviner qu'une étape de
-                    répartition allait surgir une fois les montants saisis, et on validait sans
-                    l'avoir vue. Trois étapes numérotées, visibles d'emblée, dont la dernière
-                    s'affiche en attente tant qu'elle ne peut pas être calculée. */}
-                <Text style={styles.hint}>
-                  Tu ne sais plus ce que valait ton compte fin {targetKey ? monthLabel(targetKey) : ''} ? Pas besoin de
-                  le retrouver : donne le solde que tu as sous les yeux, et on remonte le temps ensemble.
-                </Text>
-                <View style={styles.stepsPreview}>
-                  <Text style={styles.stepsPreviewText}>
-                    <Text style={styles.stepsPreviewNum}>1.</Text> La date de ce solde{'  '}
-                    <Text style={styles.stepsPreviewNum}>2.</Text> Le montant{'  '}
-                    <Text style={styles.stepsPreviewNum}>3.</Text> À quel mois l'écart appartient
-                  </Text>
+                <View style={styles.hero}>
+                  <View style={styles.heroBadge}>
+                    <Ionicons name="lock-closed" size={19} color={COLORS.emerald} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.heroKicker}>
+                      {flash ? `${effectivePending.length} mois à clôturer, jusqu'à` : 'Mois à clôturer'}
+                    </Text>
+                    <Text style={styles.heroMonth}>
+                      {flash ? monthLabel(effectivePending[effectivePending.length - 1] ?? oldest ?? '') : (oldest ? monthLabel(oldest) : '—')}
+                    </Text>
+                  </View>
                 </View>
+                <Text style={styles.heroText}>
+                  Clôturer, c’est dire « ce mois-là est juste ». Tes moyennes, ton budget et tes
+                  recommandations repartent alors d’une base sûre. Rien n’est verrouillé : tu pourras
+                  toujours y revenir.
+                </Text>
 
-                <Text style={styles.stepLabel}>1 · Date de ce solde</Text>
+                {/* Compte joint déjà clôturé par quelqu'un d'autre : on l'ANNONCE plutôt que de le faire
+                    disparaître sans explication — sinon on cherche son compte dans la liste. */}
+                {alreadyClosed.length > 0 && (
+                  <View style={styles.jointNote}>
+                    <Ionicons name="people-outline" size={15} color={COLORS.emerald} />
+                    <Text style={styles.jointNoteText}>
+                      {alreadyClosed.length === 1
+                        ? `« ${alreadyClosed[0].name} » porte déjà une clôture pour ce mois${alreadyClosed[0].joint ? ' (faite par un autre participant)' : ''} : rien à refaire de ton côté.`
+                        : `${alreadyClosed.length} comptes portent déjà une clôture pour ce mois : ${alreadyClosed.map((a) => a.name).join(', ')}.`}
+                    </Text>
+                  </View>
+                )}
+
+                {multiple && (
+                  <>
+                    <Text style={styles.sectionLabel}>Combien de mois à la fois ?</Text>
+                    <SegmentedControl
+                      options={[
+                        { value: 'one', label: 'Mois par mois' },
+                        { value: 'all', label: "Tout d'un coup" },
+                      ]}
+                      value={flash ? 'all' : 'one'}
+                      onChange={(v) => setFlash(v === 'all')}
+                      role="radio"
+                      style={{ marginBottom: 4 }}
+                    />
+                  </>
+                )}
+
+                {/* Le choix du mode n'a de sens que s'il reste un compte à vérifier. Sans ça, deux
+                    options sur trois étaient grisées et la troisième ne faisait rien de ce qu'elle
+                    annonçait. */}
+                {nothingToVerify ? (
+                  <View style={styles.infoCard}>
+                    <Ionicons name="checkmark-circle" size={18} color={COLORS.emerald} />
+                    <Text style={styles.infoText}>
+                      Aucun solde à vérifier de ton côté pour ce mois : tes comptes portent déjà leur
+                      clôture. Il ne reste qu’à marquer le mois comme traité.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.sectionLabel}>Comment veux-tu t’y prendre ?</Text>
+                    {modeCards.map((m) => {
+                      const on = mode === m.key;
+                      return (
+                        <TouchableOpacity
+                          key={m.key}
+                          style={[styles.modeCard, on && styles.modeCardOn]}
+                          onPress={() => setMode(m.key)}
+                          activeOpacity={0.85}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: on }}
+                        >
+                          <View style={[styles.modeIcon, on && styles.modeIconOn]}>
+                            <Ionicons name={m.icon as any} size={18} color={on ? COLORS.onAccent : COLORS.textSecondary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.modeTitle, on && { color: COLORS.emerald }]}>{m.title}</Text>
+                            <Text style={styles.modeSub}>{m.sub}</Text>
+                          </View>
+                          <Ionicons
+                            name={on ? 'radio-button-on' : 'radio-button-off'}
+                            size={19}
+                            color={on ? COLORS.emerald : COLORS.cardBorder}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ══ ÉTAPE 2 — la saisie (ou la simple validation) ════════════════════════════════ */}
+            {step === 2 && (mode === 'unknown' ? (
+              <>
+                <Text style={styles.hint}>
+                  Pas besoin de retrouver ce que valait ton compte fin {targetKey ? monthLabel(targetKey) : ''} :
+                  donne le solde que tu as sous les yeux, on remonte le temps à l’étape suivante.
+                </Text>
+
+                <Text style={styles.stepLabel}>Date de ce solde</Text>
                 <TextInput
                   style={styles.input}
                   value={formatDateFrench(unknownDate)}
@@ -626,7 +745,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                   keyboardType="numbers-and-punctuation"
                 />
                 <Text style={styles.stepLabel}>
-                  {checkingAccounts.length > 1 ? '2 · Solde de chaque compte à cette date' : '2 · Solde de ton compte à cette date'}
+                  {checkingAccounts.length > 1 ? 'Solde de chaque compte à cette date' : 'Solde de ton compte à cette date'}
                 </Text>
                 {checkingAccounts.map((acc) => (
                   <View key={acc.id} style={styles.acctInputRow}>
@@ -648,25 +767,77 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                     ? 'Laisse vide les comptes déjà bons : aucun écart pour eux, ils seront simplement marqués comme vérifiés.'
                     : 'Laisse vide si le montant proposé est déjà le bon : aucun écart, il sera simplement marqué comme vérifié.'}
                 </Text>
+              </>
+            ) : mode === 'direct' ? (
+              <>
+                <Text style={styles.hint}>
+                  {nothingToVerify
+                    ? "Il n'y a aucun solde à vérifier de ton côté pour ce mois. Valide simplement pour le marquer comme traité."
+                    : 'Voici ce que Relyka a calculé pour la fin du mois. Si ça correspond à ton relevé, valide.'}
+                </Text>
+                {hasChecking && targetKey && (
+                  <View style={styles.balanceList}>
+                    {checkingAccounts.map((acc) => (
+                      <View key={acc.id} style={styles.balanceBox}>
+                        <Text style={styles.balanceLabel} numberOfLines={1}>{checkingAccounts.length > 1 ? acc.name : 'Solde du compte courant'} à fin {monthLabel(targetKey)}</Text>
+                        <Text style={styles.balanceValue}>{fmtIn(balanceAtEndFor(acc.id, acc.balance), acc.currency)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>
+                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de ton compte courant'} à fin {targetKey ? monthLabel(targetKey) : ''}
+                </Text>
+                {checkingAccounts.map((acc) => (
+                  <View key={acc.id} style={styles.acctInputRow}>
+                    {checkingAccounts.length > 1 && <Text style={styles.acctName} numberOfLines={1}>{acc.name}</Text>}
+                    <TextInput
+                      style={[styles.input, checkingAccounts.length > 1 && { flex: 1, marginBottom: 0 }]}
+                      value={balances[acc.id] ?? ''}
+                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: sanitizeSignedAmountInput(v) }))}
+                      keyboardType="decimal-pad"
+                      placeholder={`Ex. ${Math.round(balanceAtEndFor(acc.id, acc.balance))}`}
+                      placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                ))}
+                {/* La règle du CHAMP VIDE est dite ici, et pas seulement appliquée : c'est la seule
+                    chose non devinable de cet écran. Le placeholder montre déjà le solde calculé,
+                    donc ne rien saisir revient à le confirmer — et ça s'enregistre, comme le reste. */}
+                <Text style={styles.hint}>
+                  Une transaction d'ajustement sera créée au {formatDateFrench(lastDayOfMonthKey(targetKey ?? ''))} pour
+                  chaque compte dont tu corriges le solde.
+                  {checkingAccounts.length > 1
+                    ? ' Laisse vide ceux qui sont déjà bons : ils seront simplement marqués comme vérifiés.'
+                    : ' Laisse vide si le montant proposé est déjà le bon : il sera simplement marqué comme vérifié.'}
+                </Text>
+              </>
+            ))}
 
-                <Text style={styles.stepLabel}>3 · À quel mois appartient l'écart ?</Text>
+            {/* ══ ÉTAPE 3 — « je ne sais plus » : à quel mois appartient l'écart ? ═════════════ */}
+            {step === 3 && mode === 'unknown' && (
+              <>
                 {/* Répartition — la position de départ est le prorata par jours, mais c'est
                     l'utilisateur qui tranche : lui seul sait si l'écart vient de juillet ou d'août.
-                    Pas de Slider natif dans l'app → 5 crans, tapables.
-                    L'étape reste AFFICHÉE en attente tant qu'on ne peut pas la calculer : c'est ce
-                    qui la rend prévisible au lieu de la faire surgir après coup. */}
+                    Pas de Slider natif dans l'app → 5 crans, tapables. */}
                 {(() => {
                   const firstAcc = checkingAccounts[0];
                   if (!firstAcc) return null;
                   const totalGap = unknownTotalGap();
 
+                  {/* Filet : on n'arrive normalement ici qu'avec un solde saisi (le bouton de
+                      l'étape précédente l'exige), mais un compte retiré entre-temps ferait
+                      autrement une étape vide, sans rien qui l'explique. */}
                   if (!hasAnyAmount) {
                     return (
                       <View style={styles.splitPending}>
                         <Ionicons name="hourglass-outline" size={15} color={COLORS.textSecondary} />
                         <Text style={styles.splitPendingText}>
-                          Saisis un solde ci-dessus : on calcule l'écart, et tu diras ici ce qui revient
-                          à {targetKey ? monthLabel(targetKey) : 'ce mois'} et ce qui revient au mois en cours.
+                          Reviens à l'étape précédente pour saisir un solde : sans lui, il n'y a pas
+                          d'écart à répartir entre {targetKey ? monthLabel(targetKey) : 'ce mois'} et le mois en cours.
                         </Text>
                       </View>
                     );
@@ -716,53 +887,6 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                   );
                 })()}
               </>
-            ) : mode === 'direct' ? (
-              <>
-                <Text style={styles.hint}>
-                  {nothingToVerify
-                    ? "Il n'y a aucun solde à vérifier de ton côté pour ce mois. Valide simplement pour le marquer comme traité."
-                    : 'Tu as saisi toutes tes transactions ? Valide simplement la clôture.'}
-                </Text>
-                {hasChecking && targetKey && (
-                  <View style={styles.balanceList}>
-                    {checkingAccounts.map((acc) => (
-                      <View key={acc.id} style={styles.balanceBox}>
-                        <Text style={styles.balanceLabel} numberOfLines={1}>{checkingAccounts.length > 1 ? acc.name : 'Solde du compte courant'} à fin {monthLabel(targetKey)}</Text>
-                        <Text style={styles.balanceValue}>{fmtIn(balanceAtEndFor(acc.id, acc.balance), acc.currency)}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </>
-            ) : (
-              <>
-                <Text style={styles.label}>
-                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de ton compte courant'} à fin {targetKey ? monthLabel(targetKey) : ''}
-                </Text>
-                {checkingAccounts.map((acc) => (
-                  <View key={acc.id} style={styles.acctInputRow}>
-                    {checkingAccounts.length > 1 && <Text style={styles.acctName} numberOfLines={1}>{acc.name}</Text>}
-                    <TextInput
-                      style={[styles.input, checkingAccounts.length > 1 && { flex: 1, marginBottom: 0 }]}
-                      value={balances[acc.id] ?? ''}
-                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: sanitizeSignedAmountInput(v) }))}
-                      keyboardType="decimal-pad"
-                      placeholder={`Ex. ${Math.round(balanceAtEndFor(acc.id, acc.balance))}`}
-                      placeholderTextColor={COLORS.textSecondary}
-                    />
-                  </View>
-                ))}
-                {/* La règle du CHAMP VIDE est dite ici, et pas seulement appliquée : c'est la seule
-                    chose non devinable de cet écran. Le placeholder montre déjà le solde calculé,
-                    donc ne rien saisir revient à le confirmer — et ça s'enregistre, comme le reste. */}
-                <Text style={styles.hint}>
-                  Une transaction d'ajustement sera créée au {formatDateFrench(lastDayOfMonthKey(targetKey ?? ''))} pour
-                  chaque compte dont tu corriges le solde.
-                  {checkingAccounts.length > 1
-                    ? ' Laisse vide ceux qui sont déjà bons : ils seront simplement marqués comme vérifiés.'
-                    : ' Laisse vide si le montant proposé est déjà le bon : il sera simplement marqué comme vérifié.'}
-                </Text>
-              </>
             )}
 
             {/* ── CE QUE ÇA FAIT À TON SOLDE D'AUJOURD'HUI ─────────────────────────────────────
@@ -777,7 +901,8 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                 solde ne bougeait pas d'un centime, et on en concluait que la clôture était cassée.
                 On l'annonce donc AVANT, chiffre à l'appui. */}
             {(() => {
-              if (!targetKey || mode === 'direct') return null;
+              // Jamais à l'étape du CHOIX : rien n'est encore saisi, il n'y a donc rien à annoncer.
+              if (step === 1 || !targetKey || mode === 'direct') return null;
               const monthEnd = lastDayOfMonthKey(targetKey);
               const blocked = checkingAccounts
                 .filter((acc) => {
@@ -805,6 +930,10 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
             {/* ── Aperçu AVANT validation : impact exact par mois (bloc structuré, pas de surprise) ── */}
             {(() => {
               if (!targetKey) return null;
+              /* Il annonce ce que fera le bouton : il n'a donc sa place qu'à l'étape qui le porte.
+                 En « je ne sais plus », c'est l'étape 3 — avant la répartition, la moitié des
+                 montants annoncés n'existe pas encore. */
+              if (!isLastStep) return null;
               /* Aucun compte à vérifier → on n'annonce ni écart, ni solde confirmé : il n'y a
                  rien à confirmer. Le mois est simplement marqué comme traité, et le badge
                  « mois fermé » de la ligne suffit à le dire. */
@@ -888,14 +1017,17 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
               );
             })()}
 
-            <View style={styles.lockNote}>
-              <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
-              <Text style={styles.lockNoteText}>
-                {nothingToVerify
-                  ? "Aucune écriture ne sera enregistrée : ce mois est déjà vérifié sur tes comptes. Rien n'est verrouillé, tu pourras toujours corriger plus tard."
-                  : "La clôture enregistre une régularisation datée pour fiabiliser tes calculs. Rien n'est verrouillé : tu pourras toujours corriger plus tard."}
-              </Text>
-            </View>
+            {/* Ce que la clôture écrit en base — dit à l'étape qui l'exécute, pas trois écrans avant. */}
+            {isLastStep && (
+              <View style={styles.lockNote}>
+                <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
+                <Text style={styles.lockNoteText}>
+                  {nothingToVerify
+                    ? "Aucune écriture ne sera enregistrée : ce mois est déjà vérifié sur tes comptes. Rien n'est verrouillé, tu pourras toujours corriger plus tard."
+                    : "La clôture enregistre une régularisation datée pour fiabiliser tes calculs. Rien n'est verrouillé : tu pourras toujours corriger plus tard."}
+                </Text>
+              </View>
+            )}
 
             {!!error && (
               <View style={styles.errorBox}>
@@ -912,31 +1044,53 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
               {/* Un mode qui réclame un montant et n'en a pas ne clôture RIEN : `confirm()` saute
                   chaque compte vide et se contente de fermer le mois, sans la moindre vérification.
                   L'utilisateur croyait avoir donné son solde. On bloque donc le bouton, et on dit
-                  ce qui manque plutôt que de laisser valider un geste creux. */}
-              {needsAmount && !hasAnyAmount && (
+                  ce qui manque plutôt que de laisser valider un geste creux.
+                  Le blocage porte sur l'étape de SAISIE : à l'étape du choix, il n'y a encore rien
+                  à saisir — un bouton grisé d'entrée de jeu n'aurait rien voulu dire. */}
+              {step >= 2 && needsAmount && !hasAnyAmount && (
                 <Text style={styles.confirmHint}>
                   Saisis d'abord {checkingAccounts.length > 1 ? 'au moins un solde' : 'ton solde'} ci-dessus.
                 </Text>
               )}
-              <TouchableOpacity
-                style={[styles.confirmBtn, (busy || (needsAmount && !hasAnyAmount)) && { opacity: 0.45 }]}
-                onPress={() => { setError(null); confirm(); }}
-                disabled={busy || (needsAmount && !hasAnyAmount)}
-              >
-                {busy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
-              </TouchableOpacity>
+              <View style={styles.footerRow}>
+                {step > 1 && (
+                  <AppButton
+                    label="Précédent"
+                    variant="secondary"
+                    size="lg"
+                    icon="chevron-back"
+                    onPress={goPrevStep}
+                    disabled={busy}
+                    style={{ flexShrink: 0 }}
+                  />
+                )}
+                <AppButton
+                  label={isLastStep ? `Clôturer${flash ? ' tout' : ''}` : 'Continuer'}
+                  size="lg"
+                  full
+                  icon={isLastStep ? 'lock-closed' : 'arrow-forward'}
+                  iconRight={!isLastStep}
+                  loading={busy}
+                  disabled={busy || (step >= 2 && needsAmount && !hasAnyAmount)}
+                  onPress={goNextStep}
+                />
+              </View>
               {/* Échappatoire assumée : clôturer demande d'avoir ses relevés sous les yeux, ce qui
                   n'est pas toujours le cas au moment où l'app s'ouvre. Sans elle, la seule sortie
-                  était la croix — qui ne mémorise rien et ramène la modale à l'ouverture suivante. */}
-              <TouchableOpacity
-                style={styles.laterBtn}
-                onPress={snoozeAndClose}
-                disabled={busy}
-                accessibilityRole="button"
-                accessibilityLabel="Me le rappeler demain"
-              >
-                <Text style={styles.laterText}>Me le rappeler demain</Text>
-              </TouchableOpacity>
+                  était la croix — qui ne mémorise rien et ramène la modale à l'ouverture suivante.
+                  Elle reste à l'étape 1 : c'est là qu'on décide si c'est le moment, pas au milieu
+                  d'une saisie déjà commencée. */}
+              {step === 1 && (
+                <TouchableOpacity
+                  style={styles.laterBtn}
+                  onPress={snoozeAndClose}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Me le rappeler demain"
+                >
+                  <Text style={styles.laterText}>Me le rappeler demain</Text>
+                </TouchableOpacity>
+              )}
             </SafeAreaView>
           </View>
         </KeyboardAwareOverlay>
@@ -969,9 +1123,50 @@ function makeStyles(c: any) {
     scroll: { flexGrow: 0, flexShrink: 1 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     title: { fontSize: 19, fontWeight: '800', color: c.text },
-    sub: { fontSize: 14, color: c.textSecondary },
-    monthRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-    monthHighlight: { fontSize: 19, fontWeight: '800', color: c.emerald, textTransform: 'capitalize' },
+
+    /* ── Le parcours ────────────────────────────────────────────────────────────────────────────
+       Une seule question par étape, annoncée par un titre : c'est lui qui remplace les trois
+       encadrés d'explication que l'écran empilait avant de poser quoi que ce soit. */
+    stepHeading: { fontSize: 16.5, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 12 },
+
+    // Étape 1 — le mois concerné, mis en avant comme le sujet de la conversation.
+    hero: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '33',
+      borderRadius: 16, padding: 14,
+    },
+    heroBadge: {
+      width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.emerald + '22', borderWidth: 1, borderColor: c.emerald + '44',
+    },
+    heroKicker: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+    heroMonth: { fontSize: 21, fontWeight: '800', color: c.emerald, textTransform: 'capitalize', marginTop: 1 },
+    heroText: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginTop: 10 },
+    sectionLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 8 },
+
+    /* Le choix du mode : trois CARTES, une phrase chacune. C'étaient trois segments de deux mots
+       qu'il fallait essayer pour comprendre ce qu'ils changeaient. */
+    modeCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 13,
+    },
+    modeCardOn: { borderColor: c.emerald, backgroundColor: c.emerald + '10' },
+    modeIcon: {
+      width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
+    },
+    modeIconOn: { backgroundColor: c.emerald, borderColor: c.emerald },
+    modeTitle: { fontSize: 14.5, fontWeight: '800', color: c.text },
+    modeSub: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
+    // « Rien à vérifier » : un état, pas un choix — il ne prend donc pas la forme d'une carte cliquable.
+    infoCard: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16,
+      backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '33',
+      borderRadius: 14, padding: 13,
+    },
+    infoText: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    // Pied : « Précédent » ne prend que sa largeur, l'action principale occupe le reste.
+    footerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
     balanceList: { marginTop: 8, gap: 6 },
     balanceBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 14 },
     balanceLabel: { fontSize: 13, color: c.textSecondary, flex: 1, marginRight: 8 },
@@ -993,15 +1188,10 @@ function makeStyles(c: any) {
     },
     laterNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
-    /* Mode « je ne sais pas » — le parcours annoncé d'avance, puis chaque étape numérotée. */
-    stepsPreview: {
-      marginTop: 10, marginBottom: 2, paddingVertical: 8, paddingHorizontal: 11,
-      borderRadius: 10, backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '33',
-    },
-    stepsPreviewText: { fontSize: 11.5, color: c.textSecondary, lineHeight: 18 },
-    stepsPreviewNum: { fontWeight: '800', color: c.emerald },
+    /* (Le récapitulatif « 1. la date  2. le montant  3. la répartition » a disparu : le fil
+       d'étapes le dit mieux, en haut de la feuille, et pour les trois modes.) */
     stepLabel: { fontSize: 13, fontWeight: '800', color: c.text, marginTop: 16, marginBottom: 6 },
-    /* L'étape 3 en attente : visible mais inactive, pour qu'on sache qu'elle vient. */
+    /* Étape de répartition sans écart à répartir : visible, mais inactive. */
     splitPending: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,
       padding: 12, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed',
@@ -1027,13 +1217,8 @@ function makeStyles(c: any) {
     splitResultItem: { fontSize: 12, color: c.textSecondary },
     splitResultVal: { fontWeight: '800', color: c.text },
     splitHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
-    segRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-    // `justifyContent: center` + libellé centré : à trois segments sur un écran de téléphone, un
-    // libellé qui passe sur deux lignes reste lisible et tous les boutons gardent la même hauteur.
-    seg: { flex: 1, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
-    segActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    segText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, textAlign: 'center' },
-    segTextActive: { color: c.onAccent },
+    /* (Les segments maison ont laissé la place à `components/ui/SegmentedControl` pour le choix
+       « mois par mois / tout d'un coup », et à des cartes pour le choix du mode.) */
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hint: { fontSize: 12, color: c.textSecondary, marginTop: 10, lineHeight: 17 },
@@ -1053,8 +1238,7 @@ function makeStyles(c: any) {
     },
     errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
     confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
-    confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
-    confirmText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+    // (Les boutons du pied sont des `AppButton` — un seul bouton dans toute l'app.)
     // Volontairement discret : c'est une sortie, pas une action concurrente de la clôture.
     laterBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 2 },
     laterText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },

@@ -12,23 +12,41 @@
  */
 import { supabase } from '../platform/supabase';
 import { resolveReliabilityConfig, computeCalibration } from './confidenceEngine';
-import { isInitialBalanceAnchor } from './regul';
+import { isInitialBalanceAnchor, isWealthRegul } from './regul';
 import { todayISO } from '../dateUtils';
 
 /** Recalcule et PERSISTE profiles.reliability_calib depuis les régularisations restantes. */
 export async function recomputeReliabilityCalibration(profileId: string): Promise<void> {
   if (!supabase || !profileId) return;
-  const [txRes, clRes, cfgRes, profRes] = await Promise.all([
-    supabase.from('transactions')
-      .select('date, amount, regul_target, note')
+  /* Les régularisations, avec leur NATURE (`regul_kind`, migration 223) : une mise à jour de solde
+     d'ÉPARGNE n'est pas un écart constaté sur le quotidien. Relever son livret et y trouver 3 000 €
+     de plus ne dit rien de ce qui a échappé à la saisie sur le compte courant — c'est de l'argent
+     mis de côté sans le noter. Les compter ici fait exploser la dérive journalière, donc le doute
+     affiché sur TOUS les montants de l'app (même mécanique que les ancres de solde initial).
+
+     ⚠️ REPLI SI LA COLONNE N'EXISTE PAS ENCORE. Une mise à jour applicative (OTA) peut atteindre une
+     installation dont la base n'a pas encore reçu la migration : la requête échouerait alors en
+     entier, `data` vaudrait `null`, et on écrirait une calibration calculée sur ZÉRO vérification —
+     c'est-à-dire qu'on effacerait silencieusement la fiabilité de l'utilisateur. On refait donc la
+     lecture sans la colonne, et le comportement d'avant reprend jusqu'à la migration. */
+  const readReguls = async (withKind: boolean) =>
+    supabase!.from('transactions')
+      .select(withKind ? 'date, amount, regul_target, note, regul_kind' : 'date, amount, regul_target, note')
       .eq('profile_id', profileId)
       .not('regul_target', 'is', null)
       .lte('date', todayISO())
-      .order('date', { ascending: true }),
+      .order('date', { ascending: true });
+
+  const [txResFirst, clRes, cfgRes, profRes] = await Promise.all([
+    readReguls(true),
     supabase.from('month_closures').select('month_key, status').eq('profile_id', profileId),
     supabase.from('app_config').select('reliability').eq('id', 'default').single(),
     supabase.from('profiles').select('created_at').eq('id', profileId).single(),
   ]);
+  const txRes = txResFirst.error ? await readReguls(false) : txResFirst;
+  /* Lecture toujours en échec → on NE RÉÉCRIT RIEN. Une erreur de lecture n'est pas « il n'y a
+     aucune régularisation » : la prendre pour telle remettrait la dérive à sa valeur d'amorçage. */
+  if (txRes.error) return;
   const cfg = resolveReliabilityConfig((cfgRes.data as any)?.reliability ?? null);
   const estimated = new Set(
     ((clRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key),
@@ -42,6 +60,7 @@ export async function recomputeReliabilityCalibration(profileId: string): Promis
   const byDay = new Map<string, number>();
   for (const t of (txRes.data ?? []) as any[]) {
     if (isInitialBalanceAnchor(t)) continue;
+    if (isWealthRegul(t)) continue; // épargne / investissement : un mouvement, pas un écart constaté
     const d = String(t.date).slice(0, 10);
     if (estimated.has(d.slice(0, 7))) continue;
     byDay.set(d, (byDay.get(d) ?? 0) + Math.abs(Number(t.amount)));

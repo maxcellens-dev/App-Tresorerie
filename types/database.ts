@@ -289,6 +289,15 @@ export interface Transaction {
   regul_covered?: boolean;
   /** Pour une ligne de régularisation : solde cible saisi par l'utilisateur (affichage). */
   regul_target?: number | null;
+  /**
+   * NATURE de la régularisation (migration 223) :
+   *  • 'wealth' → mise à jour du solde d'un compte d'ÉPARGNE / d'INVESTISSEMENT. Elle ancre le solde
+   *    comme n'importe quelle régularisation, mais se compte comme un virement entrant/sortant :
+   *    hors plan de trésorerie, hors budget, hors calibration du doute ;
+   *  • absent   → régularisation de TRÉSORERIE (compte courant), comportement historique.
+   * Cf. lib/finance/regul (`isWealthRegul`).
+   */
+  regul_kind?: 'wealth' | null;
   /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
   on_behalf_member_id?: string | null;
   /**

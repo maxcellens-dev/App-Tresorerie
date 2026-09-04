@@ -18,6 +18,7 @@ import { useAllTransactions, useUpdateTransaction, useDeleteTransaction } from '
 import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../../hooks/data/useTransactionMonthOverrides';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/transaction/CategoryPicker';
 import { isRegulRow } from '../../../../lib/finance/txOrder';
+import { isWealthRegul, WEALTH_REGUL_CATEGORY_NAME } from '../../../../lib/finance/regul';
 import type { RecurrenceRule } from '../../../../types/database';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../../lib/dateUtils';
 import { supabase } from '../../../../lib/platform/supabase';
@@ -742,11 +743,16 @@ function EditTransactionScreen() {
 
           {/* Sous-catégorie (dépense / recette uniquement, juste après le libellé) */}
           {isRegul ? (
-            /* Régularisation : sous-catégorie fixe « Régularisation solde », verrouillée (non modifiable). */
+            /* Régularisation : sous-catégorie fixe, verrouillée (non modifiable). Sur un livret ou
+               un placement, ce n'est pas la même : la mise à jour de solde y est un MOUVEMENT, pas
+               une correction de trésorerie (migration 223) — l'annoncer « Régularisation solde »
+               laisserait croire qu'elle pèse sur le budget du mois. */
             <>
               <Text style={styles.label}>Sous-catégorie</Text>
               <View style={[styles.input, styles.lockedField]}>
-                <Text style={styles.lockedFieldText}>Régularisation solde</Text>
+                <Text style={styles.lockedFieldText}>
+                  {isWealthRegul(tx as any) ? WEALTH_REGUL_CATEGORY_NAME : 'Régularisation solde'}
+                </Text>
                 <Ionicons name="lock-closed" size={16} color={COLORS.textSecondary} />
               </View>
             </>

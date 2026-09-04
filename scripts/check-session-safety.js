@@ -133,10 +133,25 @@ for (const f of offenders) {
 }
 
 // ── 6. Rechargement OTA piloté depuis le JS ──────────────────────────────────────────────────
-if (!/OTA_UPDATE_ON_LAUNCH_ENABLED\s*=\s*false/.test(otaSrc)) {
-  fail('Le rechargement OTA depuis le JS a été réactivé',
-    'Un `reloadAsync()` en parallèle du téléchargement natif ferme l\'app en plein démarrage — et peut '
-    + 'l\'interrompre pendant l\'écriture de la session. Le natif s\'en charge (app.json → updates).');
+// L'app ATTEND le téléchargement du natif puis recharge (première ouverture après installation) —
+// elle ne télécharge JAMAIS elle-même. C'est cette frontière-là qu'on garde :
+//   • `fetchUpdateAsync()` = un second téléchargeur en concurrence avec celui du natif. C'est ce
+//     qui fermait l'app en plein démarrage, et qui peut l'interrompre pendant l'écriture de la
+//     session ;
+//   • `reloadAsync()` n'est sûr qu'une fois la mise à jour PRÊTE (`isUpdatePending`) : plus rien
+//     ne tourne à ce moment-là.
+// Le CODE, pas les commentaires : ce fichier explique justement pourquoi on ne télécharge pas
+// depuis le JS — la phrase qui l'explique ne doit pas déclencher l'alerte qu'elle documente.
+const otaCode = otaSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+if (/fetchUpdateAsync\s*\(/.test(otaCode)) {
+  fail('Téléchargement OTA déclenché depuis le JS (fetchUpdateAsync)',
+    'Deux téléchargeurs en parallèle (JS + natif) ferment l\'app en plein démarrage. Le natif s\'en '
+    + 'charge (app.json → updates) : le JS ne fait qu\'attendre `isUpdatePending`.');
+}
+if (/reloadAsync\s*\(/.test(otaCode) && !/isUpdatePending/.test(otaCode)) {
+  fail('Rechargement OTA sans attendre que la mise à jour soit prête',
+    'Un `reloadAsync()` pendant le téléchargement natif ferme l\'app. Il ne doit être appelé que '
+    + 'quand `isUpdatePending` est vrai (téléchargement natif terminé).');
 }
 
 // ── 7. runtimeVersion : OTA ou nouvelle build ? ──────────────────────────────────────────────

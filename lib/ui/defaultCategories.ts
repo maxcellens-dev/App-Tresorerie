@@ -45,7 +45,10 @@ export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   // « Mouvements » = les écritures NEUTRES (l'argent change de poche sans quitter le patrimoine).
   // La régularisation n'en fait plus partie : corriger un solde à la baisse, c'est constater de
   // l'argent réellement parti — sa place est dans les frais variables (cf. migration 175).
-  { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements'] },
+  // « Régularisation épargne / invest » = la mise à jour du solde d'un livret ou d'un placement
+  // (migration 223). Elle est ici, et pas dans « Frais variables », parce qu'elle ne dit pas « de
+  // l'argent est parti » mais « de l'argent a changé de poche » — cf. lib/finance/regul.
+  { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements', 'Régularisation épargne / invest'] },
   { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Restaurants', 'Loisirs', 'Autres frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Projets', 'Animaux', 'Vêtements', 'Vacances', 'Régularisation Solde'] },
   { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle', 'Assurance Santé'] },
   { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer', 'Copropriété', "Taxe d'habitation", 'Taxe foncière', 'Assurance habitation', 'Electricité, Eau, Gaz'] },

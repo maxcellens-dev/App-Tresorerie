@@ -54,7 +54,7 @@ import { reportUnhandledWriteError } from '../lib/ui/writeErrors';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/platform/purchases';
 import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/platform/pushNotifications';
 import PushPermissionPrompt from '../components/system/PushPermissionPrompt';
-import { maybeApplyUpdateOnLaunch } from '../lib/platform/otaUpdate';
+import FirstLaunchUpdateGate from '../components/system/FirstLaunchUpdateGate';
 import './global.css';
 
 // expo-router v4 scanne TOUS les fichiers de app/ comme des routes : nos dossiers non-route
@@ -520,9 +520,6 @@ export default function RootLayout() {
   // Splash animé : natif uniquement (le web a déjà son boot-loader HTML dans app/+html.tsx).
   const [splashDone, setSplashDone] = useState(Platform.OS === 'web');
 
-  // OTA : application de la mise à jour Expo dès la 1ʳᵉ réouverture (DÉSACTIVÉ par défaut → no-op
-  // tant que le flag dans lib/otaUpdate est à false ; voir ce fichier pour l'activation).
-  useEffect(() => { maybeApplyUpdateOnLaunch(); }, []);
   return (
     // KeyboardProvider : pilote les KeyboardAvoidingView de react-native-keyboard-controller (chats).
     // `statusBarTranslucent` : l'app dessine derrière la barre d'état. ⚠️ La lib PATCHE le module
@@ -554,6 +551,11 @@ export default function RootLayout() {
                   onDone={() => setSplashDone(true)}
                 />
               )}
+              {/* PREMIÈRE ouverture après installation : on laisse la mise à jour OTA (téléchargée
+                  par le natif) finir d'arriver avant de montrer l'app, plutôt que d'ouvrir la
+                  version du store avec ses manques. Une fois par installation, plafonnée, et rien
+                  du tout sur le web (cf. lib/platform/otaUpdate). */}
+              {Platform.OS !== 'web' && <FirstLaunchUpdateGate />}
             </CalculatorProvider>
           </AuthProvider>
         </ThemeProvider>
