@@ -39,6 +39,8 @@ import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { openPulse } from '../pulse/PulseHost';
 import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct, parseTypedAmount } from '../../lib/finance/closureForm';
 import { laterVerification } from '../../lib/finance/balanceAt';
+// « 31 août » — la date que l'utilisateur doit retrouver sur son relevé, et non le mois.
+import { shortDay } from '../../lib/finance/pilotageView';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import AppButton from '../ui/AppButton';
 import SegmentedControl from '../ui/SegmentedControl';
@@ -547,13 +549,17 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
     {
       key: 'direct',
       icon: 'checkmark-circle-outline',
-      title: 'Je suis à jour',
+      title: 'Je suis à jour dans Relyka',
       sub: 'Tout est saisi : rien à recopier, je valide le mois tel quel.',
     },
     {
       key: 'balance',
       icon: 'wallet-outline',
-      title: targetKey ? `Je connais mon solde à fin ${monthLabel(targetKey)}` : 'Je connais mon solde de fin de mois',
+      /* La DATE, pas le mois : « à fin août 2026 » laisse chercher quel jour recopier, alors que
+         le solde demandé est celui d'un jour précis — le dernier du mois clôturé. */
+      title: targetKey
+        ? `J’indique le solde réel au ${shortDay(lastDayOfMonthKey(targetKey))}`
+        : 'J’indique le solde réel de fin de mois',
       sub: 'Je recopie le solde de mon relevé : l’écart est corrigé sur ce mois-là.',
     },
     {
@@ -575,7 +581,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
       ? (mode === 'direct'
           ? 'Vérifie, puis valide'
           : mode === 'balance'
-            ? `Ton solde réel à fin ${targetKey ? monthLabel(targetKey) : 'ce mois'}`
+            ? `Ton solde réel au ${targetKey ? shortDay(lastDayOfMonthKey(targetKey)) : 'dernier jour du mois'}`
             : 'Le solde que tu as sous les yeux')
       : 'À quel mois appartient l’écart ?';
 
@@ -779,7 +785,9 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                   <View style={styles.balanceList}>
                     {checkingAccounts.map((acc) => (
                       <View key={acc.id} style={styles.balanceBox}>
-                        <Text style={styles.balanceLabel} numberOfLines={1}>{checkingAccounts.length > 1 ? acc.name : 'Solde du compte courant'} à fin {monthLabel(targetKey)}</Text>
+                        {/* La date exacte, comme sur la carte du mode : c'est ce jour-là qu'on
+                            compare au relevé, et « à fin août 2026 » ne le disait pas. */}
+                        <Text style={styles.balanceLabel} numberOfLines={1}>{checkingAccounts.length > 1 ? acc.name : 'Solde du compte courant'} au {shortDay(lastDayOfMonthKey(targetKey))}</Text>
                         <Text style={styles.balanceValue}>{fmtIn(balanceAtEndFor(acc.id, acc.balance), acc.currency)}</Text>
                       </View>
                     ))}
@@ -789,7 +797,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
             ) : (
               <>
                 <Text style={styles.label}>
-                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de ton compte courant'} à fin {targetKey ? monthLabel(targetKey) : ''}
+                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de ton compte courant'} au {targetKey ? shortDay(lastDayOfMonthKey(targetKey)) : ''}
                 </Text>
                 {checkingAccounts.map((acc) => (
                   <View key={acc.id} style={styles.acctInputRow}>
