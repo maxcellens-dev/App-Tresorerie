@@ -24,7 +24,7 @@ import { useRecoThresholds } from '../../../hooks/pilotage/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/pilotage/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { APP_VERSION, BUNDLE_VERSION, RUNNING_NEWER_BUNDLE } from '../../../lib/platform/appVersion';
+import { APP_VERSION, BUNDLE_VERSION, RUNNING_NEWER_BUNDLE, NATIVE_VERSION_KNOWN } from '../../../lib/platform/appVersion';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/auth/appLock';
 import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
@@ -144,20 +144,32 @@ function SettingsScreen() {
      n'était pas revenue, ou qui avait échoué). */
   const { data: featureFlags, isSuccess: flagsLoaded } = useFeatureFlags();
   const closureEnabled = Boolean(featureFlags?.monthly_closure_enabled);
-  // Bouton « Mise à jour » : compare la version installée à la dernière publiée (config admin).
-  const updateAvailable = !!featureFlags?.latest_version && isNewerVersion(featureFlags.latest_version, APP_VERSION);
+  /* ── « SUIS-JE À JOUR ? » — trois réponses, dont un « je ne sais pas » assumé ─────────────────
+     La comparaison n'a de sens que si l'on connaît la version RÉELLEMENT INSTALLÉE. Sur un binaire
+     antérieur à l'ajout d'`expo-application`, `APP_VERSION` retombe sur la version du BUNDLE — donc
+     sur celle de la dernière OTA reçue, qui monte à chaque publication. Comparer là-dessus revenait
+     à répondre « tu es à jour » d'autant plus sûrement que l'utilisateur recevait des mises à jour :
+     l'inverse exact de ce que la question demande. Faute de savoir, on n'affirme rien et on propose
+     d'aller voir le store — cf. lib/platform/appVersion. */
+  const canCompareVersions = NATIVE_VERSION_KNOWN;
+  const updateAvailable = canCompareVersions
+    && !!featureFlags?.latest_version
+    && isNewerVersion(featureFlags.latest_version, APP_VERSION);
+  const storeUrl = () => (Platform.OS === 'ios'
+    ? (featureFlags?.update_url_ios || 'https://apps.apple.com/')
+    : (featureFlags?.update_url_android || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`));
+  /* L'échec d'ouverture était avalé : on appuyait sur « Nouvelle version disponible » et il ne
+     se passait RIEN — ni store, ni message. Un lien de store mal saisi en administration suffit
+     à produire ce cas. */
+  const openStore = () => {
+    Linking.openURL(storeUrl()).catch(() => {
+      Alert.alert('Ouverture impossible', "Le store n'a pas pu être ouvert. Cherche « Relyka » dans ton magasin d'applications pour installer la mise à jour.");
+    });
+  };
   const checkUpdate = () => {
-    if (updateAvailable) {
-      const url = Platform.OS === 'ios'
-        ? (featureFlags?.update_url_ios || 'https://apps.apple.com/')
-        : (featureFlags?.update_url_android || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`);
-      /* L'échec d'ouverture était avalé : on appuyait sur « Nouvelle version disponible » et il ne
-         se passait RIEN — ni store, ni message. Un lien de store mal saisi en administration suffit
-         à produire ce cas. */
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Ouverture impossible', "Le store n'a pas pu être ouvert. Cherche « Relyka » dans ton magasin d'applications pour installer la mise à jour.");
-      });
-    } else if (!flagsLoaded) {
+    if (updateAvailable) { openStore(); return; }
+    if (!canCompareVersions) { openStore(); return; }
+    if (!flagsLoaded) {
       Alert.alert('Vérification impossible', `Impossible de vérifier les mises à jour pour l'instant. Ta version installée est la v${APP_VERSION}.`);
     } else {
       Alert.alert('À jour', `Tu es bien sur la dernière version (v${APP_VERSION}).`);
@@ -626,15 +638,19 @@ function SettingsScreen() {
                 échoué), on affiche la version installée sans rien promettre.
                 Tutoiement : « appuyez pour l'installer » était le dernier vouvoiement de l'écran. */}
             <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={checkUpdate} activeOpacity={0.7} accessibilityRole="button">
-              <Ionicons name={updateAvailable ? 'arrow-up-circle' : flagsLoaded ? 'checkmark-circle-outline' : 'help-circle-outline'} size={20} color={updateAvailable ? COLORS.emerald : COLORS.textSecondary} />
+              <Ionicons name={updateAvailable ? 'arrow-up-circle' : (canCompareVersions && flagsLoaded) ? 'checkmark-circle-outline' : 'help-circle-outline'} size={20} color={updateAvailable ? COLORS.emerald : COLORS.textSecondary} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Mise à jour</Text>
                 <Text style={{ color: updateAvailable ? COLORS.emerald : COLORS.textSecondary, fontSize: 12, marginTop: 1 }}>
                   {updateAvailable
                     ? 'Nouvelle version disponible · touche pour l\'installer'
-                    : flagsLoaded
-                      ? `À jour · version installée v${APP_VERSION}`
-                      : `Version installée v${APP_VERSION}`}
+                    : !canCompareVersions
+                      /* On ne peut pas savoir : on le dit, et on emmène au store plutôt que de
+                         promettre « à jour » sur la foi d'un numéro qui n'est pas le bon. */
+                      ? `Version v${APP_VERSION} · touche pour vérifier sur le store`
+                      : flagsLoaded
+                        ? `À jour · version installée v${APP_VERSION}`
+                        : `Version installée v${APP_VERSION}`}
                 </Text>
                 {/* Le correctif reçu SANS passer par le store : l'app tourne sur un bundle plus
                     récent que son binaire. On le dit, plutôt que d'afficher l'un à la place de
