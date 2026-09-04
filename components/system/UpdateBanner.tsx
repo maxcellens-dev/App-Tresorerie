@@ -1,10 +1,17 @@
 /**
  * UpdateBanner — bandeau « mise à jour disponible » qui descend du haut de l'écran.
  *
- * Compare la version installée (app.json) à `latest_version` (config admin app_config.features).
+ * Compare la version RÉELLEMENT INSTALLÉE à `latest_version` (config admin app_config.features).
  * - latest_version > installée  → bandeau informatif (fermable).
  * - min_version > installée      → bandeau OBLIGATOIRE (non fermable).
  * Le bouton « Mettre à jour » ouvre la fiche du store.
+ *
+ * ⚠️ IL COMPARAIT LA VERSION DU BUNDLE (`Constants.expoConfig.version`), c'est-à-dire celle
+ * déclarée au moment où l'OTA a été publiée — pas celle du binaire installé. Comme cette valeur
+ * monte à chaque OTA, elle rattrapait mécaniquement `latest_version` : le bandeau ne s'affichait
+ * JAMAIS sur le parc existant, précisément parce qu'il recevait les mises à jour. C'est
+ * `APP_VERSION` (lue au natif) qui fait foi, et `shouldOfferStoreUpdate` qui tranche — la même
+ * fonction que la ligne « Mise à jour » des réglages, pour que les deux ne puissent pas diverger.
  *
  * Natif uniquement (le web est toujours à jour). La fermeture est mémorisée par version.
  */
@@ -12,25 +19,13 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Linking, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFeatureFlags } from '../../hooks/config/useFeatureFlags';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { APP_VERSION, NATIVE_VERSION_KNOWN, isNewerVersion, shouldOfferStoreUpdate } from '../../lib/platform/appVersion';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 const DISMISS_KEY = 'update_dismissed_version';
-
-/** Renvoie >0 si a est une version plus récente que b ("1.0.2" vs "1.0.1"). */
-function isNewer(a: string, b: string): boolean {
-  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] ?? 0, y = pb[i] ?? 0;
-    if (x > y) return true;
-    if (x < y) return false;
-  }
-  return false;
-}
 
 export default function UpdateBanner() {
   const COLORS = useAppColors();
@@ -42,24 +37,31 @@ export default function UpdateBanner() {
   const [dismissed, setDismissed] = useState(false);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
 
-  const current = Constants.expoConfig?.version ?? '0.0.0';
   const latest = flags?.latest_version;
   const min = flags?.min_version;
 
-  // Mise à jour requise (non fermable) ou simplement disponible (fermable).
-  const required = !!min && isNewer(min, current);
-  const available = !!latest && isNewer(latest, current);
+  /* OBLIGATOIRE (non fermable) : uniquement sur une version installée CONNUE. On ne bloque jamais
+     quelqu'un sur une déduction — c'est la différence assumée avec `shouldOfferStoreUpdate`, qui,
+     lui, ose proposer quand la version native est hors de portée. */
+  const required = NATIVE_VERSION_KNOWN && !!min && isNewerVersion(min, APP_VERSION);
+  const available = shouldOfferStoreUpdate(latest);
   const targetVersion = (required ? min : latest) ?? '';
 
-  // Sur web, ou si pas de MAJ, on n'affiche rien.
+  /* Tant que la fermeture précédente n'a pas été LUE, on n'affiche pas : sinon le bandeau
+     apparaissait puis repartait à chaque démarrage chez quelqu'un qui l'avait déjà écarté — un
+     clignotement qui donne l'impression d'un bug, et qui use le geste. */
+  const [dismissLoaded, setDismissLoaded] = useState(false);
   const shouldShow =
     Platform.OS !== 'web' &&
     (required || available) &&
-    (required || (!dismissed && dismissedVersion !== targetVersion));
+    (required || (dismissLoaded && !dismissed && dismissedVersion !== targetVersion));
 
   // Charge la version déjà « fermée » (pour ne pas re-nudger la même version).
   useEffect(() => {
-    AsyncStorage.getItem(DISMISS_KEY).then((v) => setDismissedVersion(v)).catch(() => {});
+    AsyncStorage.getItem(DISMISS_KEY)
+      .then((v) => setDismissedVersion(v))
+      .catch(() => {})
+      .finally(() => setDismissLoaded(true));
   }, []);
 
   useEffect(() => {

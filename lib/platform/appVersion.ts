@@ -60,6 +60,43 @@ export const NATIVE_VERSION_KNOWN: boolean = nativeVersion != null;
 export const RUNNING_NEWER_BUNDLE: boolean = NATIVE_VERSION_KNOWN && BUNDLE_VERSION !== APP_VERSION;
 
 /**
+ * `a` est-elle une version PLUS RÉCENTE que `b` ? (« 1.0.10 » > « 1.0.9 », comparé nombre à nombre)
+ *
+ * Définition UNIQUE : elle vivait en deux copies — dans le bandeau de mise à jour et dans les
+ * réglages — qui décidaient toutes deux d'un même message (« une nouvelle version est disponible »).
+ * Deux copies d'une comparaison, c'est deux écrans qui finissent par ne plus dire la même chose.
+ */
+export function isNewerVersion(a: string | null | undefined, b: string | null | undefined): boolean {
+  const pa = String(a ?? '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b ?? '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0, y = pb[i] ?? 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return false;
+}
+
+/**
+ * Faut-il proposer la mise à jour du STORE ? Réponse partagée par le bandeau et les réglages.
+ *
+ * ⚠️ LE CAS QUI FAISAIT TOUT RATER : quand la version installée n'est pas connue du natif
+ * (`NATIVE_VERSION_KNOWN` faux), `APP_VERSION` retombe sur celle du BUNDLE — qui monte à chaque
+ * OTA. Comparer là-dessus concluait « pas de mise à jour » d'autant plus sûrement que
+ * l'utilisateur recevait des OTA : le bandeau ne s'affichait JAMAIS sur le parc existant.
+ *
+ * Or cette ignorance est elle-même un renseignement : un binaire qui n'embarque pas
+ * `expo-application` est forcément ANTÉRIEUR à la build qui l'a introduit, donc antérieur à la
+ * dernière version publiée. On propose donc la mise à jour — sans jamais la rendre OBLIGATOIRE sur
+ * une déduction (cf. `min_version`, qui exige, lui, une version installée connue).
+ */
+export function shouldOfferStoreUpdate(latestVersion: string | null | undefined): boolean {
+  if (!latestVersion) return false;                 // rien de publié en configuration
+  if (!NATIVE_VERSION_KNOWN) return true;           // binaire antérieur (cf. ci-dessus)
+  return isNewerVersion(latestVersion, APP_VERSION);
+}
+
+/**
  * Mention de copyright — l'année vient de l'HORLOGE, jamais d'une constante.
  *
  * Elle était écrite en dur (« © 2026 ») dans la page « À propos » et le menu profil : chaque

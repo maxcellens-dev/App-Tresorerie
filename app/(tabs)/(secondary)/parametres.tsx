@@ -24,7 +24,7 @@ import { useRecoThresholds } from '../../../hooks/pilotage/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/pilotage/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { APP_VERSION, BUNDLE_VERSION, RUNNING_NEWER_BUNDLE, NATIVE_VERSION_KNOWN } from '../../../lib/platform/appVersion';
+import { APP_VERSION, BUNDLE_VERSION, RUNNING_NEWER_BUNDLE, NATIVE_VERSION_KNOWN, shouldOfferStoreUpdate } from '../../../lib/platform/appVersion';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/auth/appLock';
 import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
@@ -36,17 +36,8 @@ const ANDROID_PACKAGE = 'com.relyka.myapp';
 // Réglage « Marge de sécurité » : masqué ici — il se règle dans le Pilotage, et un même réglage à
 // deux endroits prête à confusion. Code conservé (passer à `true` pour le rétablir).
 const SHOW_SAFETY_MARGIN = false;
-/** Renvoie true si `a` est une version plus récente que `b` ("1.0.2" > "1.0.1"). */
-function isNewerVersion(a: string, b: string): boolean {
-  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] ?? 0, y = pb[i] ?? 0;
-    if (x > y) return true;
-    if (x < y) return false;
-  }
-  return false;
-}
+// (La comparaison de versions vit dans lib/platform/appVersion — elle décidait du même message
+//  ici et dans le bandeau, en deux copies qui pouvaient diverger.)
 
 export default withDeferredMount(SettingsScreen);
 function SettingsScreen() {
@@ -152,9 +143,9 @@ function SettingsScreen() {
      l'inverse exact de ce que la question demande. Faute de savoir, on n'affirme rien et on propose
      d'aller voir le store — cf. lib/platform/appVersion. */
   const canCompareVersions = NATIVE_VERSION_KNOWN;
-  const updateAvailable = canCompareVersions
-    && !!featureFlags?.latest_version
-    && isNewerVersion(featureFlags.latest_version, APP_VERSION);
+  /* MÊME décision que le bandeau (components/system/UpdateBanner) : une seule fonction, sinon les
+     deux finissent par se contredire — l'un annonçant une mise à jour que l'autre ignore. */
+  const updateAvailable = shouldOfferStoreUpdate(featureFlags?.latest_version);
   const storeUrl = () => (Platform.OS === 'ios'
     ? (featureFlags?.update_url_ios || 'https://apps.apple.com/')
     : (featureFlags?.update_url_android || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`));

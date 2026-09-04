@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import Constants from 'expo-constants';
+import { APP_VERSION, BUNDLE_VERSION, NATIVE_VERSION_KNOWN, RUNNING_NEWER_BUNDLE } from '../../../../lib/platform/appVersion';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -26,8 +26,11 @@ export default function AdminAppUpdate() {
   const { data: flags, isLoading } = useFeatureFlags();
   const save = useSaveFeatureFlags();
 
-  // ── Mise à jour de l'app (bandeau « mise à jour disponible ») ──
-  const installedVersion = Constants.expoConfig?.version ?? '—';
+  /* ── Mise à jour de l'app (bandeau « mise à jour disponible ») ──
+     La version INSTALLÉE, pas celle du bundle : c'est sur elle que le bandeau se décide, et c'est
+     donc elle que l'administrateur doit voir pour choisir le numéro à publier (cf.
+     lib/platform/appVersion — l'écran affichait la version de la dernière OTA reçue). */
+  const installedVersion = APP_VERSION;
   const [latestVersion, setLatestVersion] = useState('');
   const [minVersion, setMinVersion] = useState('');
   const [urlAndroid, setUrlAndroid] = useState('');
@@ -101,7 +104,9 @@ export default function AdminAppUpdate() {
               <Text style={styles.cardTitle}>Mise à jour de l'app</Text>
               <Text style={styles.cardDesc}>
                 Affiche un bandeau « mise à jour disponible » (natif) quand la version publiée est supérieure à celle installée.
-                Version installée sur cet appareil : <Text style={{ fontWeight: '800', color: COLORS.text }}>{installedVersion}</Text>.
+                Version installée sur cet appareil : <Text style={{ fontWeight: '800', color: COLORS.text }}>{installedVersion}</Text>
+                {RUNNING_NEWER_BUNDLE ? <Text> (contenu à jour en {BUNDLE_VERSION} par OTA)</Text> : null}
+                {!NATIVE_VERSION_KNOWN ? <Text> — version du bundle, ce binaire ne sait pas dire la sienne</Text> : null}.
               </Text>
 
               <Text style={styles.inputLabel}>Dernière version publiée (bandeau fermable)</Text>

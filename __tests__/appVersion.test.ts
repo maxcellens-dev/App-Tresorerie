@@ -63,3 +63,55 @@ describe('version de l’app', () => {
     expect(m.NATIVE_VERSION_KNOWN).toBe(false);
   });
 });
+
+describe('comparaison de versions', () => {
+  const { isNewerVersion } = loadWith({ native: '1.0.8' });
+
+  it('compare nombre à nombre, pas caractère à caractère', () => {
+    expect(isNewerVersion('1.0.10', '1.0.9')).toBe(true);  // « 10 » > « 9 », pas l'inverse
+    expect(isNewerVersion('1.1.0', '1.0.9')).toBe(true);
+    expect(isNewerVersion('1.0.8', '1.0.8')).toBe(false);
+    expect(isNewerVersion('1.0.7', '1.0.8')).toBe(false);
+  });
+
+  it('tolère les longueurs différentes et les valeurs absentes', () => {
+    expect(isNewerVersion('1.1', '1.0.9')).toBe(true);
+    expect(isNewerVersion('1.0', '1.0.0')).toBe(false);
+    expect(isNewerVersion(null, '1.0.0')).toBe(false);
+    expect(isNewerVersion('1.0.1', undefined)).toBe(true);
+  });
+});
+
+/**
+ * LE BANDEAU « MISE À JOUR DISPONIBLE » — la décision, isolée de son animation.
+ *
+ * C'est le cas qui ne s'était JAMAIS déclenché en production : le bandeau comparait la version du
+ * BUNDLE (qui monte à chaque OTA) et concluait donc « rien à signaler » d'autant plus sûrement que
+ * l'utilisateur recevait des mises à jour. Les deux moitiés sont verrouillées ici.
+ */
+describe('proposer la mise à jour du store', () => {
+  it('propose quand la version publiée est plus récente que la version INSTALLÉE', () => {
+    const m = loadWith({ native: '1.0.8', manifest: '1.0.8' });
+    expect(m.shouldOfferStoreUpdate('1.0.9')).toBe(true);
+    expect(m.shouldOfferStoreUpdate('1.0.8')).toBe(false);
+  });
+
+  it('ne se laisse PAS berner par un bundle OTA plus récent que le binaire', () => {
+    // Binaire 1.0.7, OTA publiée depuis un arbre en 1.0.8, dernière version publiée : 1.0.8.
+    const m = loadWith({ native: '1.0.7', manifest: '1.0.8' });
+    expect(m.shouldOfferStoreUpdate('1.0.8')).toBe(true);
+  });
+
+  it('propose quand le binaire est trop ancien pour dire sa version', () => {
+    /* Pas de module natif = binaire antérieur à la build qui l'a introduit, donc antérieur à la
+       dernière version publiée. L'ignorance est ici un renseignement. */
+    const m = loadWith({ throws: true, manifest: '1.0.8' });
+    expect(m.shouldOfferStoreUpdate('1.0.8')).toBe(true);
+  });
+
+  it('ne propose rien tant qu’aucune version n’est publiée en configuration', () => {
+    const m = loadWith({ throws: true, manifest: '1.0.8' });
+    expect(m.shouldOfferStoreUpdate(undefined)).toBe(false);
+    expect(m.shouldOfferStoreUpdate('')).toBe(false);
+  });
+});
