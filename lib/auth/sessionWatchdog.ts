@@ -20,7 +20,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { APP_VERSION } from '../platform/appVersion';
+import { APP_VERSION, BUNDLE_VERSION } from '../platform/appVersion';
 import { reportError } from '../platform/errorReporting';
 import { sessionStorageDiagnostics } from '../platform/secureStorage';
 
@@ -29,7 +29,16 @@ const KEY = 'relyka.auth.lastSession';
 const _rv = (Constants.expoConfig as any)?.runtimeVersion;
 const RUNTIME_VERSION = typeof _rv === 'string' ? _rv : '';
 
-type Mark = { at: number; v: string; rv: string; uid: string };
+/**
+ * `v` = version INSTALLÉE (le binaire), `b` = version du BUNDLE en cours (change à chaque OTA),
+ * `rv` = runtime (change à chaque build).
+ *
+ * ⚠️ `b` n'est pas décoratif : depuis que `APP_VERSION` désigne le binaire et non le bundle
+ * (cf. lib/platform/appVersion), une OTA ne fait plus bouger `v` — sans `b`, une session perdue
+ * APRÈS une mise à jour OTA aurait été classée « cause inconnue », c'est-à-dire précisément le
+ * diagnostic que ce veilleur existe pour poser.
+ */
+type Mark = { at: number; v: string; b?: string; rv: string; uid: string };
 
 /** Une seule remontée par démarrage : ce n'est pas un compteur, c'est un signal. */
 let reported = false;
@@ -40,7 +49,7 @@ function isNative(): boolean {
 
 /** Une session est en place : on note qu'elle existait, pour pouvoir constater sa disparition. */
 export function markSessionAlive(userId: string): void {
-  const mark: Mark = { at: Date.now(), v: APP_VERSION, rv: RUNTIME_VERSION, uid: userId };
+  const mark: Mark = { at: Date.now(), v: APP_VERSION, b: BUNDLE_VERSION, rv: RUNTIME_VERSION, uid: userId };
   AsyncStorage.setItem(KEY, JSON.stringify(mark)).catch(() => {});
 }
 
@@ -79,7 +88,9 @@ export async function reportSessionLossIfUnexpected(): Promise<void> {
   clearSessionMark();
 
   const d = sessionStorageDiagnostics();
-  const updated = mark.v !== APP_VERSION || mark.rv !== RUNTIME_VERSION;
+  // Une OTA ne change QUE le bundle : sans `mark.b`, elle passait pour « rien n'a bougé ».
+  const bundleChanged = (mark.b ?? mark.v) !== BUNDLE_VERSION;
+  const updated = mark.v !== APP_VERSION || mark.rv !== RUNTIME_VERSION || bundleChanged;
   // La cause probable, nommée : c'est elle qu'on lira dans le Centre de sécurité, pas une pile.
   const cause = d.readError ? 'coffre illisible'
     : d.incomplete ? 'morceaux incomplets'
@@ -95,12 +106,17 @@ export async function reportSessionLossIfUnexpected(): Promise<void> {
       uid: mark.uid,
       // Ce qui répond à « est-ce que ça suit une mise à jour ? » : les versions d'avant et d'après.
       from_version: mark.v,
+      from_bundle: mark.b ?? mark.v,
       from_runtime: mark.rv,
       to_version: APP_VERSION,
+      to_bundle: BUNDLE_VERSION,
       to_runtime: RUNTIME_VERSION,
       after_update: updated,
-      // Un OTA change le bundle sans changer le runtime ; une nouvelle build change le runtime.
-      kind: updated ? (mark.rv !== RUNTIME_VERSION ? 'build' : 'ota') : 'same_version',
+      /* Une nouvelle BUILD change le runtime (et souvent la version installée) ; une OTA ne change
+         que le bundle. On lit donc les deux, dans cet ordre. */
+      kind: !updated ? 'same_version'
+        : (mark.rv !== RUNTIME_VERSION || mark.v !== APP_VERSION) ? 'build'
+        : 'ota',
       hours_since_last_session: Math.round((Date.now() - mark.at) / 36e5),
       storage: d,
     },

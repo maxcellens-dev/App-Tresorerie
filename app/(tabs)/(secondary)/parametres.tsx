@@ -24,7 +24,7 @@ import { useRecoThresholds } from '../../../hooks/pilotage/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/pilotage/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { APP_VERSION } from '../../../lib/platform/appVersion';
+import { APP_VERSION, BUNDLE_VERSION, RUNNING_NEWER_BUNDLE } from '../../../lib/platform/appVersion';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/auth/appLock';
 import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
@@ -636,6 +636,15 @@ function SettingsScreen() {
                       ? `À jour · version installée v${APP_VERSION}`
                       : `Version installée v${APP_VERSION}`}
                 </Text>
+                {/* Le correctif reçu SANS passer par le store : l'app tourne sur un bundle plus
+                    récent que son binaire. On le dit, plutôt que d'afficher l'un à la place de
+                    l'autre — c'est exactement ce qui faisait annoncer « v1.0.8 » à quelqu'un resté
+                    en 1.0.7 (cf. lib/platform/appVersion). */}
+                {RUNNING_NEWER_BUNDLE && (
+                  <Text style={{ color: COLORS.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    Correctifs appliqués : v{BUNDLE_VERSION}
+                  </Text>
+                )}
               </View>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
