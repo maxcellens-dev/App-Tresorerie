@@ -18,6 +18,10 @@
  *   7. `runtimeVersion` : le bumper est une décision de BUILD. Publier un OTA après l'avoir bumpé
  *      n'atteint plus personne (et donne l'illusion d'une publication réussie).
  *
+ * Il ne dit RIEN, en revanche, du bundle réellement produit : c'est le rôle de son compagnon
+ * `scripts/check-bundle-env.js`, lancé APRÈS `eas update` (une OTA est déjà partie sans l'URL du
+ * backend — app inutilisable, tous les contrôles au vert). Les deux sont enchaînés par `npm run ota`.
+ *
  * Usage :
  *   node scripts/check-session-safety.js ota      → avant `eas update`
  *   node scripts/check-session-safety.js build    → avant `eas build`
