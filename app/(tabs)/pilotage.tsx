@@ -42,6 +42,7 @@ import { useReservations, useSetMonthlyReservation, useReleaseStaleReservations 
 import { useReleaseReservedByProject } from '../../hooks/data/useTransactions';
 import { useRecoThresholds } from '../../hooks/pilotage/useRecoThresholds';
 import ConseilsBanner from '../../components/ai/ConseilsBanner';
+import { useAllConseils, useConsilsSeenToday } from '../../hooks/pilotage/useConseils';
 import { usePilotageTips } from '../../hooks/config/useUiPrefs';
 import AdSlot from '../../components/marketing/AdSlot';
 import { useProjects } from '../../hooks/data/useProjects';
@@ -197,8 +198,12 @@ function PilotageScreen() {
   );
   const txForSuivi = useMemo(() => transformFluxTransactions(txForConseils as any[], perimeterCtx), [txForConseils, perimeterCtx]);
   const accountsForSuivi = useMemo(() => splitPerimeterAccounts(accounts, perimeterCtx).perimeter, [accounts, perimeterCtx]);
-  const { data: preSavings } = usePreSavings(user?.id);
-  const { data: reservations = [] } = useReservations(user?.id);
+  const preSavingsQuery = usePreSavings(user?.id);
+  const reservationsQuery = useReservations(user?.id);
+  const { data: preSavings } = preSavingsQuery;
+  const { data: reservations = [] } = reservationsQuery;
+  const conseilsCatalogQuery = useAllConseils();
+  const conseilsSeenQuery = useConsilsSeenToday(user?.id);
   const { data: recoThresholds } = useRecoThresholds();
   const addPreSaving = useAddPreSavingEntry(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
@@ -351,14 +356,42 @@ function PilotageScreen() {
      deux lectures n'ont pas ABOUTI, on ne conclut rien et on reste sur le chargement.
      ⚠️ Filet OBLIGATOIRE : hors-ligne les requêtes restent « en pause » et n'aboutissent jamais →
      sans borne de temps, l'écran resterait bloqué sur le rond de chargement. */
-  const baseDataReady = accountsQuery.isSuccess && txPersoQuery.isSuccess;
-  const baseDataPaused = accountsQuery.fetchStatus === 'paused' || txPersoQuery.fetchStatus === 'paused';
+  /* ── ET CE N'ÉTAIT PAS QUE L'ACCUEIL : LE RELYKA LUI-MÊME ARRIVAIT EN DEUX TEMPS ───────────────
+     Le budget libre affiché n'est pas `pilotage_data` seul : on lui SOUSTRAIT ce qui a été mis de
+     côté — le « Conserver » du mois (`reservations`) et les cumuls pré-épargne / pré-invest
+     (`pre_savings`), lus par deux requêtes séparées. Tant qu'elles n'étaient pas revenues, ces deux
+     déductions valaient 0 : la carte annonçait un Relyka TROP HAUT — exactement celui d'avant la
+     réservation qu'on venait d'appliquer — puis il baissait tout seul un aller-retour plus tard.
+     D'où « ça a l'air plus ou moins rapide selon la connexion » : c'était la latence réseau qu'on
+     regardait. Elles font donc partie du socle, au même titre que les comptes.
+     Le bandeau de conseils suit la même règle : sorti du chargement, il s'insérait EN HAUT une fois
+     la page peinte et poussait tout l'écran vers le bas. */
+  /* « Abouti » = plus rien en vol : réussi, échoué (react-query a épuisé ses reprises), ou en pause
+     hors-ligne. L'ÉCHEC compte, sinon une lecture durablement en erreur — un droit manquant sur le
+     catalogue de conseils, par exemple — ferait payer les 4 s de la borne de sécurité à CHAQUE
+     ouverture du tableau de bord. */
+  const settled = (q: { isSuccess: boolean; isError: boolean; fetchStatus: string }) =>
+    q.isSuccess || q.isError || q.fetchStatus === 'paused';
+  const gateQueries = [
+    accountsQuery, txPersoQuery, reservationsQuery, preSavingsQuery,
+    // Conseils désactivés dans les réglages : le bandeau n'est pas rendu, on n'attend donc pas
+    // deux lectures dont personne ne verra le résultat.
+    ...(tipsEnabled ? [conseilsCatalogQuery, conseilsSeenQuery] : []),
+  ];
+  const baseDataReady = accountsQuery.isSuccess && txPersoQuery.isSuccess
+    && reservationsQuery.isSuccess && preSavingsQuery.isSuccess;
+  /* La porte du chargement attend AUSSI le bandeau ; `baseDataReady`, lui, ne le regarde pas : il
+     sert à conclure « ce compte est vide » (l'accueil), une question à laquelle les conseils
+     n'apportent rien — et une panne du catalogue ne doit pas faire basculer un compte installé sur
+     l'écran de bienvenue. */
+  const paintReady = gateQueries.every(settled);
+  const baseDataPaused = gateQueries.some((q) => q.fetchStatus === 'paused');
   const [bootTimedOut, setBootTimedOut] = useState(false);
   React.useEffect(() => {
     const t = setTimeout(() => setBootTimedOut(true), 4000);
     return () => clearTimeout(t);
   }, []);
-  const stillBooting = !baseDataReady && !baseDataPaused && !bootTimedOut;
+  const stillBooting = !paintReady && !baseDataPaused && !bootTimedOut;
 
   // Signale au splash animé que l'app peut s'afficher : dès que les données sont là OU en erreur,
   // sinon au bout de 900 ms MAX. On n'attend plus la fin du (lourd) chargement pour OUVRIR l'app :
@@ -367,10 +400,10 @@ function PilotageScreen() {
   // (Le splash couvre aussi la lecture des comptes/opérations quand elle arrive dans les temps :
   //  sinon on enchaînait splash → rond de chargement. Le plafond de 900 ms reste le même.)
   React.useEffect(() => {
-    if ((pilotageData && baseDataReady) || pilotageError || isOffline) { signalAppReady(); return; }
+    if ((pilotageData && paintReady) || pilotageError || isOffline) { signalAppReady(); return; }
     const t = setTimeout(signalAppReady, 900);
     return () => clearTimeout(t);
-  }, [pilotageData, baseDataReady, pilotageError, isOffline]);
+  }, [pilotageData, paintReady, pilotageError, isOffline]);
 
   /* ── TOUS LES CALCULS DÉRIVÉS DE L'ÉCRAN ────────────────────────────────────────────────────────
      Relyka affiché et sa décomposition, phrase du point bas, messages, listes des modaux de suivi,
@@ -414,7 +447,7 @@ function PilotageScreen() {
     baseADepenser, enDepassement,
     setupIncomplete, setupHint, firstName, welcomeStep, welcomeRoute,
     relConf, recoList, recoMessages, relykaMessages, suiviDetail, recurUpcoming, relykaColor,
-    recoMode,
+    relykaZero, recoMode,
   } = vm;
 
   /* Mode affiché = brouillon local s'il existe, sinon celui du profil. */
@@ -689,6 +722,9 @@ function PilotageScreen() {
               // Couleur calculée par le view-model (relykaTone) : elle était recopiée ici, avec une
               // branche « rouge » qui ne pouvait jamais se déclencher.
               relykaColor={relykaColor}
+              // Relyka à 0 : le mot qui prend la place du chiffre (« Tout est placé », « Tout est
+              // engagé », « Budget dépassé »). Décidé par le view-model, pas par le rendu.
+              relykaZero={relykaZero}
               confidenceLevel={relConf?.result.level ?? 'high'}
               // Ancienneté RÉELLE (non plafonnée) : le chiffre du calcul sature à 21 j et faisait
               // dire « vérifié il y a un moment » à qui n'a rien vérifié depuis des mois.

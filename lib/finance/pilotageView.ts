@@ -259,6 +259,45 @@ export function relykaTone(
 }
 
 /**
+ * ── « 0 € » N'EST PAS UNE RÉPONSE ───────────────────────────────────────────────────────────────
+ *
+ * Le chiffre principal de l'app affichait « 0 € » en grand dès que le budget libre tombait à zéro.
+ * C'est exact, et ça ne dit rien : les trois situations qui y mènent n'ont pourtant rien à voir
+ * entre elles — l'argent est PLACÉ (épargne / investissement / réservé, c'est-à-dire exactement ce
+ * que l'app a recommandé), il est ENGAGÉ (tout part en dépenses prévues), ou il MANQUE (le prévu
+ * dépasse ce qu'il y a). Un zéro les confond toutes en un constat d'échec.
+ *
+ * On remplace donc le zéro par ce qu'il signifie, et le montant descend en sous-titre — il n'est
+ * pas caché, il cesse simplement d'être la seule chose qu'on lise. `null` au-dessus de zéro : le
+ * chiffre reste le chiffre, c'est lui qui porte l'information.
+ *
+ * Les phrases restent COURTES (deux mots) : c'est un titre, pas un message. Le carrousel juste en
+ * dessous (cf. `buildRelykaBaseMessage`) dit déjà le pourquoi et la conduite à tenir.
+ */
+export function relykaZeroHero(
+  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'resteDisponibleBrut' | 'misDeCoteTotal'>,
+): { word: string; sub: string } | null {
+  const tone = relykaTone(b);
+  if (tone === 'positive') return null;
+  if (tone === 'allocated') {
+    return {
+      word: 'Tout est placé',
+      // Ce qu'il a RANGÉ, pas ce qu'il lui reste : c'est le résultat de son geste du mois.
+      sub: `${eur(b.misDeCoteTotal)} mis de côté · 0 ${CURRENCY_SYMBOL} libre`,
+    };
+  }
+  if (tone === 'negative') {
+    return {
+      word: 'Budget dépassé',
+      // Le manque était INVISIBLE : `relykaAffiche` est borné à 0, donc le montant réellement
+      // manquant n'apparaissait nulle part sur la carte.
+      sub: `Il manque ${eur(Math.abs(b.resteDisponibleBrut))} pour couvrir ce qui est prévu`,
+    };
+  }
+  return { word: 'Tout est engagé', sub: `0 ${CURRENCY_SYMBOL} libre d'ici la fin du mois` };
+}
+
+/**
  * ── Message de BASE du Relyka : ce qu'EST le chiffre ────────────────────────────────────────────
  * Quand le Relyka est POSITIF, la phrase est passe-partout (« voici ce qu'il devrait te rester…
  * utilise-le librement ») : elle ne vaut que si elle est seule à l'écran — d'où `isGeneric`, que

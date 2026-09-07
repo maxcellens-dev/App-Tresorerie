@@ -32,6 +32,7 @@ import {
   computeSetupState,
   pickMainCheckingId,
   relykaTone,
+  relykaZeroHero,
   type RelykaBreakdown,
   type SuiviDetail,
 } from '../../lib/finance/pilotageView';
@@ -88,6 +89,8 @@ export interface PilotageViewModel extends RelykaBreakdown {
   relykaBase: { text: string; isGeneric: boolean };
   /** Couleur du chiffre principal (cf. `relykaTone`) — l'écran la consomme, il ne la recalcule pas. */
   relykaColor: string;
+  /** Ce qui REMPLACE le chiffre principal quand il vaut 0 (cf. `relykaZeroHero`) ; `null` sinon. */
+  relykaZero: { word: string; sub: string } | null;
   recoFinancials: { currentChecking: number; projectedEndChecking: number | undefined } | undefined;
   recoMessages: ReturnType<typeof buildRecoMessages>;
   relykaMessages: ReturnType<typeof buildRelykaMessages>;
@@ -226,6 +229,13 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
       : colors.orange;
   }, [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.resteDisponibleBrut, colors]);
 
+  /* Le libellé qui prend la place du « 0 € » — même règle de tons que la couleur ci-dessus, donc
+     même source (`relykaZeroHero`). L'écran l'affiche tel quel : il ne décide pas des mots. */
+  const relykaZero = React.useMemo(
+    () => relykaZeroHero(breakdown),
+    [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.resteDisponibleBrut, breakdown.misDeCoteTotal],
+  );
+
   /** Données de projection alimentant l'encadré contextuel des recos (les deux vues). */
   const recoFinancials = pilotageData
     ? { currentChecking: pilotageData.current_checking_balance, projectedEndChecking: pilotageData.projection_balances_6m?.[0] }
@@ -299,6 +309,7 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
     recoList,
     relykaBase,
     relykaColor,
+    relykaZero,
     recoFinancials,
     recoMessages,
     relykaMessages,

@@ -3,6 +3,9 @@ import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider, MutationCache, useQueryClient, onlineManager, focusManager } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 import { prefetchPilotageData } from '../hooks/pilotage/usePilotageData';
+import { useReservations } from '../hooks/data/useReservations';
+import { usePreSavings } from '../hooks/data/usePreSavings';
+import { useAllConseils, useConsilsSeenToday } from '../hooks/pilotage/useConseils';
 import { hydrateThemeCache } from '../lib/platform/themeBoot';
 import { hydrateQueryCache, startQueryPersist, getHydratedKeys } from '../lib/platform/queryPersist';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler, AppState, Alert } from 'react-native';
@@ -172,6 +175,12 @@ function PilotagePrefetch() {
   const { user } = useAuth();
   const qc = useQueryClient();
   useEffect(() => { prefetchPilotageData(qc, user?.id); }, [user?.id, qc]);
+  // Déductions du Relyka + bandeau conseils : mêmes clés que l'écran, chauffées dès la session
+  // connue — sinon le loader du Pilotage attendait un premier fetch lancé trop tard.
+  useReservations(user?.id);
+  usePreSavings(user?.id);
+  useAllConseils();
+  useConsilsSeenToday(user?.id);
   return null;
 }
 

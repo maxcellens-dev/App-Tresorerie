@@ -32,6 +32,12 @@ const WHITELIST = new Set([
   // Réglages de fiabilité (minuscules) : indispensables dès la 1ʳᵉ frame, sinon la carte Relyka
   // affiche un montant sec puis bascule en fourchette quand la config arrive du réseau.
   'reliability_config',
+  // Déduits du Relyka, hors de `pilotage_data` : sans eux le cache peint un budget libre trop haut
+  // (réserve « Conserver » / cumuls à 0) le temps que le réseau réponde.
+  'reservations', 'pre_savings',
+  // Bandeau du Pilotage : catalogue + « déjà vu aujourd'hui ». Volume minuscule ; sans cache le
+  // bandeau pop-in une fois les deux allers-retours revenus.
+  'conseils', 'conseils_seen',
   // Projets PARTAGÉS : la page Projets sort ses projets perso du cache (ils viennent du Pilotage,
   // déjà persisté) puis attendait le réseau pour la moitié partagée — une page qui arrive en deux
   // temps, d'autant plus visible que la connexion est mauvaise. Volume négligeable (quelques
@@ -47,6 +53,7 @@ const WHITELIST = new Set([
  */
 const WEB_WHITELIST = new Set([
   'pilotage_data', 'profile', 'style_config', 'landing_config', 'accounts', 'reliability_config',
+  'reservations', 'pre_savings', 'conseils', 'conseils_seen',
 ]);
 
 /** Au-delà, on ne persiste pas (évite les erreurs de quota). Le web est plus étroit. */

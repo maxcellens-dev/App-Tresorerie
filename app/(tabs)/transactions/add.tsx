@@ -301,6 +301,25 @@ function AddTransactionScreen() {
     if (back) { router.replace(back as any); return; }
     router.back();
   }, [step, router, params.origin]);
+  /* ── LE VERROU NE DOIT PAS SURVIVRE À LA SORTIE DE L'ÉCRAN ─────────────────────────────────────
+     `handleSubmit` pose le verrou et ne le relâche PAS en cas de succès : c'est volontaire, l'écran
+     est quitté juste après (navigation optimiste) et le relâcher rouvrirait la fenêtre de double
+     saisie pendant la sortie. Le raisonnement supposait que l'écran soit DÉTRUIT en sortant — il ne
+     l'est pas. Cet écran vit dans la pile de l'onglet « Transactions », et on en sort par un
+     `router.replace` vers un AUTRE onglet : la pile n'est pas dépilée, le composant reste monté avec
+     son `useRef` à `true`. C'est déjà écrit noir sur blanc plus haut (« le bouton + […] rouvrent cet
+     écran DÉJÀ MONTÉ »), ce qui vaut au `useRef` du verrou ce que ça vaut aux `useState` du
+     formulaire. La 2ᵉ saisie trouvait donc le verrou encore posé : `acquire()` renvoyait `false`,
+     `handleSubmit` sortait en silence, et « Enregistrer » ne faisait plus rien — sans erreur, sans
+     indicateur, jusqu'à ce qu'on tue l'app.
+     On le relâche donc au RETOUR sur l'écran. La fenêtre qu'il protège (entre l'appui et la sortie)
+     ne contient aucune reprise de focus : la protection contre le double appui est intacte. */
+  /* ⚠️ La dépendance est `submitLock.release` (stable, `useCallback([])`) et NON `submitLock` :
+     le hook renvoie un objet neuf à chaque rendu, donc dépendre de lui relancerait cet effet à
+     CHAQUE rendu — y compris celui déclenché par le `resetForm()` qui précède la navigation, alors
+     que l'écriture est en vol et que l'écran a encore le focus. Le verrou aurait sauté au pire
+     moment, c'est-à-dire exactement dans la fenêtre qu'il protège. */
+  useFocusEffect(useCallback(() => { submitLock.release(); }, [submitLock.release]));
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android') return;

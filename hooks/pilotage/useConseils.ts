@@ -240,13 +240,22 @@ export function useMarkConseilSeen(userId: string | undefined) {
 }
 
 /** Hook principal : renvoie le conseil du jour (général + contextuel) + actions. */
+function querySettled(q: { isSuccess: boolean; isError: boolean; fetchStatus: string }): boolean {
+  return q.isSuccess || q.isError || q.fetchStatus === 'paused';
+}
+
 export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = [], relykaBrut?: number | null): {
   general: (Conseil & { vars: Record<string, string | number> }) | null;
   contextuel: (Conseil & { vars: Record<string, string | number> }) | null;
   dismiss: (id: string) => void;
+  /** Les deux lectures ont abouti (ou sont en pause hors-ligne) : on peut décider d'afficher ou non. */
+  ready: boolean;
 } {
-  const { data: all = [] } = useAllConseils();
-  const { data: seenToday = [] } = useConsilsSeenToday(userId);
+  const allQuery = useAllConseils();
+  const seenQuery = useConsilsSeenToday(userId);
+  const { data: all = [] } = allQuery;
+  const { data: seenToday = [] } = seenQuery;
+  const ready = querySettled(allQuery) && (!userId || querySettled(seenQuery));
   const markSeen = useMarkConseilSeen(userId);
 
   const dismissedIds = React.useMemo(
@@ -288,5 +297,6 @@ export function useConseilDuJour(userId: string | undefined, pilotage: PilotageD
     general: general ? { ...general, vars: {} } : null,
     contextuel,
     dismiss,
+    ready,
   };
 }

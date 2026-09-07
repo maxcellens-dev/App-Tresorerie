@@ -36,7 +36,7 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
   // Vitesse de rotation réglable en admin (secondes → ms). Bornée pour éviter les valeurs absurdes.
   const rotationMs = Math.max(2, Math.min(60, flags?.conseils_rotation_seconds ?? 8)) * 1000;
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(userId);
-  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides, relykaBrut);
+  const { general, contextuel, dismiss, ready } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides, relykaBrut);
 
   // Liste ordonnée : « Pour toi » (contextuel) puis général.
   // ⚠️ TUTOIEMENT : l'app tutoie partout, ce libellé était le dernier « vous » de l'interface.
@@ -92,6 +92,13 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
     return () => clearInterval(t);
   }, [slidesLen, rotationMs]);
 
+  /* Tant que le catalogue et les « déjà vus » ne sont pas revenus, on ne sait pas s'il y a un
+     conseil à montrer — et afficher le premier venu dès qu'une des deux lectures arrive faisait
+     réapparaître un conseil fermé le temps que l'autre suive. On n'affiche donc rien avant d'avoir
+     les deux. Ce n'est PAS ce qui règle le décalage constaté : l'écran Pilotage attend maintenant
+     ces deux lectures dans son chargement (cf. `paintReady`), donc `ready` est déjà vrai au premier
+     rendu. Ce garde-fou ne joue plus que si le chargement a rendu la main sur sa borne de 4 s. */
+  if (!ready) return null;
   if (slidesLen === 0) return null;
   const current = slides[Math.min(index, slidesLen - 1)];
 

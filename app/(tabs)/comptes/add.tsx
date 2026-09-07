@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useRef, useEffect } from 'react';
+﻿import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { chipStyles } from '../../../lib/ui/controls';
 import AppButton from '../../../components/ui/AppButton';
@@ -7,7 +7,7 @@ import { accountColor } from '../../../theme/colors';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAddAccount } from '../../../hooks/data/useAccounts';
@@ -53,6 +53,15 @@ export default function AddAccountScreen() {
      `guard('account')` fait un aller-retour réseau AVANT : pendant tout ce temps le bouton reste
      actif, et deux appuis créaient DEUX comptes identiques (avec deux soldes initiaux). */
   const submitLock = useSubmitLock();
+  /* Le verrou n'est pas relâché en cas de succès (l'écran se ferme), ce qui suppose qu'il soit
+     DÉTRUIT en sortant. Ce n'est pas garanti : cet écran s'ouvre aussi depuis un AUTRE onglet
+     (Projection → « Ajouter un compte »), et le `router.back()` qui suit l'enregistrement rend la
+     main à cet onglet-là sans dépiler la pile « Comptes » — l'écran reste monté, verrou posé, et
+     le bouton « Enregistrer » ne répond plus jamais. Même correctif que l'écran de saisie d'une
+     transaction : on relâche au RETOUR sur l'écran (la fenêtre protégée, elle, ne contient aucune
+     reprise de focus). */
+  // Dépendance `submitLock.release` (stable) et non `submitLock` : cf. la note de transactions/add.
+  useFocusEffect(useCallback(() => { submitLock.release(); }, [submitLock.release]));
   /* Consultation admin : ce compte serait créé sur le profil visité (la politique d'accès l'autorise). */
   const roGuard = useReadOnlyGuard();
 

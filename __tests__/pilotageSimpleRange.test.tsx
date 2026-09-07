@@ -1,4 +1,4 @@
-import { renderWithProviders, screen } from './utils/renderWithProviders';
+import { renderWithProviders, screen, within } from './utils/renderWithProviders';
 import PilotageSimple from '../components/pilotage/PilotageSimple';
 
 /**
@@ -97,6 +97,50 @@ describe('carte Relyka — le badge d’état', () => {
   it('situe la vérification RÉELLE, même très ancienne', () => {
     renderWithProviders(<PilotageSimple {...baseProps} daysSinceVerification={240} />);
     expect(screen.getByText('Vérifié il y a longtemps')).toBeTruthy();
+  });
+});
+
+/* Le grand chiffre est la première chose que l'app dit à quelqu'un qui l'ouvre. À 0 €, il ne disait
+   rien — et surtout pas la différence entre « tu as tout placé » et « il te manque de l'argent ». */
+describe('carte Relyka — quand le montant tombe à 0', () => {
+  it('affiche le MOT à la place du chiffre, et le montant juste dessous', () => {
+    renderWithProviders(
+      <PilotageSimple
+        {...baseProps}
+        relykaAmount={0}
+        relykaZero={{ word: 'Tout est placé', sub: '1 200 € mis de côté · 0 € libre' }}
+      />,
+    );
+    expect(screen.getByText('Tout est placé')).toBeTruthy();
+    expect(screen.getByText('1 200 € mis de côté · 0 € libre')).toBeTruthy();
+    /* Le « 0 € » nu ne doit plus être LE chiffre principal. On regarde dans la zone du montant
+       (celle qui ouvre le détail du calcul) : ailleurs sur la carte, « 0 € » reste légitime —
+       les tuiles « Épargné » / « Investi » en affichent un quand rien n'a bougé. */
+    const hero = within(screen.getByLabelText('Voir le détail du calcul'));
+    expect(hero.getByText('Tout est placé')).toBeTruthy();
+    expect(hero.queryByText('0 €')).toBeNull();
+  });
+
+  it('laisse le chiffre parler dès qu\'il vaut quelque chose', () => {
+    renderWithProviders(<PilotageSimple {...baseProps} relykaAmount={1010} />);
+    expect(screen.getByText('1 010 €')).toBeTruthy();
+  });
+
+  /* Pendant l'installation, le zéro n'est pas un choix : c'est un calcul qui n'a pas encore de quoi
+     tourner. « Tout est engagé » posé au-dessus de « il n'a encore rien à calculer » affirmerait
+     une décision que personne n'a prise, et contredirait la phrase juste en dessous. */
+  it('ne met PAS de mot sur le zéro d\'un compte encore incomplet', () => {
+    renderWithProviders(
+      <PilotageSimple
+        {...baseProps}
+        relykaAmount={0}
+        relykaZero={{ word: 'Tout est engagé', sub: "0 € libre d'ici la fin du mois" }}
+        heroHint="Ton Relyka est à 0 € : il n'a encore rien à calculer."
+      />,
+    );
+    expect(screen.queryByText('Tout est engagé')).toBeNull();
+    expect(within(screen.getByLabelText('Voir le détail du calcul')).getByText('0 €')).toBeTruthy();
+    expect(screen.getByText(/rien à calculer/)).toBeTruthy();
   });
 });
 

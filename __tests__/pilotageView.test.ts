@@ -10,6 +10,7 @@ import {
   computeSetupState,
   pickMainCheckingId,
   relykaTone,
+  relykaZeroHero,
 } from '../lib/finance/pilotageView';
 import type { PilotageData } from '../lib/finance/pilotageEngine';
 
@@ -229,6 +230,41 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
     it('NEUTRE à 0 pile, sans rien mis de côté : il n\'y a ni manque ni choix', () => {
       const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), noCumuls);
       expect(relykaTone(b)).toBe('empty');
+    });
+  });
+
+  /* ── « 0 € » NE DIT RIEN ────────────────────────────────────────────────────────────────────
+     Trois situations opposées tombent sur le même zéro : l'argent est placé, il est engagé, ou il
+     manque. Le chiffre principal les confondait toutes en un constat d'échec — c'est le mot qui
+     doit les distinguer, et le montant qui passe en second. */
+  describe('relykaZeroHero — ce qui remplace le chiffre à 0', () => {
+    it('ne remplace RIEN tant qu\'il reste quelque chose à décider', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 500 }), noCumuls);
+      expect(relykaZeroHero(b)).toBeNull();
+    });
+
+    it('« Tout est placé » quand le zéro vient d\'un geste, et rappelle COMBIEN a été rangé', () => {
+      const b = computeRelykaBreakdown(pdata({
+        cashflow_trough: 500, month_savings_total: 500, month_savings_future: 500,
+      }), noCumuls);
+      const hero = relykaZeroHero(b)!;
+      expect(hero.word).toBe('Tout est placé');
+      expect(hero.sub).toContain('500 €');
+      expect(hero.sub).toContain('mis de côté');
+    });
+
+    it('« Budget dépassé » CHIFFRE le manque — que le montant affiché, borné à 0, cachait', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: -900 }), noCumuls);
+      const hero = relykaZeroHero(b)!;
+      expect(hero.word).toBe('Budget dépassé');
+      expect(hero.sub).toContain('900 €');
+      // Le manque est annoncé POSITIVEMENT (« il manque 900 € »), jamais en « −900 € ».
+      expect(hero.sub).not.toContain('-900');
+    });
+
+    it('« Tout est engagé » à 0 pile, sans rien mis de côté ni rien qui manque', () => {
+      const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), noCumuls);
+      expect(relykaZeroHero(b)!.word).toBe('Tout est engagé');
     });
   });
 

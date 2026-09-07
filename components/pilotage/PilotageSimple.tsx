@@ -102,6 +102,11 @@ export interface PilotageSimpleProps {
   /** Fourchette du Relyka quand la confiance n'est pas haute. Le GRAND CHIFFRE reste le Relyka :
    *  la fourchette se lit en dessous, jamais à sa place (règle commune avec RelykaColumns). */
   relykaRange?: { low: number; high: number; isRange: boolean };
+  /**
+   * Relyka à 0 : le mot qui remplace le chiffre, et le montant repoussé en sous-titre.
+   * `null`/absent au-dessus de zéro — c'est alors le chiffre qui porte l'information.
+   */
+  relykaZero?: { word: string; sub: string } | null;
   /** Ancres du guide utilisateur (facultatives). */
   heroRef?: React.RefObject<any>;
   recoRef?: React.RefObject<any>;
@@ -147,11 +152,26 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
 
   // Le chiffre principal est TOUJOURS le Relyka — jamais une borne de fourchette (même règle que
   // RelykaColumns). L'incertitude est portée par le badge d'état et la fourchette, en dessous.
-  const bigLabel = fmt(p.relykaAmount);
+  /* ── SAUF À ZÉRO ──────────────────────────────────────────────────────────────────────────────
+     « 0 € » en grand est exact et ne dit rien : l'argent est placé, engagé, ou il manque — trois
+     situations opposées, un seul chiffre. Le mot prend alors la place du montant (cf.
+     `relykaZeroHero`, qui décide des mots), et le montant descend juste en dessous : il n'est pas
+     caché, il cesse d'être la seule chose qu'on lise. */
+  /* SAUF pendant l'installation : `heroHint` dit alors « Ton Relyka est à 0 € : il n'a encore rien
+     à calculer ». Poser « Tout est engagé » au-dessus de cette phrase la contredirait mot pour mot,
+     et affirmerait un choix que personne n'a fait. Le zéro est ici la bonne réponse — c'est le
+     `heroHint`, juste en dessous, qui explique ce qui manque. */
+  const zero = p.heroHint ? null : p.relykaZero;
+  const bigLabel = zero ? zero.word : fmt(p.relykaAmount);
   /* Taille du chiffre principal, calculée à partir de sa LONGUEUR (cf. le rendu plus bas : on ne
      peut pas compter sur `adjustsFontSizeToFit`). Les seuils correspondent aux paliers réels :
-     « 1 250 € » (7) tient en 40 ; « 128 400 € » (9) et « 1 284 000 CHF » (13) ont besoin de moins. */
-  const heroFontSize = bigLabel.length > 14 ? 26
+     « 1 250 € » (7) tient en 40 ; « 128 400 € » (9) et « 1 284 000 CHF » (13) ont besoin de moins.
+     Un MOT n'a pas la même densité qu'un montant (pas de chiffres larges, pas de séparateurs) :
+     il garde sa propre échelle, sinon « Budget dépassé » (14 caractères) tombait à 26 px et le
+     titre principal de l'écran devenait plus petit que ses propres sous-titres. */
+  const heroFontSize = zero
+    ? (bigLabel.length > 13 ? 29 : 33)
+    : bigLabel.length > 14 ? 26
     : bigLabel.length > 11 ? 30
     : bigLabel.length > 8 ? 35
     : 40;
@@ -243,6 +263,10 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             <Text style={[styles.heroInfoText, { color: p.relykaColor }]}>i</Text>
           </View>
         </TouchableOpacity>
+
+        {/* Le montant que le mot a remplacé — en clair, juste dessous. Remplacer un chiffre par une
+            phrase ne doit jamais revenir à l'escamoter : on lit le sens d'abord, le montant ensuite. */}
+        {zero && <Text style={styles.heroZeroSub}>{zero.sub}</Text>}
 
         {/* FOURCHETTE — sous le montant, jamais à sa place.
             Le grand chiffre reste le Relyka : remplacer un Relyka de 1 266 € par « jusqu'à
@@ -569,6 +593,9 @@ function makeStyles(c: any) {
     },
     heroInfoText: { fontSize: 10.5, fontWeight: '800', lineHeight: 14 },
     heroHint: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
+    /* Le montant repoussé sous le mot (Relyka à 0). Même graisse que les bornes de la fourchette,
+       à la même place : c'est la même fonction — préciser le grand libellé sans le concurrencer. */
+    heroZeroSub: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textAlign: 'center', marginTop: 1 },
 
     // Fourchette : discrète, sous le montant. Deux bornes séparées par un point médian.
     rangeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },

@@ -14,7 +14,7 @@
  * Ce qui reste ici : la coquille, l'en-tête et l'aiguillage. Cf. docs/PLAN_REFACTOR_TESTS.md.
  */
 import { useMemo, useState } from 'react';
-import { View, Text, Modal, Pressable, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, Modal, Pressable, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { type RatesMap } from '../../lib/finance/currency';
 import { semanticText, type AppColors } from '../../theme/palette';
@@ -100,8 +100,27 @@ export default function DetailModal({
 
   return (
     <Modal visible={detailKey !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.detailOverlay} onPress={onClose}>
-        <Pressable style={[styles.detailBox, isDesktop && styles.detailBoxDesktop]} onPress={() => {}}>
+      {/* ── POURQUOI LE FOND N'ENVELOPPE PLUS LA CARTE ────────────────────────────────────────────
+          La carte était un `Pressable` (avec un `onPress` vide, juste pour que le tap ne traverse
+          pas jusqu'au fond) posé AUTOUR du `ScrollView`. Or un pressable capte le toucher dès qu'il
+          se pose : partout où le doigt ne tombait pas sur une ligne tapable — le pavé du total, les
+          barres, les paragraphes d'explication, les marges — c'est lui qui prenait le geste, et le
+          défilement ne partait pas. On ne pouvait faire glisser la modale qu'en visant certaines
+          zones, ce qui donne l'impression que « le scroll marche par endroits ».
+          Le fond est donc désormais un FRÈRE de la carte (un calque en dessous, sur toute la
+          surface) au lieu d'être son parent : taper à côté ferme toujours, mais plus rien ne
+          s'interpose entre le doigt et le `ScrollView`. Le geste part de n'importe où. */}
+      <View style={styles.detailOverlay}>
+        {/* Pas d'étiquette d'accessibilité : ce calque double le bouton « Fermer » de l'en-tête,
+            qui reste le chemin annoncé. Deux cibles « Fermer » dans la même modale ne rendraient
+            pas la lecture d'écran plus riche, seulement ambiguë. */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessible={false}
+          importantForAccessibility="no"
+        />
+        <View style={[styles.detailBox, isDesktop && styles.detailBoxDesktop]}>
           {shownKey && pilotageData && (() => {
             const detailKey = shownKey; // la vue affichée, qui survit au fondu de sortie
             const refCode = profile?.currency_code ?? 'EUR';
@@ -134,7 +153,13 @@ export default function DetailModal({
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView style={{ maxHeight: scrollMaxHeight }} showsVerticalScrollIndicator={false}>
+                {/* `keyboardShouldPersistTaps` : un tap sur une ligne pendant qu'un clavier est
+                    ouvert ne doit pas être mangé par la fermeture du clavier. */}
+                <ScrollView
+                  style={{ maxHeight: scrollMaxHeight }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
                   {detailKey === 'checking' && (
                     <>
                       {suiviDetail.checking.map((a) => (
@@ -203,8 +228,8 @@ export default function DetailModal({
               </>
             );
           })()}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
