@@ -11,13 +11,13 @@ import { useLandingConfig } from '../config/useLandingConfig';
 import { getCachedAdminTheme, subscribeThemeCache, themeCacheVersion } from '../../lib/platform/themeBoot';
 import { buildColors, type AppColors, type ThemeMode } from '../../theme/palette';
 
-export function useBrandColors(): AppColors {
+export function useBrandColors(previewMode?: ThemeMode): AppColors {
   const { data: styleConfig } = useStyleConfig();
   const { data: landing } = useLandingConfig();
   // Avant la réponse réseau : dernier thème admin connu (localStorage web / AsyncStorage natif après
   // hydratation) → pas de flash sombre. L'abonnement re-render à l'hydratation du cache natif.
   useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
-  const mode = (landing?.theme ?? getCachedAdminTheme() ?? 'dark') as ThemeMode;
+  const mode = (previewMode ?? landing?.theme ?? getCachedAdminTheme() ?? 'dark') as ThemeMode;
   return useMemo(
     () => buildColors(mode, 'emerald', {
       cardAlpha: mode === 'light' ? styleConfig?.light.card_alpha : styleConfig?.dark.card_alpha,

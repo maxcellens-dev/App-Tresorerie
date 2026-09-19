@@ -3,7 +3,7 @@
  * app_config.landing et éditée en admin. Tout est data-driven : textes, images,
  * fonctionnalités, statistiques, liens du menu et du pied de page.
  *
- * Affichée uniquement sur web large (desktop). Sur mobile / web étroit → écran d'accueil classique.
+ * Affichée sur tous les navigateurs. L'application native garde son accueil dédié.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
@@ -12,6 +12,32 @@ import { setCachedAdminTheme } from '../../lib/platform/themeBoot';
 export interface LandingFeature { icon: string; title: string; text: string }
 export interface LandingStat { value: string; label: string }
 export interface LandingLink { label: string; anchor?: string; url?: string }
+
+export interface LandingMedia {
+  url: string;
+  alt: string;
+  fit: 'cover' | 'contain';
+  overlay: string;
+  opacity: number;
+}
+export interface LandingPresentation {
+  featuresEyebrow: string;
+  commitmentsTitle: string;
+  finalEyebrow: string;
+  previewLabel: string;
+  projectionTitle: string;
+  projectionPeriod: string;
+  transactionDate: string;
+  budgetLabel: string;
+  budgetValue: string;
+  budgetCaption: string;
+  projectLabel: string;
+  projectValue: string;
+  projectProgress: number;
+  heroMedia: LandingMedia;
+  productImage: LandingMedia;
+  finalImage: LandingMedia;
+}
 
 /**
  * RÉSEAU SOCIAL — un lien du pied de page (web bureau) et du bas de l'écran d'accueil (mobile).
@@ -44,7 +70,8 @@ export interface LandingSocials {
 }
 
 export interface LandingConfig {
-  /** Activer la landing desktop (sinon écran d'accueil classique partout). */
+  presentation: LandingPresentation;
+  /** Activer la landing web responsive (sinon écran d'accueil classique partout). */
   enabled: boolean;
   /** Thème visuel de la page d'accueil bureau : 'dark' (actuel) ou 'light' (clair, même accent). */
   theme: 'dark' | 'light';
@@ -84,6 +111,24 @@ export interface LandingConfig {
 }
 
 export const DEFAULT_LANDING: LandingConfig = {
+  presentation: {
+    featuresEyebrow: 'VOIR CLAIR. AVANCER SEREINEMENT.',
+    commitmentsTitle: 'Simple, dès le premier jour.',
+    finalEyebrow: 'LA SUITE COMMENCE AVEC TOI',
+    previewLabel: 'Aperçu illustratif · données de démonstration',
+    projectionTitle: 'Ta projection',
+    projectionPeriod: 'Ce mois-ci',
+    transactionDate: "Aujourd’hui",
+    budgetLabel: 'Ton budget libre',
+    budgetValue: '640 €',
+    budgetCaption: 'Après tes charges et tes projets',
+    projectLabel: 'Projet vacances',
+    projectValue: '1 800 € / 3 000 €',
+    projectProgress: 60,
+    heroMedia: { url: '', alt: 'Aperçu de Relyka', fit: 'contain', overlay: '#163D39', opacity: 0 },
+    productImage: { url: '', alt: 'Budget et projets dans Relyka', fit: 'contain', overlay: '#163D39', opacity: 0 },
+    finalImage: { url: '', alt: '', fit: 'cover', overlay: '#123B37', opacity: 65 },
+  },
   enabled: true,
   theme: 'dark',
   brandName: 'Relyka',
@@ -169,9 +214,16 @@ export function mergeLanding(stored: Partial<LandingConfig> | undefined): Landin
     ...DEFAULT_LANDING,
     ...stored,
     navLinks: stored.navLinks ?? DEFAULT_LANDING.navLinks,
-    features: stored.features && stored.features.length > 0 ? stored.features : DEFAULT_LANDING.features,
+    features: stored.features ?? DEFAULT_LANDING.features,
     stats: stored.stats ?? DEFAULT_LANDING.stats,
     footerLinks: stored.footerLinks ?? DEFAULT_LANDING.footerLinks,
+    presentation: {
+      ...DEFAULT_LANDING.presentation,
+      ...stored.presentation,
+      heroMedia: { ...DEFAULT_LANDING.presentation.heroMedia, ...stored.presentation?.heroMedia },
+      productImage: { ...DEFAULT_LANDING.presentation.productImage, ...stored.presentation?.productImage },
+      finalImage: { ...DEFAULT_LANDING.presentation.finalImage, ...stored.presentation?.finalImage },
+    },
     // Champ par champ : une config enregistrée avant l'ajout des réseaux reste valide.
     socials: { ...DEFAULT_LANDING.socials, ...(stored.socials ?? {}), items: stored.socials?.items ?? [] },
     mobileFeatures: stored.mobileFeatures && stored.mobileFeatures.length > 0 ? stored.mobileFeatures : DEFAULT_LANDING.mobileFeatures,
@@ -181,6 +233,9 @@ export function mergeLanding(stored: Partial<LandingConfig> | undefined): Landin
 export function useLandingConfig() {
   return useQuery({
     queryKey: [KEY],
+    // Persisted caches and Fast Refresh can supply the old schema without running
+    // queryFn. Normalize every observed result, not only fresh server responses.
+    select: mergeLanding,
     queryFn: async (): Promise<LandingConfig> => {
       if (!supabase) return DEFAULT_LANDING;
       /* ⚠️ Cette lecture ALIMENTE un formulaire que l'écran d'administration réécrit ENSUITE EN

@@ -55,6 +55,22 @@ export function useAppNameFontStyle(): { fontFamily: string; fontWeight?: 'norma
   return Platform.OS !== 'web' && isImported ? { fontFamily, fontWeight: 'normal' } : { fontFamily };
 }
 
+/** Opt-in native text style from the same font_family setting as FontApplier.
+ * Web keeps its central CSS. Native never requests an unavailable font family.
+ * Apply last so imported single-face fonts do not fall back to Roboto when bold. */
+export function useBodyFontStyle(): { fontFamily?: string; fontWeight?: 'normal' } {
+  const { data } = useStyleConfig();
+  useNativeFontsVersion();
+  const selected = data?.font_family?.trim();
+  const customFonts = data?.custom_fonts;
+  useEffect(() => {
+    if (Platform.OS !== 'web' && customFonts?.length) ensureNativeFonts(customFonts);
+  }, [customFonts]);
+  if (Platform.OS === 'web' || !selected || selected === 'System' || !isNativeFontReady(selected)) return {};
+  const imported = (customFonts ?? []).some(font => font.family === selected);
+  return imported ? { fontFamily: selected, fontWeight: 'normal' } : { fontFamily: selected };
+}
+
 /**
  * La police du nom est-elle DÉJÀ posée, ou le texte va-t-il changer d'aspect sous les yeux ?
  *

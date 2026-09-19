@@ -4,7 +4,7 @@
  * le bucket public « gamification » (préfixe landing/).
  */
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform, Image, Modal, useWindowDimensions } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,8 +17,12 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { supabase } from '../../../../lib/platform/supabase';
-import { useLandingConfig, useSaveLandingConfig, type LandingConfig, type LandingFeature, type LandingStat, type LandingLink, type LandingSocial } from '../../../../hooks/config/useLandingConfig';
+import { useLandingConfig, useSaveLandingConfig, mergeLanding, type LandingConfig, type LandingFeature, type LandingStat, type LandingLink, type LandingSocial } from '../../../../hooks/config/useLandingConfig';
 import SocialLinks from '../../../../components/marketing/SocialLinks';
+import LandingPage from '../../../../components/marketing/LandingPage';
+import WelcomeScreen from '../../../../components/marketing/WelcomeScreen';
+import LandingMediaEditor from '../../../../components/marketing/LandingMediaEditor';
+import type { LandingMedia, LandingPresentation } from '../../../../hooks/config/useLandingConfig';
 
 /**
  * RÉSEAUX PRÊTS À L'EMPLOI — un tap ajoute la ligne, il ne reste que l'URL à coller.
@@ -49,8 +53,13 @@ export default function AdminLanding() {
   const { data: loaded, isError, refetch } = useLandingConfig();
   const save = useSaveLandingConfig();
 
-  const [cfg, setCfg] = useState<LandingConfig | null>(null);
+  const [draft, setCfg] = useState<LandingConfig | null>(null);
+  // Normalize preserved editor state too (e.g. an open editor during Fast Refresh).
+  const cfg = useMemo(() => draft ? mergeLanding(draft) : null, [draft]);
   const [uploading, setUploading] = useState(false);
+  const [editorSection, setEditorSection] = useState('general');
+  const [preview, setPreview] = useState<'desktop' | 'mobile' | 'application' | null>(null);
+  const { width: screenWidth } = useWindowDimensions();
   /* Le retour d'action portait sa TONALITÉ dans son texte : la couleur se décidait par
      `msg.includes('Erreur')`. Un refus de Supabase qui ne contient pas ce mot — « new row violates
      row-level security policy », « Failed to fetch », et désormais tout refus lié aux droits
@@ -63,7 +72,7 @@ export default function AdminLanding() {
   const [socialsOpen, setSocialsOpen] = useState(false);
   const [openSocial, setOpenSocial] = useState<number | null>(null);
 
-  useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
+  useEffect(() => { if (loaded && !draft) setCfg(mergeLanding(loaded)); }, [loaded, draft]);
 
   /* ⚠️ NE JAMAIS OUVRIR LE FORMULAIRE SUR UNE LECTURE RATÉE : cet écran réécrit la configuration
      EN ENTIER. Partir de valeurs vides ou par défaut parce que la lecture n'a pas abouti, puis
@@ -87,7 +96,14 @@ export default function AdminLanding() {
     return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Page d'accueil" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
   }
 
-  const set = (patch: Partial<LandingConfig>) => setCfg({ ...cfg, ...patch });
+  const set = (patch: Partial<LandingConfig>) => setCfg(current => current ? { ...current, ...patch } : current);
+  const setPresentation = (patch: Partial<LandingPresentation>) => setCfg(current => current ? { ...current, presentation: { ...current.presentation, ...patch } } : current);
+  const setMedia = (key: 'heroMedia' | 'productImage' | 'finalImage', patch: Partial<LandingMedia>) => setCfg(current => current ? {
+    ...current, ...(key === 'heroMedia' && patch.url !== undefined ? { heroImage: patch.url } : {}),
+    presentation: { ...current.presentation, [key]: { ...current.presentation?.[key], ...patch } },
+  } : current);
+  const mediaEditor = (key: 'heroMedia' | 'productImage' | 'finalImage', label: string) => <LandingMediaEditor label={label} media={{ ...cfg.presentation[key], ...(key === 'heroMedia' ? { url: cfg.heroImage } : {}) }} colors={COLORS} uploading={uploading} onChange={patch => setMedia(key, patch)} onUpload={() => pickAndUpload(url => setMedia(key, { url }), 'image/png,image/jpeg,image/webp')} />;
+  const presentationField = (key: keyof LandingPresentation, label: string) => <Field key={key} label={label} value={String(cfg.presentation[key])} onChange={v => setPresentation({ [key]: v })} styles={styles} c={COLORS} />;
   const setFeature = (i: number, patch: Partial<LandingFeature>) => set({ features: cfg.features.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setMobileFeature = (i: number, patch: Partial<LandingFeature>) => set({ mobileFeatures: cfg.mobileFeatures.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setStat = (i: number, patch: Partial<LandingStat>) => set({ stats: cfg.stats.map((s, idx) => idx === i ? { ...s, ...patch } : s) });
@@ -119,7 +135,7 @@ export default function AdminLanding() {
     input.click();
   }
 
-  const uploadHero = () => pickAndUpload((url) => set({ heroImage: url }));
+
 
   /* ── Réseaux sociaux ─────────────────────────────────────────────────────────────────────── */
   const socials = cfg.socials;
@@ -152,11 +168,11 @@ export default function AdminLanding() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Page d'accueil" onBack={goBack} />
-        <Text style={styles.sub}>Deux présentations : « Bureau » (web grand écran) et « Mobile » (écran d'accueil de l'app). Les boutons mènent aux pages de connexion / inscription.</Text>
+        <Text style={styles.sub}>Deux présentations : « Site web » (ordinateur et téléphone) et « Application » (accueil natif). Les boutons mènent aux pages de connexion / inscription.</Text>
 
         {/* Onglets Bureau / Mobile → évite une page interminable. */}
         <View style={styles.tabsRow}>
-          {([['bureau', 'Bureau', 'desktop-outline'], ['mobile', 'Mobile', 'phone-portrait-outline']] as const).map(([id, label, icon]) => (
+          {([['bureau', 'Site web', 'desktop-outline'], ['mobile', 'Application', 'phone-portrait-outline']] as const).map(([id, label, icon]) => (
             <TouchableOpacity key={id} style={[styles.tabBtn, tab === id && styles.tabBtnActive]} onPress={() => setTab(id)} activeOpacity={0.8}>
               <Ionicons name={icon as any} size={16} color={tab === id ? COLORS.bg : COLORS.textSecondary} />
               <Text style={[styles.tabBtnText, tab === id && { color: COLORS.bg }]}>{label}</Text>
@@ -165,8 +181,17 @@ export default function AdminLanding() {
         </View>
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+          {tab === 'bureau' && <View style={styles.sectionNav}>
+            {([['general', 'Général'], ['hero', '01 · Hero'], ['features', '02 · Produit'], ['stats', '03 · Engagements'], ['final', '04 · Conclusion'], ['footer', '05 · Navigation & footer']] as const).map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: editorSection === key }} onPress={() => setEditorSection(key)} style={[styles.presetChip, { minHeight: 44 }, editorSection === key && { borderColor: COLORS.emerald }]}><Text style={styles.presetTxt}>{label}</Text></TouchableOpacity>)}
+          </View>}
+          <View style={styles.previewActions}>
+            <TouchableOpacity accessibilityRole="button" style={styles.addBtn} onPress={() => setPreview('desktop')}><Text style={styles.addText}>Aperçu bureau</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.addBtn} onPress={() => setPreview('mobile')}><Text style={styles.addText}>Aperçu site mobile</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.addBtn} onPress={() => setPreview('application')}><Text style={styles.addText}>Aperçu application installée</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.addBtn} onPress={persist} disabled={save.isPending || uploading}><Text style={styles.addText}>{save.isPending ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity>
+          </View>
           {/* Application mobile — commun aux deux présentations (badge « Google Play » sur l'accueil). */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'general' && { display: 'none' }]} >
             <Text style={styles.section}>Application mobile (Google Play)</Text>
             <Text style={styles.hint}>Lien vers la fiche de l'app sur le Play Store (Android). Un badge « Disponible sur Google Play » apparaît sur la page d'accueil (bureau + mobile web). Laisser vide pour le masquer.</Text>
             <Field label="Lien Google Play" value={cfg.androidStoreUrl ?? ''} onChange={(v) => set({ androidStoreUrl: v })} styles={styles} c={COLORS} />
@@ -175,7 +200,7 @@ export default function AdminLanding() {
           {/* ── RÉSEAUX SOCIAUX — commun aux deux présentations ────────────────────────────────
               Pied de page de la landing bureau, et bas de l'écran d'accueil mobile (à côté du
               badge Google Play en web mobile, seuls dans l'app native). */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'general' && { display: 'none' }]} >
             {/* Section REPLIÉE par défaut : ouverte en permanence, elle occupait la moitié de la
                 page alors qu'on n'y touche qu'une fois. Le résumé (nombre de réseaux) suffit. */}
             <TouchableOpacity style={styles.rowBetween} onPress={() => setSocialsOpen((v) => !v)} activeOpacity={0.7}>
@@ -361,9 +386,9 @@ export default function AdminLanding() {
 
           {tab === 'bureau' && (<>
           {/* Général */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'general' && { display: 'none' }]} >
             <View style={styles.rowBetween}>
-              <Text style={styles.section}>Activer la landing desktop</Text>
+              <Text style={styles.section}>Activer la landing web</Text>
               <Switch value={cfg.enabled} onValueChange={(v) => set({ enabled: v })} />
             </View>
 
@@ -390,19 +415,17 @@ export default function AdminLanding() {
           </View>
 
           {/* Héros */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'hero' && { display: 'none' }]} >
             <Text style={styles.section}>Héros</Text>
             <Field label="Badge (petit texte)" value={cfg.heroBadge} onChange={(v) => set({ heroBadge: v })} styles={styles} c={COLORS} />
             <Field label="Titre principal" value={cfg.heroTitle} onChange={(v) => set({ heroTitle: v })} multiline styles={styles} c={COLORS} />
             <Field label="Sous-titre" value={cfg.heroSubtitle} onChange={(v) => set({ heroSubtitle: v })} multiline styles={styles} c={COLORS} />
-            <Text style={styles.fieldLabel}>Image du visuel (sinon maquette stylée)</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TextInput style={[styles.input, { flex: 1 }]} value={cfg.heroImage} onChangeText={(v) => set({ heroImage: v })} placeholder="URL image" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'image d'en-tête" style={styles.uploadBtn} onPress={uploadHero} disabled={uploading}>
-                {uploading ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.hint}>Maquette (si pas d'image) :</Text>
+            {mediaEditor('heroMedia', 'Image du hero · 4:3 recommandé')}
+            <Text style={styles.hint}>Aperçu produit (si aucune image) :</Text>
+            {presentationField('previewLabel', 'Mention de démonstration (commune aux aperçus)')}
+            {presentationField('projectionTitle', 'Titre de la projection')}
+            {presentationField('projectionPeriod', 'Période de démonstration')}
+            {presentationField('transactionDate', 'Date de la transaction')}
             <Field label="Libellé du solde" value={cfg.heroBalanceLabel} onChange={(v) => set({ heroBalanceLabel: v })} styles={styles} c={COLORS} />
             <Field label="Montant du solde" value={cfg.heroBalanceValue} onChange={(v) => set({ heroBalanceValue: v })} styles={styles} c={COLORS} />
             <Field label="Libellé transaction" value={cfg.heroTxLabel} onChange={(v) => set({ heroTxLabel: v })} styles={styles} c={COLORS} />
@@ -410,13 +433,22 @@ export default function AdminLanding() {
           </View>
 
           {/* Fonctionnalités */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'features' && { display: 'none' }]} >
             <View style={styles.rowBetween}>
               <Text style={styles.section}>Fonctionnalités</Text>
               <TouchableOpacity onPress={() => set({ features: [...cfg.features, { icon: 'sparkles', title: 'Titre', text: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
             </View>
+            {presentationField('featuresEyebrow', 'Surtitre de la section')}
             <Field label="Titre de section" value={cfg.featuresTitle} onChange={(v) => set({ featuresTitle: v })} styles={styles} c={COLORS} />
             <Field label="Sous-titre de section" value={cfg.featuresSubtitle} onChange={(v) => set({ featuresSubtitle: v })} multiline styles={styles} c={COLORS} />
+            {mediaEditor('productImage', 'Image produit · 4:3 recommandé')}
+            {presentationField('budgetLabel', 'Aperçu : titre du budget')}
+            {presentationField('budgetValue', 'Aperçu : budget disponible')}
+            {presentationField('budgetCaption', 'Aperçu : explication du budget')}
+            {presentationField('projectLabel', 'Aperçu : nom du projet')}
+            {presentationField('projectValue', 'Aperçu : montant du projet')}
+            <Field label="Aperçu : progression du projet (0–100 %)" value={String(cfg.presentation.projectProgress)} onChange={v => { const n = Number(v); if (Number.isFinite(n)) setPresentation({ projectProgress: Math.max(0, Math.min(100, n)) }); }} styles={styles} c={COLORS} />
+            <Text style={styles.hint}>Les deux premières fonctionnalités accompagnent le grand aperçu. Les suivantes forment la liste ouverte en dessous.</Text>
             {cfg.features.map((f, i) => (
               <View key={i} style={styles.subCard}>
                 <View style={styles.rowBetween}>
@@ -431,11 +463,12 @@ export default function AdminLanding() {
           </View>
 
           {/* Statistiques */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'stats' && { display: 'none' }]} >
             <View style={styles.rowBetween}>
-              <Text style={styles.section}>Statistiques</Text>
+              <Text style={styles.section}>Engagements</Text>
               <TouchableOpacity onPress={() => set({ stats: [...cfg.stats, { value: '0', label: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
             </View>
+            {presentationField('commitmentsTitle', 'Titre des engagements')}
             {cfg.stats.map((s, i) => (
               <View key={i} style={styles.rowItem}>
                 <TextInput style={[styles.input, { width: 90 }]} value={s.value} onChangeText={(v) => setStat(i, { value: v })} placeholder="100%" placeholderTextColor={COLORS.textSecondary} />
@@ -446,8 +479,10 @@ export default function AdminLanding() {
           </View>
 
           {/* CTA final + footer */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'final' && { display: 'none' }]} >
             <Text style={styles.section}>Appel à l'action final</Text>
+            {presentationField('finalEyebrow', 'Surtitre de conclusion')}
+            {mediaEditor('finalImage', 'Fond de conclusion · paysage 16:9 recommandé')}
             <Field label="Titre" value={cfg.finalTitle} onChange={(v) => set({ finalTitle: v })} styles={styles} c={COLORS} />
             <Field label="Sous-titre" value={cfg.finalSubtitle} onChange={(v) => set({ finalSubtitle: v })} multiline styles={styles} c={COLORS} />
           </View>
@@ -457,7 +492,7 @@ export default function AdminLanding() {
               mais éditables NULLE PART : le menu de la page d'accueil était le seul élément de
               cette page qu'on ne pouvait pas corriger d'ici. Un libellé qui ne décrit plus sa
               section — parce qu'on a changé les chiffres ou renommé un bloc — restait faux. */}
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'footer' && { display: 'none' }]} >
             <View style={styles.rowBetween}>
               <Text style={styles.section}>Menu du haut</Text>
               <TouchableOpacity onPress={() => set({ navLinks: [...cfg.navLinks, { label: 'Lien', anchor: 'features' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
@@ -477,7 +512,7 @@ export default function AdminLanding() {
             </Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, tab === 'bureau' && editorSection !== 'footer' && { display: 'none' }]} >
             <View style={styles.rowBetween}>
               <Text style={styles.section}>Pied de page</Text>
               <TouchableOpacity onPress={() => set({ footerLinks: [...cfg.footerLinks, { label: 'Lien', anchor: 'login' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
@@ -524,12 +559,27 @@ export default function AdminLanding() {
           </View>
           )}
 
-          <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={persist} disabled={save.isPending}>
+          <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={persist} disabled={save.isPending || uploading}>
             {save.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveLabel}>Enregistrer la page d'accueil</Text>}
           </TouchableOpacity>
           {msg && <Text style={[styles.msg, { color: msg.ok ? COLORS.emerald : COLORS.danger }]}>{msg.text}</Text>}
         </KeyboardAwareScrollView>
       </SafeAreaView>
+      <Modal visible={preview !== null} animationType="slide" onRequestClose={() => setPreview(null)}>
+        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <View style={{ padding: 12, flexDirection: 'row', flexShrink: 0, justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <Text style={[styles.section, { flex: 1 }]}>Aperçu non enregistré · {preview === 'application' ? 'application installée' : preview === 'mobile' ? 'site mobile' : 'bureau'}</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setPreview(null)} style={styles.addBtn}><Text style={styles.addText}>Fermer</Text></TouchableOpacity>
+          </View>
+          <ScrollView horizontal contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+            <View style={{ width: preview === 'desktop' ? Math.max(1100, screenWidth) : Math.min(390, screenWidth) }}>
+              {preview === 'application'
+                ? <WelcomeScreen previewConfig={cfg} previewWidth={Math.min(390, screenWidth)} />
+                : <LandingPage previewConfig={cfg} previewWidth={preview === 'desktop' ? Math.max(1100, screenWidth) : Math.min(390, screenWidth)} />}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -538,7 +588,7 @@ function Field({ label, value, onChange, multiline, styles, c }: { label: string
   return (
     <>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput style={[styles.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]} value={value} onChangeText={onChange} multiline={multiline} placeholderTextColor={c.textSecondary} />
+      <TextInput style={[styles.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]} accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} placeholderTextColor={c.textSecondary} />
     </>
   );
 }
@@ -548,7 +598,9 @@ function makeStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     sub: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
-    tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    tabsRow: { flexDirection: 'row', flexShrink: 0, gap: 8, marginBottom: 12 },
+    sectionNav: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 0, gap: 8, marginBottom: 12 },
+    previewActions: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 0, gap: 8, marginBottom: 12 },
     tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     tabBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     tabBtnText: { fontSize: 13.5, fontWeight: '700', color: c.textSecondary },
