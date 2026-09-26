@@ -370,7 +370,7 @@ function PilotageScreen() {
         ['profile', profileQuery], ['rates', ratesQuery], ['reliability', reliabilityQuery], ['shared', sharedQuery],
       ].filter(([, q]) => typeof q !== 'string' && q.isError).map(([name]) => name),
     });
-  });
+  }, queryClient);
   const paintReady = readiness.ready;
   const baseDataReady = readiness.ready;
 
@@ -614,6 +614,18 @@ function PilotageScreen() {
       <ScreenGradient />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+        {(readiness.updating || readiness.failed || isOffline) && (
+          <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+            <Text style={{ color: COLORS.textSecondary }}>
+              {isOffline ? 'Hors connexion · dernières données disponibles'
+                : readiness.failed ? 'Actualisation interrompue · dernières données disponibles'
+                : 'Actualisation en cours…'}
+            </Text>
+            {readiness.failed && <TouchableOpacity onPress={readiness.retry} accessibilityRole="button">
+              <Text style={{ color: COLORS.emerald }}>Réessayer</Text>
+            </TouchableOpacity>}
+          </View>
+        )}
         {/* Bandeau marge de sécurité */}
         {(pilotageData.safety_margin_amount ?? 0) > 0 &&
          pilotageData.total_checking < (pilotageData.safety_margin_amount ?? 0) && (
@@ -680,6 +692,7 @@ function PilotageScreen() {
           ) : null}
 
           <PilotageSimple
+            syncStatusLabel={isOffline ? 'Hors connexion' : readiness.failed ? 'À actualiser' : readiness.updating ? 'Actualisation…' : undefined}
               relykaAmount={relykaAffiche}
               // Couleur calculée par le view-model (relykaTone) : elle était recopiée ici, avec une
               // branche « rouge » qui ne pouvait jamais se déclencher.
@@ -706,6 +719,7 @@ function PilotageScreen() {
               checkingBalance={pilotageData.current_checking_balance ?? 0}
               spentThisMonth={monthExpensesPast}
               variableRemaining={pilotageData.variable_envelope_remaining ?? 0}
+              variableSource={pilotageData.variable_envelope_source}
               // Déjà saisies pour les jours à venir : hors de l'estimation (elles pèsent déjà sur le
               // Relyka via le point bas), mais bien présentes dans « ce qui va encore sortir ».
               variablePlanned={pilotageData.variable_envelope_planned ?? 0}

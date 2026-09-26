@@ -63,11 +63,13 @@ export async function synchronizeFinances(profileId: string, today: string, d: S
 
   // Lire la révision AVANT les événements : une édition concurrente fera refuser la publication.
   const credits = await d.loadCredits();
-  const events = await d.loadEvents();
+  const events = credits.length ? await d.loadEvents() : {};
   const active = new Set(accounts.map(a => a.id));
+  let needsCreditMaterialization = false;
   for (const c of credits) {
     if (!['owner', 'write'].includes(c._role ?? '') || !c.is_active || c.is_simulation || !c.account_id || !active.has(c.account_id)) continue;
     if (c.materialized_until == null) throw new Error('La synchronisation des crédits nécessite une mise à jour du serveur.');
+    if (c.materialized_until < today) needsCreditMaterialization = true;
     const rows: CreditOccurrence[] = (d.schedule ?? computeCreditSchedule)(c, events[c.id]);
     const hash = creditScheduleHash(rows);
     if (hash === c.schedule_hash) continue;
@@ -79,6 +81,6 @@ export async function synchronizeFinances(profileId: string, today: string, d: S
     });
     changed = true;
   }
-  if (credits.length) changed = Number(await call('materialize_credit_from_schedule', { p_today: today })) > 0 || changed;
+  if (needsCreditMaterialization) changed = Number(await call('materialize_credit_from_schedule', { p_today: today })) > 0 || changed;
   return changed;
 }

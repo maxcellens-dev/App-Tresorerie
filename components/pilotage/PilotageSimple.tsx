@@ -59,6 +59,7 @@ export interface PilotageSimpleProps {
   daysSinceVerification: number | null;
   /** Aucune vérification connue : on ne peut alors PAS écrire « Vérifié … ». */
   neverVerified?: boolean;
+  syncStatusLabel?: string;
   /**
    * L'utilisateur SUIT ses dépenses (cf. `entriesKeptUp`, confidenceEngine) — le doute vient du
    * point de départ jamais reconfirmé, pas de saisies manquantes.
@@ -84,6 +85,7 @@ export interface PilotageSimpleProps {
   checkingBalance: number;
   spentThisMonth: number;
   variableRemaining: number;
+  variableSource?: 'history' | 'onboarding' | 'none';
   /** Dépenses variables du mois DÉJÀ SAISIES pour les jours à venir : elles ne sont plus dans
    *  l'estimation (elles pèsent déjà sur le Relyka via le point bas) mais elles vont bien sortir. */
   variablePlanned?: number;
@@ -204,7 +206,11 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             est à jour, et plus de gros bouton qui rivalise avec le + juste à côté. */}
         <View style={styles.heroTop}>
           <Text style={styles.heroLabel}>Ton Relyka</Text>
-          {p.confidenceLevel === 'high' ? (
+          {p.syncStatusLabel ? (
+            <View style={styles.badge}>
+              <Text style={[styles.badgeText, { color: COLORS.textSecondary }]}>{p.syncStatusLabel}</Text>
+            </View>
+          ) : p.confidenceLevel === 'high' ? (
             <View style={[styles.badge, { backgroundColor: (COLORS.green ?? COLORS.emerald) + '1F', borderColor: (COLORS.green ?? COLORS.emerald) + '55' }]}>
               <Ionicons name="checkmark-circle" size={11} color={COLORS.green ?? COLORS.emerald} />
               <Text style={[styles.badgeText, { color: COLORS.green ?? COLORS.emerald }]}>À jour</Text>
@@ -468,8 +474,8 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
               <InfoDot term="enveloppe_variable" size={12} insidePressable />
             </View>
             <Text style={styles.lineHint}>
-              {p.recurringUpcomingCount > 0
-                ? `variables estimées + ${p.recurringUpcomingCount} récurrente${p.recurringUpcomingCount > 1 ? 's' : ''} à venir`
+              {p.variableSource === 'onboarding'
+                ? 'd’après ton estimation'
                 : 'estimé d’après tes habitudes'}
             </Text>
           </View>

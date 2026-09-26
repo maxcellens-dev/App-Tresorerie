@@ -1,4 +1,5 @@
 import { synchronizeFinances, createFinancialSynchronizer } from '../lib/finance/financialSync';
+import { creditScheduleHash } from '../lib/finance/creditMaterialization';
 
 const credit: any = { id: 'c', _role: 'owner', is_active: true, account_id: 'a', materialized_until: '2026-01-01', schedule_hash: 'old' };
 function harness() {
@@ -71,4 +72,16 @@ it('une sonde réseau en échec ne déclenche pas une rafale de RPC d’écritur
   const d = harness(); d.rpc.mockResolvedValue({ error: new Error('Network request failed') });
   await expect(synchronizeFinances('u', '2026-09-26', d)).rejects.toThrow('Network');
   expect(d.rpc).toHaveBeenCalledTimes(1);
+});
+
+it('ne relance pas la matérialisation des crédits déjà à jour', async () => {
+  const d = harness();
+  d.loadCredits.mockResolvedValue([{ ...credit, materialized_until: '2026-09-26', schedule_hash: creditScheduleHash(d.schedule()) }]);
+  await synchronizeFinances('u', '2026-09-26', d);
+  expect(d.rpc.mock.calls.some(c => c[0] === 'materialize_credit_from_schedule')).toBe(false);
+  expect(d.rpc.mock.calls.some(c => c[0] === 'publish_credit_schedule')).toBe(false);
+});
+it('sans crédit, ne charge pas les événements de crédit', async () => {
+  const d = harness(); await synchronizeFinances('u', '2026-09-26', d);
+  expect(d.loadEvents).not.toHaveBeenCalled();
 });

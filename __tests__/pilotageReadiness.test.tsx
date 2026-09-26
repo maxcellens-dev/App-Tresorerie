@@ -51,7 +51,7 @@ it('une ancienne réponse ne déverrouille pas un autre utilisateur', async () =
 
 it('récupère sans recharger après une invalidation concurrente des lectures complémentaires', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  client.setQueryData(['reserve'], { amount: 999 });
+  client.setQueryData(['reserve'], { amount: 999 }, { updatedAt: 1 });
   const first = deferred();
   const fetchReserve = jest.fn().mockImplementationOnce(() => first.promise.then(() => ({ amount: 999 })))
     .mockResolvedValue({ amount: 200 });
@@ -73,7 +73,7 @@ it('récupère sans recharger après une invalidation concurrente des lectures c
 
 it('se débloque après le rétablissement réseau sans actualisation de la page', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  client.setQueryData(['reserve'], { amount: 999 });
+  client.setQueryData(['reserve'], { amount: 999 }, { updatedAt: 1 });
   const fetchReserve = jest.fn().mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValue({ amount: 200 });
   const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const { result, unmount } = renderHook(() => {
@@ -125,4 +125,48 @@ it('ne relance pas une erreur permanente et annule la reprise au démontage', as
   await act(async () => jest.advanceTimersByTime(10000));
   expect(main.refetch).toHaveBeenCalledTimes(1);
   jest.useRealTimers();
+});
+
+it('retour immédiat sur Pilotage : aucune nouvelle validation ni page masquée pendant un refetch', async () => {
+  const client = new QueryClient();
+  const main = query(); const extra = query();
+  const first = renderHook(() => usePilotageReadiness('u', false, main, [extra], undefined, client));
+  await waitFor(() => expect(first.result.current.ready).toBe(true));
+  first.unmount();
+  const back = renderHook(({ fetching }: { fetching: boolean }) => usePilotageReadiness('u', false,
+    { ...main, fetchStatus: fetching ? 'fetching' : 'idle' }, [extra], undefined, client), { initialProps: { fetching: false } });
+  expect(back.result.current.ready).toBe(true);
+  expect(main.refetch).toHaveBeenCalledTimes(1);
+  expect(extra.refetch).toHaveBeenCalledTimes(1);
+  back.rerender({ fetching: true });
+  expect(back.result.current.ready).toBe(true);
+  back.unmount(); client.clear();
+});
+
+it('garde le tableau validé visible en cas d’échec de mise à jour, sans le dire à jour', async () => {
+  const client = new QueryClient(); const main = query();
+  const first = renderHook(() => usePilotageReadiness('u', false, main, [], undefined, client));
+  await waitFor(() => expect(first.result.current.ready).toBe(true)); first.unmount();
+  const back = renderHook(() => usePilotageReadiness('u', false, { ...main, isSuccess: false, isError: true, dataUpdatedAt: Date.now(), error: new Error('offline') }, [], undefined, client));
+  expect(back.result.current.ready).toBe(true);
+  expect(back.result.current.failed).toBe(true);
+  back.unmount(); client.clear();
+});
+
+it('réutilise les lectures réseau du démarrage sans seconde vague de requêtes', async () => {
+  const main = { ...query(), dataUpdatedAt: Date.now() };
+  const extra = { ...query(), dataUpdatedAt: Date.now() };
+  const { result } = renderHook(() => usePilotageReadiness('u', false, main, [extra]));
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(main.refetch).not.toHaveBeenCalled(); expect(extra.refetch).not.toHaveBeenCalled();
+});
+
+it('un nouveau lancement attend la validation du cache ancien même si les données sont présentes', async () => {
+  const client = new QueryClient(); const pending = deferred();
+  const main = { ...query(jest.fn(() => pending.promise)), dataUpdatedAt: 1 };
+  const { result, unmount } = renderHook(() => usePilotageReadiness('u', false, main, [], undefined, client));
+  expect(result.current.ready).toBe(false);
+  await act(async () => pending.resolve());
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  unmount(); client.clear();
 });
