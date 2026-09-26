@@ -52,62 +52,64 @@ export function useAccounts(profileId: string | undefined) {
  * veut voir les comptes partagés/joints (page Comptes, virements, détail de compte). Ne JAMAIS l'utiliser
  * pour des agrégats perso (pilotage/projection) → ça réintègrerait les comptes partagés.
  */
+export async function fetchAllAccounts(profileId: string): Promise<Account[]> {
+  if (!supabase || !profileId) return [];
+  const ownP = supabase.from('accounts').select('*').eq('profile_id', profileId).eq('is_active', true);
+  const memP = supabase.from('account_members').select('account_id, role').eq('user_id', profileId);
+  const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
+  if (ownErr) throw ownErr;
+  /* Mes appartenances : c'est ce qui fait exister les comptes PARTAGÉS dans cette liste. Une
+     lecture ratée les faisait tous disparaître, sans distinction d'avec « je n'en ai aucun ». */
+  if (memRes?.error) throw memRes.error;
+
+  const roleById: Record<string, string> = {};
+  const memberIds: string[] = [];
+  for (const m of (memRes?.data ?? []) as any[]) { roleById[m.account_id] = m.role; memberIds.push(m.account_id); }
+
+  let memberAccounts: any[] = [];
+  if (memberIds.length > 0) {
+    const { data: ma, error: maErr } = await supabase
+      .from('accounts').select('*').in('id', memberIds).eq('is_active', true).order('name');
+    if (maErr) throw maErr;
+    memberAccounts = (ma ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
+  }
+
+  const ownMapped = (own ?? []).map((r) => mapAccount(r, profileId, roleById));
+  const memMapped = memberAccounts.map((r) => mapAccount(r, profileId, roleById));
+  const all = [...ownMapped, ...memMapped];
+
+  // #5 — % d'impact effectif par compte partagé/joint. On compte TOUS les participants (owner +
+  // tous les membres) pour la part égale auto (100/N), et on lit le % explicite du participant courant.
+  const sharedIds = all.filter((a) => a.is_joint || a._role !== 'owner').map((a) => a.id);
+  if (sharedIds.length > 0) {
+    /* ⚠️ Cette lecture donne le NOMBRE DE PARTICIPANTS, donc la part de chacun. Son erreur était
+       avalée : `_impact_pct` restait alors indéfini, et tout ce qui le lit retombe sur 100 %
+       (cf. useUserSnapshot, useCreditFlows). Un compte joint partagé à deux comptait donc pour
+       sa totalité — une panne réseau doublait la contribution d'autrui dans les chiffres. */
+    const { data: allMembers, error: membersErr } = await supabase
+      .from('account_members').select('account_id, user_id, impact_pct').in('account_id', sharedIds);
+    if (membersErr) throw membersErr;
+    const membersByAcct: Record<string, any[]> = {};
+    for (const m of (allMembers ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
+    for (const a of all) {
+      if (!sharedIds.includes(a.id)) continue;
+      const members = membersByAcct[a.id] ?? [];
+      const N = 1 + members.length; // owner + membres (users ou non)
+      const myExplicit = a._role === 'owner'
+        ? (a.owner_impact_pct ?? null)
+        : (members.find((m) => m.user_id === profileId)?.impact_pct ?? null);
+      a._impact_pct = effectiveImpactPct(myExplicit, N);
+    }
+  }
+  // Ordre UNIQUE de l'app (défaut → type → nom), appliqué À LA SOURCE. Cf. lib/accountOrder.
+  return sortAccounts(all);
+}
+
 export function useAllAccounts(profileId: string | undefined) {
   return useQuery({
     queryKey: [KEY, profileId, 'all'],
     enabled: !!profileId,
-    queryFn: async (): Promise<Account[]> => {
-      if (!supabase || !profileId) return [];
-      const ownP = supabase.from('accounts').select('*').eq('profile_id', profileId).eq('is_active', true);
-      const memP = supabase.from('account_members').select('account_id, role').eq('user_id', profileId);
-      const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
-      if (ownErr) throw ownErr;
-      /* Mes appartenances : c'est ce qui fait exister les comptes PARTAGÉS dans cette liste. Une
-         lecture ratée les faisait tous disparaître, sans distinction d'avec « je n'en ai aucun ». */
-      if (memRes?.error) throw memRes.error;
-
-      const roleById: Record<string, string> = {};
-      const memberIds: string[] = [];
-      for (const m of (memRes?.data ?? []) as any[]) { roleById[m.account_id] = m.role; memberIds.push(m.account_id); }
-
-      let memberAccounts: any[] = [];
-      if (memberIds.length > 0) {
-        const { data: ma, error: maErr } = await supabase
-          .from('accounts').select('*').in('id', memberIds).eq('is_active', true).order('name');
-        if (maErr) throw maErr;
-        memberAccounts = (ma ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
-      }
-
-      const ownMapped = (own ?? []).map((r) => mapAccount(r, profileId, roleById));
-      const memMapped = memberAccounts.map((r) => mapAccount(r, profileId, roleById));
-      const all = [...ownMapped, ...memMapped];
-
-      // #5 — % d'impact effectif par compte partagé/joint. On compte TOUS les participants (owner +
-      // tous les membres) pour la part égale auto (100/N), et on lit le % explicite du participant courant.
-      const sharedIds = all.filter((a) => a.is_joint || a._role !== 'owner').map((a) => a.id);
-      if (sharedIds.length > 0) {
-        /* ⚠️ Cette lecture donne le NOMBRE DE PARTICIPANTS, donc la part de chacun. Son erreur était
-           avalée : `_impact_pct` restait alors indéfini, et tout ce qui le lit retombe sur 100 %
-           (cf. useUserSnapshot, useCreditFlows). Un compte joint partagé à deux comptait donc pour
-           sa totalité — une panne réseau doublait la contribution d'autrui dans les chiffres. */
-        const { data: allMembers, error: membersErr } = await supabase
-          .from('account_members').select('account_id, user_id, impact_pct').in('account_id', sharedIds);
-        if (membersErr) throw membersErr;
-        const membersByAcct: Record<string, any[]> = {};
-        for (const m of (allMembers ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
-        for (const a of all) {
-          if (!sharedIds.includes(a.id)) continue;
-          const members = membersByAcct[a.id] ?? [];
-          const N = 1 + members.length; // owner + membres (users ou non)
-          const myExplicit = a._role === 'owner'
-            ? (a.owner_impact_pct ?? null)
-            : (members.find((m) => m.user_id === profileId)?.impact_pct ?? null);
-          a._impact_pct = effectiveImpactPct(myExplicit, N);
-        }
-      }
-      // Ordre UNIQUE de l'app (défaut → type → nom), appliqué À LA SOURCE. Cf. lib/accountOrder.
-      return sortAccounts(all);
-    },
+    queryFn: () => fetchAllAccounts(profileId ?? ''),
   });
 }
 

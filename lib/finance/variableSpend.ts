@@ -43,8 +43,12 @@ export function isBudgetExpense(t: any, accountTypeById: AccountTypeMap): boolea
  * et `materialized_from` renseigné : sans ce second test, chaque loyer déjà matérialisé
  * basculerait en « variable » et gonflerait à la fois l'historique et le dépensé du mois.
  */
+export function isRecurringOccurrence(t: any): boolean {
+  return Boolean(t?.materialized_from) || Boolean(t?.is_recurring_occurrence);
+}
+
 export function isRecurringTx(t: any): boolean {
-  return (Boolean(t.is_recurring) && Boolean(t.recurrence_rule)) || Boolean(t.materialized_from);
+  return Boolean(t?.is_recurring) || isRecurringOccurrence(t) || Boolean(t?.credit_kind);
 }
 
 /** Bornes d'une fenêtre de calcul. `prefix` = 'YYYY-MM' (un mois) ou 'YYYY' (une année). */

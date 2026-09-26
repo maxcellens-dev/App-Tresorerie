@@ -105,6 +105,16 @@ function setup(over: Setup = {}) {
 }
 
 describe('Conseils Intelligents — affichage du compteur', () => {
+  it('ouvre un fil neuf au lancement même si des analyses existent dans l’historique', async () => {
+    const { conversations } = setup();
+    conversations.push({ id: 'ancienne', profile_id: 'u1', title: 'Analyse précédente', created_at: '2026-08-22T10:00:00Z', updated_at: '2026-08-22T10:00:00Z' });
+    const { unmount } = renderWithProviders(<ConseilsIaScreen />);
+    await waitFor(() => expect(screen.getByText(/Nouvelle conversation/)).toBeOnTheScreen());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 100)); });
+    expect(screen.getByText(/Nouvelle conversation/)).toBeOnTheScreen();
+    expect(screen.queryByText('Analyse précédente')).toBeNull();
+    unmount();
+  });
   it('affiche « X / Y requêtes » une fois le quota lu', async () => {
     setup({ quota: { limit: 10, remaining: 8, extra_credits: 5 } });
     renderWithProviders(<ConseilsIaScreen />);

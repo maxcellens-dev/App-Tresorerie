@@ -1,3 +1,4 @@
+import { isRecurringTx } from '../../../lib/finance/variableSpend';
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import PageLoader from '../../../components/layout/PageLoader';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList, TextInput } from 'react-native';
@@ -706,7 +707,7 @@ function TransactionsListBody() {
     // Une occurrence matérialisée (ligne réelle issue d'un modèle récurrent,
     // is_recurring=false mais materialized_from rempli) fait partie d'une série :
     // on lui donne aussi le tag « récurrent » pour que l'utilisateur le sache.
-    const isRecurring = (item.is_recurring || !!(item as any).materialized_from) && !isProject;
+    const isRecurring = isRecurringTx(item);
     const isReservation = isProject && Number(item.amount) === 0;
     const amt = Number(item.amount);
     const acctType = item.account?.type ?? 'checking';

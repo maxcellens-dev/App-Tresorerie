@@ -13,7 +13,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
-import { APP_VERSION } from './appVersion';
+import { APP_VERSION, BUNDLE_VERSION, APP_BUILD } from './appVersion';
 import { getCurrentRoute } from '../ui/navHistory';
 
 type Kind = 'error' | 'fatal' | 'unhandled_rejection';
@@ -58,7 +58,7 @@ export async function reportError(
       p_platform: Platform.OS,
       p_app_version: APP_VERSION,
       p_runtime_version: RUNTIME_VERSION,
-      p_context: context ?? null,
+      p_context: { bundle_version: BUNDLE_VERSION, native_build: APP_BUILD, ...context },
     });
     // Notifie les admins (push + historique), THROTTLÉ côté serveur. Best-effort : ne bloque jamais.
     // (Requiert une session : un crash sur l'écran d'auth ne notifie pas, mais reste dans le journal.)
@@ -104,6 +104,7 @@ export function installGlobalErrorReporting(): void {
           'unhandled_rejection',
           reason?.message ?? String(reason ?? 'Unhandled promise rejection'),
           reason?.stack ?? null,
+          { error_name: reason?.name ?? null, where: 'unhandledrejection' },
         );
       });
     }

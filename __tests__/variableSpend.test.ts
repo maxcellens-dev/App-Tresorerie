@@ -58,7 +58,7 @@ describe('isRecurringTx — « variable » = tout ce qui n’est PAS récurrent'
     expect(isRecurringTx(tx({ is_recurring: false, materialized_from: 'tpl1' }))).toBe(true);
   });
   it('un drapeau `is_recurring` sans règle ne suffit pas', () => {
-    expect(isRecurringTx(tx({ is_recurring: true }))).toBe(false);
+    expect(isRecurringTx(tx({ is_recurring: true }))).toBe(true);
   });
   it('une dépense ponctuelle ne l’est pas', () => {
     expect(isRecurringTx(tx())).toBe(false);

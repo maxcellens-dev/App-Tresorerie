@@ -44,33 +44,35 @@ export function useCreditEvents(creditId: string | undefined) {
  * — téléchargés puis écrits dans le cache react-query persisté de son appareil. On borne donc la
  * lecture aux crédits réellement accessibles, comme le fait `useCredits`.
  */
+export async function fetchAllCreditEvents(profileId: string): Promise<Record<string, CreditEventRow[]>> {
+  if (!supabase || !profileId) return {};
+  // Crédits accessibles = les miens + ceux dont je suis membre (même règle que `useCredits`).
+  // Deux lectures d'identifiants seulement, en parallèle.
+  const [ownRes, memRes] = await Promise.all([
+    supabase.from('credits').select('id').eq('profile_id', profileId),
+    supabase.from('credit_members').select('credit_id').eq('user_id', profileId),
+  ]);
+  // Erreurs propagées : une lecture ratée n'est pas « aucun crédit ». La renvoyer en liste vide
+  // ferait disparaître les remboursements anticipés des flux, sans le moindre signe.
+  if (ownRes.error) throw ownRes.error;
+  if (memRes.error) throw memRes.error;
+  const ids = [...new Set([
+    ...((ownRes.data ?? []) as any[]).map((r) => r.id),
+    ...((memRes.data ?? []) as any[]).map((r) => r.credit_id),
+  ])];
+  if (ids.length === 0) return {};
+  const { data, error } = await supabase.from('credit_events').select('*').in('credit_id', ids).order('date');
+  if (error) throw error;
+  const byCredit: Record<string, CreditEventRow[]> = {};
+  for (const r of (data ?? [])) (byCredit[r.credit_id] ??= []).push(map(r));
+  return byCredit;
+}
+
 export function useAllCreditEvents(profileId: string | undefined) {
   return useQuery({
     queryKey: ['credit_events_all', profileId],
     enabled: !!profileId,
-    queryFn: async (): Promise<Record<string, CreditEventRow[]>> => {
-      if (!supabase || !profileId) return {};
-      // Crédits accessibles = les miens + ceux dont je suis membre (même règle que `useCredits`).
-      // Deux lectures d'identifiants seulement, en parallèle.
-      const [ownRes, memRes] = await Promise.all([
-        supabase.from('credits').select('id').eq('profile_id', profileId),
-        supabase.from('credit_members').select('credit_id').eq('user_id', profileId),
-      ]);
-      // Erreurs propagées : une lecture ratée n'est pas « aucun crédit ». La renvoyer en liste vide
-      // ferait disparaître les remboursements anticipés des flux, sans le moindre signe.
-      if (ownRes.error) throw ownRes.error;
-      if (memRes.error) throw memRes.error;
-      const ids = [...new Set([
-        ...((ownRes.data ?? []) as any[]).map((r) => r.id),
-        ...((memRes.data ?? []) as any[]).map((r) => r.credit_id),
-      ])];
-      if (ids.length === 0) return {};
-      const { data, error } = await supabase.from('credit_events').select('*').in('credit_id', ids).order('date');
-      if (error) throw error;
-      const byCredit: Record<string, CreditEventRow[]> = {};
-      for (const r of (data ?? [])) (byCredit[r.credit_id] ??= []).push(map(r));
-      return byCredit;
-    },
+    queryFn: () => fetchAllCreditEvents(profileId ?? ''),
   });
 }
 
@@ -101,6 +103,7 @@ export function useDeleteCreditEvent(profileId: string | undefined) {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['credit_events', v.credit_id] });
       qc.invalidateQueries({ queryKey: ['credit_events_all', profileId] });
+      qc.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }

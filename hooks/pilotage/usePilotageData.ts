@@ -3,7 +3,7 @@
  * préchargement. Le CALCUL, lui, vit dans `lib/pilotageEngine` : séparés, il devient testable sans
  * réseau ni module natif (cf. docs/PLAN_REFACTOR_TESTS.md).
  */
-import { useQuery, type QueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { type RatesMap } from '../../lib/finance/currency';
 import { fetchSharedContribution, buildSharedContribution } from '../data/useSharedContribution';
@@ -11,6 +11,13 @@ import { buildCreditPilotTxs } from '../data/useCreditFlows';
 import { computePilotageData, type PilotageInput, type TransactionWithCategory } from '../../lib/finance/pilotageEngine';
 import { isoDay } from '../../lib/dateUtils';
 import type { Account, Project, Profile } from '../../types/database';
+import { createFinancialSynchronizer } from '../../lib/finance/financialSync';
+import { fetchCredits } from '../data/useCredits';
+import { fetchAllAccounts } from '../data/useAccounts';
+import { fetchAllCreditEvents } from '../data/useCreditEvents';
+import { reportError } from '../../lib/platform/errorReporting';
+
+const synchronizeFinances = createFinancialSynchronizer();
 
 /* Réexports : le moteur est la source de vérité de ces types, mais une vingtaine de fichiers les
    importent historiquement depuis ce hook. On ne casse pas ces chemins pour un déplacement interne. */
@@ -137,6 +144,9 @@ async function fetchPilotageLegacy(profileId: string, histStart: string): Promis
   if (transactionsRes.error) throw transactionsRes.error;
   if (projectsRes.error) throw projectsRes.error;
   if (qaRes.error) throw qaRes.error;
+  for (const result of [ratesRes, overridesRes, creditsRes, creditEvtRes, closuresRes]) {
+    if (result.error) throw result.error;
+  }
 
   return {
     profile: profileRes.data ?? null,
@@ -144,7 +154,7 @@ async function fetchPilotageLegacy(profileId: string, histStart: string): Promis
     transactions: transactionsRes.data ?? [],
     projects: projectsRes.data ?? [],
     questionnaire: qaRes.data ?? null,
-    // Taux : non bloquant (si erreur → EUR seul ; la conversion laissera les montants tels quels).
+    // Une lecture en erreur ne devient jamais une liste vide.
     rates: (ratesRes.data ?? []) as { code: string; rate: number }[],
     overrides: (overridesRes.data ?? []) as PilotageRaw['overrides'],
     credits: creditsRes.data ?? [],
@@ -154,7 +164,7 @@ async function fetchPilotageLegacy(profileId: string, histStart: string): Promis
   };
 }
 
-async function fetchPilotageData(profileId: string): Promise<{
+async function fetchPilotageData(profileId: string, qc: QueryClient): Promise<{
   profile: Profile | null;
   sharedFactor: Record<string, number>;
   sharedModeById: Record<string, string | null>;
@@ -167,6 +177,27 @@ async function fetchPilotageData(profileId: string): Promise<{
   rates: RatesMap;
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
+
+  try {
+    const changed = await synchronizeFinances(profileId, isoDay(new Date()), {
+      rpc: (name, args) => supabase!.rpc(name, args),
+      loadCredits: () => fetchCredits(profileId),
+      loadAccounts: () => fetchAllAccounts(profileId),
+      loadEvents: () => fetchAllCreditEvents(profileId),
+    });
+    if (changed) {
+      await Promise.all(['accounts', 'transactions', 'credits', 'credit_events_all', 'shared_contribution', 'transaction_month_overrides'].map(key =>
+        qc.invalidateQueries({ queryKey: key === 'transaction_month_overrides' ? [key] : [key, profileId] }),
+      ));
+    }
+  } catch (error: any) {
+    // Une partie des RPC a pu aboutir avant l'échec suivant. Les autres écrans doivent le relire.
+    await Promise.all(['accounts', 'transactions', 'credits', 'shared_contribution'].map(key =>
+      qc.invalidateQueries({ queryKey: [key, profileId] }),
+    ));
+    void reportError('error', `Synchronisation financière : ${error?.message ?? 'échec'}`, error?.stack, { where: 'fetchPilotageData' });
+    throw error;
+  }
 
   // FENÊTRAGE des transactions : le moteur Pilotage ne regarde JAMAIS plus de 6 mois en arrière
   // (revenu inféré 4 mois, revenu moyen 6 mois, net 3 mois, tendance/enveloppe variables 3-6 mois) ;
@@ -238,9 +269,9 @@ async function fetchPilotageData(profileId: string): Promise<{
 const PILOTAGE_STALE_MS = 45 * 1000;
 
 /** Clé + fetcher partagés entre le hook et le préchargement (une seule source de vérité). */
-const pilotageQueryOptions = (profileId: string) => ({
+const pilotageQueryOptions = (profileId: string, qc: QueryClient) => ({
   queryKey: ['pilotage_data', profileId],
-  queryFn: async () => computePilotageData(await fetchPilotageData(profileId)),
+  queryFn: async () => computePilotageData(await fetchPilotageData(profileId, qc)),
   staleTime: PILOTAGE_STALE_MS,
 });
 
@@ -252,12 +283,13 @@ const pilotageQueryOptions = (profileId: string) => ({
  */
 export function prefetchPilotageData(qc: QueryClient, profileId: string | undefined): void {
   if (!supabase || !profileId) return;
-  qc.prefetchQuery(pilotageQueryOptions(profileId)).catch(() => {});
+  qc.prefetchQuery(pilotageQueryOptions(profileId, qc)).catch(() => {});
 }
 
 export function usePilotageData(profileId: string | undefined) {
+  const qc = useQueryClient();
   return useQuery({
-    ...pilotageQueryOptions(profileId ?? ''),
+    ...pilotageQueryOptions(profileId ?? '', qc),
     enabled: !!profileId,
     // PERF : ce fetch est LOURD (toutes les transactions + jointures + partagés + crédits).
     // 45 s de fraîcheur → changer d'onglet ne re-télécharge pas tout ; les MUTATIONS (ajout/édition

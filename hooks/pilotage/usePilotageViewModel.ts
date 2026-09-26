@@ -227,13 +227,13 @@ export function usePilotageViewModel(input: PilotageViewModelInput): PilotageVie
       : tone === 'allocated' ? colors.blue
       : tone === 'negative' ? colors.danger
       : colors.orange;
-  }, [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.resteDisponibleBrut, colors]);
+  }, [breakdown, colors]);
 
   /* Le libellé qui prend la place du « 0 € » — même règle de tons que la couleur ci-dessus, donc
      même source (`relykaZeroHero`). L'écran l'affiche tel quel : il ne décide pas des mots. */
   const relykaZero = React.useMemo(
     () => relykaZeroHero(breakdown),
-    [breakdown.relykaAffiche, breakdown.relykaAlloueVolontairement, breakdown.resteDisponibleBrut, breakdown.misDeCoteTotal],
+    [breakdown],
   );
 
   /** Données de projection alimentant l'encadré contextuel des recos (les deux vues). */

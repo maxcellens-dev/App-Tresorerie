@@ -151,6 +151,12 @@ export function floorToTen(n: number): number {
   return Math.floor((n + 0.1) / 10) * 10;
 }
 
+/** Le petit Relyka est arrondi à l’unité (minimum positif de 1 €) ; les propositions gardent leur arrondi habituel. */
+export function displayRelyka(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n < 10 ? Math.max(1, Math.round(n)) : floorToTen(n);
+}
+
 /**
  * Libellé d'une fourchette de montants (bornes arrondies à la dizaine inférieure).
  * Borne basse nulle → « jusqu'à X » (ou « ≤ X » en compact) : un intervalle qui démarre à 0

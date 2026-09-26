@@ -11,7 +11,7 @@
  *
  * Cf. docs/PLAN_REFACTOR_TESTS.md, phase C2.
  */
-import { CURRENCY_SYMBOL, floorToTen, convertAmount, type RatesMap } from './currency';
+import { CURRENCY_SYMBOL, displayRelyka, convertAmount, type RatesMap } from './currency';
 import { buildMaterializedIndex, recurrenceForMonth } from './recurrenceMonth';
 import { relykaGross, relykaInputsFrom } from './relyka';
 import { isRegul } from './regul';
@@ -98,6 +98,8 @@ function monthKeyOfCreatedAt(createdAt: string | null | undefined): string | nul
 export interface RelykaBreakdown {
   cumulsTotal: number;
   safetyMarginDisplay: number;
+  /** Conservé/réservé uniquement, hors épargne et investissement. */
+  conservedTotal: number;
   variableEnvelopeRemaining: number;
   savingsRemaining: number;
   investRemaining: number;
@@ -107,6 +109,7 @@ export interface RelykaBreakdown {
   resteDisponible: number;
   relykaAffiche: number;
   troughDate: string | null;
+  horizonEnd?: string | null;
   nextIncomeDate: string | null;
   nextIncomeAmount: number;
   troughLimits: boolean;
@@ -164,10 +167,8 @@ export function computeRelykaBreakdown(
      recos, le Pouls et le bandeau « prochaine action ») : elle n'est plus recopiée ici. */
   const resteDisponibleBrut = relykaGross(inputs);
   const resteDisponible = Math.max(0, resteDisponibleBrut);
-  /* Montant Relyka tel qu'AFFICHÉ (dizaine inférieure). C'est LUI qui décide de la couleur et du
-     message, jamais le montant brut : entre 1 € et 9 €, la carte affichait « 0 € » tout en servant
-     le message « utilise ton Relyka librement » en vert (ex. 154 € − 150 € réservés = 4 €). */
-  const relykaAffiche = floorToTen(resteDisponible);
+  // Montant réel entre 0 et 10 ; dizaine habituelle au-delà. Le brut garde le signe du manque.
+  const relykaAffiche = displayRelyka(resteDisponible);
 
   /* ── Le point bas est une info À UNE DATE, pas un état permanent ────────────────────────────────
      Un salarié payé le 25 a mécaniquement un point bas faible le 24 : c'est normal, mais son Relyka
@@ -223,121 +224,53 @@ export function computeRelykaBreakdown(
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
   return {
+    conservedTotal: Math.max(0, n(inputs.reservePlanned) + n(ctx.reservationsTotal)),
     cumulsTotal, safetyMarginDisplay, variableEnvelopeRemaining, savingsRemaining, investRemaining,
     monthExpensesPast, cashflowTrough, resteDisponibleBrut, resteDisponible, relykaAffiche,
-    troughDate, nextIncomeDate, nextIncomeAmount, troughLimits, troughExplain, incomeIsGuessed,
+    troughDate, horizonEnd: pilotageData?.cashflow_horizon_end || null, nextIncomeDate, nextIncomeAmount, troughLimits, troughExplain, incomeIsGuessed,
     incomeSource, misDeCoteTotal, relykaAlloueVolontairement, baseADepenser, enDepassement,
   };
 }
 
-/**
- * TON du chiffre principal — la couleur du Relyka, décidée UNE fois.
- *
- * Deux corrections tiennent dans cette fonction :
- *
- *  1. La règle était recopiée à l'identique dans `usePilotageViewModel` ET dans l'écran Pilotage :
- *     deux expressions à quatre branches à garder synchronisées à la main.
- *
- *  2. Elle testait `relykaAffiche < 0` — une condition qui n'est JAMAIS vraie. `relykaAffiche`
- *     dérive de `Math.max(0, …)` : il vaut 0 au plus bas. Le rouge n'a donc jamais pu s'afficher,
- *     et quelqu'un réellement à −900 € voyait l'orange du « tout est déjà alloué », c'est-à-dire la
- *     couleur d'une situation normale. C'est le montant BRUT qui porte le signe : c'est lui qu'on
- *     interroge.
- *
- * Ordre volontaire : « mis de côté » (bleu) passe AVANT le rouge — si remettre ce qu'il a rangé
- * suffit à repasser dans le vert, il n'est pas dans le rouge, il a juste tout affecté.
- */
+/** Statuts fondés sur le brut : marge, puis conservé/réservé, puis dépassement. */
 export type RelykaTone = 'positive' | 'allocated' | 'negative' | 'empty';
+type RelykaStatusInput = Pick<RelykaBreakdown, 'resteDisponibleBrut'> & Partial<RelykaBreakdown>;
 
-export function relykaTone(
-  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'resteDisponibleBrut'>,
-): RelykaTone {
-  if (b.relykaAffiche > 0) return 'positive';
-  if (b.relykaAlloueVolontairement) return 'allocated';
-  if (b.resteDisponibleBrut < 0) return 'negative';
-  return 'empty';
+export function relykaTone(b: RelykaStatusInput): RelykaTone {
+  if (b.resteDisponibleBrut > 0) return 'positive';
+  const deficit = -b.resteDisponibleBrut;
+  const margin = Math.max(0, b.safetyMarginDisplay ?? 0);
+  const conserved = Math.max(0, b.conservedTotal ?? 0);
+  if (deficit <= margin) return 'empty';
+  if (deficit <= margin + conserved) return 'allocated';
+  return 'negative';
 }
 
-/**
- * ── « 0 € » N'EST PAS UNE RÉPONSE ───────────────────────────────────────────────────────────────
- *
- * Le chiffre principal de l'app affichait « 0 € » en grand dès que le budget libre tombait à zéro.
- * C'est exact, et ça ne dit rien : les trois situations qui y mènent n'ont pourtant rien à voir
- * entre elles — l'argent est PLACÉ (épargne / investissement / réservé, c'est-à-dire exactement ce
- * que l'app a recommandé), il est ENGAGÉ (tout part en dépenses prévues), ou il MANQUE (le prévu
- * dépasse ce qu'il y a). Un zéro les confond toutes en un constat d'échec.
- *
- * On remplace donc le zéro par ce qu'il signifie, et le montant descend en sous-titre — il n'est
- * pas caché, il cesse simplement d'être la seule chose qu'on lise. `null` au-dessus de zéro : le
- * chiffre reste le chiffre, c'est lui qui porte l'information.
- *
- * Les phrases restent COURTES (deux mots) : c'est un titre, pas un message. Le carrousel juste en
- * dessous (cf. `buildRelykaBaseMessage`) dit déjà le pourquoi et la conduite à tenir.
- */
-export function relykaZeroHero(
-  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'resteDisponibleBrut' | 'misDeCoteTotal'>,
-): { word: string; sub: string } | null {
+export function relykaZeroHero(b: RelykaStatusInput): { word: string; sub: string } | null {
   const tone = relykaTone(b);
+  const amount = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
   if (tone === 'positive') return null;
-  if (tone === 'allocated') {
-    return {
-      word: 'Tout est placé',
-      // Ce qu'il a RANGÉ, pas ce qu'il lui reste : c'est le résultat de son geste du mois.
-      sub: `${eur(b.misDeCoteTotal)} mis de côté · 0 ${CURRENCY_SYMBOL} libre`,
-    };
-  }
-  if (tone === 'negative') {
-    return {
-      word: 'Budget dépassé',
-      // Le manque était INVISIBLE : `relykaAffiche` est borné à 0, donc le montant réellement
-      // manquant n'apparaissait nulle part sur la carte.
-      sub: `Il manque ${eur(Math.abs(b.resteDisponibleBrut))} pour couvrir ce qui est prévu`,
-    };
-  }
-  return { word: 'Tout est engagé', sub: `0 ${CURRENCY_SYMBOL} libre d'ici la fin du mois` };
+  if (tone === 'allocated') return {
+    word: 'Relyka placé',
+    sub: 'Tu as conservé ' + amount(b.conservedTotal ?? 0) + ' € ce mois-ci.',
+  };
+  if (tone === 'negative') return {
+    word: 'Relyka dépassé',
+    sub: 'Tu as dépensé ' + amount(Math.abs(b.resteDisponibleBrut)) + ' € de plus que ton Relyka ce mois-ci.',
+  };
+  return { word: 'Relyka consommé', sub: 'Tu as utilisé tout ton surplus du mois.' };
 }
 
-/**
- * ── Message de BASE du Relyka : ce qu'EST le chiffre ────────────────────────────────────────────
- * Quand le Relyka est POSITIF, la phrase est passe-partout (« voici ce qu'il devrait te rester…
- * utilise-le librement ») : elle ne vaut que si elle est seule à l'écran — d'où `isGeneric`, que
- * `buildRelykaMessages` utilise pour l'effacer dès qu'un autre message a du concret à dire.
- * Les autres variantes QUALIFIENT le montant (budget dépassé, plus de marge, tout est rangé
- * ailleurs) : elles restent toujours affichées, en tête.
- */
 export function buildRelykaBaseMessage(
-  b: Pick<RelykaBreakdown, 'relykaAffiche' | 'relykaAlloueVolontairement' | 'misDeCoteTotal' | 'variableEnvelopeRemaining' | 'resteDisponibleBrut'>,
+  b: RelykaStatusInput,
   relykaRangeIsRange: boolean,
 ): { text: string; isGeneric: boolean } {
-  /* ⚠️ Cette branche testait `relykaAffiche < 0` — une condition qui n'est JAMAIS vraie, puisque le
-     montant affiché dérive d'un `Math.max(0, …)`. Le message du budget dépassé n'a donc jamais pu
-     s'afficher : quelqu'un réellement à −900 € lisait « tout ton argent est alloué », c'est-à-dire
-     la phrase d'une situation NORMALE, sous un chiffre affiché en rouge. Exactement la même erreur
-     que celle déjà corrigée sur la couleur (`relykaTone`) : c'est le montant BRUT qui porte le
-     signe, c'est lui qu'on interroge. */
-  if (b.resteDisponibleBrut < 0 && !b.relykaAlloueVolontairement) {
-    return { text: 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.', isGeneric: false };
-  }
-  if (b.relykaAffiche <= 0) {
-    // Relyka à 0 par CHOIX (réservations / cumuls) : c'est le geste qu'on a recommandé — on le
-    // salue au lieu d'alerter. Sinon seulement, on met en garde.
-    if (b.relykaAlloueVolontairement) {
-      return {
-        text: `Rien d'inquiétant : tu as mis ${Math.round(b.misDeCoteTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} de côté ce mois-ci (épargne, investissement, réservé).`,
-        isGeneric: false,
-      };
-    }
-    return {
-      text: Math.round(Math.max(0, b.variableEnvelopeRemaining)) > 0
-        ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
-        : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.',
-      isGeneric: false,
-    };
-  }
+  const zero = relykaZeroHero(b);
+  if (zero) return { text: zero.sub, isGeneric: false };
   return {
     text: relykaRangeIsRange
-      ? 'Voici ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
-      : 'Voici ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.',
+      ? "Voici ce qu'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l'estimation."
+      : "Voici ce qu'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.",
     isGeneric: true,
   };
 }

@@ -33,35 +33,37 @@ const mapCredit = (r: any): Credit => ({
   is_shared: r.is_shared ?? false,
 });
 
+export async function fetchCredits(profileId: string): Promise<Credit[]> {
+  if (!supabase || !profileId) return [];
+  // Mes crédits + les crédits PARTAGÉS reçus (où je suis membre). `_role` = owner / write / read.
+  const CAT_JOIN = '*, category:categories!category_id(id, name, is_variable, parent_id), insurance_category:categories!insurance_category_id(id, name, is_variable, parent_id)';
+  const ownP = supabase.from('credits').select(CAT_JOIN).eq('profile_id', profileId).order('created_at', { ascending: false });
+  const memP = supabase.from('credit_members').select('credit_id, role').eq('user_id', profileId);
+  const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
+  if (ownErr) throw ownErr;
+  /* ⚠️ Ces deux lectures ramènent les crédits PARTAGÉS (ceux d'un autre dont je réponds). Leurs
+     erreurs étaient avalées : une panne réseau les faisait disparaître de la liste ET des
+     totaux du récapitulatif, sans rien signaler — un « reste à payer » amputé qui a l'air
+     normal. Une lecture en erreur n'est pas une liste vide. */
+  if (memRes?.error) throw memRes.error;
+  const roleById: Record<string, string> = {};
+  const memberIds: string[] = [];
+  for (const m of (memRes?.data ?? []) as any[]) { roleById[m.credit_id] = m.role; memberIds.push(m.credit_id); }
+  let memberCredits: any[] = [];
+  if (memberIds.length > 0) {
+    const { data, error: memErr } = await supabase.from('credits').select(CAT_JOIN).in('id', memberIds);
+    if (memErr) throw memErr;
+    memberCredits = (data ?? []).filter((c: any) => c.profile_id !== profileId);
+  }
+  const map = (r: any): Credit => ({ ...mapCredit(r), _role: r.profile_id === profileId ? 'owner' : ((roleById[r.id] as any) ?? 'read') });
+  return [...(own ?? []).map(map), ...memberCredits.map(map)];
+}
+
 export function useCredits(profileId: string | undefined) {
   return useQuery({
     queryKey: [KEY, profileId],
     enabled: !!profileId,
-    queryFn: async (): Promise<Credit[]> => {
-      if (!supabase || !profileId) return [];
-      // Mes crédits + les crédits PARTAGÉS reçus (où je suis membre). `_role` = owner / write / read.
-      const CAT_JOIN = '*, category:categories!category_id(id, name, is_variable, parent_id), insurance_category:categories!insurance_category_id(id, name, is_variable, parent_id)';
-      const ownP = supabase.from('credits').select(CAT_JOIN).eq('profile_id', profileId).order('created_at', { ascending: false });
-      const memP = supabase.from('credit_members').select('credit_id, role').eq('user_id', profileId);
-      const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
-      if (ownErr) throw ownErr;
-      /* ⚠️ Ces deux lectures ramènent les crédits PARTAGÉS (ceux d'un autre dont je réponds). Leurs
-         erreurs étaient avalées : une panne réseau les faisait disparaître de la liste ET des
-         totaux du récapitulatif, sans rien signaler — un « reste à payer » amputé qui a l'air
-         normal. Une lecture en erreur n'est pas une liste vide. */
-      if (memRes?.error) throw memRes.error;
-      const roleById: Record<string, string> = {};
-      const memberIds: string[] = [];
-      for (const m of (memRes?.data ?? []) as any[]) { roleById[m.credit_id] = m.role; memberIds.push(m.credit_id); }
-      let memberCredits: any[] = [];
-      if (memberIds.length > 0) {
-        const { data, error: memErr } = await supabase.from('credits').select(CAT_JOIN).in('id', memberIds);
-        if (memErr) throw memErr;
-        memberCredits = (data ?? []).filter((c: any) => c.profile_id !== profileId);
-      }
-      const map = (r: any): Credit => ({ ...mapCredit(r), _role: r.profile_id === profileId ? 'owner' : ((roleById[r.id] as any) ?? 'read') });
-      return [...(own ?? []).map(map), ...memberCredits.map(map)];
-    },
+    queryFn: () => fetchCredits(profileId ?? ''),
   });
 }
 

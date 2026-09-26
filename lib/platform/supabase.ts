@@ -9,6 +9,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 import { SecureSessionStore } from './secureStorage';
+import { createNetworkFetch } from './networkFetch';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -17,6 +18,7 @@ const isWeb = Platform.OS === 'web';
 
 export const supabase = url && anonKey
   ? createClient(url, anonKey, {
+      global: { fetch: createNetworkFetch((input, init) => fetch(input, init)) },
       auth: {
         // Natif : session CHIFFRÉE (Keychain/Keystore via expo-secure-store, cf. secureStorage).
         // Web : stockage par défaut (localStorage).

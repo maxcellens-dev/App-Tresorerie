@@ -1,3 +1,4 @@
+import { isRecurringTx, isRecurringOccurrence } from '../../lib/finance/variableSpend';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import type { Account, Transaction, TransactionWithDetails, RecurrenceRule } from '../../types/database';
@@ -864,12 +865,12 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id, materialized_from').eq('id', input.id).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id, materialized_from, is_recurring_occurrence').eq('id', input.id).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       // Garde anti-doublon : une occurrence MATÉRIALISÉE appartient déjà à une série récurrente
       // (modèle parent = materialized_from). La repasser en récurrente créerait un 2ᵉ modèle qui
       // doublerait le futur → on neutralise toute tentative d'activer la récurrence sur cette ligne.
-      if ((existing as { materialized_from?: string | null }).materialized_from) {
+      if (isRecurringOccurrence(existing)) {
         input = { ...input, is_recurring: false, recurrence_rule: null, recurrence_end_date: null };
       }
       const oldAccId = (existing as { account_id: string }).account_id;
@@ -1079,7 +1080,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data: row, error: fetchErr } = await supabase
         .from('transactions')
-        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id, transfer_group_id, regul_target')
+        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id, transfer_group_id, regul_target, materialized_from, is_recurring_occurrence, credit_kind')
         .eq('id', id)
         .single(); // pas de filtre profile_id : la RLS autorise mes lignes + celles d'un compte où je suis owner/write
       if (fetchErr) throw fetchErr;
@@ -1089,7 +1090,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
       const wasRegul = isRegul(row as any);
 
       const isDraft = !!(row as any).is_draft;
-      const isRecurringRow = !!(row as any).is_recurring;
+      const isRecurringRow = isRecurringTx(row);
       const projectId = (row as any).project_id as string | null;
       const txDate = (row as any).date as string;
       const txAmount = Number((row as any).amount);

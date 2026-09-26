@@ -206,11 +206,11 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
       expect(relykaTone(b)).toBe('positive');
     });
 
-    it('BLEU quand le Relyka est à 0 parce que tout est rangé ailleurs', () => {
+    it('CONSOMMÉ à zéro même si de l’épargne a été effectuée', () => {
       const b = computeRelykaBreakdown(pdata({
         cashflow_trough: 500, month_savings_total: 500, month_savings_future: 500,
       }), noCumuls);
-      expect(relykaTone(b)).toBe('allocated');
+      expect(relykaTone(b)).toBe('empty');
     });
 
     it('ROUGE quand le solde projeté est réellement négatif', () => {
@@ -243,28 +243,28 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
       expect(relykaZeroHero(b)).toBeNull();
     });
 
-    it('« Tout est placé » quand le zéro vient d\'un geste, et rappelle COMBIEN a été rangé', () => {
+    it('« Relyka consommé » quand le zéro vient d\'un geste, et rappelle COMBIEN a été rangé', () => {
       const b = computeRelykaBreakdown(pdata({
         cashflow_trough: 500, month_savings_total: 500, month_savings_future: 500,
       }), noCumuls);
       const hero = relykaZeroHero(b)!;
-      expect(hero.word).toBe('Tout est placé');
-      expect(hero.sub).toContain('500 €');
-      expect(hero.sub).toContain('mis de côté');
+      expect(hero.word).toBe('Relyka consommé');
+      expect(hero.sub).toBe('Tu as utilisé tout ton surplus du mois.');
+      expect(hero.sub).not.toContain('épargné');
     });
 
     it('« Budget dépassé » CHIFFRE le manque — que le montant affiché, borné à 0, cachait', () => {
       const b = computeRelykaBreakdown(pdata({ cashflow_trough: -900 }), noCumuls);
       const hero = relykaZeroHero(b)!;
-      expect(hero.word).toBe('Budget dépassé');
+      expect(hero.word).toBe('Relyka dépassé');
       expect(hero.sub).toContain('900 €');
       // Le manque est annoncé POSITIVEMENT (« il manque 900 € »), jamais en « −900 € ».
       expect(hero.sub).not.toContain('-900');
     });
 
-    it('« Tout est engagé » à 0 pile, sans rien mis de côté ni rien qui manque', () => {
+    it('« Relyka consommé » à 0 pile, sans rien mis de côté ni rien qui manque', () => {
       const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), noCumuls);
-      expect(relykaZeroHero(b)!.word).toBe('Tout est engagé');
+      expect(relykaZeroHero(b)!.word).toBe('Relyka consommé');
     });
   });
 
@@ -367,7 +367,7 @@ describe('buildRelykaBaseMessage', () => {
      C'est le brut qui porte le signe (même correction que pour la couleur). */
   it('annonce le budget dépassé quand le Relyka est réellement négatif', () => {
     const m = buildRelykaBaseMessage({ ...base, resteDisponibleBrut: -900, variableEnvelopeRemaining: 120 }, false);
-    expect(m.text).toContain('Budget dépassé');
+    expect(m.text).toContain('900 € de plus que ton Relyka');
     expect(m.isGeneric).toBe(false);
   });
 
@@ -376,32 +376,32 @@ describe('buildRelykaBaseMessage', () => {
       { ...base, resteDisponibleBrut: -100, relykaAlloueVolontairement: true, misDeCoteTotal: 500 },
       false,
     );
-    expect(m.text).toContain("Rien d'inquiétant");
+    expect(m.text).not.toContain("Rien d'inquiétant");
   });
 
   it('salue la mise de côté au lieu d\'alerter quand le 0 est un CHOIX', () => {
     const m = buildRelykaBaseMessage({ ...base, relykaAlloueVolontairement: true, misDeCoteTotal: 500 }, false);
-    expect(m.text).toContain("Rien d'inquiétant");
-    expect(m.text).toContain('500');
+    expect(m.text).not.toContain("Rien d'inquiétant");
+    expect(m.text).toContain('surplus du mois');
     expect(m.isGeneric).toBe(false);
   });
 
   it('met en garde quand le 0 vient d\'un manque, pas d\'un choix', () => {
-    expect(buildRelykaBaseMessage(base, false).text).toContain('Pas de marge');
+    expect(buildRelykaBaseMessage(base, false).text).toContain('surplus du mois');
   });
 
   it("distingue « épuisé mais tout est alloué » de « plus de marge du tout »", () => {
-    expect(buildRelykaBaseMessage({ ...base, variableEnvelopeRemaining: 120 }, false).text).toContain('épuisé');
+    expect(buildRelykaBaseMessage({ ...base, variableEnvelopeRemaining: 120 }, false).text).toContain('surplus du mois');
   });
 
   it('la phrase passe-partout du Relyka positif est marquée GÉNÉRIQUE (effaçable)', () => {
-    const m = buildRelykaBaseMessage({ ...base, relykaAffiche: 500 }, false);
+    const m = buildRelykaBaseMessage({ ...base, relykaAffiche: 500, resteDisponibleBrut: 500 }, false);
     expect(m.isGeneric).toBe(true);
     expect(m.text).toContain('librement');
   });
 
   it('invite à vérifier le solde quand le Relyka est donné en fourchette', () => {
-    const m = buildRelykaBaseMessage({ ...base, relykaAffiche: 500 }, true);
+    const m = buildRelykaBaseMessage({ ...base, relykaAffiche: 500, resteDisponibleBrut: 500 }, true);
     expect(m.text).toContain('vérifie ton solde');
     expect(m.isGeneric).toBe(true);
   });

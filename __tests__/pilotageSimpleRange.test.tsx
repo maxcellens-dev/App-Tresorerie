@@ -50,6 +50,11 @@ const baseProps: any = {
   onReserver: noop,
 };
 
+it.each([['1 €', 0.01], ['4 €', 4.27], ['10 €', 9.99]])('affiche réellement %s sur la carte principale', (label, amount) => {
+  renderWithProviders(<PilotageSimple {...baseProps} relykaAmount={amount} />);
+  expect(screen.getByText(label as string)).toBeTruthy();
+});
+
 describe('carte Relyka — la fourchette', () => {
   it('affiche le plancher, et un plafond qui ne dépasse jamais le Relyka', () => {
     renderWithProviders(

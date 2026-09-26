@@ -26,8 +26,7 @@ import PulseDeltaHost from '../components/pulse/PulseDeltaHost';
 import DataPrefetcher from '../components/system/DataPrefetcher';
 import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/config/useConfigSync';
-import { useMaterializeRecurring } from '../hooks/data/useMaterializeRecurring';
-import { useMaterializeCredits } from '../hooks/data/useMaterializeCredits';
+import { usePilotageData } from '../hooks/pilotage/usePilotageData';
 import { supabase } from '../lib/platform/supabase';
 import HeaderWithProfile from '../components/layout/HeaderWithProfile';
 import { legalPresentation } from '../components/legal/LegalLayout';
@@ -138,6 +137,8 @@ const queryClient = new QueryClient({
     onError: (error, _vars, _ctx, mutation) => {
       void handleUsageLimitError(error, getCachedIsPremium()).then((handled) => {
         reportUnhandledWriteError(error, handled, mutation, (title, message) => Alert.alert(title, message));
+      }).catch(() => {
+        reportUnhandledWriteError(error, false, mutation, (title, message) => Alert.alert(title, message));
       });
     },
   }),
@@ -324,9 +325,8 @@ function RecurringMaterializer() {
   // passées ne deviennent pas de vraies transactions → le SOLDE des comptes (page Comptes) ne les
   // inclut pas, alors que le suivi/les transactions les projettent (incohérence épargne/invest). Les
   // écritures admin sont autorisées (migration 102 : is_app_admin), donc consulter reflète le réel.
-  useMaterializeRecurring(user?.id);
+  usePilotageData(user?.id);
   // Échéances de crédit échues → vraies transactions (migration 143), même logique et mêmes raisons.
-  useMaterializeCredits(user?.id);
   return null;
 }
 

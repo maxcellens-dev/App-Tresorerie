@@ -162,7 +162,9 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
      et affirmerait un choix que personne n'a fait. Le zéro est ici la bonne réponse — c'est le
      `heroHint`, juste en dessous, qui explique ce qui manque. */
   const zero = p.heroHint ? null : p.relykaZero;
-  const bigLabel = zero ? zero.word : fmt(p.relykaAmount);
+  const bigLabel = zero ? zero.word : (p.relykaAmount > 0 && p.relykaAmount < 10
+    ? Math.max(1, Math.round(p.relykaAmount)).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL
+    : fmt(p.relykaAmount));
   /* Taille du chiffre principal, calculée à partir de sa LONGUEUR (cf. le rendu plus bas : on ne
      peut pas compter sur `adjustsFontSizeToFit`). Les seuils correspondent aux paliers réels :
      « 1 250 € » (7) tient en 40 ; « 128 400 € » (9) et « 1 284 000 CHF » (13) ont besoin de moins.

@@ -277,6 +277,8 @@ export interface Transaction {
   recurrence_end_date?: string | null;
   /** Modèle récurrent d'origine si cette ligne est une occurrence matérialisée. */
   materialized_from?: string | null;
+  /** Nature conservée même après suppression du modèle récurrent. */
+  is_recurring_occurrence?: boolean;
   /** Échéance de crédit matérialisée (migration 143) : crédit d'origine + nature + n° d'échéance. */
   credit_id?: string | null;
   credit_kind?: 'pay' | 'ins' | null;
@@ -387,6 +389,7 @@ export interface Credit {
   materialized_until?: string;
   /** Empreinte du tableau publié dans credit_schedule (cache serveur) — republication si différente. */
   schedule_hash?: string | null;
+  events_revision?: number;
   notes?: string | null;
   /** Rôle de l'utilisateur courant sur ce crédit : 'owner' (le mien) ou 'write'/'read' (crédit partagé reçu). */
   _role?: 'owner' | 'write' | 'read';

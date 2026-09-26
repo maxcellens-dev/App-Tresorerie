@@ -9,6 +9,7 @@
  * Rien ne disparaît tout seul : l'utilisateur ferme au tap ou en balayant vers le haut.
  */
 import { CURRENCY_SYMBOL } from '../finance/currency';
+import { isRecurringTx } from '../finance/variableSpend';
 
 export type PulseAccountType = 'checking' | 'savings' | 'investment' | string;
 
@@ -129,6 +130,8 @@ export function consumesVariableEnvelope(o: {
   kind: PulseOp['kind'];
   accountType?: string;
   isRecurring?: boolean | null;
+  materializedFrom?: string | null;
+  isRecurringOccurrence?: boolean | null;
   projectId?: string | null;
   categoryId?: string | null;
   /** Type de la catégorie ('expense' | 'income'), résolu par l'appelant. */
@@ -144,7 +147,7 @@ export function consumesVariableEnvelope(o: {
   return o.kind === 'expense'
     && !o.linkedAccountId
     && o.accountType === 'checking'
-    && !o.isRecurring
+    && !isRecurringTx({ is_recurring: o.isRecurring, materialized_from: o.materializedFrom, is_recurring_occurrence: o.isRecurringOccurrence })
     && !o.projectId
     && (!o.categoryId || o.categoryType === 'expense');
 }

@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { withDeferredMount } from '../../../../hooks/platform/useDeferredMount';
+import { isRecurringOccurrence } from '../../../../lib/finance/variableSpend';
 import { chipStyles } from '../../../../lib/ui/controls';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Modal, Pressable, Keyboard } from 'react-native';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
@@ -208,7 +209,7 @@ function EditTransactionScreen() {
   // materialized_from rempli → le modèle parent existe encore). La repasser en récurrente créerait
   // un 2ᵉ modèle qui DOUBLERAIT le futur. On verrouille donc la récurrence sur cette ligne et on
   // renvoie l'utilisateur vers une échéance à venir pour modifier la série.
-  const isMaterialized = !!(tx as any)?.materialized_from;
+  const isMaterialized = isRecurringOccurrence(tx);
 
   function showError(msg: string, fields: string[] = []) {
     setFormError(msg);
@@ -826,7 +827,9 @@ function EditTransactionScreen() {
               <View style={styles.recurringInfoBanner}>
                 <Ionicons name="repeat" size={20} color={COLORS.emerald} />
                 <Text style={styles.recurringInfoText}>
-                  Cette opération fait partie d'une série récurrente. Pour modifier la récurrence (montant, période, fin), ouvrez une échéance à venir.
+                  {tx?.materialized_from
+                    ? "Cette opération est une échéance récurrente déjà enregistrée. Pour modifier la série, ouvre une échéance à venir."
+                    : "Cette opération provient d’une série récurrente. Tu peux modifier cette échéance sans créer de nouvelle série."}
                 </Text>
               </View>
             ) : (

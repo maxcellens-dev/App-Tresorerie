@@ -37,6 +37,7 @@ import AiRichText from '../../components/ai/AiRichText';
 import AiReport from '../../components/ai/AiReport';
 import { parseAiReport } from '../../lib/ai/aiReport';
 import { useAiConfig, useAiQuota, useAiAnalyses, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/admin/useAi';
+import { useAiConversationSession } from '../../hooks/platform/useAiConversationSession';
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
 import { resolveAiAccess } from '../../lib/ai/aiAccess';
 import { appPrompt } from '../../lib/ui/appDialog';
@@ -92,12 +93,13 @@ function ConseilsIaScreen() {
   const kbAvoid = useAnimatedStyle(() => ({
     paddingBottom: Math.max(0, interpolate(kbProgress.value, [0, 1], [0, kbHeightOpened.value]) - tabBarHeight),
   }), [tabBarHeight]);
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const sub = KeyboardEvents.addListener('keyboardDidShow', () => {
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+      timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
     });
-    return () => sub.remove();
-  }, []);
+    return () => { sub.remove(); clearTimeout(timer); };
+  }, []));
 
   const { isPremium, premiumEnabled, isResolved: planResolved } = usePlan(uid);
   const { data: profile, isSuccess: profileReady, isError: profileFailed, refetch: refetchProfile } = useProfile(uid);
@@ -112,22 +114,17 @@ function ConseilsIaScreen() {
 
   // ── Conversations séparées (comme ChatGPT/Claude) ──
   const { data: conversations = [], isSuccess: convsOk } = useAiConversations(uid);
-  // undefined = pas encore initialisé ; null = « nouvelle conversation » vide (pas encore créée en base).
-  const [conversationId, setConversationId] = useState<string | null | undefined>(undefined);
-  // Initialise sur la conversation la plus récente (ou « nouvelle » si aucune) une fois la liste chargée.
-  useEffect(() => {
-    if (convsOk && conversationId === undefined) setConversationId(conversations[0]?.id ?? null);
-  }, [conversations, conversationId, convsOk]);
-  /* Si la conversation courante disparaît (supprimée ailleurs), on bascule sur la plus récente.
+  const [conversationId, setConversationId] = useAiConversationSession(uid);
+  /* Si la conversation courante disparaît (supprimée ailleurs), on ouvre un fil neuf.
      ⚠️ `convsOk` est indispensable : sans lui, la liste vaut `[]` PENDANT SON CHARGEMENT, et ce
      garde-fou dé-sélectionnait la conversation en cours au premier rendu — y compris celle qu'on
      venait de créer pour y poser une question. */
   useEffect(() => {
     if (!convsOk) return;
     if (conversationId && !conversations.some((cv) => cv.id === conversationId)) {
-      setConversationId(conversations[0]?.id ?? null);
+      setConversationId(null);
     }
-  }, [conversations, conversationId, convsOk]);
+  }, [conversations, conversationId, convsOk, setConversationId]);
   const [showConvs, setShowConvs] = useState(false);
   const createConv = useCreateConversation(uid);
   const renameConv = useRenameConversation(uid);
@@ -140,37 +137,6 @@ function ConseilsIaScreen() {
   useAiMessagesRealtime(uid);
   const ask = useAskAi(uid);
   const purchase = usePurchaseExtraCredits(uid);
-
-  // ── Défilement : on amène la QUESTION en HAUT de l'écran (on lit la réponse depuis son début),
-  //    au lieu de sauter en bas. Vaut pour l'envoi d'une question ET le clic sur une analyse. ──
-  const questionAnchorRef = useRef<View>(null);
-  const lastUserId = useMemo(() => {
-    const h = history ?? [];
-    for (let i = h.length - 1; i >= 0; i--) if (h[i].role === 'user') return h[i].id;
-    return null;
-  }, [history]);
-  const scrollToQuestion = useCallback(() => {
-    const node = scrollRef.current as any;
-    const anchor = questionAnchorRef.current as any;
-    if (!node || !anchor?.measureLayout) return;
-    const inner = node.getInnerViewNode?.() ?? node;
-    try {
-      anchor.measureLayout(
-        inner,
-        (_x: number, y: number) => node.scrollTo?.({ y: Math.max(0, y - 12), animated: true }),
-        () => {},
-      );
-    } catch { /* noop */ }
-  }, []);
-  const prevLastUserId = useRef<string | null>(null);
-  useEffect(() => {
-    if (lastUserId && lastUserId !== prevLastUserId.current) {
-      prevLastUserId.current = lastUserId;
-      // La question vient d'apparaître (envoi ou analyse) → on la remonte en tête, une fois posée.
-      setTimeout(scrollToQuestion, 120);
-      setTimeout(scrollToQuestion, 480);
-    }
-  }, [lastUserId, scrollToQuestion]);
 
   /* ⚠️ Les conditions d'accès viennent TOUTES de requêtes : l'abonnement (profil), le rôle admin
      (profil), l'ouverture à tous (config IA) et le solde de crédits achetés (quota). Tant qu'elles
@@ -318,8 +284,7 @@ function ConseilsIaScreen() {
       submit.release();
       setPending(false);
       setPendingConvId(null);
-      // La réponse est là → on garde la QUESTION en haut (lecture depuis le début), pas de saut en bas.
-      setTimeout(scrollToQuestion, 200);
+
     }
   };
 
@@ -638,7 +603,7 @@ function ConseilsIaScreen() {
                 <Text style={[s.sectionLbl, { marginTop: 18 }]}>Conversation</Text>
                 <View style={{ gap: 10 }}>
                   {history.map((m) => (
-                    <View key={m.id} ref={m.id === lastUserId ? questionAnchorRef : undefined}>
+                    <View key={m.id}>
                       <Bubble m={m} s={s} c={c} />
                     </View>
                   ))}

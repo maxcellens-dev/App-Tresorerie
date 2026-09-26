@@ -1,3 +1,6 @@
+import { usePilotageReadiness } from '../../hooks/pilotage/usePilotageReadiness';
+import { reportError } from '../../lib/platform/errorReporting';
+import { pilotageLoadingMessage } from '../../lib/finance/pilotageLoadingMessage';
 import React, { useState, useMemo, useCallback } from 'react';
 // ⚠️ Ne JAMAIS monter le <StatusBar> de react-native : react-native-keyboard-controller patche son
 // module natif, et le défaut `translucent: false` de RN écrase alors le `statusBarTranslucent` du
@@ -105,7 +108,8 @@ function PilotageScreen() {
   // Données principales
   const queryClient = useQueryClient();
   const pilotageQuery = usePilotageData(user?.id);
-  const { data: reliabilityCfg } = useReliabilityConfig();
+  const reliabilityQuery = useReliabilityConfig();
+  const { data: reliabilityCfg } = reliabilityQuery;
 
   // PERF : plus d'invalidation SYSTÉMATIQUE au focus (elle re-téléchargeait TOUTES les transactions
   // à chaque passage d'onglet → lenteur perçue). Les mutations (saisie, virement, régul, prudence…)
@@ -114,7 +118,7 @@ function PilotageScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      queryClient.refetchQueries({ queryKey: ['pilotage_data', user.id], stale: true });
+      void queryClient.refetchQueries({ queryKey: ['pilotage_data', user.id], stale: true }).catch(() => {});
     }, [user?.id, queryClient]),
   );
   const { data: projectsForConseils = [] } = useProjects(user?.id);
@@ -122,7 +126,8 @@ function PilotageScreen() {
   const { data: txPersoForConseils = [] } = txPersoQuery;
   // #2/#5 — les modaux (Dépensé/Épargné/Investi/récurrentes) doivent inclure les opérations des comptes
   // partagés/joints, mises à l'échelle du % d'impact (et annotées du %). Exclues si 0%.
-  const { data: sharedContrib } = useSharedContribution(user?.id);
+  const sharedQuery = useSharedContribution(user?.id);
+  const { data: sharedContrib } = sharedQuery;
   // C3/Pilotage — mensualités de crédit en dépense récurrente synthétique (cohérent avec les cursors).
   const creditPilotTx = useCreditPilotTemplates(user?.id);
   // Échéances de crédit MATÉRIALISÉES (credit_kind, migration 143) exclues : la charge crédit est déjà
@@ -235,8 +240,10 @@ function PilotageScreen() {
   const updateOnboarding = useUpdateOnboarding(user?.id);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
   // Modale de saisie de l'estimation hebdo des dépenses variables (alimente q9)
-  const { data: profile } = useProfile(user?.id);
-  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const profileQuery = useProfile(user?.id);
+  const { data: profile } = profileQuery;
+  const ratesQuery = useCurrencyRates();
+  const { data: rates = { EUR: 1 } } = ratesQuery;
   const [showVariableModal, setShowVariableModal] = useState(false);
   const [weeklyVariableInput, setWeeklyVariableInput] = useState('');
   const updateProfileVar = useUpdateProfile(user?.id);
@@ -343,55 +350,29 @@ function PilotageScreen() {
   // (Le PROFIL VIVANT n'est plus déclenché depuis cet écran : un observateur global surveille les
   //  comptes et les transactions, cf. components/LiveProfileSync.)
 
-  const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
-  const isLoading = pilotageLoading;
+  const { data: pilotageData, error: pilotageError } = pilotageQuery;
   // Hors-ligne, la requête est « en pause » (onlineManager/NetInfo) : ni données, ni erreur.
-  const isOffline = pilotageQuery.fetchStatus === 'paused';
+  const isOffline = [pilotageQuery, accountsQuery, allAccountsQuery, txPersoQuery,
+    reservationsQuery, preSavingsQuery, profileQuery, ratesQuery, reliabilityQuery, sharedQuery]
+    .some(q => q.fetchStatus === 'paused');
 
-  /* ── PAS D'ÉCRAN QUI SAUTE À L'OUVERTURE ────────────────────────────────────────────────────────
-     L'accueil (« crée ton premier compte ») se déduit de l'ABSENCE de comptes et d'opérations. Or
-     une lecture EN COURS rend exactement la même chose qu'un compte neuf : une liste vide. Un
-     utilisateur installé voyait donc l'accueil du tout début clignoter avant que son tableau de
-     bord ne le remplace. Même garde que le guide (contexts/GuideContext.dataReady) : tant que les
-     deux lectures n'ont pas ABOUTI, on ne conclut rien et on reste sur le chargement.
-     ⚠️ Filet OBLIGATOIRE : hors-ligne les requêtes restent « en pause » et n'aboutissent jamais →
-     sans borne de temps, l'écran resterait bloqué sur le rond de chargement. */
-  /* ── ET CE N'ÉTAIT PAS QUE L'ACCUEIL : LE RELYKA LUI-MÊME ARRIVAIT EN DEUX TEMPS ───────────────
-     Le budget libre affiché n'est pas `pilotage_data` seul : on lui SOUSTRAIT ce qui a été mis de
-     côté — le « Conserver » du mois (`reservations`) et les cumuls pré-épargne / pré-invest
-     (`pre_savings`), lus par deux requêtes séparées. Tant qu'elles n'étaient pas revenues, ces deux
-     déductions valaient 0 : la carte annonçait un Relyka TROP HAUT — exactement celui d'avant la
-     réservation qu'on venait d'appliquer — puis il baissait tout seul un aller-retour plus tard.
-     D'où « ça a l'air plus ou moins rapide selon la connexion » : c'était la latence réseau qu'on
-     regardait. Elles font donc partie du socle, au même titre que les comptes.
-     Le bandeau de conseils suit la même règle : sorti du chargement, il s'insérait EN HAUT une fois
-     la page peinte et poussait tout l'écran vers le bas. */
-  /* « Abouti » = plus rien en vol : réussi, échoué (react-query a épuisé ses reprises), ou en pause
-     hors-ligne. L'ÉCHEC compte, sinon une lecture durablement en erreur — un droit manquant sur le
-     catalogue de conseils, par exemple — ferait payer les 4 s de la borne de sécurité à CHAQUE
-     ouverture du tableau de bord. */
-  const settled = (q: { isSuccess: boolean; isError: boolean; fetchStatus: string }) =>
-    q.isSuccess || q.isError || q.fetchStatus === 'paused';
-  const gateQueries = [
-    accountsQuery, txPersoQuery, reservationsQuery, preSavingsQuery,
-    // Conseils désactivés dans les réglages : le bandeau n'est pas rendu, on n'attend donc pas
-    // deux lectures dont personne ne verra le résultat.
-    ...(tipsEnabled ? [conseilsCatalogQuery, conseilsSeenQuery] : []),
-  ];
-  const baseDataReady = accountsQuery.isSuccess && txPersoQuery.isSuccess
-    && reservationsQuery.isSuccess && preSavingsQuery.isSuccess;
-  /* La porte du chargement attend AUSSI le bandeau ; `baseDataReady`, lui, ne le regarde pas : il
-     sert à conclure « ce compte est vide » (l'accueil), une question à laquelle les conseils
-     n'apportent rien — et une panne du catalogue ne doit pas faire basculer un compte installé sur
-     l'écran de bienvenue. */
-  const paintReady = gateQueries.every(settled);
-  const baseDataPaused = gateQueries.some((q) => q.fetchStatus === 'paused');
-  const [bootTimedOut, setBootTimedOut] = useState(false);
-  React.useEffect(() => {
-    const t = setTimeout(() => setBootTimedOut(true), 4000);
-    return () => clearTimeout(t);
-  }, []);
-  const stillBooting = !paintReady && !baseDataPaused && !bootTimedOut;
+  // Les montants attendent des lectures réussies après synchronisation, même si un cache existe.
+  const readiness = usePilotageReadiness(user?.id, isOffline, pilotageQuery, [
+    accountsQuery, allAccountsQuery, txPersoQuery, reservationsQuery, preSavingsQuery,
+    profileQuery, ratesQuery, reliabilityQuery, sharedQuery,
+  ], (error, stage) => {
+    const e = error as { message?: string; code?: string; stack?: string };
+    void reportError('error', `Chargement Pilotage : ${e?.message ?? 'échec'}`, e?.stack, {
+      where: 'usePilotageReadiness', stage, code: e?.code,
+      failedQueries: [
+        ['pilotage', pilotageQuery], ['accounts', accountsQuery], ['allAccounts', allAccountsQuery],
+        ['transactions', txPersoQuery], ['reservations', reservationsQuery], ['preSavings', preSavingsQuery],
+        ['profile', profileQuery], ['rates', ratesQuery], ['reliability', reliabilityQuery], ['shared', sharedQuery],
+      ].filter(([, q]) => typeof q !== 'string' && q.isError).map(([name]) => name),
+    });
+  });
+  const paintReady = readiness.ready;
+  const baseDataReady = readiness.ready;
 
   // Signale au splash animé que l'app peut s'afficher : dès que les données sont là OU en erreur,
   // sinon au bout de 900 ms MAX. On n'attend plus la fin du (lourd) chargement pour OUVRIR l'app :
@@ -609,37 +590,18 @@ function PilotageScreen() {
     }
   };
 
-  // Chargement actif (en ligne, données en route) : cercle. Hors-ligne, on ne « charge » pas → on
-  // saute ce bloc pour afficher le message de connexion (ci-dessous).
-  // `stillBooting` : les comptes / opérations ne sont pas encore lus → on ne sait pas ENCORE s'il
-  // faut afficher le tableau de bord ou l'accueil. On attend plutôt que de montrer l'un puis
-  // l'autre (borné à 4 s, cf. bootTimedOut).
-  if (((isLoading && !pilotageData) || stillBooting) && !isOffline) {
-    return <PageLoader />;
-  }
-
-  // Écran d'erreur UNIQUEMENT s'il n'y a AUCUNE donnée (cache compris). Si des données existent —
-  // même anciennes/hors-ligne (cache persisté) — on affiche le tableau de bord malgré l'erreur de
-  // fond : mieux vaut des infos datées qu'un écran vide. La reconnexion rafraîchira.
-  if (!pilotageData) {
-    const isNetwork = isOffline
-      || (pilotageError && /network|fetch|timeout|failed/i.test((pilotageError as Error).message ?? ''));
+  if (!readiness.ready || !pilotageData) {
+    if (!isOffline && !readiness.failed) return <PageLoader label="Actualisation de tes données…" />;
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
         <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-          <View style={styles.loader}>
+          <View style={[styles.loader, { flex: 1, width: '100%', maxWidth: 520, alignSelf: 'center', justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
             <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16, lineHeight: 21 }}>
-              {isNetwork
-                ? 'Pas de connexion Internet.\nVérifie ta connexion — la page se rechargera automatiquement.'
-                : pilotageError ? `Une erreur est survenue : ${(pilotageError as Error).message}` : 'Données indisponibles'}
+              {pilotageLoadingMessage(readiness.error, isOffline)}
             </Text>
-            {/* Hors-ligne : reprise automatique à la reconnexion (onlineManager) → pas de bouton. */}
-            {!isNetwork && (
-              <TouchableOpacity onPress={() => pilotageQuery.refetch()}>
-                <Text style={{ color: COLORS.emerald, textAlign: 'center', fontWeight: '600' }}>Réessayer</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity onPress={readiness.retry} accessibilityRole="button">
+              <Text style={{ color: COLORS.emerald, fontWeight: '600' }}>Réessayer</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>
@@ -722,8 +684,7 @@ function PilotageScreen() {
               // Couleur calculée par le view-model (relykaTone) : elle était recopiée ici, avec une
               // branche « rouge » qui ne pouvait jamais se déclencher.
               relykaColor={relykaColor}
-              // Relyka à 0 : le mot qui prend la place du chiffre (« Tout est placé », « Tout est
-              // engagé », « Budget dépassé »). Décidé par le view-model, pas par le rendu.
+              // Le libellé à zéro distingue absence de disponible, mises de côté et manque réel.
               relykaZero={relykaZero}
               confidenceLevel={relConf?.result.level ?? 'high'}
               // Ancienneté RÉELLE (non plafonnée) : le chiffre du calcul sature à 21 j et faisait
