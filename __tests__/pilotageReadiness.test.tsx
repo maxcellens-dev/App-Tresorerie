@@ -2,6 +2,7 @@ import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { usePilotageReadiness } from '../hooks/pilotage/usePilotageReadiness';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { refetchActiveQueries } from '../lib/platform/refetchActiveQueries';
 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; }
 const query = (refetch: jest.Mock<Promise<unknown>, any[]> = jest.fn(async () => undefined)) => ({ isSuccess: true, isError: false, fetchStatus: 'idle', refetch });
@@ -168,5 +169,33 @@ it('un nouveau lancement attend la validation du cache ancien même si les donn�
   expect(result.current.ready).toBe(false);
   await act(async () => pending.resolve());
   await waitFor(() => expect(result.current.ready).toBe(true));
+  unmount(); client.clear();
+});
+
+it('démarrage avec cache : premier plan, hydratation et focus ne font ni échouer ni recommencer Pilotage', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const key = ['pilotage_data', 'startup'];
+  client.setQueryData(key, { amount: 999 }, { updatedAt: 1 });
+  const pending = deferred(); const report = jest.fn();
+  const fetchMain = jest.fn(() => pending.promise.then(() => ({ amount: 200 })));
+  const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const { result, unmount } = renderHook(() => {
+    const main = useQuery({ queryKey: key, queryFn: fetchMain });
+    return usePilotageReadiness('startup', false, main, [], report, client);
+  }, { wrapper });
+  expect(result.current.ready).toBe(false);
+  await waitFor(() => expect(fetchMain).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    const foreground = refetchActiveQueries(client, { type: 'active', stale: true });
+    const hydration = refetchActiveQueries(client, { queryKey: ['pilotage_data'], type: 'active', stale: true });
+    const focus = refetchActiveQueries(client, { queryKey: key, stale: true });
+    pending.resolve();
+    await Promise.all([foreground, hydration, focus]);
+  });
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(fetchMain).toHaveBeenCalledTimes(1);
+  expect(report).not.toHaveBeenCalled();
+  expect(result.current.failed).toBe(false);
+  expect(client.getQueryData(key)).toEqual({ amount: 200 });
   unmount(); client.clear();
 });

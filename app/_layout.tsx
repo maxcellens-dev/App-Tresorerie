@@ -1,3 +1,4 @@
+import { refetchActiveQueries } from '../lib/platform/refetchActiveQueries';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider, MutationCache, useQueryClient, onlineManager, focusManager } from '@tanstack/react-query';
@@ -193,7 +194,7 @@ function ForegroundRefetch() {
   const qc = useQueryClient();
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') qc.refetchQueries({ type: 'active', stale: true }).catch(() => {});
+      if (s === 'active') refetchActiveQueries(qc, { type: 'active', stale: true }).catch(() => {});
     });
     return () => sub.remove();
   }, [qc]);
@@ -216,7 +217,7 @@ function ForegroundRefetch() {
     if (keys.length === 0) return;
     const t = setTimeout(() => {
       for (const key of keys) {
-        qc.refetchQueries({ queryKey: [key], type: 'active', stale: true }).catch(() => {});
+        refetchActiveQueries(qc, { queryKey: [key], type: 'active', stale: true }).catch(() => {});
       }
     }, 1500);
     return () => clearTimeout(t);

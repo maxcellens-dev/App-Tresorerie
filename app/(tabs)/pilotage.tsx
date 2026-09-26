@@ -1,3 +1,4 @@
+import { refetchActiveQueries } from '../../lib/platform/refetchActiveQueries';
 import { usePilotageReadiness } from '../../hooks/pilotage/usePilotageReadiness';
 import { reportError } from '../../lib/platform/errorReporting';
 import { pilotageLoadingMessage } from '../../lib/finance/pilotageLoadingMessage';
@@ -118,7 +119,7 @@ function PilotageScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      void queryClient.refetchQueries({ queryKey: ['pilotage_data', user.id], stale: true }).catch(() => {});
+      void refetchActiveQueries(queryClient, { queryKey: ['pilotage_data', user.id], stale: true }).catch(() => {});
     }, [user?.id, queryClient]),
   );
   const { data: projectsForConseils = [] } = useProjects(user?.id);
