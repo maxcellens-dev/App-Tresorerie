@@ -358,8 +358,14 @@ function PilotageScreen() {
 
   // Les montants attendent des lectures réussies après synchronisation, même si un cache existe.
   const readiness = usePilotageReadiness(user?.id, isOffline, pilotageQuery, [
-    accountsQuery, allAccountsQuery, txPersoQuery, reservationsQuery, preSavingsQuery,
-    profileQuery, ratesQuery, reliabilityQuery, sharedQuery,
+    accountsQuery, allAccountsQuery, txPersoQuery, sharedQuery,
+    // La synchronisation écrit les comptes/opérations/crédits, pas ces données : une lecture
+    // fraîche de la session suffit et peut avancer en parallèle, sans deuxième téléchargement.
+    { ...reservationsQuery, afterFinancialSync: false },
+    { ...preSavingsQuery, afterFinancialSync: false },
+    { ...profileQuery, afterFinancialSync: false },
+    { ...ratesQuery, afterFinancialSync: false },
+    { ...reliabilityQuery, afterFinancialSync: false },
   ], (error, stage) => {
     const e = error as { message?: string; code?: string; stack?: string };
     void reportError('error', `Chargement Pilotage : ${e?.message ?? 'échec'}`, e?.stack, {

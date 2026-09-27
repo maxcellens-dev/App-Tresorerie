@@ -14,7 +14,7 @@ function harness() {
 it('ne publie jamais les crédits avant une réconciliation réussie', async () => {
   const d = harness(); d.rpc.mockImplementation(async name => name === 'recompute_account_balance' ? { error: new Error('offline') } : { data: null, error: null });
   await expect(synchronizeFinances('u', '2026-09-26', d)).rejects.toThrow('offline');
-  expect(d.loadCredits).not.toHaveBeenCalled();
+  expect(d.rpc.mock.calls.some(c => c[0] === 'publish_credit_schedule')).toBe(false);
 });
 it('propage une lecture crédit ratée au lieu de calculer sans crédit', async () => {
   const d = harness(); d.loadCredits.mockRejectedValue(new Error('droits'));
@@ -84,4 +84,58 @@ it('ne relance pas la matérialisation des crédits déjà à jour', async () =>
 it('sans crédit, ne charge pas les événements de crédit', async () => {
   const d = harness(); await synchronizeFinances('u', '2026-09-26', d);
   expect(d.loadEvents).not.toHaveBeenCalled();
+});
+
+it('recouvre les lectures indépendantes et recalcule neuf comptes en trois vagues réseau', async () => {
+  jest.useFakeTimers();
+  try {
+    const wait = <T>(value: T) => new Promise<T>(resolve => setTimeout(() => resolve(value), 200));
+    const d = harness();
+    d.loadAccounts.mockImplementation(() => wait(Array.from({ length: 9 }, (_, n) => ({ id: String(n), _role: 'owner' }))));
+    d.loadCredits.mockImplementation(() => wait([]));
+    let active = 0, peak = 0, completed = 0;
+    d.rpc.mockImplementation(async name => {
+      if (name === 'pending_materialization') return wait({ data: { needs_recurring: false, needs_posted: true } });
+      if (name === 'recompute_account_balance') {
+        active++; peak = Math.max(peak, active);
+        await wait(null); active--; completed++;
+      }
+      return { data: 0 };
+    });
+    let done = false;
+    const pending = synchronizeFinances('u', '2026-09-27', d).then(() => { done = true; });
+    await jest.advanceTimersByTimeAsync(800);
+    expect(done).toBe(true);
+    expect(completed).toBe(9);
+    expect(peak).toBe(3);
+    await pending;
+  } finally { jest.useRealTimers(); }
+});
+
+it('attend les écritures en vol après un échec et ne publie pas les crédits sur des soldes partiels', async () => {
+  const d = harness();
+  d.loadAccounts.mockResolvedValue(['a', 'b', 'c', 'd'].map(id => ({ id, _role: 'owner' })));
+  d.loadCredits.mockResolvedValue([credit]);
+  let release!: () => void;
+  const slow = new Promise<void>(resolve => { release = resolve; });
+  const started: string[] = [];
+  d.rpc.mockImplementation(async (name, args) => {
+    if (name === 'pending_materialization') return { data: { needs_recurring: false, needs_posted: true } };
+    if (name === 'recompute_account_balance') {
+      started.push(args.p_account);
+      if (args.p_account === 'a') return { error: new Error('refus') };
+      await slow;
+    }
+    return { data: 0 };
+  });
+  let settled = false;
+  const pending = synchronizeFinances('u', '2026-09-27', d).catch(error => { settled = true; return error; });
+  // Laisser démarrer les lectures et la première vague sans terminer les écritures lentes.
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  expect(started).toEqual(['a', 'b', 'c']);
+  expect(settled).toBe(false);
+  release();
+  expect((await pending).message).toBe('refus');
+  expect(d.rpc.mock.calls.some(c => c[0] === 'publish_credit_schedule')).toBe(false);
+  expect(started).not.toContain('d');
 });

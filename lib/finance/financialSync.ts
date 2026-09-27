@@ -37,10 +37,20 @@ export async function synchronizeFinances(profileId: string, today: string, d: S
     if (result.error) throw result.error;
     return result.data;
   };
-  const accounts = await d.loadAccounts();
   const args = { p_profile: profileId, p_today: today };
+  // Lectures seules : elles ne dépendent pas de la réconciliation des soldes.
+  // La révision crédit reste lue AVANT ses événements pour détecter une édition concurrente.
+  const creditRead = (async () => {
+    const credits = await d.loadCredits();
+    const events = credits.length ? await d.loadEvents() : {};
+    return { credits, events };
+  })();
+  // Une erreur de réconciliation peut nous faire sortir avant d'attendre cette lecture.
+  creditRead.catch(() => {});
+  const [accounts, probe] = await Promise.all([
+    d.loadAccounts(), d.rpc('pending_materialization', args),
+  ]);
   {
-    const probe = await d.rpc('pending_materialization', args);
     if (probe.error && !['PGRST202', '42883'].includes(probe.error.code)) throw probe.error;
     const pending = Array.isArray(probe.data) ? probe.data[0] : probe.data;
     const recurring = !!probe.error || pending?.needs_recurring !== false;
@@ -52,18 +62,23 @@ export async function synchronizeFinances(profileId: string, today: string, d: S
     if (recurring || posted) {
       // L'ancienne RPC réécrit TOUS les comptes dans une transaction, y compris les archivés.
       // Des ouvertures concurrentes peuvent se bloquer puis dépasser le délai serveur.
-      // Chaque compte actif est recalculé dans une transaction courte, dans un ordre stable.
-      for (const account of [...accounts].sort((a, b) => a.id.localeCompare(b.id))) {
-        if (account._role !== 'owner' && account._role !== 'write') continue;
-        await call('recompute_account_balance', { p_account: account.id, p_today: today });
+      // Chaque RPC ne verrouille qu'UN compte : trois transactions courtes et indépendantes
+      // peuvent avancer ensemble, sans la transaction multi-comptes qui causait des deadlocks.
+      // Dédupliquer les IDs et attendre TOUTE la vague, même en cas d'erreur : une relance ne
+      // doit jamais rejoindre une synchronisation déclarée finie dont des écritures continuent.
+      const writableIds = [...new Set(accounts.filter(a => a._role === 'owner' || a._role === 'write').map(a => a.id))].sort();
+      for (let start = 0; start < writableIds.length; start += 3) {
+        const results = await Promise.allSettled(writableIds.slice(start, start + 3).map(id =>
+          call('recompute_account_balance', { p_account: id, p_today: today })));
+        const failed = results.find(result => result.status === 'rejected');
+        if (failed?.status === 'rejected') throw failed.reason;
       }
     }
     d.onRecurringComplete?.();
   }
 
-  // Lire la révision AVANT les événements : une édition concurrente fera refuser la publication.
-  const credits = await d.loadCredits();
-  const events = credits.length ? await d.loadEvents() : {};
+  // Les publications restent strictement APRÈS la réussite de toutes les réconciliations.
+  const { credits, events } = await creditRead;
   const active = new Set(accounts.map(a => a.id));
   let needsCreditMaterialization = false;
   for (const c of credits) {

@@ -9,6 +9,8 @@ type ReadableQuery = {
   fetchStatus: string;
   error?: unknown;
   dataUpdatedAt?: number;
+  /** false pour les données que la synchronisation ne modifie pas (réservations, profil…). */
+  afterFinancialSync?: boolean;
   refetch: (options?: { cancelRefetch?: boolean; throwOnError?: boolean }) => Promise<unknown>;
 };
 
@@ -47,6 +49,13 @@ export function usePilotageReadiness(
       for (let attempt = 0; !disposed;) {
         let stage = 'pilotage';
         try {
+          // Ces lectures ne dépendent d'aucune écriture financière : les lancer tout de suite,
+          // ou rejoindre leur requête en vol, sans attendre puis retélécharger le même contenu.
+          const independent = Promise.all(queries.current.dependencies
+            .filter(q => q.afterFinancialSync === false)
+            .map(q => q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= SESSION_STARTED_AT
+              ? Promise.resolve() : q.refetch({ cancelRefetch: false, throwOnError: true })));
+          independent.catch(() => {}); // observée même si la synchronisation échoue avant l'await
           // Le calcul principal synchronise d'abord les échéances. Ne pas annuler une écriture en vol.
           if (!primarySucceeded) {
             const q = queries.current.primary;
@@ -60,8 +69,10 @@ export function usePilotageReadiness(
           stage = 'dependencies';
           const validationStartedAt = Math.max(SESSION_STARTED_AT,
             sessionClient?.getQueryData<number>(['pilotage_sync_completed', profileId]) ?? 0);
-          await Promise.all(queries.current.dependencies.map(q => q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= validationStartedAt
-            ? Promise.resolve() : q.refetch({ cancelRefetch: true, throwOnError: true })));
+          await Promise.all([independent, ...queries.current.dependencies
+            .filter(q => q.afterFinancialSync !== false)
+            .map(q => q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= validationStartedAt
+              ? Promise.resolve() : q.refetch({ cancelRefetch: true, throwOnError: true }))]);
           if (!disposed) {
             sessionClient?.setQueryDefaults(['pilotage_validated_session'], { gcTime: Infinity });
             sessionClient?.setQueryData(['pilotage_validated_session', profileId], true);

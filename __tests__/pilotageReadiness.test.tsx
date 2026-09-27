@@ -224,3 +224,33 @@ it('relit une dépendance chargée avant les écritures même si elle date de ce
   expect(extra.refetch).toHaveBeenCalledTimes(1);
   unmount(); client.clear();
 });
+
+it('charge les réservations indépendantes pendant la synchronisation sans montrer de montant avant sa fin', async () => {
+  const sync = deferred(), reserveRead = deferred();
+  const main = query(jest.fn(() => sync.promise));
+  const reserve = { ...query(jest.fn(() => reserveRead.promise)), afterFinancialSync: false };
+  const { result } = renderHook(() => usePilotageReadiness('u', false, main, [reserve]));
+  expect(reserve.refetch).toHaveBeenCalledWith({ cancelRefetch: false, throwOnError: true });
+  await act(async () => reserveRead.resolve());
+  expect(result.current.ready).toBe(false);
+  await act(async () => sync.resolve());
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(reserve.refetch).toHaveBeenCalledTimes(1);
+});
+
+it('ne relit pas un profil ou des réservations déjà actualisés quand seuls les soldes ont changé', async () => {
+  const client = new QueryClient(); const oldRead = Date.now();
+  const extra = { ...query(), dataUpdatedAt: oldRead, afterFinancialSync: false };
+  const main = query(jest.fn(async () => { client.setQueryData(['pilotage_sync_completed', 'u'], oldRead + 1); }));
+  const { result, unmount } = renderHook(() => usePilotageReadiness('u', false, main, [extra], undefined, client));
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(extra.refetch).not.toHaveBeenCalled();
+  unmount(); client.clear();
+});
+
+it('un échec indépendant empêche de montrer le Relyka malgré un snapshot réussi', async () => {
+  const extra = { ...query(jest.fn(async () => { throw new Error('droits'); })), afterFinancialSync: false };
+  const { result } = renderHook(() => usePilotageReadiness('u', false, query(), [extra]));
+  await waitFor(() => expect(result.current.failed).toBe(true));
+  expect(result.current.ready).toBe(false);
+});
