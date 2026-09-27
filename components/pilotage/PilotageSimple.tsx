@@ -17,8 +17,8 @@
  * Composant de PRÉSENTATION PURE : il ne calcule rien, ne lit aucune donnée. Tout arrive en props,
  * déjà calculé par le Pilotage — le tableau de bord ne peut donc pas diverger du moteur d'un euro.
  */
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useResponsive } from '../../hooks/theme/useResponsive';
@@ -552,6 +552,95 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
 
     </View>
   );
+}
+
+/** Même géométrie que les cartes finales ; seuls les emplacements de données respirent. */
+export function PilotageLoading({ error, onRetry }: { error?: string; onRetry?: () => void }) {
+  const c = useAppColors();
+  const s = useMemo(() => makeStyles(c), [c]);
+  const { isDesktop } = useResponsive();
+  const opacity = useRef(new Animated.Value(0.55)).current;
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(value => { if (active) setReduceMotion(value); }).catch(() => {});
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { active = false; listener.remove(); };
+  }, []);
+  useEffect(() => {
+    opacity.setValue(0.55);
+    if (reduceMotion || error) return;
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(opacity, { toValue: 0.9, duration: 1300, useNativeDriver: true, isInteraction: false }),
+      Animated.timing(opacity, { toValue: 0.4, duration: 1300, useNativeDriver: true, isInteraction: false }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [opacity, reduceMotion, error]);
+  const bar = (width: number, height = 18) => <Animated.View accessible={false} style={{
+    width, maxWidth: '100%', height, borderRadius: height > 25 ? 12 : 6,
+    backgroundColor: c.teal + '24', opacity,
+  }} />;
+  const status = (label: string) => ({
+    accessible: true, accessibilityRole: error ? undefined : 'progressbar' as const,
+    accessibilityLabel: `${label} : ${error ? 'indisponible' : 'chargement en cours'}`,
+    accessibilityState: { busy: !error },
+  });
+  return <View style={s.wrap}>
+    <View style={[s.hero, { minHeight: 148, justifyContent: 'center' }]}>
+      <View style={s.heroTop}>
+        <Text style={s.heroLabel}>Ton Relyka</Text>
+        <View style={[s.badge, { borderColor: c.teal + '30', backgroundColor: c.teal + '0D' }]}>
+          <Text style={[s.badgeText, { color: c.textSecondary }]}>{error ? 'À actualiser' : 'Actualisation'}</Text>
+        </View>
+      </View>
+      <View {...status('Relyka')} style={{ paddingVertical: 8 }}>{bar(176, 42)}</View>
+      {error ? <View style={{ alignItems: 'center', gap: 8, maxWidth: 400 }}>
+        <Text style={s.heroHint} accessibilityLiveRegion="polite">{error}</Text>
+        {!!onRetry && <TouchableOpacity onPress={onRetry} accessibilityRole="button" accessibilityLabel="Réessayer"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: 12, backgroundColor: c.teal + '12' }}>
+          <Ionicons name="refresh" size={14} color={c.teal} />
+          <Text style={{ color: c.teal, fontSize: 12, fontWeight: '700' }}>Réessayer</Text>
+        </TouchableOpacity>}
+      </View> : <Text style={s.heroHint}>Tes montants arrivent…</Text>}
+    </View>
+    <View style={isDesktop ? s.columns : s.stack}>
+      <View style={[s.card, isDesktop && s.column]}>
+        <Text style={s.cardTitle}>Tes recommandations</Text>
+        <View {...status('Recommandations')} style={s.grid}>
+          {[0, 1, 2, 3].map(i => <View key={i} style={[s.decision, { borderColor: c.cardBorder, backgroundColor: c.teal + '05', minHeight: 101, justifyContent: 'space-between' }]}>
+            <View style={s.decisionHead}>{bar(22, 22)}{bar(62, 10)}</View>
+            {bar(i % 2 ? 66 : 82, 23)}
+            {bar(48, 8)}
+          </View>)}
+        </View>
+      </View>
+      <View style={[s.card, isDesktop && s.column]}>
+        <Text style={s.cardTitle}>Ce mois-ci</Text>
+        <View {...status('Montants du mois')}>
+          {['Tu as sur tes comptes', 'Tu as dépensé', 'Tu devrais encore dépenser', 'Tu veux garder au moins'].map((label, i) =>
+            <View key={label} style={[s.line, { minHeight: i > 1 ? 65 : 53 }]}>
+              <View style={s.lineLabelCol}>
+                <Text style={s.lineLabel}>{label}</Text>
+                {i === 2 && <View style={{ marginTop: 5 }}>{bar(132, 8)}</View>}
+                {i === 3 && <Text style={s.lineHint}>sur tes comptes courants — c’est ta marge de sécurité</Text>}
+              </View>
+              {bar(62)}
+              <Ionicons name="chevron-forward" size={15} color={c.textSecondary + '55'} />
+            </View>)}
+          <View style={s.stash}>
+            {(['Réservé', 'Épargné', 'Investi'] as const).map((label, i) => <View key={label} style={s.stashTile}>
+              <View style={s.stashHead}>
+                <Ionicons name={(['lock-closed', 'shield', 'trending-up'] as const)[i]} size={12} color={c.textSecondary} />
+                <Text style={s.stashLabel}>{label}</Text>
+              </View>
+              <View style={{ paddingTop: 3 }}>{bar(46, 16)}</View>
+            </View>)}
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>;
 }
 
 function makeStyles(c: any) {

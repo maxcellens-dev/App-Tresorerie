@@ -9,11 +9,10 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, findNodeHandle, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/layout/ScreenGradient';
-import PageLoader from '../../components/layout/PageLoader';
 import CalculatorButton from '../../components/transaction/CalculatorButton';
 import RecurringTransactionsModal from '../../components/transaction/RecurringTransactionsModal';
 import OnboardingHintBanner from '../../components/onboarding/OnboardingHintBanner';
-import PilotageSimple from '../../components/pilotage/PilotageSimple';
+import PilotageSimple, { PilotageLoading } from '../../components/pilotage/PilotageSimple';
 import PilotageWelcome from '../../components/pilotage/PilotageWelcome';
 import GuideModal from '../../components/guide/GuideModal';
 /* Modales du Pilotage sorties du fichier : leur contenu est du RENDU pur, elles n'ont besoin que de
@@ -592,18 +591,18 @@ function PilotageScreen() {
   };
 
   if (!readiness.ready || !pilotageData) {
-    if (!isOffline && !readiness.failed) return <PageLoader label="Actualisation de tes données…" />;
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-          <View style={[styles.loader, { flex: 1, width: '100%', maxWidth: 520, alignSelf: 'center', justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-            <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16, lineHeight: 21 }}>
-              {pilotageLoadingMessage(readiness.error, isOffline)}
-            </Text>
-            <TouchableOpacity onPress={readiness.retry} accessibilityRole="button">
-              <Text style={{ color: COLORS.emerald, fontWeight: '600' }}>Réessayer</Text>
-            </TouchableOpacity>
-          </View>
+        <StatusBar style="light" />
+        <ScreenGradient />
+        <SafeAreaView key="pilotage-safe" style={styles.safe} edges={['left', 'right']}>
+          <ScrollView key="pilotage-content" style={styles.scroll} showsVerticalScrollIndicator={false}
+            contentContainerStyle={[styles.scrollContent, contentWidth(isDesktop), isDesktop && styles.scrollContentDesktop]}>
+            <PilotageLoading
+              error={isOffline || readiness.failed ? pilotageLoadingMessage(readiness.error, isOffline) : undefined}
+              onRetry={readiness.retry}
+            />
+          </ScrollView>
         </SafeAreaView>
       </View>
     );
@@ -614,7 +613,7 @@ function PilotageScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView key="pilotage-safe" style={styles.safe} edges={['left', 'right']}>
         {(readiness.updating || readiness.failed || isOffline) && (
           <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
             <Text style={{ color: COLORS.textSecondary }}>
@@ -640,6 +639,7 @@ function PilotageScreen() {
 
         {/* Main Content */}
         <ScrollView
+          key="pilotage-content"
           ref={scrollRef}
           style={styles.scroll}
           // Bureau : colonne de tableau de bord centrée (max 1180) + gouttières ; plus de réserve
