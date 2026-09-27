@@ -249,7 +249,7 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
       }), noCumuls);
       const hero = relykaZeroHero(b)!;
       expect(hero.word).toBe('Relyka consommé');
-      expect(hero.sub).toBe('Tu as utilisé tout ton surplus du mois.');
+      expect(hero.sub).toBe('Tu as utilisé tout ton surplus du mois. Garde un œil sur tes dépenses.');
       expect(hero.sub).not.toContain('épargné');
     });
 
@@ -361,37 +361,33 @@ describe('buildRelykaBaseMessage', () => {
     variableEnvelopeRemaining: 0, resteDisponibleBrut: 0,
   };
 
-  /* Le message du budget dépassé testait `relykaAffiche < 0` — impossible, puisque le montant
-     affiché dérive d'un `Math.max(0, …)`. Il n'a donc JAMAIS pu s'afficher : quelqu'un à −900 €
-     lisait « tout ton argent est alloué », la phrase d'une situation normale, sous un chiffre rouge.
-     C'est le brut qui porte le signe (même correction que pour la couleur). */
-  it('annonce le budget dépassé quand le Relyka est réellement négatif', () => {
+  // Les statuts ont déjà leur sous-texte : seul un autre message doit occuper le bandeau.
+  it('ne répète pas le sous-texte quand le Relyka est dépassé', () => {
     const m = buildRelykaBaseMessage({ ...base, resteDisponibleBrut: -900, variableEnvelopeRemaining: 120 }, false);
-    expect(m.text).toContain('900 € de plus que ton Relyka');
+    expect(m.text).toBe('');
     expect(m.isGeneric).toBe(false);
   });
 
-  it('préfère « tout est rangé ailleurs » quand les mises de côté expliquent le négatif', () => {
+  it('ne répète pas le sous-texte quand le Relyka est placé', () => {
     const m = buildRelykaBaseMessage(
-      { ...base, resteDisponibleBrut: -100, relykaAlloueVolontairement: true, misDeCoteTotal: 500 },
+      { ...base, resteDisponibleBrut: -100, conservedTotal: 500 },
       false,
     );
-    expect(m.text).not.toContain("Rien d'inquiétant");
+    expect(m.text).toBe('');
   });
 
-  it('salue la mise de côté au lieu d\'alerter quand le 0 est un CHOIX', () => {
+  it('ne répète pas le sous-texte à zéro avec des mises de côté', () => {
     const m = buildRelykaBaseMessage({ ...base, relykaAlloueVolontairement: true, misDeCoteTotal: 500 }, false);
-    expect(m.text).not.toContain("Rien d'inquiétant");
-    expect(m.text).toContain('surplus du mois');
+    expect(m.text).toBe('');
     expect(m.isGeneric).toBe(false);
   });
 
-  it('met en garde quand le 0 vient d\'un manque, pas d\'un choix', () => {
-    expect(buildRelykaBaseMessage(base, false).text).toContain('surplus du mois');
+  it('ne répète pas le sous-texte à zéro sans mise de côté', () => {
+    expect(buildRelykaBaseMessage(base, false).text).toBe('');
   });
 
-  it("distingue « épuisé mais tout est alloué » de « plus de marge du tout »", () => {
-    expect(buildRelykaBaseMessage({ ...base, variableEnvelopeRemaining: 120 }, false).text).toContain('surplus du mois');
+  it('ne répète pas le sous-texte avec une enveloppe de dépenses restante', () => {
+    expect(buildRelykaBaseMessage({ ...base, variableEnvelopeRemaining: 120 }, false).text).toBe('');
   });
 
   it('la phrase passe-partout du Relyka positif est marquée GÉNÉRIQUE (effaçable)', () => {

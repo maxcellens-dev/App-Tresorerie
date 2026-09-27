@@ -128,7 +128,7 @@ export default function QuickAddButton() {
   // La bulle se pose au-dessus de la barre d'onglets, calée à droite.
   const barHeight = BAR_CONTENT + Math.max(insets.bottom, 8);
   const anchorBottom = barHeight + 12;
-  const anchorLeft = width - 16 - FAB_SIZE;
+  const anchorLeft = width - 16 - ACTION_W;
 
   // Actions EMPILÉES verticalement au-dessus du bouton (et non plus en arc) : à trois actions
   // l'arc restait lisible, à quatre les pastilles se chevauchaient et la cible devenait imprécise.
@@ -144,6 +144,7 @@ export default function QuickAddButton() {
     { key: 'balance', label: 'Mettre à jour mon solde', icon: 'refresh', color: COLORS.emerald, route: soldeRoute },
   ] as const;
   const ROW_H = ACTION_SIZE + 12;   // hauteur d'une ligne (bouton + gouttière)
+  const menuHeight = ACTIONS.length * ROW_H + FAB_SIZE;
 
   // ⚠️ TOUTES les interpolations sont BORNÉES. `anim` est un ressort : il dépasse hors de [0, 1],
   // et des taps rapprochés lui transmettent la vélocité du ressort précédent — le dépassement
@@ -166,31 +167,28 @@ export default function QuickAddButton() {
         </Pressable>
       )}
 
-      {/* Ancre carrée à l'emplacement du FAB ; box-none → seuls les boutons captent les taps */}
-      <View pointerEvents="box-none" style={[styles.anchor, { bottom: anchorBottom, left: anchorLeft }]}>
+      {/* Le conteneur englobe aussi les actions : Android doit pouvoir atteindre leurs cibles
+          sans sortir des limites du parent. box-none laisse passer les taps entre les boutons. */}
+      <View pointerEvents="box-none" style={[styles.anchor, { bottom: anchorBottom, left: anchorLeft, height: menuHeight }]}>
         {mounted && ACTIONS.map((a, i) => {
           // Empilement vertical : la dernière du tableau est la plus proche du « + ».
-          const fromBottom = ACTIONS.length - i;
-          // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
-          const top = -(fromBottom * ROW_H) + (FAB_SIZE - ACTION_SIZE) / 2;
-          // Le menu s'ouvre vers la GAUCHE : la bulle colle au bord droit, la colonne d'actions
-          // se déploie donc vers l'intérieur de l'écran.
-          const left = FAB_SIZE - ACTION_W;
+          const top = i * ROW_H + (FAB_SIZE - ACTION_SIZE) / 2;
           const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1], extrapolate: 'clamp' });
           return (
-            <Animated.View
+            <TouchableOpacity
               key={a.key}
-              // Cliquable UNIQUEMENT si le menu est ouvert — et, le menu ouvert, l'opacité bornée
-              // converge forcément vers 1 : « invisible mais cliquable » n'est plus atteignable.
-              pointerEvents={open ? 'auto' : 'none'}
-              style={[styles.action, { left, top, opacity: actionOpacity, transform: [{ scale }] }]}
+              // La cible reste fixe dès le montage. Animer son scale (ou celui d'un ancêtre)
+              // décale la mesure de Pressability du rendu natif pendant le ressort sur Android.
+              disabled={!open}
+              style={[styles.action, { left: 0, top, pointerEvents: open ? 'auto' : 'none' }]}
+              onPress={() => go(a.route)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={a.label}
             >
-              <TouchableOpacity
-                style={styles.actionRow}
-                onPress={() => go(a.route)}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={a.label}
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.actionRow, { opacity: actionOpacity, transform: [{ scale }] }]}
               >
                 <Text style={[styles.actionLabel, { color: a.color, borderColor: a.color + '55' }]} numberOfLines={1}>
                   {a.label}
@@ -215,13 +213,13 @@ export default function QuickAddButton() {
                     <Ionicons name={a.icon as any} size={24} color={'#fff'} />
                   </LinearGradient>
                 </View>
-              </TouchableOpacity>
-            </Animated.View>
+              </Animated.View>
+            </TouchableOpacity>
           );
         })}
 
         {/* Le bouton « + » — dégradé de marque + halo coloré + pulse d'attention (1×/session) */}
-        <Animated.View style={{ transform: [{ scale: pulse }] }}>
+        <Animated.View style={{ position: 'absolute', bottom: 0, right: 0, transform: [{ scale: pulse }] }}>
           {/* Anneau de mise en avant, tracé DANS la boîte du bouton (aucune position mesurée) :
               la présentation du bouton + peut ainsi le DÉSIGNER à l'écran au lieu d'en parler
               dans le vide. Voir lib/guideHighlight. */}
@@ -254,7 +252,7 @@ export default function QuickAddButton() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    anchor: { position: 'absolute', width: FAB_SIZE, height: FAB_SIZE, alignItems: 'center', justifyContent: 'center', zIndex: 50 },
+    anchor: { position: 'absolute', width: ACTION_W, zIndex: 50 },
     fab: {
       width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2,
       alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
@@ -268,6 +266,7 @@ function makeStyles(c: any) {
     action: {
       position: 'absolute',
       width: ACTION_W,          // libellé à gauche + pastille à droite, sur une ligne
+      height: ACTION_SIZE,
       alignItems: 'flex-end',
     },
     actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

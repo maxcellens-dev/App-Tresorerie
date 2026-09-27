@@ -258,7 +258,7 @@ export function relykaZeroHero(b: RelykaStatusInput): { word: string; sub: strin
     word: 'Relyka dépassé',
     sub: 'Tu as dépensé ' + amount(Math.abs(b.resteDisponibleBrut)) + ' € de plus que ton Relyka ce mois-ci.',
   };
-  return { word: 'Relyka consommé', sub: 'Tu as utilisé tout ton surplus du mois.' };
+  return { word: 'Relyka consommé', sub: 'Tu as utilisé tout ton surplus du mois. Garde un œil sur tes dépenses.' };
 }
 
 export function buildRelykaBaseMessage(
@@ -266,7 +266,8 @@ export function buildRelykaBaseMessage(
   relykaRangeIsRange: boolean,
 ): { text: string; isGeneric: boolean } {
   const zero = relykaZeroHero(b);
-  if (zero) return { text: zero.sub, isGeneric: false };
+  // Déjà affiché sous le statut : le bandeau ne reprend pas ce sous-texte.
+  if (zero) return { text: '', isGeneric: false };
   return {
     text: relykaRangeIsRange
       ? "Voici ce qu'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l'estimation."
