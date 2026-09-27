@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { createRealtimeQueryRefresh } from '../../lib/platform/realtimeQueryRefresh';
 
 const ok = () => !!supabase;
 
@@ -50,25 +51,20 @@ export function useSharedAccountsRealtime(userId: string | undefined) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!supabase || !userId) return;
+    const refresh = createRealtimeQueryRefresh(qc);
     const channel = supabase
       .channel(`shared_accounts_${userId}_${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, () => {
-        qc.invalidateQueries({ queryKey: ['accounts'] });
-        qc.invalidateQueries({ queryKey: ['transactions'] });
-        qc.invalidateQueries({ queryKey: ['shared_contribution'] });
-        qc.invalidateQueries({ queryKey: ['pilotage_data'] });
+        refresh.refresh(['accounts', 'transactions', 'shared_contribution', 'pilotage_data']);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'account_members' }, () => {
-        qc.invalidateQueries({ queryKey: ['accounts'] });
-        qc.invalidateQueries({ queryKey: ['account_members'] });
-        qc.invalidateQueries({ queryKey: ['shared_contribution'] });
-        qc.invalidateQueries({ queryKey: ['pilotage_data'] });
+        refresh.refresh(['accounts', 'account_members', 'shared_contribution', 'pilotage_data']);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'account_invitations', filter: `to_user_id=eq.${userId}` }, () => {
         qc.invalidateQueries({ queryKey: ['acct_invitations', userId] });
       })
       .subscribe();
-    return () => { supabase!.removeChannel(channel); };
+    return () => { refresh.dispose(); supabase!.removeChannel(channel); };
   }, [userId, qc]);
 }
 

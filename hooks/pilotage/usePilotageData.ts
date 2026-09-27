@@ -186,15 +186,18 @@ async function fetchPilotageData(profileId: string, qc: QueryClient): Promise<{
       loadEvents: () => fetchAllCreditEvents(profileId),
     });
     if (changed) {
-      await Promise.all(['accounts', 'transactions', 'credits', 'credit_events_all', 'shared_contribution', 'transaction_month_overrides'].map(key =>
+      qc.setQueryData(['pilotage_sync_completed', profileId], Date.now());
+      // Les écritures sont terminées : le snapshot peut partir EN PARALLÈLE des autres vues.
+      // PilotageReadiness attend séparément ses dépendances nécessaires au premier affichage.
+      void Promise.all(['accounts', 'transactions', 'credits', 'credit_events_all', 'shared_contribution', 'transaction_month_overrides'].map(key =>
         qc.invalidateQueries({ queryKey: key === 'transaction_month_overrides' ? [key] : [key, profileId] }),
-      ));
+      )).catch(() => {});
     }
   } catch (error: any) {
     // Une partie des RPC a pu aboutir avant l'échec suivant. Les autres écrans doivent le relire.
-    await Promise.all(['accounts', 'transactions', 'credits', 'shared_contribution'].map(key =>
+    void Promise.all(['accounts', 'transactions', 'credits', 'shared_contribution'].map(key =>
       qc.invalidateQueries({ queryKey: [key, profileId] }),
-    ));
+    )).catch(() => {});
     void reportError('error', `Synchronisation financière : ${error?.message ?? 'échec'}`, error?.stack, { where: 'fetchPilotageData' });
     throw error;
   }

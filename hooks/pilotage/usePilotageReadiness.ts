@@ -43,9 +43,8 @@ export function usePilotageReadiness(
     setState({ profileId, status: 'loading' });
     if (!profileId || offline) return;
     let primarySucceeded = false;
-    const validationStartedAt = SESSION_STARTED_AT;
     void (async () => {
-      for (let attempt = 0; attempt < 3 && !disposed; attempt++) {
+      for (let attempt = 0; !disposed;) {
         let stage = 'pilotage';
         try {
           // Le calcul principal synchronise d'abord les échéances. Ne pas annuler une écriture en vol.
@@ -59,6 +58,8 @@ export function usePilotageReadiness(
           if (disposed) return;
           // Les autres vues de comptes/opérations doivent être lues APRÈS ces écritures.
           stage = 'dependencies';
+          const validationStartedAt = Math.max(SESSION_STARTED_AT,
+            sessionClient?.getQueryData<number>(['pilotage_sync_completed', profileId]) ?? 0);
           await Promise.all(queries.current.dependencies.map(q => q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= validationStartedAt
             ? Promise.resolve() : q.refetch({ cancelRefetch: true, throwOnError: true })));
           if (!disposed) {
@@ -70,12 +71,20 @@ export function usePilotageReadiness(
         } catch (error) {
           if (disposed) return;
           const e = error as { code?: string; message?: string };
-          const transient = isCancelledError(error) || ['40P01', '40001', '57014'].includes(e?.code ?? '')
+          if (isCancelledError(error) || e?.message === 'CancelledError') {
+            // Une invalidation après écriture remplace la lecture, sans erreur réseau.
+            // Rejoindre la nouvelle requête sans consommer les tentatives de récupération.
+            primarySucceeded = false;
+            await Promise.resolve();
+            continue;
+          }
+          const transient = ['40P01', '40001', '57014'].includes(e?.code ?? '')
             || /network|failed to fetch|fetch failed|timeout|offline|load failed/i.test(e?.message ?? '');
           if (transient && attempt < 2) {
+            attempt++;
             await new Promise<void>(resolve => {
               releaseWait = resolve;
-              timer = setTimeout(resolve, 750 * (attempt + 1));
+              timer = setTimeout(resolve, 750 * attempt);
             });
             continue;
           }

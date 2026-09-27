@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { usePilotageReadiness } from '../hooks/pilotage/usePilotageReadiness';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { CancelledError, QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { refetchActiveQueries } from '../lib/platform/refetchActiveQueries';
 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; }
@@ -197,5 +197,30 @@ it('démarrage avec cache : premier plan, hydratation et focus ne font ni échou
   expect(report).not.toHaveBeenCalled();
   expect(result.current.failed).toBe(false);
   expect(client.getQueryData(key)).toEqual({ amount: 200 });
+  unmount(); client.clear();
+});
+
+it('plusieurs annulations internes ne produisent jamais le bouton Réessayer ni de délai réseau', async () => {
+  const report = jest.fn();
+  const main = query(jest.fn()
+    .mockRejectedValueOnce(new CancelledError({ silent: true }))
+    .mockRejectedValueOnce(new CancelledError({ silent: true }))
+    .mockRejectedValueOnce(new CancelledError({ silent: true }))
+    .mockRejectedValueOnce(new Error('CancelledError'))
+    .mockResolvedValue(undefined));
+  const { result } = renderHook(() => usePilotageReadiness('u', false, main, [], report));
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(main.refetch).toHaveBeenCalledTimes(5);
+  expect(result.current.failed).toBe(false);
+  expect(report).not.toHaveBeenCalled();
+});
+
+it('relit une dépendance chargée avant les écritures même si elle date de cette session', async () => {
+  const client = new QueryClient(); const oldRead = Date.now();
+  const extra = { ...query(), dataUpdatedAt: oldRead };
+  const main = query(jest.fn(async () => { client.setQueryData(['pilotage_sync_completed', 'u'], oldRead + 1); }));
+  const { result, unmount } = renderHook(() => usePilotageReadiness('u', false, main, [extra], undefined, client));
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(extra.refetch).toHaveBeenCalledTimes(1);
   unmount(); client.clear();
 });
