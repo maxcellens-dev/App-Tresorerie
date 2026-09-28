@@ -7,6 +7,8 @@ interface SyncDependencies {
   loadCredits: () => Promise<Credit[]>;
   loadAccounts: () => Promise<{ id: string; _role?: string }[]>;
   loadEvents: () => Promise<Record<string, CreditEventRow[]>>;
+  /** Remet à vrai les drapeaux `posted` des opérations échues, une fois les soldes recalculés. */
+  markPosted?: (today: string) => Promise<void>;
   schedule?: typeof computeCreditSchedule;
   skipPostedReconciliation?: boolean;
   onRecurringComplete?: () => void;
@@ -73,6 +75,10 @@ export async function synchronizeFinances(profileId: string, today: string, d: S
         const failed = results.find(result => result.status === 'rejected');
         if (failed?.status === 'rejected') throw failed.reason;
       }
+      /* Sans cela la sonde répondait « needs_posted » à CHAQUE ouverture : tous les comptes
+         réécrits, données déclarées changées, toute la chaîne de lectures relancée. Un échec ici
+         ne fausse aucun solde (ils viennent d'être recalculés sur les dates) : on ne bloque pas. */
+      if (posted && d.markPosted) await d.markPosted(today).catch(() => {});
     }
     d.onRecurringComplete?.();
   }

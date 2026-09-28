@@ -44,35 +44,48 @@ export function usePilotageReadiness(
     }
     setState({ profileId, status: 'loading' });
     if (!profileId || offline) return;
+    const primarySince = generation === 0 ? SESSION_STARTED_AT : Date.now();
     let primarySucceeded = false;
+    /* Rejoint la lecture en vol, ou en lance une si la donnée n'a pas été lue depuis `since`.
+       Rend l'instant de la donnée obtenue. Une invalidation qui REMPLACE la lecture (annulation)
+       n'est pas un échec : on rejoint la suivante, sans relancer quoi que ce soit nous-mêmes. */
+    const settle = async (q: ReadableQuery, since: number): Promise<number> => {
+      if (q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= since) return q.dataUpdatedAt ?? 0;
+      for (let cancelled = 0; ; cancelled++) {
+        try {
+          const r = await q.refetch({ cancelRefetch: false, throwOnError: true }) as { dataUpdatedAt?: number } | undefined;
+          return r?.dataUpdatedAt || Date.now();
+        } catch (error) {
+          const e = error as { message?: string };
+          if (disposed || cancelled >= 5 || !(isCancelledError(error) || e?.message === 'CancelledError')) throw error;
+        }
+      }
+    };
     void (async () => {
       for (let attempt = 0; !disposed;) {
         let stage = 'pilotage';
         try {
-          // Ces lectures ne dépendent d'aucune écriture financière : les lancer tout de suite,
-          // ou rejoindre leur requête en vol, sans attendre puis retélécharger le même contenu.
-          const independent = Promise.all(queries.current.dependencies
-            .filter(q => q.afterFinancialSync === false)
-            .map(q => q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= SESSION_STARTED_AT
-              ? Promise.resolve() : q.refetch({ cancelRefetch: false, throwOnError: true })));
-          independent.catch(() => {}); // observée même si la synchronisation échoue avant l'await
-          // Le calcul principal synchronise d'abord les échéances. Ne pas annuler une écriture en vol.
+          /* TOUT PART EN MÊME TEMPS. Les comptes, opérations et partages étaient relus APRÈS la
+             synchronisation + le snapshot : trois allers-retours bout à bout sous le rond de
+             chargement, alors que dans le cas courant la synchronisation n'écrit rien. On les lance
+             maintenant ; si elle a écrit, fetchPilotageData les invalide (la lecture en vol est
+             remplacée) et on relit ci-dessous celles qui dateraient d'avant ses écritures. */
+          const deps = queries.current.dependencies;
+          const early = deps.map(q => settle(q, SESSION_STARTED_AT));
+          early.forEach(p => p.catch(() => {})); // observées même si le calcul principal échoue d'abord
+          // Le calcul principal synchronise les échéances. Ne jamais annuler une écriture en vol.
           if (!primarySucceeded) {
-            const q = queries.current.primary;
-            if (!(q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= SESSION_STARTED_AT && generation === 0)) {
-              await q.refetch({ cancelRefetch: false, throwOnError: true });
-            }
+            await settle(queries.current.primary, primarySince);
             primarySucceeded = true;
           }
           if (disposed) return;
-          // Les autres vues de comptes/opérations doivent être lues APRÈS ces écritures.
           stage = 'dependencies';
-          const validationStartedAt = Math.max(SESSION_STARTED_AT,
-            sessionClient?.getQueryData<number>(['pilotage_sync_completed', profileId]) ?? 0);
-          await Promise.all([independent, ...queries.current.dependencies
-            .filter(q => q.afterFinancialSync !== false)
-            .map(q => q.isSuccess && q.fetchStatus === 'idle' && (q.dataUpdatedAt ?? 0) >= validationStartedAt
-              ? Promise.resolve() : q.refetch({ cancelRefetch: true, throwOnError: true }))]);
+          const readAt = await Promise.all(early);
+          if (disposed) return;
+          // Les vues de comptes/opérations lues AVANT des écritures de la synchronisation sont relues.
+          const syncAt = sessionClient?.getQueryData<number>(['pilotage_sync_completed', profileId]) ?? 0;
+          await Promise.all(deps.map((q, i) => q.afterFinancialSync !== false && readAt[i] < syncAt
+            ? settle(q, Number.POSITIVE_INFINITY) : null));
           if (!disposed) {
             sessionClient?.setQueryDefaults(['pilotage_validated_session'], { gcTime: Infinity });
             sessionClient?.setQueryData(['pilotage_validated_session', profileId], true);

@@ -139,3 +139,29 @@ it('attend les écritures en vol après un échec et ne publie pas les crédits 
   expect(d.rpc.mock.calls.some(c => c[0] === 'publish_credit_schedule')).toBe(false);
   expect(started).not.toContain('d');
 });
+
+it('remet les drapeaux posted à vrai après le recalcul, pour ne plus tout réécrire à chaque ouverture', async () => {
+  const d = harness(); const order: string[] = [];
+  d.rpc.mockImplementation(async (name: string) => {
+    order.push(name);
+    return name === 'pending_materialization' ? { data: { needs_recurring: false, needs_posted: true }, error: null } : { data: 0, error: null };
+  });
+  const markPosted = jest.fn(async (_today: string) => { order.push('markPosted'); });
+  await synchronizeFinances('u', '2026-09-28', { ...d, markPosted });
+  expect(markPosted).toHaveBeenCalledWith('2026-09-28');
+  expect(order.indexOf('markPosted')).toBeGreaterThan(order.indexOf('recompute_account_balance'));
+});
+it('un échec de remise des drapeaux posted ne bloque pas le Pilotage', async () => {
+  const d = harness();
+  d.rpc.mockImplementation(async (name: string) => name === 'pending_materialization'
+    ? { data: { needs_recurring: false, needs_posted: true }, error: null } : { data: 0, error: null });
+  await expect(synchronizeFinances('u', '2026-09-28', { ...d, markPosted: jest.fn(async () => { throw new Error('rls'); }) })).resolves.toBe(true);
+});
+it('ne touche pas aux drapeaux posted quand la sonde ne signale rien', async () => {
+  const d = harness();
+  d.rpc.mockImplementation(async (name: string) => name === 'pending_materialization'
+    ? { data: { needs_recurring: false, needs_posted: false }, error: null } : { data: 0, error: null });
+  const markPosted = jest.fn(async () => {});
+  await expect(synchronizeFinances('u', '2026-09-28', { ...d, markPosted })).resolves.toBe(false);
+  expect(markPosted).not.toHaveBeenCalled();
+});

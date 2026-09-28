@@ -7,17 +7,39 @@ import { refetchActiveQueries } from '../lib/platform/refetchActiveQueries';
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; }
 const query = (refetch: jest.Mock<Promise<unknown>, any[]> = jest.fn(async () => undefined)) => ({ isSuccess: true, isError: false, fetchStatus: 'idle', refetch });
 
-it('ne montre pas le cache avant la synchronisation puis les lectures complémentaires', async () => {
+it('lance les lectures complémentaires EN MÊME TEMPS que la synchronisation, sans rien montrer avant les deux', async () => {
   const sync = deferred(), extras = deferred();
   const main = query(jest.fn(() => sync.promise)); const reserve = query(jest.fn(() => extras.promise));
   const { result } = renderHook(() => usePilotageReadiness('u', false, main, [reserve]));
   expect(result.current.ready).toBe(false);
-  expect(reserve.refetch).not.toHaveBeenCalled();
+  // Plus de cascade synchro → snapshot → comptes/opérations : tout part dès l'ouverture.
+  expect(reserve.refetch).toHaveBeenCalledWith({ cancelRefetch: false, throwOnError: true });
   await act(async () => sync.resolve());
-  expect(reserve.refetch).toHaveBeenCalled();
   expect(result.current.ready).toBe(false);
   await act(async () => extras.resolve());
   await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(reserve.refetch).toHaveBeenCalledTimes(1);
+});
+
+it('sans écriture de la synchronisation, ne relit aucune dépendance déjà lue pendant celle-ci', async () => {
+  const client = new QueryClient();
+  const main = query(); const accounts = query(jest.fn(async () => ({ dataUpdatedAt: Date.now() })));
+  const { result, unmount } = renderHook(() => usePilotageReadiness('u', false, main, [accounts], undefined, client));
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(accounts.refetch).toHaveBeenCalledTimes(1);
+  unmount(); client.clear();
+});
+
+it('relit après la synchronisation une dépendance lue avant ses écritures', async () => {
+  const client = new QueryClient(); const sync = deferred();
+  const main = query(jest.fn(() => sync.promise.then(() => { client.setQueryData(['pilotage_sync_completed', 'u'], Date.now() + 1000); })));
+  const accounts = query(jest.fn(async () => ({ dataUpdatedAt: Date.now() })));
+  const { result, unmount } = renderHook(() => usePilotageReadiness('u', false, main, [accounts], undefined, client));
+  await waitFor(() => expect(accounts.refetch).toHaveBeenCalledTimes(1));
+  await act(async () => sync.resolve());
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(accounts.refetch).toHaveBeenCalledTimes(2);
+  unmount(); client.clear();
 });
 it('un échec des réservations bloque les montants, même avec un cache réussi', async () => {
   const { result } = renderHook(() => usePilotageReadiness('u', false, query(), [query(jest.fn(async () => { throw new Error('offline'); }))]));

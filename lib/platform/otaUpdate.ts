@@ -52,6 +52,8 @@ export interface UpdateOnLaunchState {
   downloading: boolean;
   /** 0 → 1 quand le serveur annonce la taille des fichiers, `null` sinon. */
   progress: number | null;
+  /** Téléchargement terminé : l'app redémarre sur la nouvelle version. */
+  installing: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export interface UpdateOnLaunchState {
  */
 export function useUpdateOnLaunch(): UpdateOnLaunchState {
   const [waiting, setWaiting] = useState(false);
+  const [installing, setInstalling] = useState(false);
   /* `reloadAsync` ne rend jamais la main quand il réussit (l'app redémarre) : ce verrou évite qu'un
      rendu supplémentaire n'en déclenche un second pendant que le premier s'exécute. */
   const reloading = useRef(false);
@@ -121,7 +124,8 @@ export function useUpdateOnLaunch(): UpdateOnLaunchState {
         return;
       }
       reloading.current = true;
-      Updates.reloadAsync().catch(() => { reloading.current = false; setWaiting(false); });
+      setInstalling(true);
+      Updates.reloadAsync().catch(() => { reloading.current = false; setInstalling(false); setWaiting(false); });
       return;
     }
     // Échec de la recherche ou du téléchargement (hors ligne, serveur indisponible) : on démarre.
@@ -139,5 +143,6 @@ export function useUpdateOnLaunch(): UpdateOnLaunchState {
     waiting,
     downloading: !!isDownloading,
     progress: typeof downloadProgress === 'number' ? downloadProgress : null,
+    installing,
   };
 }

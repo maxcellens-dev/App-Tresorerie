@@ -178,12 +178,44 @@ async function fetchPilotageData(profileId: string, qc: QueryClient): Promise<{
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
+  // FENÊTRAGE des transactions : le moteur Pilotage ne regarde JAMAIS plus de 6 mois en arrière
+  // (revenu inféré 4 mois, revenu moyen 6 mois, net 3 mois, tendance/enveloppe variables 3-6 mois) ;
+  // le reste = mois courant + FUTUR + modèles récurrents. On borne donc le fetch à 8 mois glissants
+  // (marge) + toutes les récurrentes (quelle que soit leur date de départ) : un compte avec des
+  // années d'historique ne re-télécharge plus TOUT à chaque ouverture / après chaque saisie.
+  // (Le « 1ᵉʳ mois utilisateur » de computeAvgMonthlyIncome est sécurisé par profiles.created_at.)
+  const nowD = new Date();
+  const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
+  // UN aller-retour (migration 174) au lieu de onze en quatre vagues. Repli automatique sur le
+  // chemin historique tant que la migration n'est pas déployée — une OTA arrive avant elle.
+  const readRaw = async () => (await fetchPilotageSnapshot(profileId, histStart)) ?? (await fetchPilotageLegacy(profileId, histStart));
+
+  /* PERF (ouverture) — la lecture part EN MÊME TEMPS que la synchronisation. Dans le cas courant
+     celle-ci n'écrit rien : la lecture parallèle est alors exacte, et on gagne l'aller-retour le
+     plus lourd de l'écran. Si elle a écrit, cette lecture est jetée et refaite APRÈS les écritures
+     (ci-dessous) : aucun chiffre n'est calculé sur des soldes d'avant la synchronisation. */
+  const earlyRaw = readRaw();
+  earlyRaw.catch(() => {}); // observée même si la synchronisation échoue avant qu'on l'attende
+
+  let changed: boolean;
   try {
-    const changed = await synchronizeFinances(profileId, isoDay(new Date()), {
+    changed = await synchronizeFinances(profileId, isoDay(new Date()), {
       rpc: (name, args) => supabase!.rpc(name, args),
       loadCredits: () => fetchCredits(profileId),
       loadAccounts: () => fetchAllAccounts(profileId),
       loadEvents: () => fetchAllCreditEvents(profileId),
+      markPosted: async (today) => {
+        /* Les soldes se recalculent sur les DATES (recompute_account_balance) : le drapeau `posted`
+           n'y entre plus, mais plus rien ne le remettait à vrai non plus. La sonde voyait donc à
+           jamais « des opérations échues à porter au solde », et CHAQUE ouverture recalculait tous
+           les comptes, déclarait les données changées et relançait toute la chaîne de lectures
+           (et, par le temps réel des comptes, le Pilotage lui-même). Même prédicat que la sonde. */
+        const { error } = await supabase!.from('transactions').update({ posted: true })
+          .eq('profile_id', profileId).eq('posted', false)
+          .not('is_draft', 'is', true).not('is_recurring', 'is', true)
+          .lte('date', today);
+        if (error) throw error;
+      },
     });
     if (changed) {
       qc.setQueryData(['pilotage_sync_completed', profileId], Date.now());
@@ -202,18 +234,7 @@ async function fetchPilotageData(profileId: string, qc: QueryClient): Promise<{
     throw error;
   }
 
-  // FENÊTRAGE des transactions : le moteur Pilotage ne regarde JAMAIS plus de 6 mois en arrière
-  // (revenu inféré 4 mois, revenu moyen 6 mois, net 3 mois, tendance/enveloppe variables 3-6 mois) ;
-  // le reste = mois courant + FUTUR + modèles récurrents. On borne donc le fetch à 8 mois glissants
-  // (marge) + toutes les récurrentes (quelle que soit leur date de départ) : un compte avec des
-  // années d'historique ne re-télécharge plus TOUT à chaque ouverture / après chaque saisie.
-  // (Le « 1ᵉʳ mois utilisateur » de computeAvgMonthlyIncome est sécurisé par profiles.created_at.)
-  const nowD = new Date();
-  const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
-
-  // UN aller-retour (migration 174) au lieu de onze en quatre vagues. Repli automatique sur le
-  // chemin historique tant que la migration n'est pas déployée — une OTA arrive avant elle.
-  const raw = (await fetchPilotageSnapshot(profileId, histStart)) ?? (await fetchPilotageLegacy(profileId, histStart));
+  const raw = changed ? await readRaw() : await earlyRaw;
 
   const rates: RatesMap = { EUR: 1 };
   for (const r of raw.rates) rates[r.code] = Number(r.rate);

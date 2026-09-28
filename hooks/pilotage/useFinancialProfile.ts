@@ -615,8 +615,8 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
       // En consultation admin : ne JAMAIS lancer l'évaluation mensuelle du compte cible.
       // Elle écrit un profile_change_log (bilan mensuel / transition) et avance
       // last_auto_evaluation → visiter un compte ne doit pas déclencher son bilan.
-      if (isImpersonating) return;
-      if (!supabase || !userId) return;
+      if (isImpersonating) return false;
+      if (!supabase || !userId) return false;
 
       // Charger le profil actuel
       const { data: fp } = await supabase
@@ -625,7 +625,7 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!fp) return; // pas encore de profil
+      if (!fp) return false; // pas encore de profil
 
       /* ── LE GEL INITIAL A ÉTÉ RETIRÉ D'ICI ──────────────────────────────────────────────────
          Il lisait `auto_unlock_at` pour suspendre le bilan mensuel pendant les deux premiers mois
@@ -672,7 +672,7 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
          date. */
 
       // Un seul bilan par mois — c'est un rendez-vous, pas un flux.
-      if (alreadyReportedThisMonth) return;
+      if (alreadyReportedThisMonth) return false;
 
       const now = new Date().toISOString();
       await supabase.from('profile_change_log').insert({
@@ -688,8 +688,12 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         .from('user_financial_profile')
         .update({ last_auto_evaluation: currentMonthStr, updated_at: now })
         .eq('user_id', userId);
+      return true;
     },
-    onSuccess: () => {
+    /* Rien écrit (presque toutes les ouvertures) → rien à relire. Invalider `profile` à chaque
+       montage du Pilotage annulait sa lecture en cours, attendue par le chargement de l'écran. */
+    onSuccess: (wrote) => {
+      if (!wrote) return;
       client.invalidateQueries({ queryKey: [PROFILE_KEY, userId] });
       client.invalidateQueries({ queryKey: [CHANGE_LOG_KEY, 'pending', userId] });
       client.invalidateQueries({ queryKey: ['profile', userId] });

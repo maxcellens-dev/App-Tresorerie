@@ -13,6 +13,7 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
 import { useUpdateOnLaunch } from '../../lib/platform/otaUpdate';
 
@@ -22,19 +23,28 @@ const BG_DARK = '#0D2E2A';
 const LOGO = 96;
 
 export default function UpdateOnLaunchGate() {
-  const { waiting, downloading, progress } = useUpdateOnLaunch();
+  const { waiting, downloading, progress, installing } = useUpdateOnLaunch();
   const COLORS = useBrandColors();
   const insets = useSafeAreaInsets();
   const isLight = COLORS.mode === 'light';
 
-  /* Le texte n'apparaît qu'au bout d'un instant : si la mise à jour arrive en une seconde, annoncer
-     « mise à jour en cours » n'aurait fait que clignoter. Le splash, lui, est là dès la 1ʳᵉ frame. */
+  /* Le splash NATIF est opaque et reste levé jusqu'à ce que le splash animé se déclare prêt : il
+     recouvrait ce voile — donc le bandeau et son pourcentage — pendant qu'on attendait justement la
+     mise à jour. Même fond, même logo, même position : l'effacer ici est invisible, sauf pour le
+     bandeau qu'il révèle. */
+  useEffect(() => {
+    if (waiting) SplashScreen.hideAsync().catch(() => {});
+  }, [waiting]);
+
+  /* Court délai avant le texte : une mise à jour déjà prête (redémarrage immédiat) ne fait pas
+     clignoter de bandeau. Au-delà, on dit tout de suite ce qui se passe — c'était 1,2 s, et le
+     bandeau passait inaperçu. */
   const captionFade = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!waiting) return;
     const t = setTimeout(() => {
-      Animated.timing(captionFade, { toValue: 1, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
-    }, 1200);
+      Animated.timing(captionFade, { toValue: 1, duration: 250, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+    }, 300);
     return () => {
       clearTimeout(t);
       captionFade.stopAnimation();
@@ -49,10 +59,12 @@ export default function UpdateOnLaunchGate() {
   const bg = isLight ? SPLASH_BG : BG_DARK;
   const textColor = isLight ? '#0D2E2A' : '#F4EFE6';
   const accent = isLight ? '#00B5C8' : '#22D3DD';
-  const pct = downloading && progress != null && Number.isFinite(progress)
-    ? Math.round(Math.max(0, Math.min(1, progress)) * 100)
-    : null;
-  const label = downloading ? 'Mise à jour en cours' : 'Vérification des mises à jour…';
+  const pct = installing ? 100
+    : downloading && progress != null && Number.isFinite(progress)
+      ? Math.round(Math.max(0, Math.min(1, progress)) * 100)
+      : null;
+  const label = installing ? 'Installation de la mise à jour…'
+    : downloading ? 'Téléchargement de la mise à jour' : 'Recherche de mise à jour…';
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.root, { backgroundColor: bg }]}>
