@@ -13,12 +13,16 @@ import { marketingTypography as type } from '../../theme/marketingTypography';
 import type { TextStyle } from 'react-native';
 import { useLandingConfig, mergeLanding, type LandingConfig } from '../../hooks/config/useLandingConfig';
 import { signalAppReady } from '../../lib/platform/splashGate';
+import { getCachedAdminTheme } from '../../lib/platform/themeBoot';
+import AppLoading from '../system/AppLoading';
 import LandingPage from './LandingPage';
 import PlayStoreBadge from './PlayStoreBadge';
 import SocialLinks from './SocialLinks';
 
 /** Attente MAXIMALE avant de révéler l'accueil (police de marque + textes admin). Cf. `canReveal`. */
 const REVEAL_CAP_MS = 700;
+/** Attente maximale du thème de la vitrine à la toute première visite (web). Cf. `themeUnknown`. */
+const THEME_CAP_MS = 2000;
 
 
 /** Shared native welcome screen; preview uses the same layout without navigation or boot effects. */
@@ -77,6 +81,15 @@ export default function WelcomeScreen({ previewConfig, previewWidth }: { preview
      ne couvre le premier rendu là-bas — on afficherait une page vide au lieu d'éviter un saut. */
   const canReveal = !signingOut && (Platform.OS === 'web' || (fontReady && configReady) || capReached);
 
+  // Cf. le retour anticipé plus bas (« toute première visite »).
+  const themeUnknown = !previewConfig && Platform.OS === 'web' && landing === undefined && getCachedAdminTheme() === null;
+  const [themeCapReached, setThemeCapReached] = useState(false);
+  useEffect(() => {
+    if (!themeUnknown) return;
+    const t = setTimeout(() => setThemeCapReached(true), THEME_CAP_MS);
+    return () => clearTimeout(t);
+  }, [themeUnknown]);
+
   useEffect(() => {
     if (previewConfig || !canReveal) return;
     // Le splash animé n'est libéré qu'ici : sur un démarrage à froid, c'est LUI qui couvre l'attente
@@ -95,6 +108,14 @@ export default function WelcomeScreen({ previewConfig, previewWidth }: { preview
       }),
     ]).start();
   }, [canReveal, previewConfig]);
+
+  /* TOUTE PREMIÈRE VISITE (web) : ni config chargée, ni thème mémorisé — on ne SAIT pas encore si
+     la vitrine est claire ou sombre. L'afficher quand même, c'était la peindre dans le thème par
+     défaut puis la repeindre sous les yeux du visiteur. On tient donc l'écran de chargement, dont le
+     marqueur garde en place le logo du boot-loader HTML (fond neutre, cf. app/+html.tsx) : la page
+     n'apparaît qu'une fois, dans ses vraies couleurs. Dès la visite suivante le thème est mémorisé
+     et cette attente n'existe plus. Bornée : sans réseau, on affiche quand même la page. */
+  if (themeUnknown && !themeCapReached) return <AppLoading />;
 
   if (showLanding) return <LandingPage />;
 

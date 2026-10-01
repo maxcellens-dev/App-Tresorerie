@@ -29,7 +29,18 @@ export default function LandingPage({ previewConfig, previewWidth }: { previewCo
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const wide = width >= 980;
-  const c = useMemo(() => landingTheme(cfg.theme === 'dark', brandColors.emerald), [cfg.theme, brandColors.emerald]);
+  /* ── LE THÈME NE SE LIT PAS DANS `cfg` ─────────────────────────────────────────────────────────
+     `cfg` est la config FUSIONNÉE AVEC LES DÉFAUTS : tant que la vraie config n'est pas (re)venue,
+     `cfg.theme` vaut le défaut du code — sombre. Or elle manque à deux moments bien visibles : le
+     tout premier affichage, et surtout la DÉCONNEXION (`queryClient.clear()` vide le cache juste
+     avant que le voile ne se lève). La page s'affichait donc en sombre, puis repassait dans le
+     thème choisi en admin une fois la config relue.
+     `useBrandColors` résout le mode dans le bon ordre — config chargée, sinon DERNIER THÈME CONNU
+     (mémorisé en local, cf. lib/platform/themeBoot), sinon seulement le défaut. C'est déjà lui qui
+     colore l'écran de chargement et l'accueil mobile : la vitrine suit maintenant la même règle.
+     L'aperçu admin, lui, montre la config en cours d'édition. */
+  const isDark = (previewConfig ? cfg.theme : brandColors.mode) === 'dark';
+  const c = useMemo(() => landingTheme(isDark, brandColors.emerald), [isDark, brandColors.emerald]);
   const s = useMemo(() => landingStyles(c, wide, width < 480), [c, wide, width]);
   const goAnchor = (link: LandingLink) => {
     if (previewConfig) return;
@@ -44,7 +55,7 @@ export default function LandingPage({ previewConfig, previewWidth }: { previewCo
     <PlayStoreBadge url={cfg.androidStoreUrl} />
   </View>;
   return <View style={s.root}>
-    {!previewConfig && <StatusBar style={cfg.theme === 'dark' ? 'light' : 'dark'} />}
+    {!previewConfig && <StatusBar style={isDark ? 'light' : 'dark'} />}
     <View style={s.header}><View style={s.headerInner}>
       {brand}
       {wide && <View style={s.nav}>{cfg.navLinks.map((link, i) => <TouchableOpacity key={i} accessibilityRole="link" onPress={() => goAnchor(link)} style={s.navTouch}><Text style={s.navText}>{link.label}</Text></TouchableOpacity>)}</View>}

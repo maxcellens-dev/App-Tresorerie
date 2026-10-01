@@ -115,9 +115,10 @@ export function ClosureBannerCard({ pendingMonths, onPress, announceKey }: {
   }, []);
   const wave = useRef(new Animated.Value(0)).current;
   const nudge = useRef(new Animated.Value(0)).current;
-  // Le SIGNAL d'ouverture (voir plus bas) : le bandeau se soulève, s'illumine, et le cadenas s'agite.
-  const hop = useRef(new Animated.Value(0)).current;
-  const glow = useRef(new Animated.Value(0)).current;
+  // Le SIGNAL d'ouverture (voir plus bas) : la pastille bat, le cadenas s'agite, le contour s'allume.
+  const pop = useRef(new Animated.Value(0)).current;
+  const edge = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
   const visible = pendingMonths.length > 0;
 
@@ -131,7 +132,7 @@ export function ClosureBannerCard({ pendingMonths, onPress, announceKey }: {
   }, [appReady]);
 
   useEffect(() => {
-    for (const v of [wave, nudge, hop, glow, shake]) v.setValue(0);
+    for (const v of [wave, nudge, pop, edge, burst, shake]) v.setValue(0);
     if (reduceMotion || !visible) return;
     const t = (value: Animated.Value, toValue: number, duration: number, easing: (n: number) => number = Easing.inOut(Easing.quad)) =>
       Animated.timing(value, { toValue, duration, easing, useNativeDriver: true, isInteraction: false });
@@ -154,38 +155,47 @@ export function ClosureBannerCard({ pendingMonths, onPress, announceKey }: {
        Le rappel en boucle est fait pour ne pas déranger : il ne suffit pas à dire « il y a une
        clôture à faire » à quelqu'un qui arrive sur son tableau de bord. À la PREMIÈRE apparition
        du bandeau après un lancement — et à chaque lancement tant que le mois n'est pas clôturé —
-       il se manifeste donc franchement, pendant deux secondes :
-         • il se soulève deux fois (un rebond, pas un tremblement) ;
-         • il s'illumine à chaque rebond ;
+       il se manifeste donc franchement, deux battements durant :
+         • la pastille de l'icône BAT (elle grossit et revient, avec un léger rebond) ;
          • le cadenas s'agite — c'est LUI le sujet : quelque chose reste à fermer ;
-         • deux ondes rapprochées partent de l'icône, le chevron avance.
+         • une onde large part de l'icône à chaque battement ;
+         • le CONTOUR du bandeau s'allume, puis le chevron avance deux fois.
        Puis il retombe dans le rappel discret. Il ne rejoue pas à chaque retour sur l'onglet : une
-       fois par lancement, sinon c'est une alarme. Toujours transform + opacité (le soulèvement est
-       VERTICAL : un agrandissement déborderait de la colonne sur le web bureau). */
+       fois par lancement, sinon c'est une alarme.
+
+       ⚠️ TOUT SE PASSE DANS LES ÉLÉMENTS DU BANDEAU, RIEN PAR-DESSUS. La première version posait
+       un voile coloré sur toute sa surface et le soulevait de quelques points : à l'écran, ça ne se
+       lisait pas comme « le bandeau attire l'attention » mais comme un DEUXIÈME bandeau qui tente
+       d'apparaître au-dessus du premier — un défaut d'affichage. Un signal doit animer ce qui est
+       déjà là (l'icône, le contour, le chevron), jamais recouvrir ni déplacer le bloc. */
     const announce = !!announceKey && announcedFor !== announceKey;
     if (!announce) { loop.start(); return () => loop.stop(); }
     if (!appReady) return;   // on attend la fin du splash ; l'effet se rejoue à ce moment-là
 
-    const beat = (lift: number) => Animated.parallel([
+    const beat = () => Animated.parallel([
       Animated.sequence([
-        t(hop, lift, 170, Easing.out(Easing.cubic)),
-        Animated.spring(hop, { toValue: 0, friction: 4, tension: 140, useNativeDriver: true, isInteraction: false }),
+        t(pop, 1, 160, Easing.out(Easing.cubic)),
+        Animated.spring(pop, { toValue: 0, friction: 4, tension: 140, useNativeDriver: true, isInteraction: false }),
       ]),
-      Animated.sequence([t(glow, 1, 170, Easing.out(Easing.quad)), t(glow, 0, 620)]),
-      Animated.sequence([t(wave, 0, 0, Easing.linear), t(wave, 1, 800, Easing.out(Easing.cubic))]),
+      Animated.sequence([t(edge, 1, 220, Easing.out(Easing.quad)), t(edge, 0, 680)]),
+      Animated.sequence([t(burst, 0, 0, Easing.linear), t(burst, 1, 900, Easing.out(Easing.cubic))]),
     ]);
     const intro = Animated.sequence([
       Animated.delay(650),
       Animated.parallel([
-        Animated.sequence([beat(1), beat(0.7)]),
+        Animated.sequence([beat(), beat()]),
         Animated.sequence([
-          Animated.delay(120),
+          Animated.delay(100),
           t(shake, 1, 80), t(shake, -1, 110), t(shake, 0.8, 110), t(shake, -0.8, 110),
           t(shake, 0.4, 100), t(shake, 0, 100),
         ]),
-        Animated.sequence([Animated.delay(900), t(nudge, 1, 380, Easing.out(Easing.cubic)), t(nudge, 0, 560)]),
+        Animated.sequence([
+          Animated.delay(700),
+          t(nudge, 2, 300, Easing.out(Easing.cubic)), t(nudge, 0, 380),
+          t(nudge, 2, 300, Easing.out(Easing.cubic)), t(nudge, 0, 480),
+        ]),
       ]),
-      t(wave, 0, 0, Easing.linear),
+      t(burst, 0, 0, Easing.linear),
     ]);
     let stopped = false;
     intro.start(({ finished }) => {
@@ -195,48 +205,52 @@ export function ClosureBannerCard({ pendingMonths, onPress, announceKey }: {
       loop.start();
     });
     return () => { stopped = true; intro.stop(); loop.stop(); };
-  }, [reduceMotion, visible, appReady, announceKey, wave, nudge, hop, glow, shake]);
+  }, [reduceMotion, visible, appReady, announceKey, wave, nudge, pop, edge, burst, shake]);
 
   if (!visible) return null;
   const multiple = pendingMonths.length > 1;
   const title = `Clôturer ${multiple ? `${pendingMonths.length} mois` : monthLabel(pendingMonths[0])}`;
   return (
-    <Animated.View style={{ transform: [{ translateY: hop.interpolate({ inputRange: [0, 1], outputRange: [0, -7] }) }] }}>
-      <TouchableOpacity
-        style={styles.banner}
-        activeOpacity={onPress ? 0.85 : 1}
-        onPress={onPress}
-        accessibilityRole={onPress ? 'button' : undefined}
-        accessibilityLabel={title}
-        accessibilityHint="Ouvre la clôture du mois"
-      >
+    <TouchableOpacity
+      style={styles.banner}
+      activeOpacity={onPress ? 0.85 : 1}
+      onPress={onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={title}
+      accessibilityHint="Ouvre la clôture du mois"
+    >
+      {/* Contour seul (aucun fond) : le bandeau s'allume par son bord, son contenu reste net. */}
+      <Animated.View pointerEvents="none" style={[styles.bannerEdge, { opacity: edge }]} />
+      <View style={styles.bannerIconWrap}>
+        {/* Onde du rappel discret (petite) et onde du signal d'ouverture (large). */}
         <Animated.View
           pointerEvents="none"
-          style={[styles.bannerGlow, { opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.24] }) }]}
+          style={[styles.bannerWave, {
+            opacity: wave.interpolate({ inputRange: [0, 0.12, 1], outputRange: [0, 0.38, 0] }),
+            transform: [{ scale: wave.interpolate({ inputRange: [0, 1], outputRange: [1, 1.75] }) }],
+          }]}
         />
-        <View style={styles.bannerIconWrap}>
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.bannerWave, {
-              opacity: wave.interpolate({ inputRange: [0, 0.12, 1], outputRange: [0, 0.38, 0] }),
-              transform: [{ scale: wave.interpolate({ inputRange: [0, 1], outputRange: [1, 1.75] }) }],
-            }]}
-          />
-          <View style={styles.bannerIcon}>
-            <Animated.View style={{ transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ['-16deg', '16deg'] }) }] }}>
-              <Ionicons name="lock-closed" size={16} color={COLORS.yellow} />
-            </Animated.View>
-          </View>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bannerTitle}>{title}</Text>
-          <Text style={styles.bannerText}>Fige le passé pour fiabiliser tes calculs et recommandations.</Text>
-        </View>
-        <Animated.View style={{ transform: [{ translateX: nudge.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }) }] }}>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.bannerWave, {
+            opacity: burst.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0, 0.5, 0] }),
+            transform: [{ scale: burst.interpolate({ inputRange: [0, 1], outputRange: [1, 2] }) }],
+          }]}
+        />
+        <Animated.View style={[styles.bannerIcon, { transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [1, 1.24] }) }] }]}>
+          <Animated.View style={{ transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ['-16deg', '16deg'] }) }] }}>
+            <Ionicons name="lock-closed" size={16} color={COLORS.yellow} />
+          </Animated.View>
         </Animated.View>
-      </TouchableOpacity>
-    </Animated.View>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.bannerTitle}>{title}</Text>
+        <Text style={styles.bannerText}>Fige le passé pour fiabiliser tes calculs et recommandations.</Text>
+      </View>
+      <Animated.View style={{ transform: [{ translateX: nudge.interpolate({ inputRange: [0, 2], outputRange: [0, 8] }) }] }}>
+        <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
@@ -1208,8 +1222,11 @@ function makeStyles(c: any) {
     },
     // Pastille de l'icône + son onde. L'onde a la taille de la pastille et grandit par `scale` :
     // elle déborde dans la marge intérieure du bandeau, sans jamais pousser le texte.
-    // Voile du signal d'ouverture : épouse le bandeau, sous son contenu.
-    bannerGlow: { ...StyleSheet.absoluteFill, borderRadius: 14, backgroundColor: c.yellow },
+    // Contour du signal d'ouverture : posé SUR la bordure du bandeau (d'où le −1), sans fond.
+    bannerEdge: {
+      position: 'absolute', top: -1, left: -1, right: -1, bottom: -1,
+      borderRadius: 14, borderWidth: 2, borderColor: c.yellow,
+    },
     bannerIconWrap: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
     bannerWave: { position: 'absolute', width: 34, height: 34, borderRadius: 17, backgroundColor: c.yellow },
     bannerIcon: {
