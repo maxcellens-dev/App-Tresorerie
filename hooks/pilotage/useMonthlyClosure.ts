@@ -40,14 +40,11 @@ export const CLOSURE_REGUL_NOTES = [
  *
  * Ce que cette mémoire suspend, jusqu'au prochain démarrage :
  *   • le re-marquage automatique en `estimated` — sinon la ligne `month_closures` réapparaît dans la
- *     seconde et rouvrir semble n'avoir servi à rien ;
- *   • l'ouverture automatique de la modale de clôture — se voir réclamer la clôture du mois qu'on
- *     vient délibérément de rouvrir n'a aucun sens.
+ *     seconde et rouvrir semble n'avoir servi à rien.
+ * (Elle suspendait aussi l'ouverture automatique de la modale de clôture : celle-ci n'existe plus,
+ * la clôture ne s'ouvre que sur demande.)
  */
 const reopenedThisSession = new Set<string>();
-export function wasReopenedThisSession(monthKey: string | null | undefined): boolean {
-  return !!monthKey && reopenedThisSession.has(monthKey);
-}
 
 /** Clôture d'UN compte pour UN mois — partagée entre tous ceux qui voient le compte (migration 179). */
 export interface AccountClosure { account_id: string; month_key: string; closed_by: string; balance: number | null; closed_at: string; }
@@ -120,11 +117,20 @@ export function useMonthClosures(userId: string | undefined) {
 
 export function useMonthlyClosure(userId: string | undefined) {
   const qc = useQueryClient();
-  const { data: flags } = useFeatureFlags();
+  const { data: flags, isSuccess: flagsLoaded } = useFeatureFlags();
   const enabled = Boolean(flags?.monthly_closure_enabled);
   const { data: profile } = useProfile(userId);
-  const { data: transactions = [] } = useTransactions(userId);
+  const { data: transactions = [], isSuccess: transactionsLoaded } = useTransactions(userId);
   const { data: closures = [], isSuccess: closuresLoaded } = useMonthClosures(userId);
+  /**
+   * `pendingMonths` est-il une RÉPONSE, ou seulement « pas encore chargé » ?
+   *
+   * Une liste vide se lit « plus rien à clôturer » — mais elle est vide aussi tant que le drapeau,
+   * les clôtures ou les transactions ne sont pas arrivés. Ce qui ATTEND la fin des clôtures pour
+   * parler (l'état des lieux, le bilan de profil du mois) concluait donc « c'est mon tour » à
+   * l'ouverture de l'app, une fraction de seconde avant que le mois en attente n'apparaisse.
+   */
+  const pendingResolved = flagsLoaded && (!enabled || (closuresLoaded && transactionsLoaded));
 
   // Verrou effectif : ignoré si la fonctionnalité Clôture est désactivée (tout reste éditable).
   // La valeur stockée (closure_lock_date) est conservée → réactiver la fonctionnalité re-fige.
@@ -307,5 +313,5 @@ export function useMonthlyClosure(userId: string | undefined) {
     },
   });
 
-  return { enabled, pendingMonths, lockDate, closures, confirmedClosures, closeMonths, reopenMonth, reopenableMonth };
+  return { enabled, pendingMonths, pendingResolved, lockDate, closures, confirmedClosures, closeMonths, reopenMonth, reopenableMonth };
 }

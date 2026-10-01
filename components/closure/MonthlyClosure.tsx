@@ -15,17 +15,20 @@
  *     clôture pouvait ne jamais apparaître, et comme l'ouverture automatique est à usage unique par
  *     montage (`autoOpened`), elle ne réessayait pas de la session.
  * Rien ne la remplace — c'est l'état des lieux qui porte ce rôle.
+ *
+ * ⚠️ LA MODALE NE S'OUVRE PLUS D'ELLE-MÊME à l'arrivée dans l'app. Le bandeau, en tête du
+ * tableau de bord, est la seule invitation : il est légèrement animé pour qu'on le remarque, et
+ * c'est l'utilisateur qui décide du moment.
  */
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ScrollView, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGuide } from '../../contexts/GuideContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAddTransaction, useAllTransactions } from '../../hooks/data/useTransactions';
-import { useMonthlyClosure, useAccountClosures, wasReopenedThisSession, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
+import { useMonthlyClosure, useAccountClosures, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
 import { supabase } from '../../lib/platform/supabase';
 import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../lib/finance/currency';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
@@ -36,6 +39,7 @@ import { todayISO, formatDateFrench, parseDateFromFrench } from '../../lib/dateU
 import { sheetWidth } from '../../lib/ui/appLayout';
 import { useRecalibrateReliability } from '../../hooks/pilotage/useReliability';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
+import { isAppReady, onAppReady } from '../../lib/platform/splashGate';
 import { openPulse } from '../pulse/PulseHost';
 import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct, parseTypedAmount } from '../../lib/finance/closureForm';
 import { laterVerification } from '../../lib/finance/balanceAt';
@@ -66,7 +70,10 @@ interface Props {
    * clôturés pour ce mois — une clôture par compte, pas une par participant.
    */
   checkingAccounts?: { id: string; name: string; balance: number; currency?: string | null; joint?: boolean; isOwner?: boolean }[];
-  /** Ouvre directement la modale (deeplink « Clôture ton mois » du bandeau prochain geste). */
+  /**
+   * Ouvre directement la modale — UNIQUEMENT sur demande explicite (lien `?closure=1`).
+   * Elle ne s'ouvre plus à l'arrivée dans l'app : le bandeau porte seul l'invitation.
+   */
   autoOpen?: boolean;
 }
 
@@ -74,20 +81,162 @@ interface Props {
  * Bannière d'invitation à la clôture (présentation pure) — partagée entre le Pilotage et
  * l'aperçu admin (admin/banners-preview) pour que l'aperçu reste le rendu de production.
  */
-export function ClosureBannerCard({ pendingMonths, onPress }: { pendingMonths: string[]; onPress?: () => void }) {
+/** Pour qui le signal d'ouverture a déjà été joué depuis le lancement (module = durée de vie de l'app). */
+let announcedFor: string | null = null;
+
+export function ClosureBannerCard({ pendingMonths, onPress, announceKey }: {
+  pendingMonths: string[];
+  onPress?: () => void;
+  /**
+   * Identifiant de l'utilisateur : active le SIGNAL D'OUVERTURE (une fois par lancement, et par
+   * utilisateur — changer de compte ne doit pas hériter du « déjà joué » du précédent).
+   * Absent (aperçu admin) → seul le rappel discret tourne.
+   */
+  announceKey?: string;
+}) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  if (pendingMonths.length === 0) return null;
+
+  /* ── UN BANDEAU QUI SE FAIT REMARQUER, SANS RÉCLAMER ───────────────────────────────────────────
+     Il porte désormais SEUL l'invitation à clôturer (la fenêtre ne s'ouvre plus d'elle-même) : il
+     doit donc attirer l'œil, mais c'est un élément du tableau de bord, pas une alerte. Deux
+     mouvements, joués ensemble puis suivis d'un long silence :
+       • une onde qui part de l'icône et s'efface — « quelque chose attend ici » ;
+       • le chevron qui avance de quelques points et revient — « ça se touche, et ça mène quelque part ».
+     Rien ne clignote, rien ne change de taille dans la mise en page (transform + opacité
+     uniquement, donc aucun recalcul de layout), et tout s'arrête si l'utilisateur a demandé à
+     réduire les animations. `true` par défaut : on reste immobile tant qu'on ne SAIT pas. */
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (active) setReduceMotion(v); }).catch(() => {});
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { active = false; listener.remove(); };
+  }, []);
+  const wave = useRef(new Animated.Value(0)).current;
+  const nudge = useRef(new Animated.Value(0)).current;
+  // Le SIGNAL d'ouverture (voir plus bas) : le bandeau se soulève, s'illumine, et le cadenas s'agite.
+  const hop = useRef(new Animated.Value(0)).current;
+  const glow = useRef(new Animated.Value(0)).current;
+  const shake = useRef(new Animated.Value(0)).current;
+  const visible = pendingMonths.length > 0;
+
+  // Jamais derrière l'écran de démarrage : un signal joué sous le splash est un signal perdu.
+  const [appReady, setAppReady] = useState(() => isAppReady() || Platform.OS === 'web');
+  useEffect(() => {
+    if (appReady) return;
+    const off = onAppReady(() => setAppReady(true));
+    const fallback = setTimeout(() => setAppReady(true), 4000);
+    return () => { off(); clearTimeout(fallback); };
+  }, [appReady]);
+
+  useEffect(() => {
+    for (const v of [wave, nudge, hop, glow, shake]) v.setValue(0);
+    if (reduceMotion || !visible) return;
+    const t = (value: Animated.Value, toValue: number, duration: number, easing: (n: number) => number = Easing.inOut(Easing.quad)) =>
+      Animated.timing(value, { toValue, duration, easing, useNativeDriver: true, isInteraction: false });
+
+    // Le rappel DISCRET, en boucle : une onde + le chevron, puis un long silence.
+    const loop = Animated.loop(Animated.sequence([
+      Animated.delay(900),
+      Animated.parallel([
+        t(wave, 1, 1500, Easing.out(Easing.cubic)),
+        Animated.sequence([
+          t(nudge, 1, 420, Easing.out(Easing.cubic)),
+          t(nudge, 0, 620),
+        ]),
+      ]),
+      t(wave, 0, 0, Easing.linear),
+      Animated.delay(2600),
+    ]));
+
+    /* ── LE SIGNAL D'OUVERTURE — une fois par lancement de l'app ────────────────────────────────
+       Le rappel en boucle est fait pour ne pas déranger : il ne suffit pas à dire « il y a une
+       clôture à faire » à quelqu'un qui arrive sur son tableau de bord. À la PREMIÈRE apparition
+       du bandeau après un lancement — et à chaque lancement tant que le mois n'est pas clôturé —
+       il se manifeste donc franchement, pendant deux secondes :
+         • il se soulève deux fois (un rebond, pas un tremblement) ;
+         • il s'illumine à chaque rebond ;
+         • le cadenas s'agite — c'est LUI le sujet : quelque chose reste à fermer ;
+         • deux ondes rapprochées partent de l'icône, le chevron avance.
+       Puis il retombe dans le rappel discret. Il ne rejoue pas à chaque retour sur l'onglet : une
+       fois par lancement, sinon c'est une alarme. Toujours transform + opacité (le soulèvement est
+       VERTICAL : un agrandissement déborderait de la colonne sur le web bureau). */
+    const announce = !!announceKey && announcedFor !== announceKey;
+    if (!announce) { loop.start(); return () => loop.stop(); }
+    if (!appReady) return;   // on attend la fin du splash ; l'effet se rejoue à ce moment-là
+
+    const beat = (lift: number) => Animated.parallel([
+      Animated.sequence([
+        t(hop, lift, 170, Easing.out(Easing.cubic)),
+        Animated.spring(hop, { toValue: 0, friction: 4, tension: 140, useNativeDriver: true, isInteraction: false }),
+      ]),
+      Animated.sequence([t(glow, 1, 170, Easing.out(Easing.quad)), t(glow, 0, 620)]),
+      Animated.sequence([t(wave, 0, 0, Easing.linear), t(wave, 1, 800, Easing.out(Easing.cubic))]),
+    ]);
+    const intro = Animated.sequence([
+      Animated.delay(650),
+      Animated.parallel([
+        Animated.sequence([beat(1), beat(0.7)]),
+        Animated.sequence([
+          Animated.delay(120),
+          t(shake, 1, 80), t(shake, -1, 110), t(shake, 0.8, 110), t(shake, -0.8, 110),
+          t(shake, 0.4, 100), t(shake, 0, 100),
+        ]),
+        Animated.sequence([Animated.delay(900), t(nudge, 1, 380, Easing.out(Easing.cubic)), t(nudge, 0, 560)]),
+      ]),
+      t(wave, 0, 0, Easing.linear),
+    ]);
+    let stopped = false;
+    intro.start(({ finished }) => {
+      if (!finished || stopped) return;
+      // Marqué « joué » à la FIN seulement : un signal interrompu (écran quitté) rejoue au retour.
+      announcedFor = announceKey ?? null;
+      loop.start();
+    });
+    return () => { stopped = true; intro.stop(); loop.stop(); };
+  }, [reduceMotion, visible, appReady, announceKey, wave, nudge, hop, glow, shake]);
+
+  if (!visible) return null;
   const multiple = pendingMonths.length > 1;
+  const title = `Clôturer ${multiple ? `${pendingMonths.length} mois` : monthLabel(pendingMonths[0])}`;
   return (
-    <TouchableOpacity style={styles.banner} activeOpacity={onPress ? 0.85 : 1} onPress={onPress}>
-      <Ionicons name="lock-closed-outline" size={18} color={COLORS.yellow} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.bannerTitle}>Clôturer {multiple ? `${pendingMonths.length} mois` : monthLabel(pendingMonths[0])}</Text>
-        <Text style={styles.bannerText}>Fige le passé pour fiabiliser tes calculs et recommandations.</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ translateY: hop.interpolate({ inputRange: [0, 1], outputRange: [0, -7] }) }] }}>
+      <TouchableOpacity
+        style={styles.banner}
+        activeOpacity={onPress ? 0.85 : 1}
+        onPress={onPress}
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={title}
+        accessibilityHint="Ouvre la clôture du mois"
+      >
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.bannerGlow, { opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.24] }) }]}
+        />
+        <View style={styles.bannerIconWrap}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.bannerWave, {
+              opacity: wave.interpolate({ inputRange: [0, 0.12, 1], outputRange: [0, 0.38, 0] }),
+              transform: [{ scale: wave.interpolate({ inputRange: [0, 1], outputRange: [1, 1.75] }) }],
+            }]}
+          />
+          <View style={styles.bannerIcon}>
+            <Animated.View style={{ transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ['-16deg', '16deg'] }) }] }}>
+              <Ionicons name="lock-closed" size={16} color={COLORS.yellow} />
+            </Animated.View>
+          </View>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bannerTitle}>{title}</Text>
+          <Text style={styles.bannerText}>Fige le passé pour fiabiliser tes calculs et recommandations.</Text>
+        </View>
+        <Animated.View style={{ transform: [{ translateX: nudge.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }) }] }}>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -249,94 +398,49 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   const openModal = () => { setClosedLocally([]); resetForm(); setOpen(true); };
   const closeModal = () => { setOpen(false); setClosedLocally([]); resetForm(); };
 
-  /* ── REPORT ────────────────────────────────────────────────────────────────────────────────────
-     La clôture s'ouvrait d'elle-même à CHAQUE ouverture de l'app tant qu'un mois restait en
-     attente. L'intention est bonne — un mois non clôturé dégrade les moyennes de tous les suivants,
-     et une bannière qu'on peut ignorer ne fait pas le travail — mais sans échappatoire, quelqu'un
-     qui n'a pas ses relevés sous la main se prend la même modale plusieurs fois par jour. Au mieux
-     il la referme sans lire, au pire il n'ouvre plus l'app.
-     On garde donc l'ouverture automatique, avec un report explicite de 24 h : l'invitation reste
-     insistante (elle revient le lendemain, et la bannière ne disparaît jamais), sans se répéter
-     dans la même journée. Le report est local à l'appareil et porte sur le mois concerné — un
-     nouveau mois à clôturer reprend la main immédiatement.
+  /* ── LA CLÔTURE NE S'OUVRE PLUS TOUTE SEULE ────────────────────────────────────────────────────
+     Elle surgissait à chaque ouverture de l'app tant qu'un mois restait en attente, avec un report
+     de 24 h (« Me le rappeler demain ») pour limiter les dégâts. Décision produit : le BANDEAU
+     suffit. Au 1er du mois, on arrive sur son tableau de bord ; le bandeau, en tête de page, dit
+     qu'un mois attend — et c'est l'utilisateur qui choisit le moment (il lui faut ses relevés).
+     Le report n'a donc plus d'objet : plus rien ne revient à la charge.
 
-     ⚠️ LA CLÉ EST NOMMÉE PAR UTILISATEUR. Elle était globale à l'APPAREIL (`closure_snooze_v1`) :
-     sur un téléphone qui porte plusieurs comptes — le cas de tout testeur, et de tout foyer qui
-     partage un appareil — « Me le rappeler demain » sur un compte faisait taire la clôture de
-     TOUS les autres, pour peu qu'ils aient le même mois en attente. Le second compte voyait alors
-     la bannière sans jamais voir la modale, sans rien qui l'explique. */
-  const SNOOZE_KEY = user?.id ? `closure_snooze_v2:${user.id}` : null;
-  const SNOOZE_MS = 24 * 60 * 60 * 1000;
-  const [snoozeChecked, setSnoozeChecked] = React.useState(false);
-  const [snoozedMonth, setSnoozedMonth] = React.useState<string | null>(null);
-  /* Dépend de l'UTILISATEUR : changer de compte doit relire SON report, jamais garder en mémoire
-     celui du précédent. On repart donc d'un état « non lu » AVANT l'await, dans le même effet —
-     séparer la remise à zéro dans un second effet la ferait dépendre de l'ordre des effets. */
-  React.useEffect(() => {
-    setSnoozeChecked(false);
-    setSnoozedMonth(null);
-    if (!SNOOZE_KEY) return;                 // pas encore d'utilisateur : rien à lire
-    let cancelled = false;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(SNOOZE_KEY);
-        if (cancelled) return;
-        const o = raw ? JSON.parse(raw) : null;
-        // Report périmé, ou posé sur un AUTRE mois → il ne protège plus rien.
-        if (o?.month && typeof o.until === 'number' && o.until > Date.now()) setSnoozedMonth(o.month);
-      } catch { /* stockage indisponible : on retombe sur le comportement d'origine */ }
-      if (!cancelled) setSnoozeChecked(true);
-    })();
-    return () => { cancelled = true; };
-  }, [SNOOZE_KEY]);
-
-  const snoozeAndClose = () => {
-    const m = oldest;
-    if (m && SNOOZE_KEY) {
-      setSnoozedMonth(m);
-      AsyncStorage.setItem(SNOOZE_KEY, JSON.stringify({ month: m, until: Date.now() + SNOOZE_MS })).catch(() => {});
-    }
-    closeModal();
-  };
-
-  /* La clôture est la PREMIÈRE des sollicitations : tout ce qui suit (bilan mensuel, profil,
-     succès) s'appuie sur des chiffres qu'elle vient consolider. Elle prend donc la main en premier,
-     et ne la rend qu'une fois fermée (cf. lib/interruptQueue).
-
-     ⚠️ SAUF PENDANT LE PARCOURS DE DÉMARRAGE. Le guide n'est pas dans cette file — il est AVANT
-     elle : tant que quelqu'un installe ses comptes, il n'a rien à clôturer, et lui demander de
-     vérifier un solde de mois passé n'a aucun sens. Le cas n'est pas théorique : saisir sa première
-     récurrente au 5 du mois dernier (« mon loyer ») fait immédiatement apparaître un mois en
-     attente — la clôture surgissait alors par-dessus l'étape du guide en cours. */
+     Dans la file des sollicitations (lib/interruptQueue), la clôture ne tient plus la parole que
+     PENDANT que sa fenêtre est ouverte — pour que rien ne vienne se poser par-dessus. Elle la
+     tenait auparavant tant qu'un mois restait en attente : acceptable quand elle s'imposait dans la
+     foulée, intenable maintenant qu'un bandeau peut rester là des jours (plus aucun succès, plus
+     aucune annonce pendant tout ce temps). Ce qui doit ATTENDRE la clôture — l'état des lieux, le
+     bilan de profil du mois — regarde directement s'il reste un mois à clôturer. */
   const guide = useGuide();
-  const myTurn = useInterruptSlot(
-    'closure',
-    enabled && pendingMonths.length > 0 && !isImpersonating && !guide.active,
-  );
+  /* PASSAGE DE RELAIS vers l'état des lieux. Entre « dernier mois validé » et « la liste des mois
+     en attente est relue », il s'écoule un instant où la fenêtre est fermée ALORS QUE l'état des
+     lieux n'a pas encore pris la parole : une annonce moins prioritaire s'y glissait. On garde
+     donc la main jusqu'à ce que la liste soit vide (le Pilotage démonte alors ce composant, ce qui
+     la libère) — avec un délai de garde, pour qu'une relecture en échec ne fasse pas taire toute
+     la file jusqu'à la fin de la session. */
+  const [settling, setSettling] = useState(false);
+  useEffect(() => {
+    if (!settling) return;
+    if (pendingMonths.length === 0) { setSettling(false); return; }
+    const timer = setTimeout(() => setSettling(false), 4000);
+    return () => clearTimeout(timer);
+  }, [settling, pendingMonths.length]);
+  useInterruptSlot('closure', open || settling);
 
-  /* Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage, quand c'est notre
-     tour — et seulement si le mois le plus ancien n'a pas été REPORTÉ dans les 24 h.
-     On attend `snoozeChecked` : la lecture du report est asynchrone, et conclure avant sa réponse
-     rouvrirait la modale précisément à celui qui vient de demander à être laissé tranquille.
-     Un deeplink explicite (`?closure=1`) ou le bouton de la bannière passent outre : là,
-     l'utilisateur DEMANDE la clôture. */
+  /* Ouverture sur DEMANDE EXPLICITE par lien (`?closure=1`) : une fois par montage.
+     Jamais pendant le parcours de démarrage (quelqu'un qui installe ses comptes n'a rien à
+     clôturer) ni en consultation admin. */
   const autoOpened = React.useRef(false);
   /* « Une fois par montage » se compte PAR UTILISATEUR : si l'arbre n'est pas remonté au changement
-     de compte, le second héritait du « déjà ouvert » du premier et n'avait jamais sa clôture. */
+     de compte, le second héritait du « déjà ouvert » du premier. */
   React.useEffect(() => { autoOpened.current = false; }, [user?.id]);
   React.useEffect(() => {
-    if (!autoOpen || !myTurn || autoOpened.current || !snoozeChecked) return;
-    if (oldest && snoozedMonth === oldest) return;
-    /* Mois ROUVERT dans cette session : on ne le réclame pas. Rouvrir juillet fait justement
-       revenir juillet dans les mois en attente — l'ouverture automatique se déclenchait donc dans
-       la foulée du geste, et la modale de clôture surgissait par-dessus l'écran Clôture, à peine
-       la réouverture terminée. Vu de l'utilisateur, c'est la réouverture qui « ouvre n'importe
-       quelle fenêtre ». Il vient de dire qu'il s'en occupe : on le laisse faire. */
-    if (wasReopenedThisSession(oldest)) return;
+    if (!autoOpen || autoOpened.current || isImpersonating || guide.active) return;
+    if (!enabled || pendingMonths.length === 0) return;
     autoOpened.current = true;
     openModal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpen, myTurn, snoozeChecked, snoozedMonth, oldest]);
+  }, [autoOpen, enabled, pendingMonths.length, isImpersonating, guide.active]);
 
   // Ouverture à la demande depuis le bandeau « prochain geste » — sans passer par le routeur.
   React.useEffect(() => {
@@ -512,6 +616,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
         setUnknownShare(null);
         setStep(1);
       } else {
+        setSettling(true);
         closeModal();
         /* PLUS RIEN À CLÔTURER → on ENCHAÎNE sur l'état des lieux du mois.
            C'était jusqu'ici laissé à l'ouverture automatique, qui dépend d'une pile de conditions
@@ -600,7 +705,7 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
           modale — mais il se SUPERPOSE au Pilotage, donc il masque les chiffres qu'on vient
           justement consulter. Celle-ci prend sa place dans le flux : elle décale le contenu au lieu
           de le recouvrir. Le cas `soft_close` est donc écarté côté NextActionBanner. */}
-      <ClosureBannerCard pendingMonths={effectivePending} onPress={openModal} />
+      <ClosureBannerCard pendingMonths={effectivePending} onPress={openModal} announceKey={user?.id} />
 
       {/* Modale de clôture */}
       <Modal
@@ -1083,22 +1188,8 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
                   onPress={goNextStep}
                 />
               </View>
-              {/* Échappatoire assumée : clôturer demande d'avoir ses relevés sous les yeux, ce qui
-                  n'est pas toujours le cas au moment où l'app s'ouvre. Sans elle, la seule sortie
-                  était la croix — qui ne mémorise rien et ramène la modale à l'ouverture suivante.
-                  Elle reste à l'étape 1 : c'est là qu'on décide si c'est le moment, pas au milieu
-                  d'une saisie déjà commencée. */}
-              {step === 1 && (
-                <TouchableOpacity
-                  style={styles.laterBtn}
-                  onPress={snoozeAndClose}
-                  disabled={busy}
-                  accessibilityRole="button"
-                  accessibilityLabel="Me le rappeler demain"
-                >
-                  <Text style={styles.laterText}>Me le rappeler demain</Text>
-                </TouchableOpacity>
-              )}
+              {/* (« Me le rappeler demain » a disparu avec l'ouverture automatique : la fenêtre ne
+                  s'ouvre plus que sur demande, il n'y a donc plus rien à reporter. La croix suffit.) */}
             </SafeAreaView>
           </View>
         </KeyboardAwareOverlay>
@@ -1114,6 +1205,16 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: c.yellow + '1A', borderWidth: 1, borderColor: c.yellow + '55',
       borderRadius: 14, padding: 14, marginHorizontal: 8, marginBottom: 10,
+    },
+    // Pastille de l'icône + son onde. L'onde a la taille de la pastille et grandit par `scale` :
+    // elle déborde dans la marge intérieure du bandeau, sans jamais pousser le texte.
+    // Voile du signal d'ouverture : épouse le bandeau, sous son contenu.
+    bannerGlow: { ...StyleSheet.absoluteFill, borderRadius: 14, backgroundColor: c.yellow },
+    bannerIconWrap: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+    bannerWave: { position: 'absolute', width: 34, height: 34, borderRadius: 17, backgroundColor: c.yellow },
+    bannerIcon: {
+      width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.yellow + '26', borderWidth: 1, borderColor: c.yellow + '66',
     },
     bannerTitle: { fontSize: 14, fontWeight: '800', color: c.text },
     bannerText: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
@@ -1247,8 +1348,5 @@ function makeStyles(c: any) {
     errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
     confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
     // (Les boutons du pied sont des `AppButton` — un seul bouton dans toute l'app.)
-    // Volontairement discret : c'est une sortie, pas une action concurrente de la clôture.
-    laterBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 2 },
-    laterText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
   });
 }

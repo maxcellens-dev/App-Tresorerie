@@ -27,9 +27,42 @@ const QUICK_ADD_ROUTES = [
   /^\/transactions$/,
 ];
 
+// Les segments de groupe — /(tabs)/… — ne font pas partie de l'URL, mais selon le client le
+// chemin peut arriver avec : on les retire pour comparer la même chose dans tous les cas.
+const logicalRoute = (pathname: string | null | undefined): string =>
+  '/' + String(pathname ?? '').split('/').filter((s) => s && !s.startsWith('(')).join('/');
+
 export function shouldShowQuickAdd(pathname: string | null | undefined): boolean {
-  // Les segments de groupe — /(tabs)/… — ne font pas partie de l'URL, mais selon le client le
-  // chemin peut arriver avec : on les retire pour comparer la même chose dans tous les cas.
-  const route = '/' + String(pathname ?? '').split('/').filter((s) => s && !s.startsWith('(')).join('/');
-  return QUICK_ADD_ROUTES.some((re) => re.test(route));
+  return QUICK_ADD_ROUTES.some((re) => re.test(logicalRoute(pathname)));
+}
+
+const UUID = '[0-9a-fA-F-]{36}';
+const ACCOUNT_ROUTES = [
+  new RegExp(`^/comptes/(${UUID})$`),        // la fiche (onglets Solde / Transactions / Paramètres)
+  new RegExp(`^/comptes/edit/(${UUID})$`),   // ses réglages, en page dédiée
+];
+
+/**
+ * LE COMPTE DANS LEQUEL ON SE TROUVE, ou `null` si l'écran n'appartient à aucun compte.
+ *
+ * Une saisie lancée depuis un compte doit s'ouvrir SUR ce compte. La bulle « + » du mobile le
+ * savait ; le bouton « Nouvelle opération » du web bureau, lui, ouvrait toujours la saisie sur le
+ * compte par défaut — on créait donc l'opération sur le mauvais compte sans s'en apercevoir. Les
+ * deux menus lisent désormais la règle ici, pour qu'elle ne puisse plus diverger.
+ *
+ * `accountParam` : l'écran de mise à jour du solde porte son compte en paramètre (`?account=`),
+ * pas dans le chemin.
+ */
+export function quickAddAccountId(
+  pathname: string | null | undefined,
+  accountParam?: string | string[] | null,
+): string | null {
+  const route = logicalRoute(pathname);
+  for (const re of ACCOUNT_ROUTES) {
+    const m = route.match(re);
+    if (m) return m[1];
+  }
+  const param = Array.isArray(accountParam) ? accountParam[0] : accountParam;
+  if (route === '/comptes/solde' && param && new RegExp(`^${UUID}$`).test(param)) return param;
+  return null;
 }

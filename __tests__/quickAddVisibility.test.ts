@@ -11,9 +11,33 @@
  * On vérifie donc les deux sens : les quatre écrans qui doivent l'avoir, et le fait qu'un écran de
  * saisie — quel que soit son nom — ne l'a pas.
  */
-import { shouldShowQuickAdd } from '../lib/ui/quickAdd';
+import { shouldShowQuickAdd, quickAddAccountId } from '../lib/ui/quickAdd';
 
 const ACCOUNT_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+
+/* Une saisie lancée depuis un compte s'ouvre SUR ce compte — bulle « + » (mobile) et bouton
+   « Nouvelle opération » (web bureau) lisent la même règle. Le web l'ignorait : la saisie
+   retombait sur le compte par défaut. */
+describe('quickAddAccountId', () => {
+  it('reconnaît la fiche du compte et ses réglages', () => {
+    expect(quickAddAccountId(`/comptes/${ACCOUNT_ID}`)).toBe(ACCOUNT_ID);
+    expect(quickAddAccountId(`/(tabs)/comptes/${ACCOUNT_ID}`)).toBe(ACCOUNT_ID);
+    expect(quickAddAccountId(`/comptes/edit/${ACCOUNT_ID}`)).toBe(ACCOUNT_ID);
+  });
+
+  it('lit le compte de la mise à jour du solde dans son paramètre', () => {
+    expect(quickAddAccountId('/comptes/solde', ACCOUNT_ID)).toBe(ACCOUNT_ID);
+    expect(quickAddAccountId('/comptes/solde')).toBeNull();
+    expect(quickAddAccountId('/comptes/solde', 'pas-un-identifiant')).toBeNull();
+  });
+
+  it('ne prend ni un crédit ni un paramètre `account` étranger pour un compte', () => {
+    expect(quickAddAccountId(`/comptes/credit/${ACCOUNT_ID}`)).toBeNull();
+    expect(quickAddAccountId('/transactions/add', ACCOUNT_ID)).toBeNull();
+    expect(quickAddAccountId('/pilotage')).toBeNull();
+    expect(quickAddAccountId(null)).toBeNull();
+  });
+});
 
 describe('shouldShowQuickAdd', () => {
   it('affiche la bulle sur les quatre écrans de consultation prévus', () => {

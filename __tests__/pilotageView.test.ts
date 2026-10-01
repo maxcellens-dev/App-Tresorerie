@@ -243,13 +243,13 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
       expect(relykaZeroHero(b)).toBeNull();
     });
 
-    it('« Relyka consommé » quand le zéro vient d\'un geste, et rappelle COMBIEN a été rangé', () => {
+    it('« Relyka épuisé » quand le zéro vient d\'un geste, et rappelle COMBIEN a été rangé', () => {
       const b = computeRelykaBreakdown(pdata({
         cashflow_trough: 500, month_savings_total: 500, month_savings_future: 500,
       }), noCumuls);
       const hero = relykaZeroHero(b)!;
-      expect(hero.word).toBe('Relyka consommé');
-      expect(hero.sub).toBe('Tu as utilisé tout ton surplus du mois. Garde un œil sur tes dépenses.');
+      expect(hero.word).toBe('Relyka épuisé');
+      expect(hero.sub).toBe('Garde un œil sur tes dépenses.');
       expect(hero.sub).not.toContain('épargné');
     });
 
@@ -262,9 +262,9 @@ describe('computeRelykaBreakdown — la soustraction à huit termes', () => {
       expect(hero.sub).not.toContain('-900');
     });
 
-    it('« Relyka consommé » à 0 pile, sans rien mis de côté ni rien qui manque', () => {
+    it('« Relyka épuisé » à 0 pile, sans rien mis de côté ni rien qui manque', () => {
       const b = computeRelykaBreakdown(pdata({ cashflow_trough: 0 }), noCumuls);
-      expect(relykaZeroHero(b)!.word).toBe('Relyka consommé');
+      expect(relykaZeroHero(b)!.word).toBe('Relyka épuisé');
     });
   });
 

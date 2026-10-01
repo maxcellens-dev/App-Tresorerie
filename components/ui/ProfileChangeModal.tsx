@@ -10,6 +10,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGuide } from '../../contexts/GuideContext';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
+import { useMonthlyClosure } from '../../hooks/pilotage/useMonthlyClosure';
 import { sheetWidth } from '../../lib/ui/appLayout';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { resolveRecoMode, appliedAllocation, type Allocation } from '../../lib/finance/recoMode';
@@ -174,6 +175,19 @@ export default function ProfileChangeModal({ userId }: Props) {
      lignes non lues restent en attente aussi longtemps qu'il faut. */
   const segments = useSegments();
   const onPilotage = segments[segments.length - 1] === 'pilotage';
+  /* ── LE BILAN DU MOIS ATTEND LA CLÔTURE ────────────────────────────────────────────────────────
+     Le bilan de maintien (« tu conserves ton profil ») est posé au 1er du mois, au montage du
+     tableau de bord. Il s'ouvrait donc tout seul, ce jour-là, sur un mois que l'utilisateur n'a
+     pas encore clôturé — avant le bandeau, avant l'état des lieux, sans rien qui l'amène.
+     Sa place est à la FIN du parcours : clôture → état des lieux → profil. Tant qu'un mois reste à
+     clôturer (ou qu'on ne SAIT pas encore s'il en reste : `pendingResolved`), il attend ; la ligne
+     non lue reste en base aussi longtemps qu'il faut. Clôture désactivée en admin → il n'y a rien
+     à attendre, il s'affiche comme avant.
+     Un VRAI changement de palier, lui, n'attend pas : il est la conséquence d'une donnée que
+     l'utilisateur vient de saisir, pas un rendez-vous de calendrier. */
+  const { enabled: closureEnabled, pendingMonths, pendingResolved } = useMonthlyClosure(userId);
+  const recapAwaitsClosure = pendingChange?.change_reason === 'monthly_recap'
+    && (!pendingResolved || (closureEnabled && pendingMonths.length > 0));
   /* Le changement de profil vient APRÈS la clôture et le bilan du mois : il en est la conséquence.
      L'annoncer avant, c'était livrer le verdict d'un calcul dont l'utilisateur n'a pas encore vu
      les données (cf. lib/interruptQueue). */
@@ -181,8 +195,9 @@ export default function ProfileChangeModal({ userId }: Props) {
     'profile_change',
     /* `onPilotage` entre AUSSI dans la candidature au créneau : sans ça, la fenêtre réserverait le
        créneau d'interruption depuis n'importe quel écran sans jamais s'afficher — et bloquerait les
-       autres annonces qui, elles, avaient le droit de parler. */
-    !isImpersonating && !duringGuide && onPilotage && !!pendingChange?.display,
+       autres annonces qui, elles, avaient le droit de parler. Même raison pour le bilan en attente
+       de clôture. */
+    !isImpersonating && !duringGuide && onPilotage && !!pendingChange?.display && !recapAwaitsClosure,
   );
   /* Consommation SILENCIEUSE : pendant le parcours de démarrage (voir ci-dessus), et quand les
      changements en attente s'annulent entre eux (`display: false`) — il n'y a alors rien à
@@ -201,6 +216,8 @@ export default function ProfileChangeModal({ userId }: Props) {
   // Ailleurs que sur le tableau de bord : on attend. La ligne non lue reste en attente.
   if (!onPilotage) return null;
   if (!pendingChange || !pendingChange.display) return null;
+  // Bilan du mois : pas avant la clôture (cf. `recapAwaitsClosure`).
+  if (recapAwaitsClosure) return null;
   // Pas encore notre tour : la clôture et/ou le bilan du mois parlent d'abord.
   if (!myTurn) return null;
 

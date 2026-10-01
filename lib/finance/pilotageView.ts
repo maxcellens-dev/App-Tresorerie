@@ -258,7 +258,7 @@ export function relykaZeroHero(b: RelykaStatusInput): { word: string; sub: strin
     word: 'Relyka dépassé',
     sub: 'Tu as dépensé ' + amount(Math.abs(b.resteDisponibleBrut)) + ' € de plus que ton Relyka ce mois-ci.',
   };
-  return { word: 'Relyka consommé', sub: 'Tu as utilisé tout ton surplus du mois. Garde un œil sur tes dépenses.' };
+  return { word: 'Relyka épuisé', sub: 'Garde un œil sur tes dépenses.' };
 }
 
 export function buildRelykaBaseMessage(

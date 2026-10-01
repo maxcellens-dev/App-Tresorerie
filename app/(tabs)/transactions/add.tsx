@@ -169,7 +169,10 @@ function AddTransactionScreen() {
 
     const t = params.type;
     if (t === 'income' || t === 'transfer' || t === 'expense') setTransactionType(t as TransactionType);
-    if (params.account) setAccountId(String(params.account));
+    /* SANS compte en paramètre, on VIDE la sélection : l'effet « sélection initiale » plus bas
+       repose alors le compte par défaut. Sinon une saisie ouverte depuis un compte puis abandonnée
+       laissait ce compte sélectionné pour la saisie suivante, ouverte depuis un tout autre écran. */
+    setAccountId(params.account ? String(params.account) : '');
     if (params.to) setTargetAccountId(String(params.to));
     if (params.amount != null) setAmount(sanitizeAmountInput(String(params.amount)));
     if (params.label != null) setNote(String(params.label));

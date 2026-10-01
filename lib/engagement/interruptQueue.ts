@@ -10,9 +10,14 @@
  * traitée (fermée par l'utilisateur), pas simplement affichée.
  *
  * L'ordre suit la logique de lecture :
- *   1. la CLÔTURE — sans elle, tout ce qui suit s'appuie sur des chiffres non vérifiés ;
- *   2. l'ÉTAT DES LIEUX du mois — le bilan de ce qu'on vient de clôturer ;
- *   3. le CHANGEMENT DE PROFIL — conséquence des chiffres consolidés ;
+ *   1. la CLÔTURE — sans elle, tout ce qui suit s'appuie sur des chiffres non vérifiés.
+ *      Elle ne s'ouvre plus toute seule (son bandeau suffit) : elle ne tient donc la parole que
+ *      pendant que sa fenêtre est OUVERTE, pas tant qu'un mois reste en attente — sinon un bandeau
+ *      laissé là plusieurs jours ferait taire tout le reste de la file ;
+ *   2. l'ÉTAT DES LIEUX du mois — le bilan de ce qu'on vient de clôturer (il attend, de lui-même,
+ *      qu'il ne reste plus aucun mois à clôturer) ;
+ *   3. le CHANGEMENT DE PROFIL — conséquence des chiffres consolidés (son bilan mensuel attend
+ *      lui aussi la clôture ; un vrai changement de palier, non) ;
  *   4. les SUCCÈS — la récompense arrive en dernier, jamais avant l'information ;
  *   5. le « +1 » DE LA SÉRIE — la flamme de l'en-tête monte d'un cran. Ce n'est pas une fenêtre,
  *      juste une animation : elle passe donc en toute fin de file, une fois l'écran rendu.

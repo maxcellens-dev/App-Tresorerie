@@ -56,7 +56,7 @@ export default function PulseHost() {
   const pulse = usePulse();
   const { seen, isLoading: seenLoading, markSeen } = usePulseSeen(user?.id);
   // L'état des lieux attend que les clôtures soient faites (cf. l'effet d'auto-ouverture).
-  const { enabled: closureEnabled, pendingMonths, closures } = useMonthlyClosure(user?.id);
+  const { enabled: closureEnabled, pendingMonths, pendingResolved, closures } = useMonthlyClosure(user?.id);
   const saveSnapshot = useSavePulseSnapshot();
 
   const [open_, setOpen] = useState(false);
@@ -124,7 +124,10 @@ export default function PulseHost() {
      n'avait pas confirmés. On attend qu'il n'y ait PLUS AUCUN mois à clôturer.
      (Clôture désactivée en admin → on retombe sur l'ancien déclencheur, l'activité du mois.) */
   const monthSeen = seen.month === lastMonth || localSeen.current.month === lastMonth;
-  const closureSettled = !closureEnabled || pendingMonths.length === 0;
+  /* `pendingResolved` : une liste vide parce que RIEN N'EST ENCORE CHARGÉ n'est pas « plus rien à
+     clôturer ». Maintenant que la clôture ne s'ouvre plus d'elle-même pour prendre la parole en
+     premier, c'est cette condition seule qui retient le bilan à l'ouverture de l'app. */
+  const closureSettled = pendingResolved && (!closureEnabled || pendingMonths.length === 0);
   /* « A vécu le mois » : une activité dans le mois, OU une clôture confirmée pour ce mois-là.
      Sans ce second cas, un compte créé en fin de mois précédent — trop peu de transactions pour
      que la première condition passe — ne voyait JAMAIS son bilan, alors qu'il venait précisément

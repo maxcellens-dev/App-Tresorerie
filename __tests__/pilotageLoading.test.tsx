@@ -10,7 +10,7 @@ it('affiche les trois sections et les libellés sans montant ni diagnostic prém
   }
   expect(screen.queryByText(/€/)).toBeNull();
   expect(screen.queryByText('À jour')).toBeNull();
-  expect(screen.queryByText(/Relyka consommé|Rien à répartir/)).toBeNull();
+  expect(screen.queryByText(/Relyka épuisé|Rien à répartir/)).toBeNull();
   expect(screen.getAllByRole('progressbar')).toHaveLength(3);
   unmount();
 });

@@ -173,10 +173,6 @@ function PilotageScreen() {
         isOwner: a._role === 'owner',
       }));
   }, [allAccountsQuery.data]);
-  /* « Ouverture de l'app » = ce MONTAGE de l'écran (le Pilotage est la porte d'entrée). Un simple
-     changement d'onglet ne le remonte pas, donc la clôture ne se rouvre pas en boucle pendant la
-     session — elle revient à la prochaine ouverture, tant qu'un mois reste dû. */
-  const [appJustOpened] = useState(true);
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const { data: profileAllocations } = useProfileAllocations();
   const autoEval = useAutoProfileEvaluation(user?.id);
@@ -679,11 +675,10 @@ function PilotageScreen() {
             <MonthlyClosure
               variableEnvelope={pilotageData.variable_envelope_initial ?? 0}
               checkingAccounts={closureAccounts}
-              /* La clôture s'ouvre d'elle-même À CHAQUE OUVERTURE de l'app tant qu'un mois reste à
-                 clôturer : une bannière qu'on peut ignorer indéfiniment ne fait pas le travail, et
-                 chaque mois non clôturé dégrade les moyennes de tous les suivants. Elle reste
-                 refermable — c'est une invitation insistante, pas un mur. */
-              autoOpen={routeParams.closure === '1' || appJustOpened}
+              /* La clôture ne s'ouvre PLUS d'elle-même à l'arrivée dans l'app : son bandeau, en
+                 tête de page, suffit — c'est l'utilisateur qui choisit le moment. Seul un lien
+                 explicite (`?closure=1`) ouvre directement la fenêtre. */
+              autoOpen={routeParams.closure === '1'}
             />
           ) : tipsEnabled ? (
             <ConseilsBanner

@@ -11,7 +11,8 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments, usePathname, useGlobalSearchParams } from 'expo-router';
+import { quickAddAccountId } from '../../lib/ui/quickAdd';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
@@ -43,10 +44,10 @@ interface NavItem {
  * ça se remarque d'un écran à l'autre.
  */
 const QUICK_ACTIONS = [
-  { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', tone: 'blue', route: '/(tabs)/transactions/add?type=transfer' },
-  { key: 'expense', label: 'Dépense', icon: 'arrow-down', tone: 'danger', route: '/(tabs)/transactions/add?type=expense' },
-  { key: 'income', label: 'Recette', icon: 'arrow-up', tone: 'green', route: '/(tabs)/transactions/add?type=income' },
-  { key: 'balance', label: 'Mettre à jour mon solde', icon: 'refresh', tone: 'emerald', route: '/(tabs)/comptes/solde' },
+  { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', tone: 'blue', route: '/(tabs)/transactions/add?type=transfer', entry: true },
+  { key: 'expense', label: 'Dépense', icon: 'arrow-down', tone: 'danger', route: '/(tabs)/transactions/add?type=expense', entry: true },
+  { key: 'income', label: 'Recette', icon: 'arrow-up', tone: 'green', route: '/(tabs)/transactions/add?type=income', entry: true },
+  { key: 'balance', label: 'Mettre à jour mon solde', icon: 'refresh', tone: 'emerald', route: '/(tabs)/comptes/solde', entry: false },
 ] as const;
 
 export default function WebSideNav() {
@@ -54,6 +55,12 @@ export default function WebSideNav() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const segments = useSegments() as string[];
+  /* Depuis un compte (fiche, réglages, mise à jour du solde), la saisie s'ouvre SUR ce compte —
+     comme la bulle « + » du mobile. Sans ça, « Nouvelle opération » retombait sur le compte par
+     défaut, et l'opération partait sur le mauvais compte. Même règle des deux côtés : lib/ui/quickAdd. */
+  const pathname = usePathname();
+  const { account: accountParam } = useGlobalSearchParams<{ account?: string }>();
+  const contextAccountId = quickAddAccountId(pathname, accountParam);
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   // `isResolved` : l'étoile « réservé aux abonnés » ne s'affiche qu'une fois le plan CONNU — sinon
@@ -197,7 +204,14 @@ export default function WebSideNav() {
             {QUICK_ACTIONS.map((a) => (
               <Pressable
                 key={a.key}
-                onPress={() => go(a.route, 'push')}
+                onPress={() => go(
+                  // `origin` : après l'enregistrement, on revient sur la fiche du compte d'où l'on
+                  // est parti (même contrat que la fiche elle-même et que la bulle « + »).
+                  a.entry && contextAccountId
+                    ? `${a.route}&account=${contextAccountId}&origin=${encodeURIComponent(`/(tabs)/comptes/${contextAccountId}`)}`
+                    : a.route,
+                  'push',
+                )}
                 style={({ hovered }: any) => [styles.quickItem, hovered && styles.itemHover]}
               >
                 <View style={[styles.quickIcon, { backgroundColor: tone(a.tone) + '1F' }]}>

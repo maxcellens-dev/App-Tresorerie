@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { APP_MAX_WIDTH } from '../../lib/ui/appLayout';
-import { shouldShowQuickAdd } from '../../lib/ui/quickAdd';
+import { shouldShowQuickAdd, quickAddAccountId } from '../../lib/ui/quickAdd';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
 const ACTION_SIZE = 54;       // actions plus grosses et lisibles
@@ -119,8 +119,9 @@ export default function QuickAddButton() {
   if (!shouldShowQuickAdd(pathname)) return null;
 
   // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
-  const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);
-  const acctParam = acctMatch ? `&account=${acctMatch[1]}` : '';
+  // Règle partagée avec le menu « Nouvelle opération » du web bureau (cf. lib/ui/quickAdd).
+  const acctId = quickAddAccountId(pathname);
+  const acctParam = acctId ? `&account=${acctId}` : '';
   // La saisie est poussée dans l'onglet Transactions (navigation inter-onglets) → le « Retour » in-app
   // remonterait la pile Transactions au lieu de l'écran d'origine. On transmet donc l'origine.
   const originParam = pathname ? `&origin=${encodeURIComponent(pathname)}` : '';
