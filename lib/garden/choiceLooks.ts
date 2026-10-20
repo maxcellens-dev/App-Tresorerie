@@ -12,6 +12,7 @@ export interface ChoiceLook {
   verb: string;
   /** Le vrai sens, toujours à côté (« épargne de secours »). */
   meaning: string;
+  /** Nom Ionicons, ou 'garden-roots' (dessin maison, cf. components/garden/ChoiceIcon). */
   icon: string;
   fill: string;
   bg: string;
@@ -19,7 +20,7 @@ export interface ChoiceLook {
 }
 
 export const CHOICE_LOOKS: Record<RecoType, ChoiceLook> = live(() => ({
-  save: { verb: 'Arrose tes racines', meaning: 'épargne de secours', icon: 'shield-checkmark-outline', fill: G.roots, bg: G.rootsBg, fg: G.rootsText },
+  save: { verb: 'Arrose tes racines', meaning: 'épargne de secours', icon: 'garden-roots', fill: G.roots, bg: G.rootsBg, fg: G.rootsText },
   invest: { verb: 'Fais grossir tes fruits', meaning: 'placements', icon: 'nutrition-outline', fill: G.fruits, bg: G.fruitsBg, fg: G.fruitsText },
   enjoy: { verb: 'Fais fleurir ton jardin', meaning: 'pour te faire plaisir', icon: 'flower-outline', fill: G.flowers, bg: G.flowersBg, fg: G.flowersText },
   keep: { verb: "Garde dans l'arrosoir", meaning: 'reste sur ton compte courant', icon: 'water-outline', fill: G.water, bg: G.waterBg, fg: G.waterText },

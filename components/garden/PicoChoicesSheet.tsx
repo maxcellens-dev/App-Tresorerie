@@ -13,6 +13,7 @@ import { Alert, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import GardenSheet from './GardenSheet';
 import GardenText from './GardenText';
+import ChoiceIcon from './ChoiceIcon';
 import GardenCard from './GardenCard';
 import GardenButton from './GardenButton';
 import PicoBubble from './PicoBubble';
@@ -91,7 +92,7 @@ export default function PicoChoicesSheet({ visible, onClose, core, choices }: Pr
             <GardenCard key={c.type} style={{ gap: GARDEN_SPACE.sm }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: CHOICE_LOOKS[c.type].bg, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name={CHOICE_LOOKS[c.type].icon as any} size={19} color={CHOICE_LOOKS[c.type].fg} />
+                  <ChoiceIcon name={CHOICE_LOOKS[c.type].icon} size={19} color={CHOICE_LOOKS[c.type].fg} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <GardenText variant="heading">{CHOICE_LOOKS[c.type].verb}</GardenText>

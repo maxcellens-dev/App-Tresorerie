@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import GardenPage, { GardenColumns, GardenWaiting } from '../../components/garden/GardenPage';
 import GardenText from '../../components/garden/GardenText';
+import ChoiceIcon from '../../components/garden/ChoiceIcon';
 import GardenCard from '../../components/garden/GardenCard';
 import GardenButton from '../../components/garden/GardenButton';
 import GardenBar from '../../components/garden/GardenBar';
@@ -166,7 +167,7 @@ export default function JardinScreen() {
                 <Pressable key={c.type} onPress={() => actChoice(c)} accessibilityRole="button" accessibilityLabel={`${look.verb}, ${look.meaning} : ${eur(c.amount)}`}
                   style={({ pressed, hovered }: any) => [{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 58, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: pressed || hovered ? GARDEN_COLORS.field : GARDEN_COLORS.card, borderTopWidth: i ? 1 : 0, borderTopColor: GARDEN_COLORS.line }, pointer]}>
                   <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: look.bg, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name={look.icon as any} size={18} color={look.fg} />
+                    <ChoiceIcon name={look.icon} size={18} color={look.fg} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <GardenText variant="bodyStrong">{look.verb}</GardenText>
@@ -185,7 +186,7 @@ export default function JardinScreen() {
 
       {/* ── 3. Le quotidien : combien je peux encore dépenser, et pourquoi → Mon argent › Ce mois ── */}
       {can ? (
-        <GardenCard onPress={() => router.push('/(tabs)/argent?view=month' as any)} accessibilityLabel={`Ce mois : ${eur(can.spent)} dépensés, ${eur(can.leftToSpend)} encore à sortir. Voir le suivi du mois`}>
+        <GardenCard onPress={() => router.push(`/(tabs)/argent?view=month&t=${Date.now()}` as any)} accessibilityLabel={`Ce mois : ${eur(can.spent)} dépensés, ${eur(can.leftToSpend)} encore à sortir. Voir le suivi du mois`}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <GardenText variant="label">Ce mois-ci</GardenText>
             <GardenText variant="smallStrong" color={GARDEN_COLORS.primary}>Suivi du mois ›</GardenText>

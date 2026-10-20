@@ -21,6 +21,7 @@ import GardenCard from '../../../components/garden/GardenCard';
 import { MarginSheet, EstimateSheet } from '../../../components/garden/MonthSettingsSheets';
 import GardenButton from '../../../components/garden/GardenButton';
 import GardenBar from '../../../components/garden/GardenBar';
+import { menuHref } from '../../../components/garden/GardenTabBar';
 import { GardenRowGroup } from '../../../components/garden/GardenList';
 import RecoModeModal from '../../../components/pilotage/RecoModeModal';
 import ProfileReliabilitySheet from '../../../components/ui/ProfileReliabilitySheet';
@@ -108,7 +109,7 @@ export default function ParcoursScreen() {
     <GardenCard>
       <GardenText variant="heading">Ton étape se calcule toute seule</GardenText>
       <GardenText variant="body" color={G.inkSoft}>Renseigne tes comptes et tes rentrées d’argent récurrentes, et ton étape apparaît ici.</GardenText>
-      <GardenButton label="Voir mes comptes" variant="secondary" onPress={() => go('/(tabs)/argent')} />
+      <GardenButton label="Voir mes comptes" variant="secondary" onPress={() => go(menuHref('argent'))} />
     </GardenCard>
   );
 

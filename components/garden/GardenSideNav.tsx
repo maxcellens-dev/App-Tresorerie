@@ -16,7 +16,7 @@ import Svg, { Path } from 'react-native-svg';
 import GardenText from './GardenText';
 import GardenAddSheet from './GardenAddSheet';
 import Pico from './Pico';
-import { GardenNavIcon, PendingBadge, pendingLabel, type GardenTabRoute } from './GardenTabBar';
+import { GardenNavIcon, PendingBadge, menuHref, pendingLabel, type GardenTabRoute } from './GardenTabBar';
 import { useGardenNavBadges } from '../../hooks/garden/useGardenNavBadges';
 import { useGardenFonts } from '../../hooks/garden/useGardenFonts';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
@@ -89,12 +89,14 @@ export default function GardenSideNav() {
       </Pressable>
 
       <View style={{ gap: 2 }}>
-        {MAIN.map((m) => item(m.route, m.label, () => router.push(`/(tabs)/${m.route}` as any), <GardenNavIcon name={m.icon} color={current === m.route ? GARDEN_COLORS.ink : GARDEN_COLORS.muted} size={22} />, pending[m.route] ?? 0))}
+        {MAIN.map((m) => item(m.route, m.label, () => router.push(menuHref(m.route) as any), <GardenNavIcon name={m.icon} color={current === m.route ? GARDEN_COLORS.ink : GARDEN_COLORS.muted} size={22} />, pending[m.route] ?? 0))}
       </View>
       {GROUPS.map((g) => (
         <View key={g.title} style={{ gap: 2 }}>
           {fontsReady ? <GardenText variant="label" style={{ paddingHorizontal: GARDEN_SPACE.md, marginBottom: 4 }}>{g.title}</GardenText> : null}
-          {g.items.map((m) => item(m.key, m.label, () => router.push(m.route as any), <Ionicons name={m.icon as any} size={20} color={current === m.key ? GARDEN_COLORS.ink : GARDEN_COLORS.muted} />))}
+          {/* `t` : un lien vers une vue de Mon argent doit y rebasculer même si l'écran, resté monté,
+              a déjà reçu ce paramètre (cf. menuTarget). */}
+          {g.items.map((m) => item(m.key, m.label, () => router.push((m.route.includes('/argent?') ? `${m.route}&t=${Date.now()}` : m.route) as any), <Ionicons name={m.icon as any} size={20} color={current === m.key ? GARDEN_COLORS.ink : GARDEN_COLORS.muted} />))}
         </View>
       ))}
       <GardenAddSheet visible={addOpen} onClose={() => setAddOpen(false)} />

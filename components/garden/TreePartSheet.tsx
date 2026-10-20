@@ -6,6 +6,7 @@
  */
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { menuHref } from './GardenTabBar';
 import GardenSheet from './GardenSheet';
 import GardenText from './GardenText';
 import GardenCard from './GardenCard';
@@ -82,7 +83,7 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
     const next = m < 1 ? 1 : m < 3 ? 3 : m < 6 ? 6 : null;
     return (
       <GardenSheet visible onClose={onClose} title={TREE_PARTS.roots.name} subtitle={TREE_PARTS.roots.meaning}
-        footer={<GardenButton label="Voir mon épargne" variant="secondary" onPress={() => go('/(tabs)/argent')} />}>
+        footer={<GardenButton label="Voir mon épargne" variant="secondary" onPress={() => go(menuHref('argent'))} />}>
         <Row label="Épargne disponible" value={eur(savingsTotal)} />
         <Row label="Ça couvre" value={`${months(m)} mois`} hint="de tes dépenses essentielles" />
         {next ? (

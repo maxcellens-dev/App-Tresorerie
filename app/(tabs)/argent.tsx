@@ -82,12 +82,13 @@ export default function ArgentScreen() {
   const router = useRouter();
   const { core, credits } = useGardenModel();
   const { vm, pilotageData: p } = core;
-  const params = useLocalSearchParams<{ view?: string }>();
+  const params = useLocalSearchParams<{ view?: string; t?: string }>();
   const asView = (v?: string): View3 | null => (v === 'today' || v === 'month' || v === 'tomorrow' ? v : null);
   const [view, setView] = useState<View3>(() => asView(params.view) ?? 'today');
-  /* L'onglet reste monté : un nouveau lien (« Suivi du mois » depuis le Jardin) doit quand même
-     basculer la vue. */
-  useEffect(() => { const v = asView(params.view); if (v) setView(v); }, [params.view]);
+  /* L'onglet reste monté : chaque lien doit quand même basculer la vue — le bouton « Mon argent »
+     du menu rouvre toujours « Aujourd'hui », « Suivi du mois » rouvre « Ce mois ». `t` change à
+     chaque appui : sans lui, revenir avec le même `view` qu'avant ne déclenchait rien. */
+  useEffect(() => { const v = asView(params.view); if (v) setView(v); }, [params.view, params.t]);
   const [showRecurring, setShowRecurring] = useState(false);
   /** Feuille ouverte (une à la fois) : réglages du mois (mêmes que le Pilotage) ou détails du suivi. */
   const [sheet, setSheet] = useState<null | 'margin' | 'estimate' | 'left' | 'spent' | 'upcoming'>(null);

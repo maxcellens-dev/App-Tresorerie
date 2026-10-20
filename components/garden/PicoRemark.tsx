@@ -10,13 +10,14 @@ import { live } from '../../lib/garden/live';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GardenText from './GardenText';
+import ChoiceIcon from './ChoiceIcon';
 import type { RecoMessage } from '../../lib/finance/recoMessages';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 
 interface Look { bg: string; fg: string; fill: string; icon: string }
 
 const LOOKS: Record<string, Look> = live(() => ({
-  save: { bg: G.rootsBg, fg: G.rootsText, fill: G.roots, icon: 'shield-checkmark-outline' },
+  save: { bg: G.rootsBg, fg: G.rootsText, fill: G.roots, icon: 'garden-roots' },
   invest: { bg: G.branchesBg, fg: G.branchesText, fill: G.branches, icon: 'trending-up-outline' },
   enjoy: { bg: G.flowersBg, fg: G.flowersText, fill: G.flowers, icon: 'flower-outline' },
   keep: { bg: G.waterBg, fg: G.waterText, fill: G.water, icon: 'water-outline' },
@@ -59,7 +60,7 @@ export default function PicoRemark({ message }: { message: RecoMessage }) {
     <View style={{ backgroundColor: look.bg, borderRadius: GARDEN_RADII.lg, padding: GARDEN_SPACE.lg, gap: GARDEN_SPACE.md, borderLeftWidth: 5, borderLeftColor: look.fill }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm + 2 }}>
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: G.card, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={look.icon as any} size={18} color={look.fg} />
+          <ChoiceIcon name={look.icon} size={18} color={look.fg} />
         </View>
         <GardenText variant="heading" color={look.fg} style={{ flex: 1 }}>{message.label}</GardenText>
       </View>

@@ -421,8 +421,11 @@ function BoutiqueScreen() {
                           </View>
                         )}
                       </View>
-                      {/* Lien « Consulter mes achats » → Apparence (cosmétiques équipables : cadres, titres, flammes…) */}
-                      {(cat === 'apparence' || cat === 'cosmetiques' || cat === 'titres' || cat === 'premium') && (
+                      {/* Lien « Consulter mes achats » → Apparence, où tout ce qui s'achète s'équipe (couleurs,
+                          cadres, décor du jardin, garde-robe de Pépin, saisons). Sur TOUS les rayons sauf la
+                          recharge de graines (rien à équiper) : la liste blanche d'avant oubliait chaque
+                          nouveau rayon du Jardin. */}
+                      {cat !== 'gems' && (
                         <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence?origin=/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.7}>
                           <Ionicons name="color-palette-outline" size={13} color={COLORS.emerald} />
                           <Text style={styles.apparenceLinkText}>Consulter mes achats</Text>

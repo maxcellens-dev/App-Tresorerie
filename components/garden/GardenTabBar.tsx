@@ -41,7 +41,21 @@ export function PendingBadge({ count }: { count: number }) {
   );
 }
 
-export const pendingLabel = (label: string, n: number) => (n > 0 ? `${label}, ${n} invitation${n > 1 ? 's' : ''} en attente` : label);
+/**
+ * Cible d'un bouton du menu. « Mon argent » rouvre TOUJOURS sa vue « Aujourd'hui » : l'écran reste
+ * monté et gardait sinon la dernière vue choisie (Ce mois, Demain). `t` change à chaque appui, pour
+ * que l'écran rebascule même si le paramètre `view` était déjà « today ».
+ */
+export function menuTarget(route: GardenTabRoute): [string, Record<string, string>?] {
+  return route === 'argent' ? [route, { view: 'today', t: String(Date.now()) }] : [route];
+}
+
+/** Même cible, en URL (navigation de bureau). */
+export function menuHref(route: GardenTabRoute): string {
+  return route === 'argent' ? `/(tabs)/argent?view=today&t=${Date.now()}` : `/(tabs)/${route}`;
+}
+
+export const pendingLabel =(label: string, n: number) => (n > 0 ? `${label}, ${n} invitation${n > 1 ? 's' : ''} en attente` : label);
 
 /* Même typage que CustomTabBar : le paquet de types de la barre d'onglets n'est pas une dépendance
    directe du projet (Expo Router l'embarque). */
@@ -56,7 +70,7 @@ export default function GardenTabBar({ state, navigation }: any) {
     const pending = pendingByRoute[route] ?? 0;
     const color = on ? GARDEN_COLORS.ink : GARDEN_COLORS.muted;
     return (
-      <Pressable key={route} onPress={() => navigation.navigate(route as never)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={pendingLabel(label, pending)}
+      <Pressable key={route} onPress={() => navigation.navigate(...(menuTarget(route) as [never, never]))} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={pendingLabel(label, pending)}
         style={{ flex: 1, minHeight: GARDEN_TOUCH + 8, alignItems: 'center', justifyContent: 'center', gap: 3 }}>
         <View>
           <GardenNavIcon name={icon} color={color} />
