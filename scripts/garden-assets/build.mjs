@@ -257,18 +257,50 @@ for (const k of Object.keys(apples)) M.apple[k] = await emit(`apple_${k}`, apple
 
 const basket = await cut('basket');
 M.basket = { w: basket.w, h: basket.h };
+/* Bourrelet AVANT de l'osier (haut du bord tressé, en fraction de hauteur) : 0,52 sur les côtés,
+   0,60 au milieu. Les pommes sont posées dans l'ouverture et tout ce qui passe sous cette courbe est
+   caché — elles sont DANS le panier, pas posées sur son bord. */
+const frontRim = (fx) => 0.525 + 0.075 * Math.max(0, 1 - ((fx - 0.5) / 0.47) ** 2);
 for (const n of [3, 5]) for (const kind of ['ripe', 'young']) {
-  const im = clone(basket), aw = Math.round(basket.w * 0.3), a = await resize(apples[kind], aw, Math.round(aw * appleSrc.h / appleSrc.w));
-  // pommes posées dans le panier, au niveau du bord (la moitié basse est cachée par l'osier avant)
-  const rim = basket.h * 0.47, xs = n === 3 ? [0.32, 0.5, 0.68] : [0.26, 0.42, 0.58, 0.74, 0.5];
-  const ys = n === 3 ? [0, -0.06, 0] : [0.02, -0.02, -0.02, 0.02, -0.14];
+  const im = clone(basket), aw = Math.round(basket.w * 0.25), a = await resize(apples[kind], aw, Math.round(aw * appleSrc.h / appleSrc.w));
+  // tas de pommes : rang du fond plus haut, rang de devant plus bas (centres en fractions du panier)
+  const spots = n === 3 ? [[0.36, 0.49], [0.64, 0.49], [0.5, 0.53]] : [[0.3, 0.47], [0.5, 0.44], [0.7, 0.47], [0.4, 0.53], [0.6, 0.53]];
   const layer = blank(im.w, im.h);
-  xs.forEach((fx, k) => over(layer, a, basket.w * fx - a.w / 2, rim - a.h * 0.72 + basket.h * ys[k]));
-  // l'osier avant (sous le bord) repasse devant les pommes
-  for (let y = Math.round(rim); y < im.h; y++) for (let x = 0; x < im.w; x++) { const i = (y * im.w + x) * 4; if (im.data[i + 3] > 200) layer.data[i + 3] = 0; }
+  for (const [fx, fy] of spots) over(layer, a, basket.w * fx - a.w / 2, basket.h * fy - a.h * 0.55);
+  for (let y = 0; y < im.h; y++) for (let x = 0; x < im.w; x++) if (y > frontRim(x / im.w) * im.h) layer.data[(y * im.w + x) * 4 + 3] = 0;
+  // ombre douce des pommes sur l'osier du fond, puis les pommes
   over(im, layer, 0, 0);
   M.basket[`${kind}${n}`] = await emit(`basket_${kind}_${n}`, im, 220);
 }
+
+/* ── Touffes d'herbe (dessinées ici) : posées devant le pied des fleurs, champignons, ronces… pour
+   qu'ils sortent de l'herbe au lieu d'être posés dessus. Couleurs accordées à la plaque de chaque saison. */
+const TUFT = {
+  summer: [[70, 108, 34], [132, 166, 60], [200, 222, 128]],
+  spring: [[80, 128, 40], [146, 188, 72], [212, 234, 146]],
+  autumn: [[112, 86, 34], [170, 132, 58], [224, 190, 112]],
+  winter: [[62, 98, 48], [114, 146, 86], [236, 242, 246]],
+};
+async function tuft(season, variant) {
+  const Wt = 200, Ht = 110, [dark, mid, tip] = TUFT[season], rgb = (c) => `rgb(${c.map(Math.round).join(',')})`;
+  let s2 = 7 + variant * 31; const r = () => (s2 = (s2 * 16807) % 2147483647) / 2147483647;
+  let blades = '', defsG = '';
+  const n = 52 + variant * 8;
+  // brins du fond (sombres) d'abord, ceux de devant (clairs) ensuite ; touffe dense, plus large que haute
+  for (let k = 0; k < n; k++) {
+    const depth = k / n, off = (r() - 0.5) * 0.78, bx = Wt * (0.5 + off), bw = 6 + r() * 5;
+    const hh = Ht * (0.3 + r() * 0.48) * (1 - Math.abs(off) * 0.75), lean = off * 80 + (r() - 0.5) * 30;
+    const tx = bx + lean, ty = Ht - 8 - hh, cx = bx + lean * 0.35, cy = Ht - 8 - hh * 0.55;
+    const base = dark.map((v, c) => v + (mid[c] - v) * depth), top = mid.map((v, c) => v + (tip[c] - v) * (0.55 + depth * 0.45));
+    defsG += `<linearGradient id="g${k}" gradientUnits="userSpaceOnUse" x1="0" y1="${Ht - 8}" x2="0" y2="${ty}"><stop offset="0" stop-color="${rgb(base)}"/><stop offset="1" stop-color="${rgb(top)}"/></linearGradient>`;
+    blades += `<path d="M${bx - bw / 2} ${Ht - 6}Q${cx - bw * 0.3} ${cy} ${tx} ${ty}Q${cx + bw * 0.3} ${cy} ${bx + bw / 2} ${Ht - 6}Z" fill="url(#g${k})"/>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Wt}" height="${Ht}"><defs>${defsG}<radialGradient id="sh" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#1E2A10" stop-opacity="0.35"/><stop offset="1" stop-color="#1E2A10" stop-opacity="0"/></radialGradient></defs><ellipse cx="${Wt / 2}" cy="${Ht - 8}" rx="${Wt * 0.36}" ry="9" fill="url(#sh)"/>${blades}</svg>`;
+  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { w: info.width, h: info.height, data: new Uint8ClampedArray(data) };
+}
+M.tuft = { w: 200, h: 110, variants: 3, foot: 0.93 };
+for (const s of SEASONS) for (let v = 0; v < 3; v++) await emit(`tuft_${s}_${v}`, await tuft(s, v), 200);
 
 /* ── Arrosoir : vide + calque d'eau (cadre commun = celui du vide) ─────────────────────────────── */
 {
@@ -306,6 +338,21 @@ for (const n of [3, 5]) for (const kind of ['ripe', 'young']) {
 /* ── Cabane, échelle, ronces, fleurs, décors, nuages ──────────────────────────────────────────── */
 const simple = async (key, src, max) => { const im = await cut(src); M[key] = { w: im.w, h: im.h, ...(await emit(key, im, max)) }; };
 await simple('cabin', 'cabin_full', 360);
+/* Étapes de la cabane (facultatives) : cabin_1 … cabin_4, retouches de cabin_full générées une à une
+   (plateforme, garde-corps, ossature, toit). Chaque étape REMPLACE l'image entière : on garde sa
+   position relative à la cabane finie (même cadre d'origine, ramené à l'échelle de cabin_full). */
+M.cabinStages = {};
+{
+  const full = OFF.cabin_full;
+  for (const k of [1, 2, 3, 4]) {
+    const o = OFF[`cabin_${k}`]; if (!o) continue;
+    const s = full.srcW / o.srcW, im = await cut(`cabin_${k}`);
+    M.cabinStages[k] = {
+      dx: round3((o.x * s - full.x) / full.w), dy: round3((o.y * s - full.y) / full.h),
+      sw: round3((o.w * s) / full.w), sh: round3((o.h * s) / full.h), ...(await emit(`cabin_stage_${k}`, im, 360)),
+    };
+  }
+}
 {
   // échelle longue : deux échelles bout à bout (la longueur visible est coupée à l'affichage)
   const l = await cut('ladder'), ov = Math.round(l.h * 0.04), im = blank(l.w, l.h * 2 - ov);
@@ -317,6 +364,30 @@ M.flower = {};
 for (const s of SEASONS) { const im = await cut(`flower_${s}`); M.flower[s] = { w: im.w, h: im.h, ...(await emit(`flower_${s}`, im, 130)) }; }
 M.decor = {};
 for (const k of ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond']) { const im = await cut(`decor_${k}`); M.decor[k] = { w: im.w, h: im.h, ...(await emit(`decor_${k}`, im, 300)) }; }
+/* ── Boutique : trophée (titres) et flamme (flammes de série), la flamme recolorée par article ── */
+M.shop = {};
+{
+  const tr = await cut('trophy');
+  M.shop.trophy = await emit('shop_trophy', tr, 160);
+  const fl = await cut('flame');
+  // rampes sombre → clair ; « orange » = la flamme d'origine
+  const FLAME = {
+    silver: [[70, 76, 86], [150, 158, 170], [222, 228, 236], [255, 255, 255]],
+    gold: [[120, 72, 8], [212, 150, 28], [250, 214, 80], [255, 246, 190]],
+    blue: [[16, 40, 120], [40, 110, 220], [110, 190, 255], [220, 244, 255]],
+    emerald: [[8, 70, 44], [24, 150, 92], [90, 214, 150], [210, 255, 226]],
+    neon: [[90, 10, 120], [220, 40, 200], [80, 230, 255], [230, 255, 255]],
+    red: [[90, 6, 14], [176, 18, 30], [236, 70, 60], [255, 190, 150]],
+    violet: [[46, 14, 90], [110, 50, 190], [180, 120, 250], [240, 220, 255]],
+  };
+  M.shop.flame = await emit('shop_flame_orange', fl, 160);
+  for (const [k, ramp] of Object.entries(FLAME)) {
+    const im = clone(fl), d = im.data;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0) d.set(lerpRamp(ramp, Math.min(1, (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 230)), i);
+    await emit(`shop_flame_${k}`, im, 160);
+  }
+}
+
 M.cloud = [];
 for (const k of ['cloud_1', 'cloud_3']) { const im = await cut(k); M.cloud.push({ w: im.w, h: im.h, ...(await emit(k, im, 520)) }); }
 

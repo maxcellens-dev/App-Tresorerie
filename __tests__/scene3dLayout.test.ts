@@ -51,8 +51,9 @@ describe('scene3dLayout', () => {
     const half = all(layoutScene({ ...st, water: 0.5 }, opts)).find((l) => l.img === 'can_water')!;
     const full = all(layoutScene({ ...st, water: 1 }, opts)).find((l) => l.img === 'can_water')!;
     expect(half.showBottom!).toBeLessThan(full.showBottom!);
-    const cabin = all(layoutScene({ ...st, cabin: { progress: 0, count: 1 } }, opts)).find((l) => l.img === 'cabin')!;
-    expect(cabin.showBottom).toBeCloseTo(0.25);
+    // la cabane se construit par étapes logiques : plateforme, garde-corps, ossature, toit, finitions
+    const cabinAt = (progress: number) => all(layoutScene({ ...st, cabin: { progress, count: 1 } }, opts)).find((l) => l.key === 'cabin')!.img;
+    expect([0, 0.3, 0.5, 0.7, 1].map(cabinAt)).toEqual(['cabin_stage_1', 'cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
   });
 
   it('sans cabane, le grand arbre perd sa branche nue', () => {

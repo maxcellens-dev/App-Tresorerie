@@ -23,7 +23,7 @@ const outDir = path.resolve(here, '../../assets/garden-cut');
 fs.mkdirSync(outDir, { recursive: true });
 
 /** Images de référence ou abandonnées : jamais détourées. */
-const SKIP = /^(Gemini_Generated_Image|plate_)/;
+const SKIP = /^(Gemini_Generated_Image|plate_)|_v\d+\./;
 const names = process.argv.slice(2).length
   ? process.argv.slice(2)
   : fs.readdirSync(rawDir).filter((f) => /\.(jpe?g|png|webp)$/i.test(f) && !SKIP.test(f));
@@ -59,6 +59,15 @@ for (const name of names) {
       // voiles très transparents laissés par le modèle (feuilles « fantômes » autour de l'objet)
       if (rgba[p * 4 + 3] < 64) rgba[p * 4 + 3] = 0;
     }
+  }
+  // ronces : l'IA les a posées sur une planchette en bois → on retire tout ce qui a la couleur du bois
+  // (brun chaud ; les tiges sont violettes et les feuilles vertes, jamais confondues)
+  if (/^brambles\./.test(name)) for (let p = 0; p < W * H; p++) {
+    const r = rgb[p * 3], g = rgb[p * 3 + 1], b = rgb[p * 3 + 2];
+    if (r > g + 8 && g > b + 8 && r - b > 35 && g > 60) rgba[p * 4 + 3] = 0;
+    // dans la moitié basse (la planche et ses arêtes claires), on ne garde que feuilles, tiges et épines
+    const leaf = g > r + 8, stem = r > g + 15 && b > g - 5;
+    if (p / W > H * 0.5 && !leaf && !stem) rgba[p * 4 + 3] = 0;
   }
   // fleurs : les feuilles à l'ombre sortent en voile semi-transparent (pâle sur fond clair) → tout ou rien
   if (/^flower_/.test(name)) for (let p = 0; p < W * H; p++) rgba[p * 4 + 3] = rgba[p * 4 + 3] < 150 ? 0 : 255;

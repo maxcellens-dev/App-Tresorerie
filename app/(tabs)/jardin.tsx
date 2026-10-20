@@ -48,7 +48,9 @@ export default function JardinScreen() {
   const router = useRouter();
   const { core, tree, choices, can, credits, inputs, investments } = useGardenModel();
   /* Un choix de Pépin ouvre DIRECTEMENT sa saisie, comme avant :
-     racines / fruits → le virement pré-rempli ; arrosoir → le montant à conserver ; fleurs → une dépense. */
+     racines / fruits → le virement pré-rempli ; arrosoir → le montant à conserver.
+     Les fleurs (le confort) ne sont qu'une INFORMATION — « c'est pour toi » : rien à saisir, la ligne
+     n'est pas un bouton (elle ouvrait une dépense, que personne n'avait à faire). */
   const monthYear = () => new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const [keepOpen, setKeepOpen] = useState(false);
   const [keepDraft, setKeepDraft] = useState('');
@@ -60,8 +62,7 @@ export default function JardinScreen() {
       router.push(core.buildTransferUrl({ dest, amount: c.amount, label: `${c.type === 'save' ? 'Épargne' : 'Investissement'} ${monthYear()}` }) as any);
       return;
     }
-    if (c.type === 'keep') { setKeepDraft(String(Math.round((core.vm.reservationsTotal ?? 0) + c.amount))); setKeepOpen(true); return; }
-    router.push('/(tabs)/transactions/add?type=expense&origin=/(tabs)/jardin' as any);
+    if (c.type === 'keep') { setKeepDraft(String(Math.round((core.vm.reservationsTotal ?? 0) + c.amount))); setKeepOpen(true); }
   };
   const saveKeep = () => {
     if (isImpersonating) { setKeepOpen(false); return; }
@@ -163,9 +164,9 @@ export default function JardinScreen() {
           <View style={{ borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: GARDEN_COLORS.line, overflow: 'hidden' }}>
             {choices.map((c, i) => {
               const look = CHOICE_LOOKS[c.type];
-              return (
-                <Pressable key={c.type} onPress={() => actChoice(c)} accessibilityRole="button" accessibilityLabel={`${look.verb}, ${look.meaning} : ${eur(c.amount)}`}
-                  style={({ pressed, hovered }: any) => [{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 58, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: pressed || hovered ? GARDEN_COLORS.field : GARDEN_COLORS.card, borderTopWidth: i ? 1 : 0, borderTopColor: GARDEN_COLORS.line }, pointer]}>
+              const row = { flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 58, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: GARDEN_COLORS.line } as const;
+              const content = (
+                <>
                   <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: look.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <ChoiceIcon name={look.icon} size={18} color={look.fg} />
                   </View>
@@ -174,12 +175,20 @@ export default function JardinScreen() {
                     <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{c.kind === 'transfer' && c.to ? `${look.meaning} · vers ${c.to}` : look.meaning}</GardenText>
                   </View>
                   <GardenText variant="bodyStrong" tabular color={look.fg}>{eur(c.amount)}</GardenText>
+                </>
+              );
+              // le confort est une information, pas une action : une ligne simple, sans retour au toucher
+              if (c.type === 'enjoy') return <View key={c.type} accessible accessibilityLabel={`${look.verb}, ${look.meaning} : ${eur(c.amount)}`} style={[row, { backgroundColor: GARDEN_COLORS.card }]}>{content}</View>;
+              return (
+                <Pressable key={c.type} onPress={() => actChoice(c)} accessibilityRole="button" accessibilityLabel={`${look.verb}, ${look.meaning} : ${eur(c.amount)}`}
+                  style={({ pressed, hovered }: any) => [row, { backgroundColor: pressed || hovered ? GARDEN_COLORS.field : GARDEN_COLORS.card }, pointer]}>
+                  {content}
                 </Pressable>
               );
             })}
           </View>
         ) : null}
-        {/* Chaque ligne ouvre directement sa saisie (comme les recommandations du Pilotage). Les virements
+        {/* Chaque ligne (sauf le confort) ouvre directement sa saisie (comme les recommandations du Pilotage). Les virements
             « plus tard » et le réglage de la répartition restent dans les choix de Pépin. */}
         {choices.length ? <GardenButton label="Plus tard, répartition…" variant="secondary" onPress={() => setChoicesOpen(true)} /> : null}
       </GardenCard>
@@ -210,6 +219,9 @@ export default function JardinScreen() {
         <GardenCard tint={GARDEN_COLORS.rootsBg} onPress={() => router.push('/(tabs)/(secondary)/parcours' as any)} accessibilityLabel={`${WORDS.nextStep} : ${rootsGoal(nextMark)}`}>
           <GardenText variant="label" color={GARDEN_COLORS.rootsText}>{WORDS.nextStep}</GardenText>
           <GardenText variant="heading">{rootsGoal(nextMark)}</GardenText>
+          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>
+            {m > 0 ? `Aujourd'hui, ton épargne de secours paierait ${months(m)} mois de tes dépenses si tes revenus s'arrêtaient.` : "Ton épargne de secours, c'est ce qui paierait tes dépenses si tes revenus s'arrêtaient."}
+          </GardenText>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
             <View style={{ flex: 1 }}><GardenBar value={m / nextMark} fill={GARDEN_COLORS.roots} track="#F6E9CC" accessibilityLabel={`${months(m)} mois sur ${nextMark}`} /></View>
             <GardenText variant="smallStrong" tabular>{months(m)} / {nextMark}</GardenText>
@@ -218,8 +230,8 @@ export default function JardinScreen() {
       ) : (
         <GardenCard tint={GARDEN_COLORS.branchesBg} onPress={() => router.push('/(tabs)/(secondary)/parcours' as any)} accessibilityLabel={`${WORDS.nextStep} : voir mon parcours`}>
           <GardenText variant="label" color={GARDEN_COLORS.branchesText}>{WORDS.nextStep}</GardenText>
-          <GardenText variant="heading">Tes racines tiennent plus de 6 mois</GardenText>
-          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>Ce qui dépasse peut faire grossir tes fruits (tes placements). Pépin te propose comment, chaque mois.</GardenText>
+          <GardenText variant="heading">{`Ton épargne de secours paierait ${months(m)} mois de dépenses`}</GardenText>
+          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>C'est solide : 6 mois suffisent pour faire face à un coup dur. Au-delà, l'argent en plus peut faire grossir tes fruits (tes placements) ; Pépin te dit combien, chaque mois.</GardenText>
         </GardenCard>
       )}
 

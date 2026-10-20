@@ -3,7 +3,7 @@
  * actuelle de l'app (WebSideNav), à la place de la barre du bas — convention tactile qui n'a pas
  * sa place sur un écran d'ordinateur.
  *
- * Contenu : le bouton « Ajouter », les quatre espaces du Jardin (Jardin, Mon argent, Projets, Pico),
+ * Contenu : le bouton « Ajouter », les quatre espaces du Jardin (Mon argent, Jardin, Projets, Pico),
  * puis — comme l'ancienne navigation de bureau — des accès directs : le suivi de ton argent, ton
  * jardin et tes réglages. Sur un grand écran, la place ne manque pas : tout est à un clic.
  * Elle porte aussi la synchro en direct et les badges d'invitations (useGardenNavBadges).
@@ -24,8 +24,8 @@ import { TABS, WORDS } from '../../lib/garden/lexicon';
 import { SIDEBAR_WIDTH, pointer, transition } from '../../lib/ui/webLayout';
 
 const MAIN: { route: GardenTabRoute; label: string; icon: 'tree' | 'wallet' | 'pots' | 'pico' }[] = [
-  { route: 'jardin', label: TABS.garden, icon: 'tree' },
   { route: 'argent', label: TABS.money, icon: 'wallet' },
+  { route: 'jardin', label: TABS.garden, icon: 'tree' },
   { route: 'projets', label: TABS.projects, icon: 'pots' },
   { route: 'pico', label: TABS.pico, icon: 'pico' },
 ];

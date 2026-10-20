@@ -26,6 +26,7 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useLocalSearchParams } from 'expo-router';
 import { COSMETIC_DEFS, SHOP_CATEGORY_LABELS, isImageIcon } from '../../../lib/engagement/gamification';
 import GardenItemIcon, { isGardenIcon } from '../../../components/gamification/GardenItemIcon';
+import { shopArt } from '../../../lib/engagement/shopArt';
 import { safeInternalRoute } from '../../../lib/ui/navHistory';
 import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, readableOn, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { shouldResetCustomAccent } from '../../../theme/accentRules';
@@ -571,7 +572,9 @@ function CosmeticCard({ cos, styles, COLORS, onToggle, disabled }: { cos: any; s
       <View style={[styles.cosmeticCardIcon, { backgroundColor: cos.color + '22' }]}>
         {/* L'icône d'un article peut être une IMAGE téléversée par l'administration (comme en
             boutique) : rendue en `Ionicons`, elle ne s'affichait tout simplement pas. */}
-        {isGardenIcon(cos.icon)
+        {shopArt(cos.key, cos.icon)
+          ? <Image source={shopArt(cos.key, cos.icon)!} style={styles.cosmeticCardArt} resizeMode="contain" />
+          : isGardenIcon(cos.icon)
           ? <GardenItemIcon icon={cos.icon} size={30} />
           : isImageIcon(cos.icon)
           ? <Image source={{ uri: cos.icon }} style={styles.cosmeticCardImage} resizeMode="contain" />
@@ -634,6 +637,7 @@ function makeBaseStyles(c: any) {
     cosmeticCard: { width: 104, height: 96, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 7 },
     cosmeticCardIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     cosmeticCardImage: { width: 26, height: 26 },
+    cosmeticCardArt: { width: 34, height: 34 },
     cosmeticCardLabel: { fontSize: 11, fontWeight: '700', color: c.text, textAlign: 'center' },
     cosmeticCheck: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
   });

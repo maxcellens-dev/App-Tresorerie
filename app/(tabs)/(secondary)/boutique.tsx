@@ -1,4 +1,5 @@
 import GardenItemIcon, { isGardenIcon } from '../../../components/gamification/GardenItemIcon';
+import { shopArt } from '../../../lib/engagement/shopArt';
 /**
  * Boutique — dépense les relyks gagnés (couleurs, cosmétiques, titres, thèmes, bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
@@ -439,7 +440,7 @@ function BoutiqueScreen() {
                           return (
                             <View key={item.key} style={[styles.compactCard, cat === 'gems' ? styles.compactThird : styles.compactHalf]}>
                               <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
-                                {isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={34} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={20} color={accentColor} />}
+                                {shopArt(item.key, item.icon) ? <Image source={shopArt(item.key, item.icon)!} style={styles.itemArt} resizeMode="contain" /> : isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={34} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={20} color={accentColor} />}
                               </View>
                               <Text style={styles.compactLabel} numberOfLines={2}>{itemLabel(item)}</Text>
                               {renderBuyButton(item)}
@@ -456,7 +457,7 @@ function BoutiqueScreen() {
                         return (
                           <View key={item.key} style={[styles.card, frozen && styles.cardFrozen]}>
                             <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
-                              {isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={38} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
+                              {shopArt(item.key, item.icon) ? <Image source={shopArt(item.key, item.icon)!} style={styles.itemArt} resizeMode="contain" /> : isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={38} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
                               {frozen && <View style={styles.frozenLock}><Ionicons name="lock-closed" size={11} color="#fff" /></View>}
                             </View>
                             <View style={{ flex: 1 }}>
@@ -667,6 +668,8 @@ function makeBaseStyles(c: any) {
     countBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
     itemIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     itemImg: { width: 28, height: 28, borderRadius: 6 },
+    // images 3D (flammes, trophée) : plus grandes qu'un pictogramme, elles remplissent la pastille
+    itemArt: { width: 38, height: 38 },
     itemLabel: { fontSize: 14, fontWeight: '700', color: c.text },
     itemDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
     buyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, minWidth: 64, justifyContent: 'center' },

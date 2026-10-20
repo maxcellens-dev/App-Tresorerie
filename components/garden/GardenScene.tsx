@@ -142,6 +142,8 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
         {options.sky !== false ? <Rect x="0" y="0" width={FRAME_W} height={FRAME_H} fill={`url(#${id('sky')})`} /> : null}
         {options.sky !== false && moment === 'day' ? <G><Circle cx="800" cy="112" r="130" fill={`url(#${id('sun')})`} /><Circle cx="800" cy="112" r="44" fill="#FFF0C4" opacity="0.95" /></G> : null}
         {options.sky !== false && moment === 'dusk' ? <G><Circle cx="790" cy="430" r="150" fill={`url(#${id('sun')})`} /><Circle cx="790" cy="430" r="40" fill="#FFD9A0" /></G> : null}
+        {/* étoiles DANS le ciel (derrière l'arbre et les nuages), un peu renforcées : le voile les adoucit */}
+        {options.sky !== false && moment === 'night' ? STARS.map(([x, y, r], i) => <Circle key={i} cx={x} cy={y} r={r * 1.15} fill="#FFFFFF" opacity={0.65 + (i % 5) * 0.07} />) : null}
         {v.glow ? <Circle cx={v.glow.cx} cy={v.glow.cy} r={v.glow.r} fill={`url(#${id('glow')})`} /> : null}
       </Svg>
 
@@ -176,7 +178,7 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
 
       {veil ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: `rgba(${veil.rgb.join(',')},${veil.a})` }} /> : null}
 
-      {/* Au-dessus du voile : lune, étoiles, lanternes allumées, Pépin qui dort */}
+      {/* Au-dessus du voile : lune, lanternes allumées, Pépin qui dort */}
       {moment !== 'day' ? (
         <Svg style={{ position: 'absolute', left: 0, top: 0 }} width="100%" height="100%" viewBox={`0 0 ${FRAME_W} ${FRAME_H}`} preserveAspectRatio="none" pointerEvents="none">
           <Defs>
@@ -189,7 +191,6 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
           </Defs>
           {moment === 'night' && options.sky !== false ? (
             <G>
-              {STARS.map(([x, y, r], i) => <Circle key={i} cx={x} cy={y} r={r} fill="#FFFFFF" opacity={0.5 + (i % 5) * 0.1} />)}
               <Circle cx="800" cy="112" r="120" fill={`url(#${id('moon')})`} />
               <Circle cx="800" cy="112" r="40" fill="#F2F5FF" />
             </G>

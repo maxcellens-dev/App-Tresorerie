@@ -278,6 +278,12 @@ export const SCENE3D = {
       "h": 220
     }
   },
+  "tuft": {
+    "w": 200,
+    "h": 110,
+    "variants": 3,
+    "foot": 0.93
+  },
   "can": {
     "w": 632,
     "h": 542,
@@ -304,13 +310,47 @@ export const SCENE3D = {
     "w": 360,
     "h": 345
   },
+  "cabinStages": {
+    "1": {
+      "dx": -0.012,
+      "dy": 0.415,
+      "sw": 1.025,
+      "sh": 0.59,
+      "w": 360,
+      "h": 198
+    },
+    "2": {
+      "dx": -0.001,
+      "dy": 0.42,
+      "sw": 1.001,
+      "sh": 0.58,
+      "w": 360,
+      "h": 200
+    },
+    "3": {
+      "dx": -0.005,
+      "dy": 0.194,
+      "sw": 1.005,
+      "sh": 0.808,
+      "w": 360,
+      "h": 277
+    },
+    "4": {
+      "dx": -0.005,
+      "dy": -0.003,
+      "sw": 1.005,
+      "sh": 1.003,
+      "w": 360,
+      "h": 344
+    }
+  },
   "ladder": {
     "w": 43,
     "h": 520
   },
   "brambles": {
     "w": 420,
-    "h": 389
+    "h": 152
   },
   "flower": {
     "spring": {
@@ -353,6 +393,16 @@ export const SCENE3D = {
     },
     "pond": {
       "w": 300,
+      "h": 160
+    }
+  },
+  "shop": {
+    "trophy": {
+      "w": 149,
+      "h": 160
+    },
+    "flame": {
+      "w": 106,
       "h": 160
     }
   },
@@ -458,9 +508,25 @@ export const SCENE3D_IMG = {
   "basket_young_3": require('../../assets/garden3d/basket_young_3.webp'),
   "basket_ripe_5": require('../../assets/garden3d/basket_ripe_5.webp'),
   "basket_young_5": require('../../assets/garden3d/basket_young_5.webp'),
+  "tuft_spring_0": require('../../assets/garden3d/tuft_spring_0.webp'),
+  "tuft_spring_1": require('../../assets/garden3d/tuft_spring_1.webp'),
+  "tuft_spring_2": require('../../assets/garden3d/tuft_spring_2.webp'),
+  "tuft_summer_0": require('../../assets/garden3d/tuft_summer_0.webp'),
+  "tuft_summer_1": require('../../assets/garden3d/tuft_summer_1.webp'),
+  "tuft_summer_2": require('../../assets/garden3d/tuft_summer_2.webp'),
+  "tuft_autumn_0": require('../../assets/garden3d/tuft_autumn_0.webp'),
+  "tuft_autumn_1": require('../../assets/garden3d/tuft_autumn_1.webp'),
+  "tuft_autumn_2": require('../../assets/garden3d/tuft_autumn_2.webp'),
+  "tuft_winter_0": require('../../assets/garden3d/tuft_winter_0.webp'),
+  "tuft_winter_1": require('../../assets/garden3d/tuft_winter_1.webp'),
+  "tuft_winter_2": require('../../assets/garden3d/tuft_winter_2.webp'),
   "can_empty": require('../../assets/garden3d/can_empty.webp'),
   "can_water": require('../../assets/garden3d/can_water.webp'),
   "cabin": require('../../assets/garden3d/cabin.webp'),
+  "cabin_stage_1": require('../../assets/garden3d/cabin_stage_1.webp'),
+  "cabin_stage_2": require('../../assets/garden3d/cabin_stage_2.webp'),
+  "cabin_stage_3": require('../../assets/garden3d/cabin_stage_3.webp'),
+  "cabin_stage_4": require('../../assets/garden3d/cabin_stage_4.webp'),
   "ladder": require('../../assets/garden3d/ladder.webp'),
   "brambles": require('../../assets/garden3d/brambles.webp'),
   "flower_spring": require('../../assets/garden3d/flower_spring.webp'),
@@ -473,6 +539,15 @@ export const SCENE3D_IMG = {
   "decor_mushrooms": require('../../assets/garden3d/decor_mushrooms.webp'),
   "decor_fence": require('../../assets/garden3d/decor_fence.webp'),
   "decor_pond": require('../../assets/garden3d/decor_pond.webp'),
+  "shop_trophy": require('../../assets/garden3d/shop_trophy.webp'),
+  "shop_flame_orange": require('../../assets/garden3d/shop_flame_orange.webp'),
+  "shop_flame_silver": require('../../assets/garden3d/shop_flame_silver.webp'),
+  "shop_flame_gold": require('../../assets/garden3d/shop_flame_gold.webp'),
+  "shop_flame_blue": require('../../assets/garden3d/shop_flame_blue.webp'),
+  "shop_flame_emerald": require('../../assets/garden3d/shop_flame_emerald.webp'),
+  "shop_flame_neon": require('../../assets/garden3d/shop_flame_neon.webp'),
+  "shop_flame_red": require('../../assets/garden3d/shop_flame_red.webp'),
+  "shop_flame_violet": require('../../assets/garden3d/shop_flame_violet.webp'),
   "cloud_1": require('../../assets/garden3d/cloud_1.webp'),
   "cloud_3": require('../../assets/garden3d/cloud_3.webp'),
   "pepin_happy": require('../../assets/garden3d/pepin_happy.webp'),

@@ -64,6 +64,7 @@ export async function render(state, opts, file) {
     <rect width="${W}" height="${H}" fill="url(#sky)"/>
     ${o.moment === 'day' ? '<circle cx="800" cy="112" r="130" fill="url(#sun)"/><circle cx="800" cy="112" r="44" fill="#FFF0C4" opacity="0.95"/>' : ''}
     ${o.moment === 'dusk' ? '<circle cx="790" cy="430" r="150" fill="url(#sun)"/><circle cx="790" cy="430" r="40" fill="#FFD9A0"/>' : ''}
+    ${o.moment === 'night' ? (() => { let seed = 3; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647; return Array.from({ length: 70 }, (_, i) => `<circle cx="${r() * W}" cy="${r() * 520}" r="${(0.9 + r() * 1.8) * 1.15}" fill="#fff" opacity="${0.65 + (i % 5) * 0.07}"/>`).join(''); })() : ''}
     ${v.glow ? `<circle cx="${v.glow.cx}" cy="${v.glow.cy}" r="${v.glow.r}" fill="url(#glow)"/>` : ''}`);
   for (const l of s.back) await drawLayer(c, l);
   await svgLayer(c, `<defs>${rg('sh', [[0, '#1E2A10', 0.55], [1, '#1E2A10', 0]])}</defs>
@@ -75,10 +76,8 @@ export async function render(state, opts, file) {
     ${v.waterLine ? `<line x1="${v.waterLine.x1}" y1="${v.waterLine.y}" x2="${v.waterLine.x2}" y2="${v.waterLine.y}" stroke="#E4F6FF" stroke-width="3" stroke-linecap="round" opacity="0.8"/>` : ''}`);
   if (veil) await svgLayer(c, `<rect width="${W}" height="${H}" fill="rgb(${veil.rgb.join(',')})" opacity="${veil.a}"/>`);
   if (o.moment !== 'day') {
-    let seed = 3; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const stars = Array.from({ length: 70 }, (_, i) => `<circle cx="${r() * W}" cy="${r() * 520}" r="${0.9 + r() * 1.8}" fill="#fff" opacity="${0.5 + (i % 5) * 0.1}"/>`).join('');
     await svgLayer(c, `<defs>${rg('moon', [[0, '#E8EEFF', 0.55], [1, '#E8EEFF', 0]])}${rg('lamp', [[0, '#FFE4A0', 0.95], [0.4, '#FFC870', 0.45], [1, '#FFC870', 0]])}</defs>
-      ${o.moment === 'night' ? `${stars}<circle cx="800" cy="112" r="120" fill="url(#moon)"/><circle cx="800" cy="112" r="40" fill="#F2F5FF"/>` : ''}
+      ${o.moment === 'night' ? `<circle cx="800" cy="112" r="120" fill="url(#moon)"/><circle cx="800" cy="112" r="40" fill="#F2F5FF"/>` : ''}
       ${v.lights.map((l) => `<circle cx="${l.cx}" cy="${l.cy}" r="${l.r}" fill="url(#lamp)"/>`).join('')}
       ${v.sleepZ ? `<text x="${v.sleepZ.x}" y="${v.sleepZ.y}" font-family="Arial" font-weight="800" font-size="26" fill="#EEF2FF">z</text><text x="${v.sleepZ.x + 22}" y="${v.sleepZ.y - 26}" font-family="Arial" font-weight="800" font-size="34" fill="#EEF2FF">z</text>` : ''}`);
   }

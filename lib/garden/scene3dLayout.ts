@@ -20,6 +20,8 @@ export const FRAME_W = 928;
 export const FRAME_H = 1110;
 /** Sol : là où les objets posés sur l'herbe ont leur pied (milieu du dessus du plateau). */
 export const GROUND = 655;
+/** Profondeur du tronc : ce qui est accroché à l'arbre (nichoir, échelle, cabane, pommes) la suit. */
+const TREE_Z = GROUND + 6;
 
 export type PepinMood = 'happy' | 'joy' | 'thinking' | 'sleep';
 
@@ -49,6 +51,9 @@ export interface Layer {
   showTop?: number;
   flip?: boolean;
   opacity?: number;
+  /** Profondeur (premier plan) : y du pied sur l'herbe — plus grand = plus près, peint après.
+   *  Absent = bas de l'image. Les objets accrochés à l'arbre prennent celle du tronc. */
+  z?: number;
 }
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -86,8 +91,10 @@ export interface Scene3d {
    voilé il ait exactement la teinte voulue. La lune et les étoiles passent au-dessus du voile. */
 export const VEIL: Record<Moment, { rgb: [number, number, number]; a: number } | null> = {
   day: null,
-  dusk: { rgb: [190, 90, 70], a: 0.22 },
-  night: { rgb: [18, 28, 70], a: 0.55 },
+  /* Voiles LÉGERS : le dessin reste lisible ; c'est le ciel (étoiles, lune, couchant) et les
+     lanternes allumées qui disent que c'est le soir, pas une scène assombrie. */
+  dusk: { rgb: [200, 104, 74], a: 0.13 },
+  night: { rgb: [26, 40, 92], a: 0.3 },
 };
 const SKY_FINAL: Record<Moment, Record<Season, [string, string, string]>> = {
   day: {
@@ -141,6 +148,13 @@ const SPOTS: [number, number][] = [[0.3, 0.42], [0.7, 0.34], [0.5, 0.68], [0.22,
 const FLOWER_SLOTS: [number, number, number, boolean][] = [[402, 694, 1, false], [436, 706, 0.86, true], [548, 700, 0.95, false], [584, 690, 0.8, true], [616, 706, 0.9, false]];
 const PEPIN_W = 178;
 const CAN_W = 205;
+/* Herbe semée sur tout le dessus du plateau, du fond (petites, y bas) au bord avant (plus grandes) :
+   [x, y du pied, largeur]. Triées par profondeur avec le reste : celles du fond passent derrière. */
+const DECO_TUFTS: [number, number, number][] = [
+  [110, 614, 36], [232, 620, 32], [372, 610, 34], [566, 616, 32], [690, 612, 36], [806, 620, 34],
+  [70, 660, 42], [326, 650, 38], [612, 652, 40], [864, 662, 42],
+  [74, 704, 52], [204, 710, 46], [302, 714, 40], [524, 714, 42], [712, 716, 44], [862, 702, 50],
+];
 
 /**
  * Calques de Pépin, du dessous au dessus, tous dans le MÊME cadre (M.pepin.w × M.pepin.h) : l'humeur,
@@ -160,6 +174,12 @@ const img = (key: string, name: string, x: number, y: number, w: number, h: numb
 
 export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   const back: Layer[] = [], front: Layer[] = [], hot: Hotspot3d[] = [];
+  /** Touffe d'herbe dont le pied est en (cx, footY). */
+  const tuft = (list: Layer[], key: string, cx: number, footY: number, w: number, variant = 0) => {
+    const h = w * M.tuft.h / M.tuft.w;
+    // juste devant ce qu'elle cache (même pied, un cheveu plus près)
+    list.push(img(key, `tuft_${o.season}_${variant % M.tuft.variants}`, cx - w / 2, footY - h * M.tuft.foot, w, h, { z: footY + 0.5 }));
+  };
   const v: Scene3dVector = { shadows: [], marks: [], dripRoots: state.drip.roots, dripBranches: null, glow: null, lights: [], waterLine: null, sleepZ: null };
   const decor = new Set(o.decor ?? []);
   const night = o.moment !== 'day';
@@ -183,6 +203,8 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   const lvl = rootLevel(state.roots.months, state.roots.beyondSix), soil = M.soil[lvl];
   back.push(img('soil', `soil_${lvl}`, soil.x, soil.y, soil.w, soil.h));
   back.push(img('slab', `slab_${o.season}`, M.slab.x, M.slab.y, M.slab.w, M.slab.h));
+  // quelques touffes sur le dessus : l'herbe n'est plus une plaque nue
+  DECO_TUFTS.forEach(([x, y, w], i) => tuft(front, `tuftDeco${i}`, x, y, w * 1.35, i));
   hot.push({ part: 'roots', x: soil.x, y: M.slab.y + M.slab.h - 20, w: soil.w, h: soil.y + soil.h - (M.slab.y + M.slab.h - 20) });
   if (o.marks !== false) {
     const { one, three, six } = state.roots.marks;
@@ -196,7 +218,11 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   // ── Fleurs du confort ──
   const fl = M.flower[o.season], fh = 96, fw = fh * fl.w / fl.h;
   const flowers = FLOWER_SLOTS.slice(0, state.flowers);
-  flowers.forEach(([x, y, k, flip], i) => back.push(img(`flower${i}`, `flower_${o.season}`, x - fw * k / 2, y - fh * k, fw * k, fh * k, { flip })));
+  flowers.forEach(([x, y, k, flip], i) => {
+    // la tige sort de l'herbe : le pied (bas de l'image) est caché par une touffe posée devant
+    front.push(img(`flower${i}`, `flower_${o.season}`, x - fw * k / 2, y - fh * k + 6, fw * k, fh * k, { flip, z: y + 4 }));
+    tuft(front, `flowerTuft${i}`, x, y + 4, 56 * k, i);
+  });
   if (flowers.length) {
     const xs = flowers.map(([x]) => x);
     hot.push({ part: 'flowers', x: Math.min(...xs) - 26, y: 610, w: Math.max(...xs) - Math.min(...xs) + 52, h: 104 });
@@ -209,7 +235,38 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   const t = M.tree[kind], th = TREE_H[size - 1], tw = th * t.w / t.h;
   const tx = 470 - tw * t.foot, ty = GROUND + 6 - th;
   v.shadows.push({ cx: 470 + 8, cy: GROUND + 4, rx: Math.max(48, tw * (kind === 'sprout' ? 0.3 : 0.42)), ry: 18, o: 0.5 });
+
+  /* Ronces (crédit cher) : des ronces RAMPANTES, basses et larges, enracinées dans l'herbe. Autour d'un
+     arbre, deux nappes PASSENT DERRIÈRE le tronc (il les traverse) et, plus elles sont denses, une
+     troisième vient devant ; autour d'une pousse, deux nappes de part et d'autre. */
+  const brambleFront: Rect[] = [];
+  if (state.brambles > 0) {
+    const d = state.brambles, half = t.trunkHalf * tw;
+    const bw = (kind === 'sprout' ? 90 : 130) + 80 * d, bh = bw * M.brambles.h / M.brambles.w;
+    const behind: number[] = kind === 'sprout' ? [] : [470 - half - bw * 0.2, 470 + half + bw * 0.2];
+    const ahead: [number, number][] = kind === 'sprout' ? [[470 - bw * 0.62, bw], [470 + bw * 0.62, bw]] : d > 0.5 ? [[470 + 4, bw * 0.6]] : [];
+    // le pied des buissons est enfoncé sous l'herbe (bas de l'image sous le sol, caché par les touffes)
+    behind.forEach((x, i) => front.push(img(`brambleB${i}`, 'brambles', x - bw / 2, GROUND + 16 - bh, bw, bh, { flip: i === 1, z: GROUND })));
+    ahead.forEach(([x, w]) => brambleFront.push({ x: x - w / 2, y: GROUND + 28 - bh * w / bw, w, h: bh * w / bw }));
+    const all = [...behind.map((x) => ({ x: x - bw / 2, w: bw })), ...brambleFront];
+    const x0 = Math.min(...all.map((r) => r.x)), x1 = Math.max(...all.map((r) => r.x + r.w));
+    hot.push({ part: 'brambles', x: x0, y: GROUND + 16 - bh, w: x1 - x0, h: bh + 8 });
+  }
+
   front.push(img('tree', `tree_${kind}_${o.season}`, tx, ty, tw, th));
+  // le pied sort de l'herbe : touffes contre le tronc (ou au pied de la pousse)
+  if (kind === 'sprout') tuft(front, 'tuftTree', 470, GROUND + 10, 50, 1);
+  else { const half = t.trunkHalf * tw; tuft(front, 'tuftTreeL', 470 - half - 6, GROUND + 12, 58, 0); tuft(front, 'tuftTreeR', 470 + half + 10, GROUND + 14, 52, 2); }
+  brambleFront.forEach((r, i) => {
+    front.push(img(`brambleF${i}`, 'brambles', r.x, r.y, r.w, r.h, { flip: i % 2 === 1, z: r.y + r.h - 8 }));
+    tuft(front, `brambleTuft${i}a`, r.x + r.w * 0.32, r.y + r.h - 6, r.w * 0.62, i + 1);
+    tuft(front, `brambleTuft${i}b`, r.x + r.w * 0.7, r.y + r.h - 4, r.w * 0.56, i + 2);
+  });
+  if (state.brambles > 0 && kind !== 'sprout') {
+    const half = t.trunkHalf * tw, bw = 130 + 80 * state.brambles;
+    tuft(front, 'brambleTuftL', 470 - half - bw * 0.4, GROUND + 14, bw * 0.7, 2);
+    tuft(front, 'brambleTuftR', 470 + half + bw * 0.4, GROUND + 14, bw * 0.7, 0);
+  }
   const cb = t.canopy, canopy: Rect = { x: tx + cb.x0 * tw, y: ty + cb.y0 * th, w: (cb.x1 - cb.x0) * tw, h: (cb.y1 - cb.y0) * th };
   hot.push({ part: 'tree', x: canopy.x, y: canopy.y, w: canopy.w, h: GROUND - canopy.y });
   if (o.glow) v.glow = { cx: canopy.x + canopy.w / 2, cy: canopy.y + canopy.h / 2, r: Math.max(canopy.w, canopy.h) * 0.75 };
@@ -218,49 +275,48 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   // nichoir accroché au tronc
   if (decor.has('birdhouse') && kind !== 'sprout') {
     const b = M.decor.birdhouse, w = Math.max(48, tw * 0.13), h = w * b.h / b.w;
-    front.push(img('birdhouse', 'decor_birdhouse', 470 - t.trunkHalf * tw - w * 0.9, ty + th * 0.74 - h, w, h));
-  }
-
-  // ronces : au sol autour de la pousse, au pied du tronc pour un arbre
-  if (state.brambles > 0) {
-    const n = 1 + Math.round(state.brambles * 2), bw = (kind === 'sprout' ? 58 : 78) + 56 * state.brambles, bh = bw * M.brambles.h / M.brambles.w;
-    const xs = kind === 'sprout' ? [-1, 1].map((s) => 470 + s * (bw * 0.62)) : [0, -0.5, 0.5].slice(0, n).map((k) => 470 + k * bw);
-    xs.forEach((x, i) => front.push(img(`bramble${i}`, 'brambles', x - bw / 2, GROUND + 16 - bh, bw, bh, { flip: i % 2 === 1 })));
-    hot.push({ part: 'brambles', x: Math.min(...xs) - bw / 2, y: GROUND + 16 - bh, w: Math.max(...xs) - Math.min(...xs) + bw, h: bh });
+    front.push(img('birdhouse', 'decor_birdhouse', 470 - t.trunkHalf * tw - w * 0.9, ty + th * 0.74 - h, w, h, { z: TREE_Z + 0.1 }));
   }
 
   // pommes = placements (dans la pousse : une seule, sur la tige)
   if (state.fruits > 0) {
     const kindOf = (i: number) => (state.fruitTier >= 10 && i < 3 ? 'gold' : state.ripe ? 'ripe' : 'young');
     if (kind === 'sprout') {
-      const s = 24; front.push(img('apple0', `apple_${kindOf(0)}`, 470 + 6, GROUND - th * 0.45, s, s * M.apple.h / M.apple.w));
+      const s = 24; front.push(img('apple0', `apple_${kindOf(0)}`, 470 + 6, GROUND - th * 0.45, s, s * M.apple.h / M.apple.w, { z: TREE_Z + 0.4 }));
     } else {
       const s = canopy.w * (state.fruits <= 3 ? 0.1 : state.fruits <= 6 ? 0.088 : 0.076), ah = s * M.apple.h / M.apple.w;
-      SPOTS.slice(0, state.fruits).forEach(([fx, fy], i) => front.push(img(`apple${i}`, `apple_${kindOf(i)}`, canopy.x + fx * canopy.w - s / 2, canopy.y + fy * canopy.h - ah / 2, s, ah)));
+      SPOTS.slice(0, state.fruits).forEach(([fx, fy], i) => front.push(img(`apple${i}`, `apple_${kindOf(i)}`, canopy.x + fx * canopy.w - s / 2, canopy.y + fy * canopy.h - ah / 2, s, ah, { z: TREE_Z + 0.4 })));
     }
   }
 
   // ── Cabane : sur la branche (grand arbre) ou posée au sol (petit arbre) ──
   let pepinX = 660;
   if (cabin) {
-    const c = M.cabin, built = 0.25 + 0.75 * Math.max(0, Math.min(1, cabin.progress));
-    let r: Rect;
+    const c = M.cabin, p = Math.max(0, Math.min(1, cabin.progress));
+    /* 5 étapes LOGIQUES (plateforme, garde-corps, ossature, toit, finitions). Les étapes 1 à 4 sont des
+       images à part (cabin_stage_k) quand elles existent ; à défaut, repli : la cabane finie révélée
+       de bas en haut. */
+    const stage = p < 0.2 ? 1 : p < 0.4 ? 2 : p < 0.6 ? 3 : p < 0.8 ? 4 : 5;
+    const st = stage < 5 ? (M.cabinStages as Record<string, { dx: number; dy: number; sw: number; sh: number } | undefined>)[String(stage)] : undefined;
+    let r: Rect, cabinZ: number | undefined;
     if (kind === 'adult' && 'branchTip' in t) {
       const tipX = tx + t.branchTip.x * tw, tipY = ty + t.branchTip.y * th, cw = tw * 0.34, ch = cw * c.h / c.w;
       r = { x: tipX - cw * 0.85, y: tipY - ch * 0.9, w: cw, h: ch };
       // échelle de la plateforme jusqu'à l'herbe (coupée à la bonne longueur)
       const lw = cw * 0.1, lh = lw * M.ladder.h / M.ladder.w, top = r.y + ch * 0.8, len = GROUND + 12 - top;
-      front.push(img('ladder', 'ladder', r.x + cw * 0.24, top, lw, lh, { showTop: Math.min(1, len / lh) }));
+      front.push(img('ladder', 'ladder', r.x + cw * 0.24, top, lw, lh, { showTop: Math.min(1, len / lh), z: TREE_Z + 0.2 }));
+      cabinZ = TREE_Z + 0.3;
     } else {
       const cw = 150, ch = cw * c.h / c.w;
       r = { x: 512, y: GROUND + 20 - ch, w: cw, h: ch };
       v.shadows.push({ cx: r.x + cw / 2, cy: GROUND + 14, rx: cw * 0.5, ry: 12, o: 0.45 });
       pepinX = 700;
     }
-    front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { showBottom: built }));
+    if (st) front.push(img('cabin', `cabin_stage_${stage}`, r.x + st.dx * r.w, r.y + st.dy * r.h, st.sw * r.w, st.sh * r.h, { z: cabinZ }));
+    else front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { z: cabinZ, ...(stage < 5 ? { showBottom: 0.25 + 0.75 * p } : {}) }));
     hot.push({ part: 'cabin', ...r });
     // la petite lanterne sous le toit ne s'allume que la cabane finie
-    if (night && cabin.progress >= 0.8) v.lights.push({ cx: r.x + r.w * 0.47, cy: r.y + r.h * 0.2, r: r.w * 0.22 });
+    if (night && stage === 5) v.lights.push({ cx: r.x + r.w * 0.47, cy: r.y + r.h * 0.2, r: r.w * 0.22 });
   }
 
   // ── Lanterne posée, champignons, panier de récolte ──
@@ -270,11 +326,11 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     v.shadows.push({ cx: x + w / 2, cy: 666, rx: 26, ry: 6, o: 0.4 });
     if (night) v.lights.push({ cx: x + w / 2, cy: y + h * 0.66, r: 46 });
   }
-  if (decor.has('mushrooms')) { const m = M.decor.mushrooms, w = 58, h = w * m.h / m.w; front.push(img('mushrooms', 'decor_mushrooms', 330, 694 - h, w, h)); }
-  if (state.fruitTier >= 5) {
-    const k = `basket_${state.ripe ? 'ripe' : 'young'}_${state.fruitTier >= 10 ? 5 : 3}`, w = 78, h = w * M.basket.h / M.basket.w;
-    front.push(img('basket', k, 50, 714 - h, w, h));
-    v.shadows.push({ cx: 89, cy: 712, rx: 40, ry: 8, o: 0.4 });
+  if (decor.has('mushrooms')) {
+    // pieds enfoncés dans l'herbe (le bas des tiges est caché par une touffe)
+    const m = M.decor.mushrooms, w = 58, h = w * m.h / m.w;
+    front.push(img('mushrooms', 'decor_mushrooms', 330, 700 - h, w, h));
+    tuft(front, 'mushroomTuft', 359, 698, 74, 1);
   }
 
   // ── Arrosoir en verre : vide + eau coupée au niveau ──
@@ -304,5 +360,16 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     hot.push({ part: 'pico', x: pepinX - 6, y: y + h * 0.08, w: PEPIN_W + 12, h: h * 0.92 });
   }
 
-  return { back, front, vector: v, hotspots: hot };
+  // ── Panier de récolte (5 placements et plus) : la récolte de Pépin, posée devant lui ──
+  if (state.fruitTier >= 5) {
+    const k = `basket_${state.ripe ? 'ripe' : 'young'}_${state.fruitTier >= 10 ? 5 : 3}`, w = 80, h = w * M.basket.h / M.basket.w;
+    const x = pepinX - 44, bottom = 712;
+    v.shadows.push({ cx: x + w / 2, cy: bottom - 2, rx: w * 0.5, ry: 9, o: 0.45 });
+    front.push(img('basket', k, x, bottom - h, w, h));
+  }
+
+  // peintre : du fond vers l'avant, à profondeur égale dans l'ordre d'ajout (eau sur l'arrosoir…)
+  const depth = (l: Layer) => l.z ?? l.y + l.h;
+  const sorted = front.map((l, i) => [l, i] as const).sort(([a, i], [b, j]) => depth(a) - depth(b) || i - j).map(([l]) => l);
+  return { back, front: sorted, vector: v, hotspots: hot };
 }
