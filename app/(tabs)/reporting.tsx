@@ -1,3 +1,4 @@
+import { isGardenPalette } from '../../lib/garden/gardenPalette';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import ScreenGradient from '../../components/layout/ScreenGradient';
 import CalculatorButton from '../../components/transaction/CalculatorButton';
@@ -1302,6 +1303,8 @@ function ReportingBody() {
 }
 
 function BackRow({ C, onPress }: { C: any; onPress: () => void }) {
+  // Jardin : le retour est dans la barre du haut.
+  if (isGardenPalette(C)) return null;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingTop: 4 }}>
       <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={onPress} accessibilityRole="button">

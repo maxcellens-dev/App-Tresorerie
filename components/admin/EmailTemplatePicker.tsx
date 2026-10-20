@@ -9,6 +9,8 @@
  * d'un modèle ne doit pas risquer de modifier le modèle, et corriger un modèle ne doit pas écraser
  * la campagne en cours de rédaction.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -218,6 +220,12 @@ export default function EmailTemplatePicker({ onApply }: Props) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { gap: 8, marginBottom: 4 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 8 },

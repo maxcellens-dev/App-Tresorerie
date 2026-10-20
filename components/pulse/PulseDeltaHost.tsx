@@ -18,6 +18,8 @@
  * carte partait au bout de 5 s, inacceptable si elle reste). L'app dessous reste utilisable, et le
  * moindre changement de page emporte la carte.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Pressable, PanResponder, Platform, LayoutAnimation, type LayoutAnimationConfig } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -450,6 +452,12 @@ export default function PulseDeltaHost() {
 }
 
 function makeStyles(c: AppColors) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     root: { ...StyleSheet.absoluteFill, zIndex: 60, elevation: 60 },
     center: { position: 'absolute', left: 12, right: 12, alignItems: 'center' },

@@ -12,6 +12,8 @@
  * Les confondre, c'était compter dans « mes crédits partagés » tout ce qu'on avait simplement montré
  * à quelqu'un, et rien de ce qu'on porte réellement à plusieurs.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -138,6 +140,12 @@ export default function CreditShareSection({ credit }: { credit: Credit }) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },

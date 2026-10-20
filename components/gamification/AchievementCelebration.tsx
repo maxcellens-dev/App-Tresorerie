@@ -7,6 +7,9 @@
  * Les succès déjà débloqués avant cette fonctionnalité ont été marqués comme célébrés par la
  * migration → pas de célébration rétroactive.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
+import SeedIcon from './SeedIcon';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -148,7 +151,7 @@ export default function AchievementCelebration() {
 
   if (!current) return null;
   const gems = current.gems ?? 0;
-  const currency = config?.identity.currencyName ?? 'Relyk';
+  const currency = config?.identity.currencyName ?? 'Graine';
   const glowScale = glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] });
 
@@ -191,7 +194,7 @@ export default function AchievementCelebration() {
         {!!current.description && <Text style={styles.desc}>{current.description}</Text>}
         {gems > 0 && (
           <View style={styles.reward}>
-            <Ionicons name="diamond" size={15} color={COLORS.blue} />
+            <SeedIcon size={16} />
             <Text style={styles.rewardText}>+{formatCurrency(gems, currency)}</Text>
           </View>
         )}
@@ -202,6 +205,12 @@ export default function AchievementCelebration() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 28, zIndex: 5000, ...(Platform.OS === 'web' ? { position: 'fixed' as any } : {}) },
     card: { width: '100%', maxWidth: 340, backgroundColor: c.cardSolid ?? c.card, borderRadius: 24, borderWidth: 1, borderColor: UNLOCK_COLOR + '55', padding: 28, alignItems: 'center' },

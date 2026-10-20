@@ -19,6 +19,8 @@
     "audit": "npm audit --omit=dev"
   },
   "dependencies": {
+    "@expo-google-fonts/fredoka": "^0.4.1",
+    "@expo-google-fonts/nunito": "^0.4.2",
     "@expo/metro-runtime": "~57.0.9",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",

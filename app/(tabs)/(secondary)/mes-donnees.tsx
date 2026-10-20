@@ -1,3 +1,5 @@
+import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Share, ActivityIndicator } from 'react-native';
@@ -273,8 +275,8 @@ function MesDonneesScreen() {
 
     rows.push({ type: 'section', cells: ['GAMIFICATION'] });
     rows.push({ type: 'colhead', cells: ['Champ', 'Valeur'] });
-    rows.push({ type: 'data', cells: ['Relyks', String(d.gami?.gems ?? 0)] });
-    rows.push({ type: 'data', cells: ['Relyks gagnés au total', String(d.gami?.gems_earned_total ?? 0)] });
+    rows.push({ type: 'data', cells: ['Graines', String(d.gami?.gems ?? 0)] });
+    rows.push({ type: 'data', cells: ['Graines gagnées au total', String(d.gami?.gems_earned_total ?? 0)] });
     rows.push({ type: 'data', cells: ['Semaines connectées', String(d.gami?.streak ?? 0)] });
     d.badges.forEach((b: any) => {
       rows.push({ type: 'data', cells: [`Succès : ${b.badge_key}`, `débloqué le ${String(b.unlocked_at ?? '').slice(0, 10)}`] });
@@ -412,7 +414,7 @@ function MesDonneesScreen() {
             </View>
             <View style={styles.bullet}>
               <Ionicons name="trophy-outline" size={18} color={COLORS.orange} />
-              <Text style={styles.bulletText}>Gamification (relyks, série, succès débloqués).</Text>
+              <Text style={styles.bulletText}>Gamification (graines, série, succès débloqués).</Text>
             </View>
             <View style={styles.bullet}>
               <Ionicons name="help-circle-outline" size={18} color={COLORS.violet} />
@@ -458,6 +460,12 @@ function MesDonneesScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

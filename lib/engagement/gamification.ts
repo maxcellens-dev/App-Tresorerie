@@ -74,27 +74,33 @@ export interface StreakConfig {
   weeklyGems: number;     // gemmes gagnées par semaine validée
 }
 
-export type ShopCategory = 'gratuit' | 'apparence' | 'cosmetiques' | 'titres' | 'premium' | 'gems';
+export type ShopCategory = 'gratuit' | 'jardin' | 'garde_robe' | 'saisons' | 'apparence' | 'cosmetiques' | 'titres' | 'premium' | 'gems';
 
 export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   gratuit: 'Gratuit',
+  jardin: 'Décor du jardin',
+  garde_robe: 'Garde-robe de Pépin',
+  saisons: 'Saisons',
   apparence: 'Apparence',
   cosmetiques: 'Cosmétiques',
   titres: 'Titres de profil',
   premium: 'Exclusif Premium',
-  gems: 'Recharger en relyks',
+  gems: 'Recharger en graines',
 };
 /** Ordre d'affichage des catégories dans la boutique. */
-export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'apparence', 'cosmetiques', 'titres', 'premium', 'gems'];
+export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'jardin', 'garde_robe', 'saisons', 'apparence', 'cosmetiques', 'premium', 'gems'];
 
 /** Icône représentative par catégorie (pour les filtres de la boutique). */
 export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
   gratuit: 'gift-outline',
+  jardin: 'flower-outline',
+  garde_robe: 'shirt-outline',
+  saisons: 'partly-sunny-outline',
   apparence: 'color-palette-outline',
   cosmetiques: 'sparkles-outline',
   titres: 'ribbon-outline',
   premium: 'star',
-  gems: 'diamond-outline',
+  gems: 'leaf-outline',
 };
 
 /* ⚠️ `ACCENT_PACK_COLORS` (7 teintes en dur) a été RETIRÉ : rien ne s'en servait, et il laissait
@@ -106,7 +112,13 @@ export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
 // ── Cosmétiques équipables ──────────────────────────────────────────────────
 // Chaque cosmétique acheté (type 'cosmetic', stocké en inventaire) occupe UN emplacement.
 // Un seul cosmétique par emplacement peut être équipé à la fois.
-export type CosmeticSlot = 'avatar_frame' | 'title' | 'streak_flame';
+export type CosmeticSlot = 'avatar_frame' | 'title' | 'streak_flame'
+  /* Jardin : chaque objet de décor a SA place (on peut tous les poser en même temps). */
+  | 'decor_lantern' | 'decor_birdhouse' | 'decor_bench' | 'decor_mushrooms' | 'decor_fence' | 'decor_pond'
+  /* Garde-robe de Pépin : une pièce par partie du corps. */
+  | 'pico_neck' | 'pico_head' | 'pico_eyes' | 'pico_feet'
+  /* Saison forcée (sinon, la vraie saison). */
+  | 'garden_season';
 
 export interface CosmeticDef {
   slot: CosmeticSlot;
@@ -147,6 +159,9 @@ export const TITLE_TIER_PRICE = { role: 120, maitrise: 150, premium: 300 } as co
 const frame = (hex: string): CosmeticDef => ({ slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: hex });
 const flame = (hex: string): CosmeticDef => ({ slot: 'streak_flame', slotLabel: 'Flamme de série', value: hex });
 const title = (v: string): CosmeticDef => ({ slot: 'title', slotLabel: 'Titre de profil', value: v });
+const decor = (slot: CosmeticSlot, v: string): CosmeticDef => ({ slot, slotLabel: 'Décor du jardin', value: v });
+const wear = (slot: CosmeticSlot, v: string): CosmeticDef => ({ slot, slotLabel: 'Garde-robe de Pépin', value: v });
+const season = (v: string): CosmeticDef => ({ slot: 'garden_season', slotLabel: 'Saison du jardin', value: v });
 
 /* ⚠️ Les CLÉS existantes ne changent JAMAIS : elles sont dans l'inventaire des utilisateurs, et en
    changer une reviendrait à modifier la couleur d'un article déjà acheté.
@@ -183,6 +198,23 @@ export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
   cosmetic_title_legend:      title('Légende'),
   cosmetic_title_visionnaire: title('Visionnaire'),
   cosmetic_title_elite:       title('Élite'),
+  // ── Jardin (value = objet dessiné dans la scène, cf. lib/garden/sceneCinematic) ──
+  garden_lantern:   decor('decor_lantern', 'lantern'),
+  garden_birdhouse: decor('decor_birdhouse', 'birdhouse'),
+  garden_bench:     decor('decor_bench', 'bench'),
+  garden_mushrooms: decor('decor_mushrooms', 'mushrooms'),
+  garden_fence:     decor('decor_fence', 'fence'),
+  garden_pond:      decor('decor_pond', 'pond'),
+  // ── Garde-robe de Pépin ──
+  pico_scarf_red:   wear('pico_neck', 'scarf_red'),
+  pico_straw_hat:   wear('pico_head', 'straw_hat'),
+  pico_sunglasses:  wear('pico_eyes', 'sunglasses'),
+  pico_boots:       wear('pico_feet', 'boots'),
+  // ── Saisons (forcent la saison du jardin ; sans elles, c'est la vraie saison) ──
+  season_spring: season('spring'),
+  season_summer: season('summer'),
+  season_autumn: season('autumn'),
+  season_winter: season('winter'),
 };
 
 export type EquippedCosmetics = Partial<Record<CosmeticSlot, string>>;
@@ -244,7 +276,7 @@ export interface GamificationConfig {
 export const DEFAULT_GAMIFICATION: GamificationConfig = {
   identity: {
     enabled: true,
-    currencyName: 'Relyk', // forme SINGULIÈRE — le « s » du pluriel est ajouté à l'affichage
+    currencyName: 'Graine', // forme SINGULIÈRE — le « s » du pluriel est ajouté à l'affichage
     currencyIcon: 'diamond',
     streakIcon: '🔥',
     streakLabel: 'Série',
@@ -284,16 +316,33 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'invest_1', category: 'Action', metric: 'invest_followed', label: 'Première graine', description: 'Suis une recommandation d’investir.', icon: 'trending-up', threshold: 1, gems: 40 },
     { key: 'invest_5', category: 'Action', metric: 'invest_followed', label: 'Investisseur', description: 'Suis 5 recommandations d’investir.', icon: 'trending-up', threshold: 5, gems: 200 },
     // ── Collection (relyks cumulés) ──
-    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 Relyks.', icon: 'diamond', threshold: 100, gems: 0 },
-    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 Relyks.', icon: 'diamond', threshold: 500, gems: 0 },
-    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 Relyks.', icon: 'diamond', threshold: 2000, gems: 0 },
+    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 graines.', icon: 'leaf', threshold: 100, gems: 0 },
+    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 graines.', icon: 'leaf', threshold: 500, gems: 0 },
+    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 graines.', icon: 'leaf', threshold: 2000, gems: 0 },
     // ── Profil & Découverte ──
     { key: 'profil_photo', category: 'Profil', metric: 'profile_photo', label: 'Mon plus beau profil', description: 'Ajoute une photo de profil.', icon: 'camera', threshold: 1, gems: 20 },
     { key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done', label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».', icon: 'compass', threshold: 1, gems: 50 },
   ],
   shop: [
     // ── Gratuit ──
-    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 relyks offerts, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
+    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 graines offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
+    /* ── Décor du jardin : visible autour de ton arbre, à équiper dans Apparence ── */
+    { key: 'garden_mushrooms', type: 'cosmetic', category: 'jardin', label: 'Champignons', description: 'Deux champignons au pied de l’arrosoir.', price: 60, icon: 'garden:mushrooms' },
+    { key: 'garden_lantern', type: 'cosmetic', category: 'jardin', label: 'Lanterne', description: 'Une lanterne qui brille dans ton arbre.', price: 80, icon: 'garden:lantern' },
+    { key: 'garden_fence', type: 'cosmetic', category: 'jardin', label: 'Petite barrière', description: 'Une barrière en bois au fond du jardin.', price: 90, icon: 'garden:fence' },
+    { key: 'garden_birdhouse', type: 'cosmetic', category: 'jardin', label: 'Nichoir', description: 'Un nichoir accroché au tronc.', price: 120, icon: 'garden:birdhouse' },
+    { key: 'garden_bench', type: 'cosmetic', category: 'jardin', label: 'Banc en bois', description: 'Un banc pour admirer ton arbre.', price: 150, icon: 'garden:bench' },
+    { key: 'garden_pond', type: 'cosmetic', category: 'jardin', label: 'Bassin', description: 'Un petit bassin et son nénuphar.', price: 220, icon: 'garden:pond' },
+    /* ── Garde-robe de Pépin : il la porte partout où il apparaît ── */
+    { key: 'pico_scarf_red', type: 'cosmetic', category: 'garde_robe', label: 'Écharpe brique', description: 'Change l’écharpe verte de Pépin.', price: 70, icon: 'garden:scarf_red' },
+    { key: 'pico_sunglasses', type: 'cosmetic', category: 'garde_robe', label: 'Lunettes de soleil', description: 'Pour les beaux jours.', price: 90, icon: 'garden:sunglasses' },
+    { key: 'pico_boots', type: 'cosmetic', category: 'garde_robe', label: 'Bottes de pluie', description: 'Pépin ne craint plus les averses.', price: 100, icon: 'garden:boots' },
+    { key: 'pico_straw_hat', type: 'cosmetic', category: 'garde_robe', label: 'Chapeau de paille', description: 'Le chapeau du jardinier.', price: 110, icon: 'garden:straw_hat' },
+    /* ── Saisons : par défaut, ton jardin suit la vraie saison. En acheter une permet de la garder. ── */
+    { key: 'season_spring', type: 'cosmetic', category: 'saisons', label: 'Printemps', description: 'Garde ton jardin en fleurs toute l’année.', price: 150, icon: 'garden:season_spring' },
+    { key: 'season_summer', type: 'cosmetic', category: 'saisons', label: 'Été', description: 'Un grand soleil, quelle que soit la saison.', price: 150, icon: 'garden:season_summer' },
+    { key: 'season_autumn', type: 'cosmetic', category: 'saisons', label: 'Automne', description: 'Feuillage doré et petite pluie.', price: 150, icon: 'garden:season_autumn' },
+    { key: 'season_winter', type: 'cosmetic', category: 'saisons', label: 'Hiver', description: 'La neige sur ton arbre, toute l’année.', price: 150, icon: 'garden:season_winter' },
     // (Plus de catégorie « Séries » : gels et récupération de série n'ont plus d'objet.)
     // ── Apparence ──
     { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent supplémentaires pour personnaliser ton espace.', price: 200, icon: 'color-palette' },
@@ -343,9 +392,9 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'cosmetic_title_visionnaire', type: 'cosmetic', category: 'premium', label: 'Titre « Visionnaire »', description: 'Un titre exclusif réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     { key: 'cosmetic_title_elite', type: 'cosmetic', category: 'premium', label: 'Titre « Élite »', description: 'Le titre le plus prestigieux, réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     // ── Recharger en gemmes (argent réel via le store) ──
-    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: '100_relyks' } },
-    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: '500_relyks' } },
-    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 relyks', description: 'Le meilleur rapport.', price: 0, icon: 'diamond', payload: { gems: 1000, productId: '1000_relyks' } },
+    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 graines', description: 'Recharge instantanée.', price: 0, icon: 'leaf', payload: { gems: 100, productId: '100_relyks' } },
+    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 graines', description: 'Le pack le plus populaire.', price: 0, icon: 'leaf', payload: { gems: 500, productId: '500_relyks' } },
+    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 graines', description: 'Le meilleur rapport.', price: 0, icon: 'leaf', payload: { gems: 1000, productId: '1000_relyks' } },
   ],
 };
 
@@ -364,7 +413,13 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
 
 /** Clés d'articles retirés du catalogue : toujours filtrées, même si une ancienne
  *  config stockée en base les contient encore (ex. pack renommé gems_1200 → gems_1000). */
-const DEPRECATED_SHOP_KEYS = new Set<string>(['gems_1200', 'freeze', 'freeze_pack3', 'streak_restore']);
+const DEPRECATED_SHOP_KEYS = new Set<string>([
+  'gems_1200', 'freeze', 'freeze_pack3', 'streak_restore',
+  /* Plus vendus depuis la refonte Jardin : il n'y a plus de flamme de série (la série, ce sont les
+     anneaux du tronc), et les titres de profil sont retirés. Ceux qui les ont achetés les GARDENT
+     (inventaire intact, toujours équipables dans Apparence) : on arrête seulement de les vendre. */
+  ...Object.entries(COSMETIC_DEFS).filter(([, d]) => d.slot === 'streak_flame' || d.slot === 'title').map(([k]) => k),
+]);
 
 /** Types d'articles retirés du code : un article personnalisé qui en porte un ne ferait plus rien. */
 const DEPRECATED_SHOP_TYPES = new Set<string>(['freeze', 'streak_restore']);
@@ -372,7 +427,7 @@ const DEPRECATED_SHOP_TYPES = new Set<string>(['freeze', 'streak_restore']);
 /** Conserve les articles boutique stockés (édités en admin) et ajoute les articles
  *  par défaut dont la clé n'est pas encore présente (ex. nouveaux articles d'une mise à jour). */
 function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
-  if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.shop;
+  if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.shop.filter((s) => !DEPRECATED_SHOP_KEYS.has(s.key));
   const storedByKey = new Map(stored.map((s) => [s.key, s]));
   // Le LIBELLÉ / la description / le type viennent du code (toujours à jour, ex. nom de la monnaie),
   // seuls le PRIX et le payload (quantités) sont pilotés par l'admin (config stockée).
@@ -410,15 +465,15 @@ function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
   return [...usable, ...missing];
 }
 
-/** Forme plurielle du nom de la monnaie (« Relyk » → « Relyks »). */
+/** Forme plurielle du nom de la monnaie (« Graine » → « Graines »). */
 export function currencyPlural(currencyName: string): string {
-  const name = currencyName || 'Relyk';
+  const name = currencyName || 'Graine';
   return /s$/i.test(name) ? name : `${name}s`;
 }
 
-/** « 1 Relyk », « 50 Relyks », « 0 Relyks » — ajoute le « s » du pluriel. */
+/** « 1 Graine », « 50 Graines », « 0 Graines » — ajoute le « s » du pluriel. */
 export function formatCurrency(n: number, currencyName: string): string {
-  const name = currencyName || 'Relyk';
+  const name = currencyName || 'Graine';
   const singular = /s$/i.test(name) ? name.replace(/s$/i, '') : name;
   return `${n} ${Math.abs(n) === 1 ? singular : currencyPlural(name)}`;
 }

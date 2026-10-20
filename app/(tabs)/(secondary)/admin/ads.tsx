@@ -2,6 +2,8 @@
  * Admin — Publicités (bannières maison). Gère les bannières affichées dans les zones de pub
  * (activées via le flag « Publicités »). Texte ou image (téléversée), lien optionnel.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Image, Platform } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
@@ -116,7 +118,7 @@ export default function AdminAds() {
   /** Créer, c'est vouloir remplir : la nouvelle bannière s'OUVRE (sinon elle atterrit tout en bas
    *  d'une liste filtrée, parfois hors du filtre courant, et on ne la retrouve pas). */
   const add = () => {
-    const b: AdBanner = { id: `ad_${Date.now()}`, label: 'Nouvelle bannière', text: '', url: '', placements: ['pilotage'] };
+    const b: AdBanner = { id: `ad_${Date.now()}`, label: 'Nouvelle bannière', text: '', url: '', placements: ['jardin'] };
     setBanners([...banners, b]);
     setSearch(''); setFormatFilter('all'); setSelectedId(b.id);
   };
@@ -608,6 +610,12 @@ export default function AdminAds() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },

@@ -5,6 +5,8 @@
  * membres). N'importe quel participant RÉEL peut éditer le % de tout le monde (RPC acct_set_impact).
  * Le % détermine la fraction de l'activité du compte qui compte dans l'app du participant.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -102,6 +104,12 @@ export default function AccountImpactSection({ account }: { account: Account }) 
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },

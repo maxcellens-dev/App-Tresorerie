@@ -18,6 +18,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const ADMIN_THEME_KEY = 'relyka.admin.theme';
 export const USER_THEME_KEY = 'relyka.user.theme';
+export const USER_GARDEN_KEY = 'relyka.user.garden';
+/** Le Jardin a déjà été vu sur cet appareil : gardé APRÈS déconnexion (écrans de connexion). */
+export const DEVICE_GARDEN_KEY = 'relyka.device.garden';
 
 export type ThemeModeStr = 'dark' | 'light';
 type UserTheme = { mode: ThemeModeStr; preset: string };
@@ -27,6 +30,8 @@ const IS_WEB = Platform.OS === 'web';
 // ── Cache en mémoire (natif) + notification de changement ─────
 let memUser: UserTheme | null = null;
 let memAdmin: ThemeModeStr | null = null;
+let memGarden: boolean | null = null;
+let memDeviceGarden = false;
 let version = 0;
 const listeners = new Set<() => void>();
 
@@ -53,7 +58,7 @@ function ls(): Storage | null {
 export async function hydrateThemeCache(): Promise<void> {
   if (IS_WEB) return; // web : lecture synchrone via localStorage, rien à hydrater
   try {
-    const pairs = await AsyncStorage.multiGet([USER_THEME_KEY, ADMIN_THEME_KEY]);
+    const pairs = await AsyncStorage.multiGet([USER_THEME_KEY, ADMIN_THEME_KEY, USER_GARDEN_KEY, DEVICE_GARDEN_KEY]);
     const map = Object.fromEntries(pairs);
     const rawU = map[USER_THEME_KEY];
     if (rawU) {
@@ -64,6 +69,9 @@ export async function hydrateThemeCache(): Promise<void> {
     }
     const rawA = map[ADMIN_THEME_KEY];
     if (rawA === 'light' || rawA === 'dark') memAdmin = rawA;
+    const rawG = map[USER_GARDEN_KEY];
+    if (rawG === '1' || rawG === '0') memGarden = rawG === '1';
+    memDeviceGarden = map[DEVICE_GARDEN_KEY] === '1';
   } catch { /* stockage indispo : on garde le défaut */ }
   bump();
 }
@@ -103,7 +111,28 @@ export function setCachedUserTheme(mode: ThemeModeStr, preset: string): void {
 }
 
 export function clearCachedUserTheme(): void {
-  if (IS_WEB) { try { ls()?.removeItem(USER_THEME_KEY); } catch { /* sans gravité */ } return; }
-  memUser = null; bump();
-  AsyncStorage.removeItem(USER_THEME_KEY).catch(() => {});
+  if (IS_WEB) { try { ls()?.removeItem(USER_THEME_KEY); ls()?.removeItem(USER_GARDEN_KEY); } catch { /* sans gravité */ } return; }
+  memUser = null; memGarden = null; bump();
+  AsyncStorage.multiRemove([USER_THEME_KEY, USER_GARDEN_KEY]).catch(() => {});
+}
+
+// ── Jardin ouvert pour l'utilisateur connecté (dernière réponse connue) ──────
+/** `null` = jamais su sur cet appareil (première connexion). */
+export function getCachedGarden(): boolean | null {
+  if (!IS_WEB) return memGarden;
+  const v = ls()?.getItem(USER_GARDEN_KEY);
+  return v === '1' ? true : v === '0' ? false : null;
+}
+
+export function setCachedGarden(on: boolean): void {
+  if (IS_WEB) { try { ls()?.setItem(USER_GARDEN_KEY, on ? '1' : '0'); ls()?.setItem(DEVICE_GARDEN_KEY, on ? '1' : '0'); } catch { /* sans gravité */ } return; }
+  if (memGarden === on && memDeviceGarden === on) return;
+  memGarden = on; memDeviceGarden = on; bump();
+  AsyncStorage.multiSet([[USER_GARDEN_KEY, on ? '1' : '0'], [DEVICE_GARDEN_KEY, on ? '1' : '0']]).catch(() => {});
+}
+
+/** Le dernier utilisateur de cet appareil voyait le Jardin (survit à la déconnexion). */
+export function getDeviceGarden(): boolean {
+  if (IS_WEB) return ls()?.getItem(DEVICE_GARDEN_KEY) === '1';
+  return memDeviceGarden;
 }

@@ -15,6 +15,10 @@
  * tombe aussi quand l'administrateur désactive l'offre pour tout le monde) : sans cela, couper
  * l'offre en admin enlevait à des abonnés facturés le seul bouton qui mène à l'annulation.
  */
+import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
+import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
+import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
+import { isGardenPalette } from '../../../lib/garden/gardenPalette';
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,7 +39,7 @@ import { purchasePremium, restorePurchases, getSubscriptionInfo, getPlanPrices, 
 /** Avantages Premium. `route` = page concernée : la ligne devient cliquable et y renvoie. */
 const BENEFITS: { key: string; icon: string; title: string; desc: string; route?: string }[] = [
   { key: 'ads', icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
-  { key: 'shop', icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.', route: '/(tabs)/(secondary)/boutique' },
+  { key: 'shop', icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en graines.', route: '/(tabs)/(secondary)/boutique' },
   { key: 'color', icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.', route: '/(tabs)/(secondary)/apparence' },
   { key: 'reporting', icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.', route: '/(tabs)/reporting' },
   { key: 'ai', icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.', route: '/(tabs)/conseils-ia' },
@@ -213,10 +217,12 @@ export default function PremiumScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
+        {isGardenPalette(COLORS) ? null : (
         <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
+        )}
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           <View style={styles.hero}>
             <Ionicons name="star" size={36} color={COLORS.yellow} />
@@ -450,6 +456,42 @@ export default function PremiumScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPaletteL(c)) return base;
+  // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
+  return withGarden(base, {
+    safe: { ...base.safe, paddingHorizontal: 16 },
+    hero: { ...base.hero, ...gCard, backgroundColor: GL.notice, borderWidth: 0, padding: 20 },
+    heroTitle: { ...base.heroTitle, ...gFont('display'), color: GL.ink },
+    heroSub: { ...base.heroSub, ...gFont('body'), color: GL.inkSoft },
+    planLabel: { ...base.planLabel, ...gFont('bodyBold'), color: GL.ink },
+    planTag: { ...base.planTag, borderRadius: 999 },
+    planTagText: { ...base.planTagText, ...gFont('bodyHeavy') },
+    note: { ...base.note, borderRadius: 18, backgroundColor: GL.field, borderWidth: 0 },
+    noteText: { ...base.noteText, ...gFont('body'), color: GL.inkSoft },
+    benefit: { ...base.benefit, ...gCard, borderRadius: 20 },
+    benefitTitle: { ...base.benefitTitle, ...gFont('bodyBold'), color: GL.ink },
+    benefitDesc: { ...base.benefitDesc, ...gFont('body'), color: GL.inkSoft },
+    cta: { ...base.cta, borderRadius: 999, backgroundColor: GL.primary },
+    ctaGhost: { ...base.ctaGhost, borderRadius: 999, backgroundColor: GL.card, borderColor: GL.line },
+    ctaText: { ...base.ctaText, ...gFont('bodyHeavy') },
+    offerCard: { ...base.offerCard, ...gCard, borderRadius: 20 },
+    offerName: { ...base.offerName, ...gFont('bodyBold'), color: GL.ink },
+    offerPrice: { ...base.offerPrice, ...gFont('display'), color: GL.ink },
+    offerPeriod: { ...base.offerPeriod, ...gFont('body'), color: GL.inkSoft },
+    offerDesc: { ...base.offerDesc, ...gFont('body'), color: GL.inkSoft },
+    bestBadge: { ...base.bestBadge, borderRadius: 999 },
+    bestBadgeText: { ...base.bestBadgeText, ...gFont('bodyHeavy') },
+    restoreText: { ...base.restoreText, ...gFont('bodyBold'), color: GL.primary },
+    legal: { ...base.legal, ...gFont('body'), color: GL.muted },
+    statusCard: { ...base.statusCard, ...gCard, borderRadius: 20 },
+    statusLabel: { ...base.statusLabel, ...gFont('body'), color: GL.inkSoft },
+    statusValue: { ...base.statusValue, ...gFont('bodyBold'), color: GL.ink },
+    webNoticeText: { ...base.webNoticeText, ...gFont('body') },
+  } as any);
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

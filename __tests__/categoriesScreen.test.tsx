@@ -68,7 +68,7 @@ describe('amorçage automatique des catégories par défaut', () => {
   it("n'écrit aucune catégorie quand la lecture échoue", async () => {
     setupData({ categoriesFail: true });
     renderWithProviders(<CategoriesScreen />);
-    await screen.findByText('Catégories');
+    await screen.findByText(/Tes recettes et tes dépenses/);
     await new Promise((r) => setTimeout(r, 60));
     expect(inserts).toHaveLength(0);
   });
@@ -85,7 +85,7 @@ describe('amorçage automatique des catégories par défaut', () => {
   it('amorce bien quand la lecture réussit et que le compte est réellement vide', async () => {
     setupData({ categoriesFail: false });
     renderWithProviders(<CategoriesScreen />);
-    await screen.findByText('Catégories');
+    await screen.findByText(/Tes recettes et tes dépenses/);
     await waitFor(() => expect(inserts.length).toBeGreaterThan(0));
     expect(inserts[0]).toMatchObject({ profile_id: USER_ID, name: 'Logement' });
   });
@@ -99,13 +99,13 @@ describe('amorçage automatique des catégories par défaut', () => {
     // Compte DISTINCT : le verrou est par compte et vit toute la session (c'est voulu).
     setupData({ categoriesFail: false, uid: 'user-concurrent' });
     renderWithProviders(<CategoriesScreen />);
-    await screen.findByText('Catégories');
+    await screen.findByText(/Tes recettes et tes dépenses/);
     await waitFor(() => expect(inserts.length).toBeGreaterThan(0));
     const afterFirst = inserts.length;
 
     // Un second écran monte pendant que la relecture n'a pas encore ramené les catégories.
     renderWithProviders(<CategoriesScreen />);
-    await screen.findAllByText('Catégories');
+    await screen.findAllByText(/Tes recettes et tes dépenses/);
     await new Promise((r) => setTimeout(r, 80));
     expect(inserts.length).toBe(afterFirst);
   });

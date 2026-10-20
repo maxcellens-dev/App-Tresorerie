@@ -4,6 +4,8 @@
  * useCalculator().isOpen est vrai. On la déplace en glissant sa barre de titre, et on
  * la ferme via la croix. Aucun fond plein écran : le reste de l'app reste cliquable.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useRef, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder,
@@ -224,6 +226,12 @@ export default function Calculator() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     window: {
       position: 'absolute',

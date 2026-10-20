@@ -4,6 +4,8 @@
  *  2) Crashs & erreurs : journal remonté par les appareils (client_errors), résolution & purge.
  *  3) Mots de passe : réinitialisation manuelle d'un compte e-mail (repli sans messagerie).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -303,6 +305,12 @@ function PasswordResetCard({ c, s }: { c: any; s: any }) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },

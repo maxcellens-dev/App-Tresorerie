@@ -13,6 +13,8 @@
  * jamais le rouge, réservé au danger réel. Un mois SANS budget n'a pas de trait du tout : pas de
  * repère à zéro, donc pas de dépassement fantôme.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Rect, Line, G, Text as SvgText } from 'react-native-svg';
@@ -155,6 +157,12 @@ export default function BudgetBars({ data, width, selected, onSelect }: Props) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     legendRow: { flexDirection: 'row', gap: 16, marginBottom: 8 },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

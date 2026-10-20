@@ -1,4 +1,6 @@
-﻿import React, { useMemo, useState } from 'react';
+﻿import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -71,7 +73,7 @@ export default function AdminHub() {
         { href: '/(tabs)/(secondary)/admin/landing', icon: 'desktop-outline', title: "Page d'accueil", desc: 'Landing desktop (textes, images, menu)', color: '#38bdf8' },
         { href: '/(tabs)/(secondary)/admin/seo-center', icon: 'megaphone-outline', title: 'SEO Center', desc: 'Textes & métadonnées', color: '#7c3aed' },
         { href: '/(tabs)/(secondary)/admin/conseils', icon: 'newspaper-outline', title: 'Conseils', desc: 'Conseils du jour (généraux + contextuels)', color: '#f59e0b' },
-        { href: '/(tabs)/(secondary)/admin/gamification', icon: 'trophy-outline', title: 'Gamification', desc: 'Badges, série, relyks, identité', color: '#f59e0b' },
+        { href: '/(tabs)/(secondary)/admin/gamification', icon: 'trophy-outline', title: 'Gamification', desc: 'Badges, série, graines, identité', color: '#f59e0b' },
         { href: '/(tabs)/(secondary)/admin/ads', icon: 'megaphone-outline', title: 'Publicités', desc: 'Bannières maison (zones activables)', color: '#ec4899' },
         { href: '/(tabs)/(secondary)/admin/usage-limits', icon: 'lock-closed-outline', title: "Limites d'usage", desc: 'Quotas gratuit / premium (anti-abus)', color: '#f43f5e' },
       ],
@@ -175,6 +177,12 @@ export default function AdminHub() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },

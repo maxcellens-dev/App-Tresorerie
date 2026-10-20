@@ -18,6 +18,8 @@
  * reviendrait à réinterpréter des transactions déjà générées, voire déjà portées au solde).
  * Cf. lib/projectTx pour ce que chaque mode génère réellement dans Transactions.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
@@ -1389,6 +1391,12 @@ export default function AddProjectModal() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   confirmBox: {

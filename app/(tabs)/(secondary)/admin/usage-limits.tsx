@@ -3,6 +3,8 @@
  * Édite les limites FREE et PREMIUM (app_config.usage_limits). Le blocage réel est en base
  * (migration 135) ; ces valeurs sont lues par les triggers ET par le garde-fou client.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -129,6 +131,12 @@ export default function AdminUsageLimits() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },

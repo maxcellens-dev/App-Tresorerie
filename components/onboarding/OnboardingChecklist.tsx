@@ -4,6 +4,8 @@
  * - Chaque étape est cliquable → navigue vers l'écran concerné avec un indice (param ?onb=).
  * - L'utilisateur peut refuser le guide ("Passer le guide").
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -116,6 +118,12 @@ export default function OnboardingChecklist() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     badge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '44', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 },
     badgeCount: { },

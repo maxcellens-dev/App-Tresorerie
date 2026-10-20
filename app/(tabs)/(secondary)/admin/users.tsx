@@ -6,6 +6,8 @@
  *    (actif ou non), puis SUPPRIMER la sélection (compte + données) — DOUBLE confirmation, et la
  *    liste des noms concernés à l'écran de confirmation.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, Modal, Pressable } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
@@ -104,7 +106,9 @@ function UsersPanel({ COLORS, s }: { COLORS: any; s: any }) {
       if (u.id === user?.id) qc.invalidateQueries({ queryKey: ['profile', user?.id] });
     } finally { setBusyId(null); }
   }
-  const consult = (u: AdminUser) => { impersonate(u.id, u.email); router.replace('/(tabs)/pilotage'); };
+  /* Directement vers le Jardin : `pilotage` n'est plus qu'une redirection, et un écran-redirection
+     déjà monté (gelé hors focus) ne se rejoue pas de façon fiable à la deuxième consultation. */
+  const consult = (u: AdminUser) => { impersonate(u.id, u.email); router.replace('/(tabs)/jardin' as any); };
 
   const results = search.data ?? [];
   return (
@@ -460,6 +464,12 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },

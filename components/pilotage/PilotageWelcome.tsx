@@ -11,6 +11,8 @@
  * réglages qui suivent — dépenses variables, marge de sécurité — se renseignent, eux, PAR-DESSUS le
  * tableau de bord : ils affinent un Relyka qui existe déjà, et on doit voir la ligne qu'ils pilotent.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -145,6 +147,12 @@ export default function PilotageWelcome({ step, compact, firstName, onPress }: P
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { alignItems: 'center', paddingHorizontal: 26, paddingTop: 36, paddingBottom: 24, gap: 10 },
     halo: {

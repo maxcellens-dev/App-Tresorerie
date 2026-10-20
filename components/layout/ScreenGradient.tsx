@@ -8,6 +8,8 @@
 import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { isGardenPalette } from '../../lib/garden/gardenPalette';
+import GardenGlow from '../garden/GardenGlow';
 import { useStyleConfig, getGradientStops } from '../../hooks/theme/useStyleConfig';
 
 /** Convertit 0-1 en composante hex alpha "00"-"FF". */
@@ -25,6 +27,8 @@ export default function ScreenGradient() {
      donc au démarrage et hors-ligne — alors que l'app était déjà peinte en clair : le corps prenait
      les paliers du mode sombre. Les deux composants doivent lire la même chose, sinon une couture
      apparaît entre la barre du haut et le corps de la page. */
+  // Jardin : fond uni en clair ; en sombre, le halo d'accent du Jardin (même rendu que ses onglets).
+  if (isGardenPalette(COLORS)) return <GardenGlow />;
   const mode = COLORS.mode as 'dark' | 'light';
   const cfg = mode === 'light' ? styleConfig?.light : styleConfig?.dark;
 

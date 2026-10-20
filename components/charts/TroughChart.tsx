@@ -11,6 +11,8 @@
  *      aujourd'hui (solde réel) → le point bas (à sa date) → après la prochaine rentrée d'argent.
  * Chaque sommet porte sa date et son montant : rien n'est illustratif, tout est mesuré.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -140,6 +142,12 @@ export default function TroughChart({ today, trough, recovery, margin = 0 }: Pro
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { gap: 8, marginTop: 4, marginBottom: 10 },
     chart: {

@@ -1,4 +1,6 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View,
@@ -94,7 +96,9 @@ function ProjectsScreen() {
   /* Sous-onglet affiché. « Budgets » par défaut — c'est le nom de l'onglet — SAUF quand une
      invitation à un projet partagé attend : la pastille promet quelque chose, l'écran doit le tenir
      sans obliger à un clic de plus. */
-  const [view, setView] = useState<SubView>('budgets');
+  const [viewState, setView] = useState<SubView>('budgets');
+  /* Les projets ont leur propre onglet (Projets) : cette page ne montre plus que les budgets. */
+  const view: SubView = 'budgets';
   /** Bas du segment « Budgets / Projets » — la vue Budgets en a besoin pour aligner ses onglets. */
   const [segBottom, setSegBottom] = useState(0);
   /* DEUX MÉMOIRES, et la distinction compte.
@@ -566,19 +570,6 @@ function ProjectsScreen() {
             `onLayout` : ce segment fait partie de ce que la page pose AU-DESSUS de ces onglets-là.
             La vue Budgets ne peut pas le mesurer (il vit ici), et l'oublier faussait tout le calcul
             d'alignement — d'où `y + height`, transmis en `aboveOffset`. */}
-        <View onLayout={(e) => setSegBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
-          <SegmentedControl
-            options={[
-              { value: 'budgets', label: 'Budgets', icon: 'pie-chart-outline' },
-              { value: 'projects', label: 'Projets', icon: 'flag-outline', badge: rwInvitations.length },
-            ]}
-            value={view}
-            // `pickView` et non `setView` : le choix de l'utilisateur fige l'onglet. Sans ça, une
-            // requête qui aboutit une seconde plus tard le ramenait sur l'autre vue.
-            onChange={(v) => pickView(v as SubView)}
-            style={{ marginBottom: 12 }}
-          />
-        </View>
         {view === 'budgets' ? <BudgetsView aboveOffset={segBottom} /> : (
         <>
         <View style={styles.header}>
@@ -735,7 +726,7 @@ function ProjectsScreen() {
               )
             }
             ListEmptyComponent={renderEmptyState}
-            ListFooterComponent={<AdSlot placement="projets" />}
+            ListFooterComponent={<AdSlot placement="budgets" />}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -1059,6 +1050,12 @@ function ProjectsScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.background },
   /* Retrait de page. Le `paddingTop` sépare le premier bloc de l'en-tête global.

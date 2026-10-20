@@ -75,7 +75,7 @@ describe('export des données personnelles', () => {
 /** Monte l'écran et rend le bouton d'export une fois les données de base chargées. */
 async function renderAndWait() {
   renderWithProviders(<MesDonneesScreen />);
-  await screen.findByText('Mes données');
+  await screen.findByText(/Exporte l.ensemble des données/);
   const btn = await screen.findByText('Exporter mes données');
   // Le bouton reste inerte tant que profil et comptes ne sont pas là.
   await waitFor(() => expect(screen.getByText(/1 compte/)).toBeTruthy());

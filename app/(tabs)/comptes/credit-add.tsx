@@ -3,6 +3,8 @@
  * Saisie des paramètres (avec calendrier pour les dates), frais détaillés, et montants ANNUELS
  * (assurance + mensualité qui peuvent évoluer chaque année). Prévisualise l'amortissement.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
@@ -862,6 +864,12 @@ function CreditAddScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

@@ -12,6 +12,8 @@
  * périment pas quand l'interface bouge, et elles ne pèsent rien dans le bundle. Les chiffres qu'on
  * y lit sont des EXEMPLES — jamais les données de l'utilisateur, qui n'en a pas encore.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, Easing, ScrollView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -571,6 +573,12 @@ function MockAi({ c, s }: any) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, maxWidth: 520, width: '100%', alignSelf: 'center' },

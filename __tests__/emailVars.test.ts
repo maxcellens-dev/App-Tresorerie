@@ -86,6 +86,6 @@ describe('e-mail autonome', () => {
   it('enveloppe toujours un corps ordinaire', () => {
     const html = renderRelykaEmail({ subject: 'Test', body: 'Bonjour', unsubUrl: CTX.unsubUrl });
     expect(html).toContain('<!doctype html>');
-    expect(html).toContain('Ton argent, au clair');
+    expect(html).toContain('Ton argent, comme un jardin');
   });
 });

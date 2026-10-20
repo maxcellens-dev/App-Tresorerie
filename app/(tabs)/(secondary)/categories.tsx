@@ -1,4 +1,6 @@
-﻿import { useMemo, useEffect, useState, useRef } from 'react';
+﻿import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View,
@@ -645,6 +647,12 @@ function CategoriesScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },

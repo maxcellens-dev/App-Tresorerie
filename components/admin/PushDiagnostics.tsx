@@ -12,6 +12,8 @@
  * Tout vient de l'Edge Function `admin-push` (rôle service) : le client n'a pas le droit de lire les
  * jetons des autres utilisateurs, et n'a aucun moyen de purger ceux qui sont morts.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -292,6 +294,12 @@ export default function PushDiagnostics() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, gap: 12, marginBottom: 14 },
     head: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

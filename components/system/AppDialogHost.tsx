@@ -3,6 +3,8 @@
  * pour supprimer toutes les pop-ups natives du navigateur. À monter une seule fois, haut
  * dans l'arbre (au-dessus des écrans).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -127,6 +129,12 @@ export default function AppDialogHost() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
     box: { width: '100%', maxWidth: 420, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 6 },

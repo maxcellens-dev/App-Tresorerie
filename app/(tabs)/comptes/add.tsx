@@ -1,4 +1,5 @@
-﻿import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+﻿import { isGardenPalette } from '../../../lib/garden/gardenPalette';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { chipStyles } from '../../../lib/ui/controls';
 import AppButton from '../../../components/ui/AppButton';
@@ -191,11 +192,13 @@ export default function AddAccountScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
+        {isGardenPalette(COLORS) ? null : (
         <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Nouveau compte</Text>
+        )}
+        {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Nouveau compte</Text>}
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={[styles.scrollContent, keyboardPadding]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>

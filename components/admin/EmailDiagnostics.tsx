@@ -9,6 +9,8 @@
  * Les chiffres viennent de l'Edge Function `admin-push` (action `diagnose`, rôle service) : elle sait
  * lire les profils de tout le monde, et interroge `/v3/account` de Brevo clé par clé.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -189,6 +191,12 @@ export default function EmailDiagnostics() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, gap: 12, marginBottom: 14 },
     head: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

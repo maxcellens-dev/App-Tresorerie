@@ -47,6 +47,10 @@ import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } 
 import KeyboardAwareScrollView from '../../components/layout/KeyboardAwareScrollView';
 import { sanitizeAmountInput, sanitizeRateInput } from '../../lib/ui/amountInput';
 import { todayISO } from '../../lib/dateUtils';
+import { isGardenPalette } from '../../lib/garden/gardenPalette';
+import { GARDEN_COLORS as G } from '../../lib/garden/theme';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
+import GardenText from '../../components/garden/GardenText';
 
 /* Les constantes de marque `INVEST_COLOR` / `SAVINGS_COLOR` qui vivaient ici étaient MORTES : le
    corps de l'écran les redéfinit à partir du thème (`COLORS.investment` / `COLORS.savings`), donc
@@ -136,7 +140,17 @@ export default function ProjectionScreen() {
   return useDeferredMount() ? <ProjectionBody /> : <PageLoader />;
 }
 
-function ProjectionBody() {
+/**
+ * UNE section de la projection, sans ses onglets — pour le Jardin (refonte) : la Trésorerie
+ * s'affiche directement dans « Mon argent › Demain », l'Investissement dans « Mes placements ».
+ * L'onglet Épargne n'y a plus de place (les racines le disent déjà). Même moteur, mêmes calculs :
+ * rien n'est dupliqué, l'écran actuel ne fait que masquer ce qu'on ne lui demande pas.
+ */
+export function ProjectionSection({ section }: { section: 'treso' | 'invest' }) {
+  return useDeferredMount() ? <ProjectionBody section={section} /> : <PageLoader />;
+}
+
+function ProjectionBody({ section }: { section?: 'treso' | 'invest' } = {}) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Couleurs Investissement / Épargne = couleurs sémantiques du Style Editor
@@ -290,6 +304,8 @@ function ProjectionBody() {
 
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');
+  /** Onglet affiché : imposé par `section` (Jardin), sinon celui choisi par l'utilisateur. */
+  const tab = section ?? activeTab;
 
   // Étape « Personnaliser une projection » du guide : ouvrir l'onglet Investissement, car les
   // hypothèses à ajuster (hypoRef) ne sont rendues que là — sinon le scroll ne mène à rien.
@@ -672,7 +688,7 @@ function ProjectionBody() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <OnboardingHintBanner />
+      {section ? null : <OnboardingHintBanner />}
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
         <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -686,7 +702,8 @@ function ProjectionBody() {
             </View>
           )}
 
-          {/* Onglets */}
+          {/* Onglets (masqués quand une seule section est demandée) */}
+          {section ? null : (
           <View style={styles.tabs} ref={tabsRef}>
             <TouchableOpacity style={[styles.tab, activeTab === 'treso' && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]} onPress={() => setActiveTab('treso')}>
               <Ionicons name="calendar-outline" size={15} color={activeTab === 'treso' ? '#fff' : COLORS.textSecondary} />
@@ -701,10 +718,11 @@ function ProjectionBody() {
               <Text style={[styles.tabText, activeTab === 'epargne' && { color: '#fff' }]} numberOfLines={1}>Épargne</Text>
             </TouchableOpacity>
           </View>
+          )}
 
           {/* ═══════ INVESTISSEMENTS ═══════ */}
           {/* ═══════ TRÉSORERIE SIMPLIFIÉE ═══════ */}
-          {activeTab === 'treso' && (
+          {tab === 'treso' && (
             <TresoSimplified
               transactions={fluxTransactions}
               accounts={tresoAccounts}
@@ -721,12 +739,34 @@ function ProjectionBody() {
             />
           )}
 
-          {activeTab === 'invest' && (<>
+          {tab === 'invest' && (<>
+          {isGardenPalette(COLORS) ? (
+            <View style={{ backgroundColor: G.branchesBg, borderRadius: 24, padding: 18, gap: 6, marginBottom: 12 }}>
+              <GardenText variant="label" color={G.branchesText}>{isSimulationOnly ? `Simulation sur ${years} ans` : `Tes fruits dans ${years} ans`}</GardenText>
+              <GardenText variant="amount" tabular color={G.branchesText}>{fmt(investFinal?.value ?? 0)}</GardenText>
+              <GardenText variant="small" color={G.inkSoft}>si tu continues à ce rythme, tous tes placements ensemble</GardenText>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                {[
+                  ['Tes apports', fmt(investFinal?.cumulativeContribution ?? 0), G.ink],
+                  ['Gains (après impôts)', fmtSigned(investFinal?.netGainTotal ?? 0), G.fruitsText],
+                  ['Revenu passif', `${fmt(investFinal?.netGainMonthly ?? 0)} / mois`, G.ink],
+                ].map(([label, value, color]) => (
+                  <View key={label} style={{ flexGrow: 1, flexBasis: '30%', minWidth: 120, backgroundColor: G.card, borderRadius: 16, padding: 12, gap: 2 }}>
+                    <GardenText variant="small" color={G.inkSoft}>{label}</GardenText>
+                    <GardenText variant="bodyStrong" tabular color={color}>{value}</GardenText>
+                  </View>
+                ))}
+              </View>
+              {yearlyInvested > 0 ? <GardenText variant="small" color={G.branchesText}>Déjà {fmt(yearlyInvested)} placés en {currentYear}.</GardenText> : null}
+            </View>
+          ) : null}
+          {isGardenPalette(COLORS) ? null : (
           <Text style={styles.sectionHint}>
             {isSimulationOnly
               ? `Simulation libre sur ${years} ans`
               : `Projection globale sur ${years} ans (tous comptes)`}
           </Text>
+          )}
 
           {/* Pas encore de compte d'investissement : on explique les zéros et on montre la sortie. */}
           {isSimulationOnly && (
@@ -772,8 +812,8 @@ function ProjectionBody() {
             </View>
           ) : null}
 
-          {/* ── Suivi annuel ── */}
-          {yearlyInvested > 0 && (
+          {/* ── Suivi annuel ── (dans le Jardin, il est dans la carte du haut) */}
+          {yearlyInvested > 0 && !isGardenPalette(COLORS) && (
             <View style={[styles.kpiCard, { borderLeftColor: INVEST_COLOR, flexDirection: 'row', alignItems: 'center', marginBottom: 12 }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.kpiLabel}>Investi en {currentYear}</Text>
@@ -784,7 +824,8 @@ function ProjectionBody() {
             </View>
           )}
 
-          {/* KPIs globaux */}
+          {/* KPIs globaux (dans le Jardin : la carte « Tes branches » les porte) */}
+          {isGardenPalette(COLORS) ? null : (<>
           <View style={styles.kpiRow}>
             <View style={[styles.kpiCard, { borderLeftColor: INVEST_COLOR }]}>
               <Text style={styles.kpiLabel}>Valeur projetée</Text>
@@ -809,6 +850,7 @@ function ProjectionBody() {
               <Text style={styles.kpiSub}>/ mois la dernière année</Text>
             </View>
           </View>
+          </>)}
 
           {/* Graphique global */}
           <View style={styles.chartCard} ref={chartRef}>
@@ -852,7 +894,7 @@ function ProjectionBody() {
                         accessibilityRole="button"
                         accessibilityState={{ selected: active }}
                       >
-                        <Text style={[styles.accChipText, active && { color: INVEST_COLOR, fontWeight: '700' }]} numberOfLines={1}>{a.name}</Text>
+                        <Text style={[styles.accChipText, active && { color: INVEST_COLOR, fontWeight: isGardenPalette(COLORS) ? 'normal' : '700' }]} numberOfLines={1}>{a.name}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -953,7 +995,7 @@ function ProjectionBody() {
             <View style={styles.chipRow}>
               {YEAR_CHOICES.map((yy) => (
                 <TouchableOpacity key={yy} style={[styles.chip, years === yy && { backgroundColor: INVEST_COLOR, borderColor: INVEST_COLOR }]} onPress={() => setYears(yy)}>
-                  <Text style={[styles.chipText, years === yy && { color: '#fff', fontWeight: '700' }]}>{yy} ans</Text>
+                  <Text style={[styles.chipText, years === yy && { color: '#fff', fontWeight: isGardenPalette(COLORS) ? 'normal' : '700' }]}>{yy} ans</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1014,7 +1056,7 @@ function ProjectionBody() {
           </>)}
 
           {/* ═══════ ÉPARGNE ═══════ */}
-          {activeTab === 'epargne' && (<>
+          {tab === 'epargne' && (<>
           <Text style={styles.sectionHint}>Combien auras-tu selon ton rythme d'épargne</Text>
 
           <View style={styles.sourceRow}>
@@ -1622,6 +1664,76 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPalette(c)) return base;
+  /* JARDIN : cartes arrondies et contournées, polices du Jardin (une famille par graisse, jamais de
+     fontWeight — Android retomberait sur Roboto), étiquettes en capitales, champs plus généreux. */
+  const card = { backgroundColor: G.card, borderRadius: 24, borderWidth: 1, borderColor: G.line, shadowColor: '#1E3A2C', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 };
+  return {
+    ...base,
+    ...StyleSheet.create({
+      sectionHint: { fontFamily: GF.body, fontSize: 13, color: G.inkSoft, marginBottom: 12 },
+      kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+      kpiCard: { ...card, flex: 1, padding: 16, gap: 2, borderLeftWidth: 1, borderLeftColor: G.line },
+      kpiLabel: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: G.inkSoft },
+      kpiValue: { fontFamily: GF.display, fontWeight: 'normal', fontSize: 20, color: G.ink },
+      kpiSub: { fontFamily: GF.body, fontSize: 12, color: G.muted },
+      chartCard: { ...card, padding: 14, marginTop: 6, marginBottom: 14, alignItems: 'center' },
+      legendText: { fontFamily: GF.body, fontSize: 12, color: G.inkSoft },
+      controlsCard: { ...card, padding: 16, marginBottom: 14, gap: 12 },
+      controlsTitle: { fontFamily: GF.display, fontWeight: 'normal', fontSize: 18, color: G.ink },
+      resetBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: G.field },
+      accChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: G.line, backgroundColor: G.card },
+      accChipText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13, color: G.ink },
+      valueBadge: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: G.branchesBg, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12 },
+      valueBadgeLabel: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13, color: G.branchesText },
+      valueBadgeValue: { fontFamily: GF.display, fontWeight: 'normal', fontSize: 18, color: G.branchesText },
+      miniHint: { fontFamily: GF.body, fontSize: 12, color: G.muted, lineHeight: 16 },
+      fiscalNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: G.field, borderRadius: 14, padding: 10 },
+      fiscalNoteText: { flex: 1, fontFamily: GF.body, fontSize: 12.5, color: G.inkSoft, lineHeight: 17 },
+      emptyCard: { ...card, flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12, padding: 16 },
+      emptyTitle: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 15, color: G.ink },
+      emptyText: { fontFamily: GF.body, fontSize: 13, color: G.inkSoft, lineHeight: 18 },
+      warnCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12, backgroundColor: G.notice, borderRadius: 18, padding: 14 },
+      warnText: { flex: 1, fontFamily: GF.body, fontSize: 13, color: G.noticeText, lineHeight: 18 },
+      fieldLabel: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13, color: G.inkSoft },
+      fieldInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: G.card, borderWidth: 1, borderColor: G.line, borderRadius: 14, paddingHorizontal: 12, minWidth: 0, minHeight: 48 },
+      fieldInput: { flex: 1, minWidth: 0, color: G.ink, fontSize: 17, fontFamily: GF.bodyBold, paddingVertical: 10, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none', width: 0 } as any) : {}) },
+      fieldSuffix: { fontFamily: GF.bodyBold, color: G.inkSoft, fontSize: 14 },
+      chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, borderWidth: 1, borderColor: G.line, backgroundColor: G.card },
+      chipText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13, color: G.ink },
+      tableToggle: { ...card, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, marginBottom: 10 },
+      tableToggleText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 15, color: G.ink },
+      tableScroll: { borderWidth: 1, borderColor: G.line, borderRadius: 18, marginBottom: 8, backgroundColor: G.card },
+      tresoMonthCard: { ...card, padding: 16, marginBottom: 10 },
+      tresoMonthLabel: { fontFamily: GF.display, fontWeight: 'normal', fontSize: 16, color: G.ink, textTransform: 'capitalize' },
+      tresoStartBalance: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13 },
+      tresoKey: { fontFamily: GF.body, fontSize: 14, color: G.inkSoft },
+      tresoVal: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 14.5 },
+      tresoMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+      tresoDetailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 999, borderWidth: 1, borderColor: G.line, backgroundColor: G.card, marginTop: 8, marginBottom: 8 },
+      tresoDetailBtnText: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', fontSize: 14, flexShrink: 1 },
+      tresoFilterBtn: { ...base.tresoFilterBtn, borderRadius: 999, borderColor: G.line, backgroundColor: G.card },
+      tresoFilterCount: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', fontSize: 12, color: '#fff', includeFontPadding: false },
+      tresoFilterPanel: { ...card, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 14 },
+      tresoFilterTitle: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', fontSize: 14, color: G.ink },
+      tresoFilterReset: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13 },
+      tresoFilterChip: { ...base.tresoFilterChip, height: 40, borderRadius: 999, borderColor: G.line, backgroundColor: G.card },
+      tresoFilterChipText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 13.5, color: G.ink, includeFontPadding: false },
+      tresoFilterNote: { fontFamily: GF.body, fontSize: 12.5, color: G.muted, lineHeight: 17, marginTop: 12 },
+      horizonPills: { flexDirection: 'row', gap: 2, padding: 3, borderRadius: 999, backgroundColor: G.track },
+      horizonPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+      horizonPillText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 12.5 },
+      chartTitle: { fontFamily: GF.display, fontWeight: 'normal', fontSize: 16, color: G.ink, marginBottom: 8 },
+      realHint: { fontFamily: GF.body, fontSize: 13, color: G.inkSoft, lineHeight: 18, marginBottom: 12 },
+      horizonCard: { ...card, flexGrow: 1, flexBasis: '46%', padding: 16, gap: 3 },
+      saveWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: G.notice, borderRadius: 18, padding: 12, marginBottom: 14 },
+      saveWarnText: { flex: 1, fontFamily: GF.body, fontSize: 13, color: G.noticeText, lineHeight: 18 },
+    }),
+  };
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1 },

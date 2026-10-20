@@ -15,6 +15,8 @@
  *
  * Natif uniquement (le web est toujours à jour). La fermeture est mémorisée par version.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Linking, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -162,6 +164,12 @@ export default function UpdateBanner() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2000, paddingHorizontal: 10 },
     card: {

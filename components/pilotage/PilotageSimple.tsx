@@ -17,6 +17,8 @@
  * Composant de PRÉSENTATION PURE : il ne calcule rien, ne lit aucune donnée. Tout arrive en props,
  * déjà calculé par le Pilotage — le tableau de bord ne peut donc pas diverger du moteur d'un euro.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -644,6 +646,12 @@ export function PilotageLoading({ error, onRetry }: { error?: string; onRetry?: 
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     // `marginTop` négatif : l'écran hôte espace ses blocs de 24, alors que la vue simplifiée
     // respire à 14. Sans cette compensation, le premier écart (sous le bandeau de conseils)

@@ -5,6 +5,8 @@
  * Couche 2 (toujours) : sections détaillées, chacune en carte (corps via AiRichText) → aucune info
  *   perdue. Entièrement piloté par la palette de thème passée en `c`.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
@@ -158,6 +160,12 @@ export default function AiReport({ report, c, baseTextStyle }: { report: Report;
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     stack: { gap: 10 },
 

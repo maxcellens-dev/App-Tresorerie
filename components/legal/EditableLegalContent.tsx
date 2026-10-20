@@ -8,6 +8,8 @@
  * - Override présent → on l'affiche en blocs (séparés par lignes vides).
  * - Édition → zone de texte pré-remplie avec l'override ou le texte par défaut (seedText).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -86,6 +88,12 @@ export default function EditableLegalContent({ which, seedText, children }: Prop
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     editBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',

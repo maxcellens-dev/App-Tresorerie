@@ -9,6 +9,8 @@
  *    parent plafonné ne la rétrécirait pas, elle déborderait de l'écran en emportant la légende
  *    (le défaut déjà corrigé sur la clôture mensuelle).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,6 +68,12 @@ export default function TreasuryHelpModal({ visible, onClose, colors, renderLege
 
 /** Règles recopiées à l'identique depuis tresorerie.tsx. */
 function makeStyles(c: AppColors) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     helpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
     helpSheet: {

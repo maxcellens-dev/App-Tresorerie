@@ -32,7 +32,13 @@ export default function AdminLayout() {
   const COLORS = useAppColors();
   const { isDesktop } = useResponsive();
   const goBack = useNavBack();
-  const { user, loading: authLoading } = useAuth();
+  /* L'admin RÉEL, jamais le compte consulté. En « connecté en tant que », `user` devient
+     l'utilisateur visité (non admin) : le garde démontait alors toute la pile admin AU MOMENT MÊME
+     où « Consulter » naviguait ailleurs, puis la remontait au « Quitter » pendant que le routeur
+     visait admin/users. Une pile démontée en pleine navigation laisse le routeur dans un état
+     incohérent : à la consultation suivante, page vide, plus aucune navigation possible jusqu'au
+     redémarrage de l'app. Le droit d'ouvrir ce panneau est celui de la personne connectée. */
+  const { realUser: user, loading: authLoading } = useAuth();
   /* `isSuccess` : tant que le profil n'a pas RÉPONDU, `is_admin` vaut faux par DÉFAUT et non par
      réponse — un administrateur se verrait refuser l'accès une fraction de seconde à chaque
      ouverture, voire durablement sur une connexion lente. On attend de savoir. */

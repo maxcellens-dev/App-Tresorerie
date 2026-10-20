@@ -1,3 +1,5 @@
+import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { isRecurringTx } from '../../../lib/finance/variableSpend';
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import PageLoader from '../../../components/layout/PageLoader';
@@ -18,7 +20,7 @@ import { useCreditFlows } from '../../../hooks/data/useCreditFlows';
 import { useTransactionMonthOverrides } from '../../../hooks/data/useTransactionMonthOverrides';
 import { buildOverrideMap, overrideKey as ovrKey } from '../../../lib/finance/txOverrides';
 import { useCategories } from '../../../hooks/data/useCategories';
-import { useSubCategoriesGrouped } from '../../../components/transaction/CategoryPicker';
+import { SubCategoryFilterList } from '../../../components/transaction/SubCategoryFilter';
 import { useAllAccounts } from '../../../hooks/data/useAccounts';
 import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/data/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
@@ -382,31 +384,7 @@ function TransactionsListBody() {
 
   // Récupérer les categories pour filtrer par parent/enfant
   const { data: categories = [] } = useCategories(user?.id);
-  // Sous-catégories groupées par catégorie parente — même source et même ordre que les écrans de
-  // saisie (« Mouvements » exclu : ces virements internes ne se filtrent pas par catégorie).
-  const expenseGroups = useSubCategoriesGrouped(categories, 'expense');
-  const incomeGroups = useSubCategoriesGrouped(categories, 'income');
-  const catSections = useMemo(
-    () => [
-      { key: 'expense', label: 'Dépenses', groups: expenseGroups },
-      { key: 'income', label: 'Recettes', groups: incomeGroups },
-    ].filter((s) => s.groups.length > 0),
-    [expenseGroups, incomeGroups]
-  );
-  // Recherche dans la feuille de filtres : un parent reste visible si son nom correspond, sinon
-  // seuls ses enfants correspondants sont gardés.
-  const catSectionsFiltered = useMemo(() => {
-    const q = normTxt(catQuery);
-    if (!q) return catSections;
-    return catSections
-      .map((s) => ({
-        ...s,
-        groups: s.groups
-          .map((g) => (normTxt(g.parentName).includes(q) ? g : { ...g, children: g.children.filter((c) => normTxt(c.name).includes(q)) }))
-          .filter((g) => g.children.length > 0),
-      }))
-      .filter((s) => s.groups.length > 0);
-  }, [catSections, catQuery]);
+
 
 
   // Filtrer par catégorie si nécessaire (inclure enfants si parent est sélectionné)
@@ -1034,65 +1012,8 @@ function TransactionsListBody() {
             </View>
 
             <Text style={styles.filterSectionTitle}>Sous-catégorie</Text>
-            {catSections.length === 0 ? (
-              <Text style={styles.filterEmptyText}>Aucune sous-catégorie. Ajoutes-en dans Catégories.</Text>
-            ) : (
-              <>
-                <View style={styles.filterSearchRow}>
-                  <Ionicons name="search" size={15} color={COLORS.textSecondary} />
-                  <TextInput
-                    style={styles.filterSearchInput}
-                    value={catQuery}
-                    onChangeText={setCatQuery}
-                    placeholder="Rechercher une sous-catégorie…"
-                    placeholderTextColor={COLORS.textSecondary}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="search"
-                  />
-                  {catQuery.length > 0 && (
-                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setCatQuery('')} hitSlop={8}>
-                      <Ionicons name="close-circle" size={17} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <ScrollView style={styles.filterCatList} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-                  <TouchableOpacity
-                    style={[styles.filterCatRow, !categoryFilterId && styles.filterCatRowActive]}
-                    onPress={() => setCategoryFilterId(null)}
-                  >
-                    <Text style={[styles.filterCatText, !categoryFilterId && styles.filterCatTextActive]}>Toutes</Text>
-                  </TouchableOpacity>
-                  {catSectionsFiltered.length === 0 && (
-                    <Text style={styles.filterEmptyText}>Aucun résultat pour « {catQuery} ».</Text>
-                  )}
-                  {catSectionsFiltered.map((section) => (
-                    <View key={section.key}>
-                      <Text style={styles.filterCatKind}>{section.label}</Text>
-                      {section.groups.map((group) => (
-                        <View key={group.parentId}>
-                          <Text style={styles.filterCatParent}>{group.parentName}</Text>
-                          {group.children.map((cat) => {
-                            const active = categoryFilterId === cat.id;
-                            return (
-                              <TouchableOpacity
-                                key={cat.id}
-                                style={[styles.filterCatRow, styles.filterCatRowChild, active && styles.filterCatRowActive]}
-                                onPress={() => setCategoryFilterId(active ? null : cat.id)}
-                              >
-                                <Ionicons name={iconForCategory(cat) as any} size={15} color={active ? COLORS.emerald : COLORS.textSecondary} />
-                                <Text style={[styles.filterCatText, active && styles.filterCatTextActive]} numberOfLines={1}>{cat.name}</Text>
-                                {active && <Ionicons name="checkmark" size={16} color={COLORS.emerald} />}
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      ))}
-                    </View>
-                  ))}
-                </ScrollView>
-              </>
-            )}
+            {/* Même liste que l'onglet Transactions d'un compte (components/transaction/SubCategoryFilter). */}
+            <SubCategoryFilterList categories={categories} value={categoryFilterId} onChange={setCategoryFilterId} query={catQuery} onQueryChange={setCatQuery} />
 
             <AppButton
               label={filtered.length === 0 ? 'Aucune transaction' : `Voir ${filtered.length} transaction${filtered.length > 1 ? 's' : ''}`}
@@ -1337,6 +1258,12 @@ function TransactionsListBody() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },

@@ -23,6 +23,8 @@
  * La COULEUR porte l'appartenance : c'est celle de la décision concernée, la même que sa tuile
  * juste au-dessus. L'étiquette la nomme, pour ne pas dépendre que de la couleur.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, PanResponder, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -135,6 +137,12 @@ export default function RecoMessagesCarousel({ messages, onPressMessage }: {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: {
       borderWidth: 1, borderRadius: 14, overflow: 'hidden',

@@ -1,3 +1,5 @@
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 /**
  * PrivacyScreen — contenu de la politique de confidentialité.
@@ -96,6 +98,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   scrollContent: { paddingHorizontal: 24, paddingTop: 12 },

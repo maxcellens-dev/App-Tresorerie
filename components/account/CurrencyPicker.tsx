@@ -10,6 +10,8 @@
  * On ne retire pas ces devises (le symbole seul a du sens pour beaucoup de gens), mais on DIT
  * lesquelles n'ont pas de taux, dans la liste comme sous le bouton.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, FlatList,
@@ -140,6 +142,12 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
     trigger: {

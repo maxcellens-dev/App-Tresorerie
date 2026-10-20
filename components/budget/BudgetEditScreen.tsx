@@ -16,6 +16,8 @@
  * veut, on enregistre, on revient quand on veut. Un champ vidé retire le budget (montant 0 : on ne
  * supprime pas la ligne, sinon le report ferait revenir celle du mois précédent).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -443,6 +445,12 @@ export default function BudgetEditScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1 },
     safe: { flex: 1, paddingHorizontal: 16 },

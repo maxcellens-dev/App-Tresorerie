@@ -2,6 +2,8 @@
  * SupportThreadModal — fil de discussion d'une demande d'assistance.
  * Partagé entre l'écran utilisateur et le panneau admin.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -183,6 +185,12 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', paddingTop: '9%' },
     // flex:1 (au lieu d'une hauteur fixe) → la feuille se rétrécit par le bas quand le clavier

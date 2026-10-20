@@ -59,6 +59,10 @@ export interface FeatureFlags {
    * un compte perso ; les partages déjà créés continuent de fonctionner. Aucune donnée touchée.
    */
   perso_account_sharing_enabled?: boolean;
+  /**
+   * Refonte « Jardin » (arbre qui pousse) : 'off' | 'admins' | 'all'. Interrupteur EN ATTENTE DE
+   * DÉCISION, à retirer une fois la bascule faite. Toute autre valeur vaut 'off' (lib/garden/access).
+   */
   /** Vitesse de défilement du bandeau « Conseils » sur le Pilotage (secondes entre 2 conseils). Défaut 8. */
   conseils_rotation_seconds?: number;
   /**
@@ -75,10 +79,7 @@ export interface FeatureFlags {
 
 const KEY = 'feature_flags';
 
-export function useFeatureFlags() {
-  return useQuery({
-    queryKey: [KEY],
-    queryFn: async (): Promise<FeatureFlags> => {
+async function fetchFeatureFlags(): Promise<FeatureFlags> {
       if (!supabase) return {};
       /* UNE LECTURE RATÉE N'EST PAS « AUCUN DRAPEAU ».
          L'erreur était ignorée : un incident réseau rendait `{}`, et react-query considérait la
@@ -91,12 +92,32 @@ export function useFeatureFlags() {
       const { data, error } = await supabase.from('app_config').select('features').eq('id', 'default').maybeSingle();
       if (error) throw error;
       return (((data as any)?.features) ?? {}) as FeatureFlags;
-    },
+}
+
+export function useFeatureFlags() {
+  return useQuery({
+    queryKey: [KEY],
+    queryFn: fetchFeatureFlags,
     // Flags = visibilité de fonctionnalités : on veut une propagation quasi immédiate quand l'admin
     // active/désactive (sans attendre). Cache court + refetch au retour sur l'app.
     staleTime: 20 * 1000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+  });
+}
+
+/**
+ * Lecture PASSIVE des mêmes drapeaux (même clé, même cache) : ni relecture au montage ni au retour
+ * sur l'app. Réservée aux hooks appelés par des dizaines de composants (useAppColors) — c'est
+ * useFeatureFlags, monté par les écrans, qui garde la propagation rapide d'un changement admin.
+ */
+export function useFeatureFlagsPassive() {
+  return useQuery({
+    queryKey: [KEY],
+    queryFn: fetchFeatureFlags,
+    staleTime: 20 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
 

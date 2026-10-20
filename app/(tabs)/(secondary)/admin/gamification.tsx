@@ -4,6 +4,8 @@
  * et la liste des badges (libellé, description, métrique, icône Ionicons OU image téléversée,
  * seuils + gemmes par niveau). Téléversement d'icônes vers le bucket « gamification ».
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
@@ -25,7 +27,7 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Semaines connectées (cumul)' },
   { value: 'login_streak_days', label: 'Jours consécutifs connecté' },
   { value: 'account_age_days', label: 'Ancienneté (jours)' },
-  { value: 'gems_earned', label: 'Relyks gagnés (cumul)' },
+  { value: 'gems_earned', label: 'Graines gagnées (cumul)' },
   { value: 'closures_count', label: 'Clôtures effectuées' },
   { value: 'surplus_months_streak', label: 'Mois consécutifs en excédent' },
   { value: 'invest_followed', label: 'Recos investir suivies' },
@@ -286,6 +288,12 @@ function Field({ label, value, onChange, keyboard, styles, c }: { label: string;
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },

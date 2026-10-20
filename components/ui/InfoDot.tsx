@@ -16,6 +16,8 @@
  *   <Text>Ta marge de sécurité <InfoDot term="marge_securite" /></Text>
  *   <InfoDot term="relyka" size={18} color={COLORS.emerald} />
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, Modal, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -312,6 +314,12 @@ function ProfileScale({
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     overlay: {
       flex: 1,

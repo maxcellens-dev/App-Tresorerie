@@ -44,7 +44,7 @@ export function renderBody(body: string): string {
   if (looksLikeHtml(body)) return body;
   return body
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#2f3a37;">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#1E3A2C;">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
     .join('\n');
 }
 
@@ -86,36 +86,36 @@ export function renderRelykaEmail(o: RenderOptions): string {
   const cta = o.showCta === false ? '' : `
         <tr><td style="padding:6px 32px 30px;" align="center">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-            <td style="background:#00B67A;border-radius:12px;">
-              <a href="${appUrl}" style="display:inline-block;padding:15px 30px;font-size:15.5px;font-weight:700;color:#ffffff;text-decoration:none;">Ouvrir Relyka</a>
+            <td style="background:#26784A;border-radius:999px;">
+              <a href="${appUrl}" style="display:inline-block;padding:15px 32px;font-size:15.5px;font-weight:800;color:#ffffff;text-decoration:none;font-family:Nunito,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">Ouvrir mon jardin</a>
             </td>
           </tr></table>
         </td></tr>`;
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(o.subject)}</title></head>
-<body style="margin:0;padding:0;background:#F4EFE6;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EFE6;padding:32px 16px;">
+<title>${escapeHtml(o.subject)}</title><link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&family=Fredoka:wght@600&display=swap" rel="stylesheet"></head>
+<body style="margin:0;padding:0;background:#E8F0EB;font-family:Nunito,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E8F0EB;padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 2px 12px rgba(13,46,42,.08);">
-        <tr><td style="background:#0D2E2A;padding:30px 32px;text-align:center;">
-          <div style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-.6px;">Relyka</div>
-          <div style="font-size:12.5px;color:#8FD8C4;margin-top:5px;">Ton argent, au clair</div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #CCDCD3;box-shadow:0 2px 12px rgba(30,58,44,.08);">
+        <tr><td style="background:#1E3A2C;padding:30px 32px;text-align:center;">
+          <div style="font-size:28px;font-weight:600;color:#ffffff;letter-spacing:-.3px;font-family:Fredoka,Nunito,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">Relyka</div>
+          <div style="font-size:12.5px;color:#B7DDA0;margin-top:5px;">Ton argent, comme un jardin</div>
         </td></tr>
         <tr><td style="padding:34px 32px 10px;">
-          <h1 style="margin:0 0 20px;font-size:21px;line-height:29px;color:#0D2E2A;font-weight:800;">${escapeHtml(o.subject)}</h1>
+          <h1 style="margin:0 0 20px;font-size:22px;line-height:29px;color:#1E3A2C;font-weight:600;font-family:Fredoka,Nunito,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">${escapeHtml(o.subject)}</h1>
 ${renderBody(o.body)}
         </td></tr>${cta}
-        <tr><td style="padding:20px 32px 28px;border-top:1px solid #EAE4DA;">
-          <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#7A8783;">
+        <tr><td style="padding:20px 32px 28px;border-top:1px solid #DCE7E0;">
+          <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#4F6A5C;">
             Tu reçois cet e-mail parce que tu as un compte Relyka.
           </p>
-          <p style="margin:0;font-size:12px;line-height:18px;color:#7A8783;">
-            <a href="${o.unsubUrl}" style="color:#7A8783;text-decoration:underline;">Ne plus recevoir ces e-mails</a>
+          <p style="margin:0;font-size:12px;line-height:18px;color:#4F6A5C;">
+            <a href="${o.unsubUrl}" style="color:#4F6A5C;text-decoration:underline;">Ne plus recevoir ces e-mails</a>
             &nbsp;·&nbsp;
-            <a href="${appUrl}/confidentialite" style="color:#7A8783;text-decoration:underline;">Confidentialité</a>
+            <a href="${appUrl}/confidentialite" style="color:#4F6A5C;text-decoration:underline;">Confidentialité</a>
             &nbsp;·&nbsp;
-            <a href="${appUrl}/legal" style="color:#7A8783;text-decoration:underline;">Mentions légales</a>
+            <a href="${appUrl}/legal" style="color:#4F6A5C;text-decoration:underline;">Mentions légales</a>
           </p>
         </td></tr>
       </table>
@@ -140,9 +140,9 @@ export interface EmailTemplate {
   body: string;
 }
 
-const P = 'margin:0 0 16px;font-size:15px;line-height:24px;color:#2f3a37;';
-const H2 = 'margin:24px 0 10px;font-size:17px;line-height:24px;color:#0D2E2A;font-weight:800;';
-const LI = 'margin:0 0 8px;font-size:15px;line-height:23px;color:#2f3a37;';
+const P = 'margin:0 0 16px;font-size:15px;line-height:24px;color:#1E3A2C;';
+const H2 = 'margin:24px 0 10px;font-size:17px;line-height:24px;color:#1E3A2C;font-weight:800;';
+const LI = 'margin:0 0 8px;font-size:15px;line-height:23px;color:#1E3A2C;';
 
 export const EMAIL_TEMPLATES: EmailTemplate[] = [
   {
@@ -163,9 +163,9 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
   <li style="${LI}">Troisième bénéfice.</li>
 </ul>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;background:#F1F7F5;border-radius:12px;border-left:4px solid #00B67A;">
-  <tr><td style="padding:14px 16px;font-size:14.5px;line-height:22px;color:#0D4A3E;">
-    <strong>Où la trouver :</strong> indique le chemin exact, par exemple « Pilotage → Ce qui va encore sortir ».
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;background:#E3F3E6;border-radius:12px;border-left:4px solid #26784A;">
+  <tr><td style="padding:14px 16px;font-size:14.5px;line-height:22px;color:#1E3A2C;">
+    <strong>Où la trouver :</strong> indique le chemin exact, par exemple « Mon argent → Ce mois ».
   </td></tr>
 </table>
 
@@ -212,8 +212,8 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
   <li style="${LI}"><strong>Regarde ton Relyka</strong> : ce qu'il te reste vraiment à décider ce mois-ci.</li>
 </ul>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;background:#F1F7F5;border-radius:12px;border-left:4px solid #00B67A;">
-  <tr><td style="padding:14px 16px;font-size:14.5px;line-height:22px;color:#0D4A3E;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 18px;background:#E3F3E6;border-radius:12px;border-left:4px solid #26784A;">
+  <tr><td style="padding:14px 16px;font-size:14.5px;line-height:22px;color:#1E3A2C;">
     Pas besoin de tout rattraper : Relyka repart de ton solde d'aujourd'hui.
   </td></tr>
 </table>

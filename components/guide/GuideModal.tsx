@@ -9,6 +9,8 @@
  * ACTION (« J'ai compris », ou l'un des choix proposés), jamais par un tap au hasard. C'est ce qui
  * garantit que l'utilisateur a bien tous ses comptes et ses récurrences avant de voir des chiffres.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -165,6 +167,12 @@ export default function GuideModal({
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     /* Voile VOLONTAIREMENT léger. Il était à 0,66 : la page disparaissait derrière, alors que ces
        étapes parlent justement de ce qu'il y a dessous (la ligne « Tu devrais encore dépenser », le

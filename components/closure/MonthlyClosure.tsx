@@ -20,6 +20,8 @@
  * tableau de bord, est la seule invitation : il est légèrement animé pour qu'on le remarque, et
  * c'est l'utilisateur qui décide du moment.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ScrollView, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -1214,6 +1216,12 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     banner: {
       flexDirection: 'row', alignItems: 'center', gap: 10,

@@ -9,6 +9,8 @@
  * Il ne rend PAS son propre défilement : l'appelant le pose dans le sien (un ScrollView dans un
  * ScrollView se dispute le geste vertical).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipStyles } from '../../lib/ui/controls';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
@@ -116,7 +118,7 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
       // « Chargement… »). On vide la pile Comptes jusqu'à la liste.
       const r = router as any;
       if (typeof r.dismissAll === 'function') r.dismissAll();
-      else router.replace('/(tabs)/comptes');
+      else router.replace('/(tabs)/argent');
     }).catch((e: unknown) => {
       fail(e instanceof Error ? e.message : 'Impossible de fermer le compte.');
     });
@@ -248,6 +250,12 @@ export default function AccountSettingsForm({ account, onSaved, onError }: {
 }
 
 function makeStyles(c: AppColors) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
     input: {

@@ -11,6 +11,8 @@
  * Tout ce qui s'affiche ici passe par les mêmes fonctions que le Pilotage (confiance, fourchette,
  * recommandations, messages) — rien n'est reformulé sur place.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import PilotageSimple from '../pilotage/PilotageSimple';
@@ -98,6 +100,12 @@ export default function RelykaPreview({
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     /* La carte de production suppose la largeur du tableau de bord : on lui rend la même, avec un
        liseré discret pour la distinguer du reste de la page d'administration. */

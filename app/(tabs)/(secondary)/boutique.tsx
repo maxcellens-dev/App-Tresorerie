@@ -1,7 +1,13 @@
+import GardenItemIcon, { isGardenIcon } from '../../../components/gamification/GardenItemIcon';
 /**
  * Boutique — dépense les relyks gagnés (couleurs, cosmétiques, titres, thèmes, bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
+import SeedIcon from '../../../components/gamification/SeedIcon';
+import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
+import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
+import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
+import { isGardenPalette } from '../../../lib/garden/gardenPalette';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal, Pressable } from 'react-native';
@@ -74,7 +80,7 @@ function BoutiqueScreen() {
   /* Prix final : la remise Premium, et rien d'autre. La « Sélection du mois » (2 articles tournants
      à −30 %) a été retirée — elle encombrait la page et faisait cohabiter deux prix par article. */
   const priceOf = (base: number) => shopFinalPrice(base, { isPremium, premiumPct: discountPct });
-  const currencyName = config?.identity.currencyName ?? 'Relyk';
+  const currencyName = config?.identity.currencyName ?? 'Graine';
   // Libellé / description calculés pour les articles « monnaie » (toujours au nom courant + pluriel).
   const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
   const itemLabel = (item: ShopItem) => (item.type === 'gems_iap' ? formatCurrency(gemsOf(item), currencyName) : item.label);
@@ -242,7 +248,7 @@ function BoutiqueScreen() {
         <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canBuy ? COLORS.emerald : COLORS.cardBorder }]} onPress={() => canBuy && setConfirmItem({ key: item.key, label: item.label, price })} disabled={!canBuy} activeOpacity={0.85}>
           {busy ? <ActivityIndicator size="small" color="#fff" /> : (
             <>
-              <Ionicons name="diamond" size={12} color={canBuy ? '#fff' : COLORS.textSecondary} />
+              <SeedIcon size={13} mono={canBuy ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.buyText, { color: canBuy ? '#fff' : COLORS.textSecondary }]}>{price}</Text>
             </>
           )}
@@ -256,12 +262,14 @@ function BoutiqueScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
+        {isGardenPalette(COLORS) ? null : (
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
+        )}
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Boutique</Text>
+          {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Boutique</Text>}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {/* Admin uniquement : crédite 100 relyks pour tester les achats facilement. */}
             {isAdmin && (
@@ -273,12 +281,12 @@ function BoutiqueScreen() {
                   if (!submit.acquire()) return;
                   try {
                     const r = await creditGems(100);
-                    if (r.ok) say('+100 relyks (admin)', 'ok');
+                    if (r.ok) say('+100 graines (admin)', 'ok');
                     else say("Le crédit administrateur n'a pas pu être enregistré.", 'error');
                   } finally { submit.release(); }
                 }}
                 activeOpacity={0.85}
-                accessibilityLabel="Ajouter 100 relyks (admin)"
+                accessibilityLabel="Ajouter 100 graines (admin)"
               >
                 <Ionicons name="add" size={14} color="#fff" />
                 <Text style={styles.adminGemBtnText}>100</Text>
@@ -290,9 +298,9 @@ function BoutiqueScreen() {
               onPress={() => { setTab('app'); setCatFilter('gems'); }}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Recharger en relyks"
+              accessibilityLabel="Recharger en graines"
             >
-              <Ionicons name="diamond" size={14} color={COLORS.blue} />
+              <SeedIcon size={16} />
               {/* Un solde inconnu n'est pas un solde à zéro : tant que la lecture n'a pas abouti,
                   afficher « 0 » laissait croire que tous les relyks avaient disparu. */}
               <Text style={styles.gemText}>{isReady ? gems : '…'}</Text>
@@ -304,7 +312,7 @@ function BoutiqueScreen() {
         {relykaTabEnabled && (
           <View style={styles.tabsRow}>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'app' && styles.tabBtnActive]} onPress={() => setTab('app')} activeOpacity={0.85}>
-              <Ionicons name="diamond-outline" size={15} color={activeTab === 'app' ? COLORS.emerald : COLORS.textSecondary} />
+              <SeedIcon size={16} mono={activeTab === 'app' ? COLORS.emerald : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'app' && styles.tabTextActive]}>App</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'relyka' && styles.tabBtnActive]} onPress={() => setTab('relyka')} activeOpacity={0.85}>
@@ -344,7 +352,7 @@ function BoutiqueScreen() {
               {isError && (
                 <View style={[styles.msgBox, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '14', marginBottom: 12 }]}>
                   <Ionicons name="cloud-offline-outline" size={15} color={COLORS.danger} />
-                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de relyks n'a pas pu être lu — les achats sont indisponibles.</Text>
+                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de graines n'a pas pu être lu : les achats sont indisponibles.</Text>
                 </View>
               )}
 
@@ -382,7 +390,7 @@ function BoutiqueScreen() {
                       ...[...head, ...rest].map((c) => ({
                         cat: c,
                         // « Recharger en relyks » est le titre de SECTION ; sur une pastille, il déborde.
-                        label: c === 'premium' ? 'Premium' : c === 'gems' ? 'Relyks' : SHOP_CATEGORY_LABELS[c as ShopCategory],
+                        label: c === 'premium' ? 'Premium' : c === 'gems' ? 'Graines' : SHOP_CATEGORY_LABELS[c as ShopCategory],
                         icon: SHOP_CATEGORY_ICONS[c as ShopCategory],
                       })),
                     ];
@@ -428,7 +436,7 @@ function BoutiqueScreen() {
                           return (
                             <View key={item.key} style={[styles.compactCard, cat === 'gems' ? styles.compactThird : styles.compactHalf]}>
                               <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
-                                {isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={20} color={accentColor} />}
+                                {isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={34} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={20} color={accentColor} />}
                               </View>
                               <Text style={styles.compactLabel} numberOfLines={2}>{itemLabel(item)}</Text>
                               {renderBuyButton(item)}
@@ -445,7 +453,7 @@ function BoutiqueScreen() {
                         return (
                           <View key={item.key} style={[styles.card, frozen && styles.cardFrozen]}>
                             <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
-                              {isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
+                              {isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={38} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
                               {frozen && <View style={styles.frozenLock}><Ionicons name="lock-closed" size={11} color="#fff" /></View>}
                             </View>
                             <View style={{ flex: 1 }}>
@@ -534,7 +542,7 @@ function BoutiqueScreen() {
           <Pressable style={{ width: '100%', alignItems: 'center' }} onPress={() => {}}>
           <View style={styles.modalCard}>
             <View style={[styles.modalIcon, { backgroundColor: COLORS.blue + '22' }]}>
-              <Ionicons name="diamond" size={26} color={COLORS.blue} />
+              <SeedIcon size={30} />
             </View>
             <Text style={styles.modalTitle}>Confirmer l'achat</Text>
             <Text style={styles.modalText}>
@@ -564,6 +572,49 @@ function BoutiqueScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPaletteL(c)) return base;
+  // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
+  return withGarden(base, {
+    safe: { ...base.safe, paddingHorizontal: 16 },
+    gemPill: { ...base.gemPill, backgroundColor: GL.pico, borderColor: GL.pico, borderRadius: 999 },
+    gemText: { ...base.gemText, ...gFont('bodyHeavy'), color: GL.picoText },
+    apparenceLinkText: { ...base.apparenceLinkText, ...gFont('bodyBold'), color: GL.primary },
+    tabsRow: { ...base.tabsRow, backgroundColor: GL.track, borderRadius: 999, padding: 4, borderWidth: 0 },
+    tabBtn: { ...base.tabBtn, borderRadius: 999 },
+    tabBtnActive: { ...base.tabBtnActive, backgroundColor: GL.card, borderColor: GL.card },
+    tabText: { ...base.tabText, ...gFont('bodyBold'), color: GL.inkSoft },
+    tabTextActive: { ...base.tabTextActive, ...gFont('bodyHeavy'), color: GL.ink },
+    sectionIntro: { ...base.sectionIntro, ...gFont('body'), color: GL.inkSoft },
+    catHeader: { ...base.catHeader, ...gLabel },
+    gemsNote: { ...base.gemsNote, ...gFont('body'), color: GL.muted },
+    premiumBanner: { ...base.premiumBanner, backgroundColor: GL.notice, borderWidth: 0, borderRadius: 20 },
+    premiumText: { ...base.premiumText, ...gFont('bodyBold'), color: GL.noticeText },
+    card: { ...base.card, ...gCard, borderRadius: 20 },
+    filterChip: { ...base.filterChip, borderRadius: 999, backgroundColor: GL.card, borderColor: GL.line },
+    filterChipActive: { ...base.filterChipActive, backgroundColor: GL.branchesBg, borderColor: GL.primary },
+    filterChipText: { ...base.filterChipText, ...gFont('bodyBold') },
+    compactCard: { ...base.compactCard, ...gCard, borderRadius: 20 },
+    compactLabel: { ...base.compactLabel, ...gFont('bodyBold'), color: GL.ink },
+    ownedText: { ...base.ownedText, ...gFont('bodyHeavy') },
+    itemLabel: { ...base.itemLabel, ...gFont('bodyBold'), color: GL.ink },
+    itemDesc: { ...base.itemDesc, ...gFont('body'), color: GL.inkSoft },
+    buyBtn: { ...base.buyBtn, borderRadius: 999 },
+    buyText: { ...base.buyText, ...gFont('bodyHeavy') },
+    empty: { ...base.empty, ...gFont('body'), color: GL.inkSoft },
+    modalOverlay: { ...base.modalOverlay, backgroundColor: 'rgba(30,58,44,0.45)' },
+    modalCard: { ...base.modalCard, backgroundColor: GL.bg, borderRadius: 28, borderWidth: 0 },
+    modalTitle: { ...base.modalTitle, ...gFont('display'), color: GL.ink },
+    modalText: { ...base.modalText, ...gFont('body'), color: GL.inkSoft },
+    modalBalance: { ...base.modalBalance, ...gFont('bodyBold') },
+    modalCancel: { ...base.modalCancel, borderRadius: 999, backgroundColor: GL.card, borderColor: GL.line },
+    modalCancelText: { ...base.modalCancelText, ...gFont('bodyHeavy'), color: GL.ink },
+    modalConfirm: { ...base.modalConfirm, borderRadius: 999, backgroundColor: GL.primary },
+    modalConfirmText: { ...base.modalConfirmText, ...gFont('bodyHeavy'), color: GL.onPrimary },
+  } as any);
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

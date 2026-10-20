@@ -1,6 +1,8 @@
 /**
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
@@ -23,6 +25,7 @@ import { useCosmetics } from '../../../hooks/theme/useCosmetics';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useLocalSearchParams } from 'expo-router';
 import { COSMETIC_DEFS, SHOP_CATEGORY_LABELS, isImageIcon } from '../../../lib/engagement/gamification';
+import GardenItemIcon, { isGardenIcon } from '../../../components/gamification/GardenItemIcon';
 import { safeInternalRoute } from '../../../lib/ui/navHistory';
 import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, readableOn, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { shouldResetCustomAccent } from '../../../theme/accentRules';
@@ -206,11 +209,15 @@ function AppearanceScreen() {
     ownedCosmetics.filter((c) => c.slot === slot).sort((a, b) => a.label.localeCompare(b.label, 'fr'));
 
   const cosmeticGroups = useMemo(() => ([
+    /* Flammes de série et titres de profil ne sont plus affichés nulle part depuis le Jardin : ils
+       ne sont plus proposés ici (les articles restent dans l'inventaire, sans effet). */
     { slot: 'avatar_frame', label: "Cadres d'avatar", items: bySlot('avatar_frame') },
-    { slot: 'streak_flame', label: 'Flammes de série', items: bySlot('streak_flame') },
+    /* Jardin : le décor posé autour de l'arbre, la garde-robe de Pépin, la saison choisie. */
+    { slot: 'decor', label: 'Décor du jardin', items: ownedCosmetics.filter((c) => String(c.slot).startsWith('decor_')) },
+    { slot: 'pico', label: 'Garde-robe de Pépin', items: ownedCosmetics.filter((c) => String(c.slot).startsWith('pico_')) },
+    { slot: 'garden_season', label: 'Saison du jardin (sinon, la vraie saison)', items: bySlot('garden_season') },
   ].filter((g) => g.items.length > 0)), [ownedCosmetics]);
 
-  const titleItems = useMemo(() => bySlot('title'), [ownedCosmetics]);
   // Les couleurs de base (celles de la palette native) sont gratuites pour tous.
   // Les couleurs supplémentaires créées dans l'éditeur de style forment le « Pack couleurs ».
   const nativePresets = allPresets.filter((p) => NATIVE_PRESET_IDS.includes(p.id));
@@ -457,10 +464,10 @@ function AppearanceScreen() {
 
           </View>
 
-          {/* ── COSMÉTIQUES : ce qui se porte (cadres d'avatar, flammes de série) ── */}
+          {/* ── COSMÉTIQUES : ce qui se porte (cadre d'avatar, décor du jardin, Pépin) ── */}
           <Text style={styles.sectionTitle}>{SHOP_CATEGORY_LABELS.cosmetiques}</Text>
-          <Text style={styles.sectionIntro}>Le cadre autour de ton avatar et la flamme de ta série.</Text>
-          <View style={styles.card}>
+          <Text style={styles.sectionIntro}>Le cadre autour de ton avatar et le décor de ton jardin.</Text>
+          <View style={[styles.card, { marginBottom: 8 }]}>
             {/* TROIS ÉTATS, PAS UN.
                 « Aucun cadre débloqué » était affiché tant que l'inventaire n'était pas lu — donc à
                 chaque ouverture, y compris à quelqu'un qui possède tout —, et il RESTAIT affiché si
@@ -470,7 +477,7 @@ function AppearanceScreen() {
             ) : cosmeticGroups.length === 0 ? (
               <EmptyShelf
                 styles={styles} COLORS={COLORS} router={router} readOnly={readOnly}
-                text="Aucun cadre ni flamme débloqué pour le moment."
+                text="Aucun cosmétique débloqué pour le moment."
               />
             ) : (
               <>
@@ -494,28 +501,6 @@ function AppearanceScreen() {
             )}
           </View>
 
-          {/* ── TITRES DE PROFIL : du texte sous ton pseudo, vendu à part en boutique ── */}
-          <Text style={styles.sectionTitle}>{SHOP_CATEGORY_LABELS.titres}</Text>
-          <Text style={styles.sectionIntro}>La mention affichée sous ton nom, sur ton profil.</Text>
-          <View style={[styles.card, { marginBottom: 8 }]}>
-            {!inventoryReady ? (
-              <ShelfLoading styles={styles} COLORS={COLORS} error={inventoryError} />
-            ) : titleItems.length === 0 ? (
-              <EmptyShelf
-                styles={styles} COLORS={COLORS} router={router} readOnly={readOnly}
-                text="Aucun titre débloqué pour le moment."
-              />
-            ) : (
-              <>
-                <Text style={styles.hint}>Un seul titre à la fois : en équiper un remplace le précédent.</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cosmeticRow}>
-                  {titleItems.map((cos) => (
-                    <CosmeticCard key={cos.key} cos={cos} styles={styles} COLORS={COLORS} disabled={readOnly} onToggle={() => toggleCosmetic(cos.key)} />
-                  ))}
-                </ScrollView>
-              </>
-            )}
-          </View>
         </KeyboardAwareScrollView>
       </SafeAreaView>
 
@@ -586,7 +571,9 @@ function CosmeticCard({ cos, styles, COLORS, onToggle, disabled }: { cos: any; s
       <View style={[styles.cosmeticCardIcon, { backgroundColor: cos.color + '22' }]}>
         {/* L'icône d'un article peut être une IMAGE téléversée par l'administration (comme en
             boutique) : rendue en `Ionicons`, elle ne s'affichait tout simplement pas. */}
-        {isImageIcon(cos.icon)
+        {isGardenIcon(cos.icon)
+          ? <GardenItemIcon icon={cos.icon} size={30} />
+          : isImageIcon(cos.icon)
           ? <Image source={{ uri: cos.icon }} style={styles.cosmeticCardImage} resizeMode="contain" />
           : <Ionicons name={cos.icon as any} size={22} color={cos.color} />}
       </View>
@@ -601,6 +588,12 @@ function CosmeticCard({ cos, styles, COLORS, onToggle, disabled }: { cos: any; s
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

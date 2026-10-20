@@ -1,4 +1,5 @@
-﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+﻿import { live } from '../../../lib/garden/live';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch, Linking, Alert } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
@@ -29,6 +30,33 @@ import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthA
 import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
 import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { GARDEN_COLORS as G } from '../../../lib/garden/theme';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
+
+/* JARDIN : chaque réglage porte une pastille aux couleurs de l'arbre (comme le menu Mon profil),
+   au lieu d'une icône grise perdue sur fond blanc. */
+const GARDEN_ICON_TONES: Record<string, [string, string]> = live(() => ({
+  'lock-closed-outline': [G.waterText, G.waterBg],
+  'speedometer-outline': [G.rootsText, G.rootsBg],
+  'shield-outline': [G.waterText, G.waterBg],
+  'pie-chart-outline': [G.fruitsText, G.fruitsBg],
+  'bulb-outline': [G.rootsText, G.rootsBg],
+  'refresh-outline': [G.branchesText, G.branchesBg],
+  'calculator-outline': [G.waterText, G.waterBg],
+  'mail-outline': [G.flowersText, G.flowersBg],
+  'notifications-outline': [G.picoText, G.pico],
+  'pulse-outline': [G.inkSoft, G.field],
+}));
+
+/** Icône de ligne : nue dans l'interface actuelle, en pastille colorée dans le Jardin. */
+function RowIcon({ name }: { name: any; color?: string }) {
+  const [fg, bg] = GARDEN_ICON_TONES[name] ?? [G.branchesText, G.branchesBg];
+  return (
+    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={name} size={18} color={fg} />
+    </View>
+  );
+}
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -267,11 +295,6 @@ function SettingsScreen() {
           {/* ── Gestion ── */}
           <Text style={styles.sectionTitle}>Gestion</Text>
           <View style={styles.card}>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}>
-              <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
-              <Text style={styles.rowLabel}>Mon profil financier</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
 
             {/* Clôture mensuelle (si activée) — elle occupait une carte isolée tout en haut de la
                 page, avant même le titre « Gestion », alors que c'est exactement de la gestion :
@@ -279,7 +302,7 @@ function SettingsScreen() {
             {closureEnabled && (
               <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/cloture')}>
                 <Ionicons name="lock-closed-outline" size={20} color="#60a5fa" />
-                <Text style={styles.rowLabel}>Clôture mensuelle</Text>
+                <Text style={styles.rowLabel}>Mes bilans de mois (clôture)</Text>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}
@@ -289,7 +312,7 @@ function SettingsScreen() {
             {SHOW_SAFETY_MARGIN && (
             <View ref={marginRowRef} style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' }}>
-                <Ionicons name="shield-outline" size={20} color={COLORS.textSecondary} />
+                <RowIcon name="shield-outline" color={COLORS.textSecondary} />
                 <Text numberOfLines={1} style={[styles.rowLabel, { flex: 1 }]}>Marge de sécurité</Text>
                 <TextInput
                   style={[styles.input, { width: 80, marginBottom: 0, textAlign: 'right' }]}
@@ -325,7 +348,7 @@ function SettingsScreen() {
             {/* Prudence : pilote la confiance dans les revenus à venir et l'horizon de projection */}
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0, marginTop: 4 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' }}>
-                <Ionicons name="speedometer-outline" size={20} color={COLORS.textSecondary} />
+                <RowIcon name="speedometer-outline" color={COLORS.textSecondary} />
                 <Text numberOfLines={1} style={[styles.rowLabel, { flex: 1 }]}>Prudence du budget</Text>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingLeft: 30 }}>
@@ -382,7 +405,7 @@ function SettingsScreen() {
           <Text style={styles.sectionTitle}>Paramétrage</Text>
           <View style={styles.card}>
             <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
-              <Ionicons name="pie-chart-outline" size={20} color={COLORS.textSecondary} />
+              <RowIcon name="pie-chart-outline" color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Gérer les catégories</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -402,7 +425,7 @@ function SettingsScreen() {
           <Text style={styles.sectionTitle} onLayout={(e) => { displaySectionY.current = e.nativeEvent.layout.y; }}>Affichage & aides</Text>
           <View style={styles.card}>
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
-              <Ionicons name="bulb-outline" size={20} color={COLORS.textSecondary} />
+              <RowIcon name="bulb-outline" color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Afficher les conseils</Text>
               <Switch
                 accessibilityLabel="Afficher les conseils"
@@ -413,7 +436,7 @@ function SettingsScreen() {
                 thumbColor="#ffffff"
               />
             </View>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 12.5, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
               Affiche le bandeau de conseils en haut de la page Pilotage. Désactive-le pour un écran plus épuré.
             </Text>
             <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
@@ -429,7 +452,7 @@ function SettingsScreen() {
               accessibilityState={{ disabled: readOnly }}
               activeOpacity={0.7}
             >
-              <Ionicons name="refresh-outline" size={20} color={COLORS.emerald} />
+              <RowIcon name="refresh-outline" color={COLORS.emerald} />
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Relancer les recommandations</Text>
               {recosReset === 'done' && <Ionicons name="checkmark-circle" size={20} color={COLORS.emerald} />}
               {recosReset === 'error' && <Ionicons name="alert-circle" size={20} color={COLORS.danger} />}
@@ -441,7 +464,7 @@ function SettingsScreen() {
             </Text>
             <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
-              <Ionicons name="calculator-outline" size={20} color={COLORS.textSecondary} />
+              <RowIcon name="calculator-outline" color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Afficher la calculatrice</Text>
               <Switch
                 accessibilityLabel="Afficher la calculatrice"
@@ -452,7 +475,7 @@ function SettingsScreen() {
                 thumbColor="#ffffff"
               />
             </View>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: calculatorEnabled ? 8 : 14, marginTop: -4, lineHeight: 15 }}>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 12.5, paddingHorizontal: 16, paddingBottom: calculatorEnabled ? 8 : 14, marginTop: -4, lineHeight: 15 }}>
               Affiche un bouton d'accès rapide à une calculatrice flottante et déplaçable, sur les pages choisies ci-dessous.
             </Text>
             {calculatorEnabled && (
@@ -502,7 +525,7 @@ function SettingsScreen() {
           <Text style={styles.sectionTitle}>Notifications</Text>
           <View style={styles.card}>
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
-              <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />
+              <RowIcon name="mail-outline" color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>E-mails d’information</Text>
               <Switch
                 accessibilityLabel="E-mails d’information"
@@ -513,7 +536,7 @@ function SettingsScreen() {
                 thumbColor="#ffffff"
               />
             </View>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 12.5, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
               Nouveautés et conseils. Les e-mails de sécurité (mot de passe, changement d’adresse)
               partent toujours : sans eux, tu ne pourrais plus récupérer ton compte.
             </Text>
@@ -527,7 +550,7 @@ function SettingsScreen() {
                     réglages quand l'OS ne permet plus de demander. */}
                 <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
                 <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                  <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
+                  <RowIcon name="notifications-outline" color={COLORS.textSecondary} />
                   <Text style={styles.rowLabel}>Notifications sur le téléphone</Text>
                   <Switch
                     accessibilityLabel="Notifications sur le téléphone"
@@ -556,7 +579,7 @@ function SettingsScreen() {
                     thumbColor="#ffffff"
                   />
                 </View>
-                <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 12.5, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
                   Réponses à l'assistance, rappels et annonces Relyka.
                 </Text>
                 {/* Le cas qui piégeait : souhait enregistré, mais téléphone bloqué. On le DIT, avec
@@ -587,7 +610,7 @@ function SettingsScreen() {
                         catch (e: any) { setPushDiag(`Diagnostic impossible : ${e?.message ?? String(e)}`); }
                       }}
                     >
-                      <Ionicons name="pulse-outline" size={20} color={COLORS.textSecondary} />
+                      <RowIcon name="pulse-outline" color={COLORS.textSecondary} />
                       <Text style={styles.rowLabel}>Diagnostic push (admin)</Text>
                       <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
                     </TouchableOpacity>
@@ -608,7 +631,7 @@ function SettingsScreen() {
             {APP_LOCK_SUPPORTED && (
               <>
                 <View style={[styles.row, { borderBottomWidth: 0 }]}>
-                  <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} />
+                  <RowIcon name="lock-closed-outline" color={COLORS.textSecondary} />
                   <Text style={styles.rowLabel}>Verrouiller l'app</Text>
                   <Switch
                     accessibilityLabel="Verrouiller l’app"
@@ -618,7 +641,7 @@ function SettingsScreen() {
                     thumbColor="#ffffff"
                   />
                 </View>
-                <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 12.5, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
                   Demande Face ID / empreinte (ou le code de ton téléphone) au lancement de l'app. Protège tes données sur cet appareil.
                 </Text>
                 <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
@@ -674,6 +697,25 @@ function SettingsScreen() {
 }
 
 function makeStyles(c: AppColors) {
+  const base = makeBaseStyles(c);
+  /* Habillage Jardin : polices du Jardin (une famille par graisse, jamais de fontWeight), cartes
+     arrondies et contournées, titres de section en étiquette. */
+  return {
+    ...base,
+    ...StyleSheet.create({
+      safe: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
+      sectionTitle: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', fontSize: 12, letterSpacing: 1, color: G.inkSoft, textTransform: 'uppercase', marginBottom: 8, marginLeft: 4 },
+      card: { backgroundColor: G.card, borderRadius: 24, borderWidth: 1, borderColor: G.line, overflow: 'hidden', marginBottom: 22, shadowColor: '#1E3A2C', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+      row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: G.line },
+      rowLabel: { flex: 1, fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 15, color: G.ink },
+      currencyHint: { fontFamily: GF.body, fontSize: 13, color: G.inkSoft, lineHeight: 18 },
+      notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: G.notice, borderRadius: 18, padding: 14, marginBottom: 14 },
+      noticeText: { flex: 1, fontFamily: GF.body, fontSize: 13, lineHeight: 18, color: G.noticeText },
+    }),
+  };
+}
+
+function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

@@ -69,7 +69,9 @@ export default function Index() {
 
   if (user) {
     if (themeUnknown && !profileFetched && !themeWaitOver && !forceOpen) return <AppLoading />;
-    return <Redirect href="/(tabs)/pilotage" />;
+    /* Jardin : on y va directement. Jamais su sur cet appareil → on attend la réponse plutôt que de
+       montrer l'ancien tableau de bord (même plafond que l'attente du thème). */
+    return <Redirect href="/(tabs)/jardin" />;
   }
 
   return <WelcomeScreen />;

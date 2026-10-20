@@ -7,6 +7,10 @@
  * depuis n'importe quelle page. Toute sortie doit donc BAISSER ce drapeau (cf. `leave`), sinon le
  * bouton « Retour » renvoie sur cet écran en boucle.
  */
+import { usePublicColors } from '../hooks/garden/usePublicGarden';
+import { isGardenPalette as isGardenPaletteA } from '../lib/garden/gardenPalette';
+import { GARDEN_COLORS as GA } from '../lib/garden/theme';
+import { gFont, gLabel, withGarden } from '../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,7 +36,7 @@ function showAlert(title: string, message: string) {
 }
 
 export default function ResetPasswordScreen() {
-  const COLORS = useBrandColors();
+  const { colors: COLORS } = usePublicColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : carte centrée, comme login/inscription
   const router = useRouter();
@@ -230,6 +234,32 @@ export default function ResetPasswordScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPaletteA(c)) return base;
+  /* JARDIN : mêmes champs, habillés comme le reste de l'app (pilules, cartes, polices du Jardin). */
+  const o: any = {};
+  const set = (k: string, v: any) => { if (k in base) o[k] = { ...(base as any)[k], ...v }; };
+  set('root', { backgroundColor: GA.bg });
+  set('title', { ...gFont('display'), fontSize: 30, lineHeight: 36, color: GA.ink });
+  set('subtitle', { ...gFont('body'), fontSize: 16, color: GA.inkSoft });
+  set('label', { ...gLabel, marginBottom: 8 });
+  set('input', { backgroundColor: GA.card, borderColor: GA.line, borderRadius: 16, minHeight: 52, fontSize: 16, color: GA.ink, fontFamily: gFont('body').fontFamily });
+  set('btn', { backgroundColor: GA.primary, borderColor: GA.primary, borderRadius: 999, minHeight: 54, justifyContent: 'center' });
+  set('btnLabel', { ...gFont('bodyHeavy'), fontSize: 16, color: GA.onPrimary });
+  set('btnSecondary', { backgroundColor: GA.card, borderColor: GA.line, borderRadius: 999, minHeight: 54, justifyContent: 'center' });
+  set('emailNote', { ...gFont('body'), fontSize: 13, color: GA.muted, lineHeight: 18 });
+  set('note', { ...gFont('body'), fontSize: 13, color: GA.muted, lineHeight: 18 });
+  set('hint', { ...gFont('body'), fontSize: 13, color: GA.muted });
+  set('error', { ...gFont('bodyBold') });
+  set('errorText', { ...gFont('bodyBold') });
+  set('dividerLine', { backgroundColor: GA.line });
+  set('dividerText', { ...gFont('bodyBold'), color: GA.muted });
+  set('linkText', { ...gFont('bodyBold'), color: GA.primary });
+  set('text', { ...gFont('body'), color: GA.ink });
+  return withGarden(base, o);
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 24 },

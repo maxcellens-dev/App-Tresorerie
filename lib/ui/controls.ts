@@ -24,6 +24,19 @@
  */
 import { Platform, StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 import { readableOn, type AppColors } from '../../theme/palette';
+import { isGardenPalette } from '../garden/gardenPalette';
+import { GARDEN_COLORS as G } from '../garden/theme';
+import { GARDEN_FONTS as GF } from '../garden/fontFamilies';
+
+/* ── JARDIN ─────────────────────────────────────────────────────────────────────────────────────
+   Quand le Jardin est ouvert, les contrôles PARTAGÉS (boutons, segments, onglets, pastilles) prennent
+   la forme du Jardin : arrondis en pilule, polices du Jardin. Tous les anciens écrans qui les
+   utilisent changent d'un coup, sans être réécrits. Chaque graisse est une FAMILLE et `fontWeight`
+   reste à 'normal' : sinon Android retombe sur Roboto. */
+const gardenFont = (weight: 'regular' | 'bold' | 'heavy'): TextStyle => ({
+  fontFamily: weight === 'heavy' ? GF.bodyHeavy : weight === 'bold' ? GF.bodyBold : GF.body,
+  fontWeight: 'normal',
+});
 
 /** Curseur main sur le web : un élément cliquable doit se signaler comme tel. */
 export const pressableWeb = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {};
@@ -79,6 +92,7 @@ export function buttonVisual(
    */
   tone?: string,
 ): ButtonVisual {
+  if (isGardenPalette(c)) return gardenButtonVisual(c, variant, size, tone);
   const s = BUTTON_SIZES[size];
   const accent = tone || c.primary;
   const base: ViewStyle = {
@@ -148,6 +162,34 @@ export function buttonVisual(
 }
 
 /** Opacité d'un contrôle indisponible — la même partout, pour que « désactivé » se reconnaisse. */
+function gardenButtonVisual(c: AppColors, variant: ButtonVariant, size: ButtonSize, tone?: string): ButtonVisual {
+  const s = BUTTON_SIZES[size];
+  const accent = tone || G.primary;
+  const base: ViewStyle = {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s.gap,
+    minHeight: Math.max(44, s.minHeight + 2), paddingVertical: 8, paddingHorizontal: s.paddingHorizontal + 4,
+    borderRadius: 999, borderWidth: 1, borderColor: 'transparent', ...pressableWeb,
+  };
+  const label: TextStyle = { ...gardenFont('heavy'), fontSize: s.fontSize + 0.5, textAlign: 'center' };
+  const overlay = 'rgba(30,58,44,0.08)';
+  switch (variant) {
+    case 'secondary':
+      // Action offerte : fond blanc, contour, texte de l'accent (comme GardenButton « secondary »).
+      return { container: { ...base, backgroundColor: G.card, borderColor: G.line }, label: { ...label, color: tone ? accent : G.primary }, tint: tone ? accent : G.primary, pressOverlay: overlay };
+    case 'ghost':
+      return { container: { ...base, backgroundColor: 'transparent' }, label: { ...label, ...gardenFont('bold'), color: G.inkSoft }, tint: G.inkSoft, pressOverlay: overlay };
+    case 'danger':
+      return { container: { ...base, backgroundColor: G.fruitsBg, borderColor: G.fruitsBg }, label: { ...label, color: G.fruitsText }, tint: G.fruitsText, pressOverlay: overlay };
+    default:
+      return {
+        container: { ...base, backgroundColor: accent, borderColor: accent, shadowColor: '#1E3A2C', shadowOpacity: 0.14, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+        label: { ...label, color: tone ? readableOn(tone) : G.onPrimary },
+        tint: tone ? readableOn(tone) : G.onPrimary,
+        pressOverlay: 'rgba(0,0,0,0.12)',
+      };
+  }
+}
+
 export const DISABLED_OPACITY = 0.45;
 
 /**
@@ -159,6 +201,15 @@ export const DISABLED_OPACITY = 0.45;
  * rivaliser avec le vrai bouton de l'écran.
  */
 export function segmentStyles(c: AppColors) {
+  if (isGardenPalette(c)) {
+    return {
+      bar: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: G.track, borderRadius: 999 } as ViewStyle,
+      item: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 999, ...pressableWeb } as ViewStyle,
+      itemActive: { backgroundColor: G.card, shadowColor: '#1E3A2C', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 } as ViewStyle,
+      label: { ...gardenFont('bold'), fontSize: 13.5, color: G.inkSoft, flexShrink: 1 } as TextStyle,
+      labelActive: { ...gardenFont('heavy'), color: G.ink } as TextStyle,
+    };
+  }
   return {
     bar: {
       flexDirection: 'row',
@@ -199,6 +250,17 @@ export function segmentStyles(c: AppColors) {
  * servir partout où l'on partage une page entre deux vues.
  */
 export function pageTabStyles(c: AppColors) {
+  const base = pageTabStylesBase(c);
+  if (!isGardenPalette(c)) return base;
+  return {
+    ...base,
+    itemActive: { borderBottomColor: G.primary } as ViewStyle,
+    label: { ...gardenFont('bold'), fontSize: 17, color: G.inkSoft } as TextStyle,
+    labelActive: { ...gardenFont('heavy'), color: G.ink } as TextStyle,
+  };
+}
+
+function pageTabStylesBase(c: AppColors) {
   return {
     bar: {
       flexDirection: 'row',
@@ -243,6 +305,18 @@ export function pageTabStyles(c: AppColors) {
  * couleur de catégorie) sans casser l'unité : seule la teinte change, jamais la géométrie.
  */
 export function chipStyles(c: AppColors) {
+  const base = chipStylesBase(c);
+  if (!isGardenPalette(c)) return base;
+  return {
+    ...base,
+    chip: { ...base.chip, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14, borderColor: G.line, backgroundColor: G.card } as ViewStyle,
+    chipActive: { borderColor: G.primary, backgroundColor: G.branchesBg } as ViewStyle,
+    label: { ...gardenFont('bold'), fontSize: 13.5, color: G.inkSoft } as TextStyle,
+    labelActive: { ...gardenFont('heavy'), color: G.primary } as TextStyle,
+  };
+}
+
+function chipStylesBase(c: AppColors) {
   return {
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } as ViewStyle,
     chip: {

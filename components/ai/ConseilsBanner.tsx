@@ -3,6 +3,8 @@
  * Ordre : « Pour toi » (contextuel) d'abord, puis général. Rotation auto toutes les 5 s
  * s'il y a 2 conseils. Croix → fermé pour la journée.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -134,6 +136,12 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     // Pas de `marginBottom` : l'écran hôte (Pilotage) espace déjà ses blocs avec un `gap`. La marge
     // s'y ajoutait, et le vide sous ce bandeau paraissait plus grand que partout ailleurs.

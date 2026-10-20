@@ -15,7 +15,7 @@ import { useLandingConfig, mergeLanding, type LandingConfig } from '../../hooks/
 import { signalAppReady } from '../../lib/platform/splashGate';
 import { getCachedAdminTheme } from '../../lib/platform/themeBoot';
 import AppLoading from '../system/AppLoading';
-import LandingPage from './LandingPage';
+import GardenLandingPage from './GardenLandingPage';
 import PlayStoreBadge from './PlayStoreBadge';
 import SocialLinks from './SocialLinks';
 
@@ -23,6 +23,7 @@ import SocialLinks from './SocialLinks';
 const REVEAL_CAP_MS = 700;
 /** Attente maximale du thème de la vitrine à la toute première visite (web). Cf. `themeUnknown`. */
 const THEME_CAP_MS = 2000;
+
 
 
 /** Shared native welcome screen; preview uses the same layout without navigation or boot effects. */
@@ -117,7 +118,9 @@ export default function WelcomeScreen({ previewConfig, previewWidth }: { preview
      et cette attente n'existe plus. Bornée : sans réseau, on affiche quand même la page. */
   if (themeUnknown && !themeCapReached) return <AppLoading />;
 
-  if (showLanding) return <LandingPage />;
+  /* Vitrine du Jardin : affichée quand la refonte est ouverte à tous (garden_ui = 'all'), ou en
+     aperçu avec ?jardin=1 dans l'adresse. Sinon, la vitrine actuelle. */
+  if (showLanding) return <GardenLandingPage />;
 
   return (
     <View style={styles.root}>

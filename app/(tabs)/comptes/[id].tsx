@@ -29,6 +29,11 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts, useUpdateAccount } from '../../../hooks/data/useAccounts';
 import { useAccountParticipants, useAccountMembers } from '../../../hooks/data/useSharedAccounts';
 import { useAllTransactions, useAddTransaction, TX_FETCH_LIMIT } from '../../../hooks/data/useTransactions';
+import { useCategories } from '../../../hooks/data/useCategories';
+import { SubCategoryFilterPanel, filterBySubCategory } from '../../../components/transaction/SubCategoryFilter';
+import { isGardenPalette } from '../../../lib/garden/gardenPalette';
+import { GARDEN_COLORS as G } from '../../../lib/garden/theme';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 import { useTransactionMonthOverrides } from '../../../hooks/data/useTransactionMonthOverrides';
 import { useCreditFlows } from '../../../hooks/data/useCreditFlows';
 import { buildOverrideMap, applyMonthOverrides, overrideKey } from '../../../lib/finance/txOverrides';
@@ -145,6 +150,11 @@ function AccountDetailScreen() {
   const accountsQuery = useAllAccounts(user?.id);
   const accounts = accountsQuery.data ?? [];
   const { data: rawTransactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
+  /* Filtre de l'onglet Transactions : la SOUS-CATÉGORIE seulement — le compte, lui, est déjà choisi
+     puisqu'on est sur sa fiche (même filtre que la page Transactions, cf. SubCategoryFilter). */
+  const { data: categories = [] } = useCategories(user?.id);
+  const [categoryFilterId, setCategoryFilterId] = useState<string | null>(null);
+  const [showCatFilter, setShowCatFilter] = useState(false);
   // Une échéance modifiée « pour ce mois seulement » vit dans transaction_month_overrides, pas dans
   // la ligne : sans ça, la fiche du compte affichait l'ancien montant d'une transaction que la page
   // Transactions montrait déjà modifiée (même transaction, deux valeurs).
@@ -298,9 +308,18 @@ function AccountDetailScreen() {
      mois courant. L'historique s'arrête volontairement à aujourd'hui (il raconte ce qui s'est
      passé) : sans ce bloc, une échéance déjà saisie pour le 28 n'apparaissait NULLE PART sur la
      fiche du compte, alors qu'elle va bel et bien sortir. */
-  const upcomingThisMonth = useMemo(() => {
+  /** Mois affiché dans l'onglet Transactions ('YYYY-MM'), navigable comme la page Transactions. */
+  const [monthKey, setMonthKey] = useState(() => todayISO().slice(0, 7));
+  useEffect(() => { setMonthKey(todayISO().slice(0, 7)); }, [id]);
+  const shiftMonth = (delta: number) => setMonthKey((k) => {
+    const d = new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  /** Ce qui reste à passer dans un mois donné (lignes réelles datées après aujourd'hui + récurrentes
+   *  pas encore matérialisées + échéances de crédit) — même logique que l'ancien « à venir ce mois ». */
+  const projectedFor = (monthPrefix: string): any[] => {
     const today = todayISO();
-    const monthPrefix = today.slice(0, 7);
     const year = Number(monthPrefix.slice(0, 4));
     const month = Number(monthPrefix.slice(5, 7));
     const all = ((transactions as TransactionWithDetails[]) ?? []);
@@ -337,13 +356,27 @@ function AccountDetailScreen() {
     }
 
     return rows.sort((x, y) => (x.date ?? '').localeCompare(y.date ?? ''));
-  }, [id, transactions, creditFlows, overrideMap]);
-  const upcomingTotal = useMemo(
-    () => upcomingThisMonth.reduce((sum, t) => sum + Number(t.amount), 0),
-    [upcomingThisMonth],
-  );
-  /** Bascule « à venir » : la liste montre alors ce qui reste à passer, au lieu de l'historique. */
-  const [showUpcoming, setShowUpcoming] = useState(false);
+  };
+
+  /* LE MOIS AFFICHÉ : passé = ses opérations ; mois courant = ce qui est passé + ce qui reste à
+     passer ; mois à venir = ce qui est prévu. Du plus récent au plus ancien. */
+  const monthRows = useMemo(() => {
+    const today = todayISO();
+    const cur = today.slice(0, 7);
+    const all = ((transactions as TransactionWithDetails[]) ?? []);
+    const real = monthKey > cur ? [] : all.filter((t) => t.account_id === id && !(t as any).is_draft
+      && (t.date ?? '').startsWith(monthKey) && (monthKey < cur || (t.date ?? '') <= today));
+    const future = monthKey >= cur ? projectedFor(monthKey) : [];
+    const rows = [...future.reverse(), ...[...real].sort(compareTransactionsForDisplay)];
+    return filterBySubCategory(rows, categoryFilterId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, transactions, creditFlows, overrideMap, monthKey, categoryFilterId]);
+  const monthIn = monthRows.filter((t) => Number(t.amount) > 0).reduce((a, t) => a + Number(t.amount), 0);
+  const monthOut = monthRows.filter((t) => Number(t.amount) < 0).reduce((a, t) => a + Number(t.amount), 0);
+  const monthLabel = new Date(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const upcomingThisMonth = monthRows;
+  /** Historique affiché dans l'onglet Transactions (filtré) — `accountTransactions` reste entier. */
+  const historyTransactions = useMemo(() => filterBySubCategory(accountTransactions, categoryFilterId), [accountTransactions, categoryFilterId]);
 
   /* ÉVOLUTION DU SOLDE — remontée à rebours depuis le solde du jour (cf. lib/balanceHistory) : la
      courbe finit donc EXACTEMENT sur le chiffre affiché juste au-dessus d'elle. */
@@ -392,13 +425,13 @@ function AccountDetailScreen() {
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth() - (monthsShown - 1), 1);
     const cutoff = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-01`;
-    const visible = accountTransactions.filter((t) => (t.date ?? '') >= cutoff);
+    const visible = historyTransactions.filter((t) => (t.date ?? '') >= cutoff);
     return {
       visibleTransactions: visible,
-      hasMoreHistory: visible.length < accountTransactions.length,
+      hasMoreHistory: visible.length < historyTransactions.length,
       historySince: from.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
     };
-  }, [accountTransactions, monthsShown]);
+  }, [historyTransactions, monthsShown]);
 
   /* PAS ENCORE CHARGÉ ≠ INTROUVABLE. Tant que la liste des comptes est en vol, on montre la
      coquille de chargement plutôt qu'un « Chargement… » posé sur un écran nu. Et on ne conclut à
@@ -660,41 +693,63 @@ function AccountDetailScreen() {
         </>)}
 
         {tab === 'transactions' && (<>
-        {/* À VENIR CE MOIS — même geste que sur la liste des transactions : un bouton qui bascule
-            la liste sur ce qui n'est pas encore passé. Posé AU-DESSUS de l'historique, puisqu'il
-            parle du futur proche et que l'historique, lui, remonte le temps. */}
-        {upcomingThisMonth.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          {/* Navigation par MOIS, comme la page Transactions : mois passés et mois à venir. */}
+          <TouchableOpacity onPress={() => shiftMonth(-1)} accessibilityRole="button" accessibilityLabel="Mois précédent" hitSlop={6}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.card }}>
+            <Ionicons name="chevron-back" size={18} color={COLORS.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setMonthKey(todayISO().slice(0, 7))} accessibilityRole="button" accessibilityLabel={`${monthLabel}, revenir au mois en cours`} style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={[styles.monthTitle, { textTransform: 'capitalize' }]}>{monthLabel}</Text>
+            {monthRows.length ? (
+              <Text style={styles.monthTotals}>
+                {monthIn > 0 ? `+${Math.round(monthIn).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}` : ''}{monthIn > 0 && monthOut < 0 ? '  ·  ' : ''}{monthOut < 0 ? `−${Math.round(-monthOut).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}` : ''}
+              </Text>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => shiftMonth(1)} accessibilityRole="button" accessibilityLabel="Mois suivant" hitSlop={6}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.card }}>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
+          </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.upcomingBtn, showUpcoming && styles.upcomingBtnActive]}
-            onPress={() => setShowUpcoming((v) => !v)}
-            activeOpacity={0.75}
+            onPress={() => setShowCatFilter((v) => !v)}
             accessibilityRole="button"
+            accessibilityLabel="Filtrer par sous-catégorie"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: categoryFilterId ? COLORS.emerald : COLORS.cardBorder, backgroundColor: categoryFilterId ? COLORS.emerald : 'transparent' }}
           >
-            <Ionicons name="time-outline" size={16} color={showUpcoming ? COLORS.bg : COLORS.textSecondary} />
-            <Text style={[styles.upcomingLabel, showUpcoming && { color: COLORS.bg }]}>
-              À venir ce mois ({upcomingThisMonth.length})
-            </Text>
-            <Text style={[styles.upcomingAmount, showUpcoming && { color: COLORS.bg }]}>
-              {upcomingTotal > 0 ? '+' : ''}{Math.round(upcomingTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
-            </Text>
+            <Ionicons name="filter" size={18} color={categoryFilterId ? COLORS.onAccent : COLORS.textSecondary} />
+            {categoryFilterId ? <Text style={{ fontSize: 11.5, fontWeight: '800', color: COLORS.onAccent }}>1</Text> : null}
+          </TouchableOpacity>
+        </View>
+        {showCatFilter && (
+          <SubCategoryFilterPanel
+            categories={categories}
+            value={categoryFilterId}
+            onChange={setCategoryFilterId}
+            onClose={() => setShowCatFilter(false)}
+            resultCount={monthRows.length}
+          />
+        )}
+        {categoryFilterId && !showCatFilter && (
+          <TouchableOpacity onPress={() => setCategoryFilterId(null)} accessibilityRole="button" accessibilityLabel="Retirer le filtre"
+            style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: COLORS.emerald + '1A', marginBottom: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.emerald }}>{categories.find((c: any) => c.id === categoryFilterId)?.name ?? 'Sous-catégorie'}</Text>
+            <Ionicons name="close" size={14} color={COLORS.emerald} />
           </TouchableOpacity>
         )}
-
-        <Text style={styles.sectionTitle}>
-          {showUpcoming ? 'À venir ce mois' : 'Historique des transactions'}
-        </Text>
         {txLoading ? (
           <ActivityIndicator size="small" color={COLORS.emerald} style={styles.loader} />
-        ) : (showUpcoming ? upcomingThisMonth : accountTransactions).length === 0 ? (
+        ) : monthRows.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="document-text-outline" size={32} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>
-              {showUpcoming ? 'Plus rien à venir ce mois sur ce compte.' : 'Aucune transaction sur ce compte.'}
+              {categoryFilterId ? 'Aucune transaction pour cette sous-catégorie ce mois-ci.' : 'Aucune opération sur ce compte ce mois-ci.'}
             </Text>
           </View>
         ) : (
           <View style={styles.listCard}>
-            {(showUpcoming ? upcomingThisMonth : visibleTransactions).map((t, idx) => {
+            {monthRows.map((t, idx) => {
+              const upcoming = (t.date ?? '') > todayISO();
               const amount = Number(t.amount);
               // Ligne PROJETÉE (échéance de crédit ou récurrente pas encore matérialisée) : aucune
               // ligne réelle derrière → pas d'appariement de virement, et le détail n'a rien à ouvrir.
@@ -719,7 +774,7 @@ function AccountDetailScreen() {
               return (
                 <TouchableOpacity
                   key={`${t.id}-${idx}`}
-                  style={[styles.transferRow, idx === (showUpcoming ? upcomingThisMonth : visibleTransactions).length - 1 && styles.transferRowLast]}
+                  style={[styles.transferRow, idx === monthRows.length - 1 && styles.transferRowLast, upcoming && { opacity: 0.72 }]}
                   onPress={() => {
                     // Prélèvement de crédit → sa fiche, positionnée SUR l'échéance touchée
                     // (`credit_period`) : c'est là qu'elle se corrige, pas dans l'éditeur de
@@ -740,6 +795,7 @@ function AccountDetailScreen() {
                     <Text style={styles.transferDate}>
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                       {isSharedView && !creditId ? ` - par ${authorOf(t)}` : ''}
+                      {upcoming ? ' · à venir' : ''}
                     </Text>
                     <Text style={[styles.transferLabel, t.category?.name === 'Projets' && { color: COLORS.blue }]}>{label}</Text>
                     {isRegulRow(t) && (t as any).regul_target != null && (
@@ -759,27 +815,6 @@ function AccountDetailScreen() {
                 </TouchableOpacity>
               );
             })}
-          </View>
-        )}
-
-        {/* Pagination de l'historique — la période affichée est nommée, pour que l'utilisateur
-            sache qu'il ne manque rien : c'est masqué, pas absent. */}
-        {!txLoading && !showUpcoming && accountTransactions.length > 0 && (
-          <View style={styles.historyFooter}>
-            <Text style={styles.historyRange}>
-              {`${visibleTransactions.length} opération${visibleTransactions.length > 1 ? 's' : ''} depuis ${historySince}`}
-            </Text>
-            {hasMoreHistory && (
-              <TouchableOpacity
-                style={styles.loadMoreBtn}
-                onPress={() => setMonthsShown((m) => m + MONTHS_STEP)}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-              >
-                <Ionicons name="chevron-down" size={16} color={COLORS.emerald} />
-                <Text style={styles.loadMoreText}>Charger 3 mois de plus</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
@@ -975,6 +1010,59 @@ function AccountDetailScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPalette(c)) return base;
+  /* JARDIN : cartes arrondies et contournées, polices du Jardin (une famille par graisse, jamais de
+     fontWeight — Android retomberait sur Roboto), boutons en pilule. */
+  const card = { backgroundColor: G.card, borderRadius: 24, borderWidth: 1, borderColor: G.line, shadowColor: '#1E3A2C', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 };
+  const font = (w: 'body' | 'bodyBold' | 'bodyHeavy' | 'display') => ({ fontFamily: GF[w], fontWeight: 'normal' as const });
+  return {
+    ...base,
+    ...StyleSheet.create({
+      safe: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
+      balanceCard: { ...card, padding: 18, marginBottom: 14 },
+      balanceAmount: { ...font('display'), flex: 1, minWidth: 0, fontSize: 32, color: G.ink },
+      typePill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: G.field },
+      typePillText: { ...font('bodyHeavy'), fontSize: 12, color: G.inkSoft },
+      chartCard: { ...card, padding: 14, marginBottom: 20, alignItems: 'center' },
+      chartCaption: { ...font('body'), fontSize: 12, color: G.muted, marginTop: 4, textAlign: 'center' },
+      actionIcon: { ...base.actionIcon, shadowColor: '#1E3A2C', shadowOpacity: 0.12, shadowRadius: 6 },
+      actionLabel: { ...font('bodyBold'), fontSize: 12, color: G.ink, textAlign: 'center', lineHeight: 15 },
+      setupBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: G.waterBg, borderRadius: 20, padding: 16, marginBottom: 24, marginTop: -8 },
+      setupBannerTitle: { ...font('bodyBold'), fontSize: 15, color: G.ink },
+      setupBannerText: { ...font('body'), fontSize: 13, color: G.inkSoft, marginTop: 2, lineHeight: 18 },
+      apportCard: { ...card, padding: 18, marginBottom: 24 },
+      apportLabel: { ...font('body'), fontSize: 14, color: G.inkSoft },
+      apportValueRO: { ...font('bodyHeavy'), fontSize: 15, color: G.ink },
+      apportValue: { ...font('bodyHeavy'), fontSize: 15, color: G.ink },
+      apportInput: { ...base.apportInput, ...font('bodyBold'), borderRadius: 12, borderColor: G.line, paddingVertical: 8 },
+      apportSave: { width: 36, height: 36, borderRadius: 18, backgroundColor: G.primary, alignItems: 'center', justifyContent: 'center' },
+      apportHint: { ...font('body'), fontSize: 12, color: G.muted, lineHeight: 16, marginTop: 2 },
+      monthTitle: { ...font('display'), fontSize: 18, color: G.ink },
+      monthTotals: { ...font('bodyBold'), fontSize: 12.5, color: G.muted, marginTop: 1 },
+      sectionTitle: { ...font('bodyHeavy'), fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: G.inkSoft, marginBottom: 10, marginLeft: 4 },
+      upcomingBtn: { ...base.upcomingBtn, borderRadius: 999, backgroundColor: G.card, borderColor: G.line, minHeight: 48, paddingHorizontal: 16 },
+      upcomingBtnActive: { backgroundColor: G.primary, borderColor: G.primary },
+      upcomingLabel: { ...font('bodyBold'), flex: 1, fontSize: 14, color: G.ink },
+      upcomingAmount: { ...font('bodyHeavy'), fontSize: 14, color: G.inkSoft },
+      emptyCard: { ...base.emptyCard, ...card },
+      emptyText: { ...font('body'), fontSize: 14, color: G.inkSoft, marginTop: 12 },
+      listCard: { ...base.listCard, ...card, overflow: 'hidden' },
+      transferRow: { ...base.transferRow, minHeight: 62, paddingHorizontal: 16, borderBottomColor: G.line },
+      transferDate: { ...font('body'), fontSize: 12.5, color: G.muted, marginBottom: 2 },
+      transferLabel: { ...font('bodyBold'), fontSize: 15, color: G.ink },
+      regulTarget: { ...font('bodyBold'), fontSize: 12, color: G.primary, marginTop: 1 },
+      transferAmount: { ...font('bodyHeavy'), fontSize: 15 },
+      transferAmountIn: { color: G.branchesText },
+      transferAmountOut: { color: G.ink },
+      historyRange: { ...font('body'), fontSize: 13, color: G.muted, textAlign: 'center' },
+      loadMoreBtn: { ...base.loadMoreBtn, borderRadius: 999, backgroundColor: G.card, borderColor: G.line },
+      loadMoreText: { ...font('bodyHeavy'), fontSize: 14, color: G.primary },
+    }),
+  };
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
@@ -1053,6 +1141,8 @@ function makeStyles(c: any) {
   apportSave: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
   apportHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 2 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
+  monthTitle: { fontSize: 16, fontWeight: '800', color: c.text },
+  monthTotals: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
 
   // Bascule « À venir ce mois » : discrète quand elle dort, pleine quand elle filtre.
   upcomingBtn: {

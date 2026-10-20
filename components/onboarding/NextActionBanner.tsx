@@ -2,6 +2,8 @@
 // Affiche l'UNIQUE action prioritaire (moteur d'état). Dismissable ; réapparaît à la prochaine
 // ouverture de l'app tant que l'action reste pertinente (dismiss = mémoire de SESSION uniquement).
 // Visible UNIQUEMENT sur le Pilotage (jamais par-dessus un écran de saisie).
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -227,6 +229,12 @@ export default function NextActionBanner() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     // WEB : le bandeau est monté à la RACINE, donc hors de toute colonne d'app. Sur un écran
     // d'ordinateur, `left/right: 12` l'étirait sur toute la fenêtre (un bandeau de 1900 px de large

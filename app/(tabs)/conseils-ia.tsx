@@ -4,6 +4,9 @@
  * l'historique. L'appel au modèle passe par l'Edge Function `ai-advice` (clé API jamais côté client).
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
+import { live } from '../../lib/garden/live';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/layout/ScreenGradient';
 import CalculatorButton from '../../components/transaction/CalculatorButton';
@@ -43,14 +46,49 @@ import { resolveAiAccess } from '../../lib/ai/aiAccess';
 import { appPrompt } from '../../lib/ui/appDialog';
 import { supabase } from '../../lib/platform/supabase';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import PicoBubble from '../../components/garden/PicoBubble';
+import { GARDEN_COLORS as G, GARDEN_RADII } from '../../lib/garden/theme';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
+
+/* Analyses en mode Jardin : chacune prend une couleur de l'arbre, à tour de rôle. */
+const GARDEN_ANALYSIS_LOOKS = live(() => ([
+  /* Verts, bleus et rose seulement : l'orange est réservé à Pico (sa bulle), sinon tout se confond. */
+  { bg: G.branchesBg, fg: G.branchesText, line: '#B9DDBF', icon: 'pulse-outline' },
+  { bg: G.waterBg, fg: G.waterText, line: '#B3DCEC', icon: 'cart-outline' },
+  { bg: G.flowersBg, fg: G.flowersText, line: '#F2C3D5', icon: 'bulb-outline' },
+  { bg: G.card, fg: G.primary, line: G.line, icon: 'analytics-outline' },
+]));
+
+/**
+ * Habillage Jardin (onglet « Ta question » de Pico) : mêmes blocs, polices et couleurs du Jardin.
+ * Chaque graisse est une famille ; `fontWeight` repasse à 'normal' (sinon Android retombe sur Roboto).
+ */
+const gardenStyleOverrides = () => StyleSheet.create({
+  consent: { fontFamily: GF.body, fontStyle: 'normal', fontSize: 12, lineHeight: 17, color: G.muted, marginTop: 4 },
+  sectionLbl: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', fontSize: 12, letterSpacing: 1, color: G.inkSoft, textTransform: 'uppercase', marginTop: 18, marginBottom: 8 },
+  analysisTxt: { flex: 1, fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 15, color: G.ink },
+  bubbleUser: { maxWidth: '85%', backgroundColor: G.primary, borderRadius: 18, borderBottomRightRadius: 6, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleUserTxt: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: G.onPrimary, fontSize: 15, lineHeight: 21 },
+  bubbleAssistant: { backgroundColor: G.card, borderWidth: 1, borderColor: G.line, borderRadius: 18, borderBottomLeftRadius: 6, padding: 14 },
+  bubbleAssistantTxt: { fontFamily: GF.body, color: G.ink, fontSize: 15, lineHeight: 22 },
+  chip: { maxWidth: '100%', flexShrink: 1, backgroundColor: G.card, borderWidth: 1.5, borderColor: G.line, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  chipTxt: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 14, color: G.primary },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: G.line, backgroundColor: G.bg },
+  input: { maxHeight: 110, backgroundColor: G.card, borderWidth: 1, borderColor: G.line, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 11, color: G.ink, fontSize: 15, fontFamily: GF.body },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: G.primary, alignItems: 'center', justifyContent: 'center' },
+});
 
 /** Longueur max d'une question (le serveur tronque au-delà : on le dit AVANT, plutôt que de couper en silence). */
 const MAX_QUESTION = 2000;
 
 export default withDeferredMount(ConseilsIaScreen);
-function ConseilsIaScreen() {
+
+/** Version intégrée (onglet « Ta question » de Pico, Jardin) : mêmes conversations, sans « Retour ». */
+export const ConseilsIaSection = withDeferredMount(() => <ConseilsIaScreen embedded />);
+
+function ConseilsIaScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const c = useAppColors();
-  const s = useMemo(() => makeStyles(c), [c]);
+  const s = useMemo(() => (embedded ? { ...makeStyles(c), ...gardenStyleOverrides() } : makeStyles(c)), [c, embedded]);
   // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
   const sheetPad = useSheetBottomPadding(32);
   const { isDesktop } = useResponsive(); // web bureau : conversation dans une colonne lisible
@@ -401,9 +439,11 @@ function ConseilsIaScreen() {
                 <Ionicons name="refresh" size={16} color="#0f172a" />
                 <Text style={s.payBtnTxt}>Réessayer</Text>
               </TouchableOpacity>
+              {embedded ? null : (
               <TouchableOpacity style={{ marginTop: 14 }} onPress={goBack}>
                 <Text style={{ color: c.textSecondary, fontWeight: '700', fontSize: 13.5 }}>Retour</Text>
               </TouchableOpacity>
+              )}
             </>
           ) : (
             <ActivityIndicator size="large" color={c.emerald} />
@@ -420,12 +460,14 @@ function ConseilsIaScreen() {
         <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
         <ScreenGradient />
         <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
+          {embedded ? null : (
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8 }}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack} accessibilityRole="button">
               <Ionicons name="arrow-back" size={22} color={c.text} />
               <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>Retour</Text>
             </TouchableOpacity>
           </View>
+          )}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
             <Ionicons name="sparkles-outline" size={48} color={c.amber} />
             {/* L'offre Premium peut être coupée globalement (admin) : inviter à « passer Premium »
@@ -457,12 +499,40 @@ function ConseilsIaScreen() {
       <SafeAreaView style={[{ flex: 1 }, pageColumn(isDesktop, 'settings', 0)]} edges={['left', 'right']}>
         {/* La colonne se rétrécit de la hauteur visible du clavier → la barre reste posée dessus. */}
         <Reanimated.View style={[{ flex: 1 }, kbAvoid]}>
-          {/* Header */}
+          {embedded ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 }}>
+              <TouchableOpacity onPress={() => setShowConvs(true)} accessibilityRole="button" accessibilityLabel="Mes conversations"
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 14, borderRadius: GARDEN_RADII.pill, backgroundColor: G.card, borderWidth: 1, borderColor: G.line }}>
+                <Ionicons name="chatbubbles-outline" size={17} color={G.primary} />
+                <Text style={{ flex: 1, fontFamily: GF.bodyBold, fontSize: 14, color: G.ink }} numberOfLines={1}>{currentConv ? currentConv.title : 'Nouvelle conversation'}</Text>
+                {conversations.length > 0 ? <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 12, color: G.muted }}>{conversations.length}</Text> : null}
+                <Ionicons name="chevron-down" size={15} color={G.muted} />
+              </TouchableOpacity>
+              <TouchableOpacity disabled={!canRecharge} onPress={openRecharge} accessibilityRole={canRecharge ? 'button' : 'text'}
+                accessibilityLabel={quotaLoaded ? `${available} requêtes disponibles sur ${totalRequests}` : 'Requêtes disponibles en cours de chargement'}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, borderRadius: GARDEN_RADII.pill, backgroundColor: G.branchesBg }}>
+                <Ionicons name="sparkles" size={14} color={G.branchesText} />
+                <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 14, color: G.branchesText }}>{quotaLoaded ? available : '—'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={newConversation} disabled={readOnly} accessibilityRole="button" accessibilityLabel="Nouvelle conversation"
+                style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: readOnly ? G.field : G.primary }}>
+                <Ionicons name="add" size={22} color={readOnly ? G.muted : '#fff'} />
+              </TouchableOpacity>
+              {!!currentConv && !readOnly && (
+                <TouchableOpacity onPress={confirmDelete} disabled={delConv.isPending} accessibilityRole="button" accessibilityLabel="Supprimer cette conversation"
+                  style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: G.card, borderWidth: 1, borderColor: G.line }}>
+                  <Ionicons name="trash-outline" size={18} color={G.fruitsText} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
           <View style={s.header}>
+            {embedded ? null : (
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack}>
               <Ionicons name="arrow-back" size={22} color={c.text} />
               <Text style={{ color: c.text, fontWeight: '600', fontSize: 14 }}>Retour</Text>
             </TouchableOpacity>
+            )}
             <View style={{ flex: 1 }} />
             <TouchableOpacity onPress={() => setShowConvs(true)} style={s.headBtn} accessibilityRole="button" accessibilityLabel="Mes conversations">
               <Ionicons name="chatbubbles-outline" size={18} color={c.text} />
@@ -477,9 +547,11 @@ function ConseilsIaScreen() {
               </TouchableOpacity>
             )}
           </View>
+          )}
 
           <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-            {/* Titre + compteur */}
+            {/* Titre + compteur (hors Jardin : la rangée de pastilles du haut les porte déjà) */}
+            {embedded ? null : (
             <View style={s.titleRow}>
               <View style={s.iconBadge}><Ionicons name="sparkles" size={20} color={c.emerald} /></View>
               <View style={{ flex: 1 }}>
@@ -506,6 +578,7 @@ function ConseilsIaScreen() {
                 <Text style={s.counterLbl}>{quotaLoaded ? `/ ${totalRequests} requêtes` : 'requêtes'}</Text>
               </TouchableOpacity>
             </View>
+            )}
 
             {/* Plus aucune requête disponible → recharge si elle est activée, sinon explication. */}
             {outOfRequests && (
@@ -574,20 +647,37 @@ function ConseilsIaScreen() {
               <>
                 <Text style={s.sectionLbl}>Analyses</Text>
                 <View style={{ gap: 8 }}>
-                  {analyses.map((a) => (
+                  {analyses.map((a, i) => {
+                    const look = GARDEN_ANALYSIS_LOOKS[i % GARDEN_ANALYSIS_LOOKS.length];
+                    return embedded ? (
+                    <TouchableOpacity key={a.key} disabled={readOnly || pending} onPress={() => run({ kind: 'analysis', analysis_key: a.key })} accessibilityRole="button"
+                      style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: look.bg, borderRadius: GARDEN_RADII.lg, borderWidth: 1.5, borderColor: look.line, paddingHorizontal: 14, paddingVertical: 12 }, (readOnly || pending) && { opacity: 0.5 }]}>
+                      <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: G.card, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name={look.icon as any} size={19} color={look.fg} />
+                      </View>
+                      <Text style={s.analysisTxt} numberOfLines={2}>{a.title}</Text>
+                      <Ionicons name="chevron-forward" size={18} color={look.fg} />
+                    </TouchableOpacity>
+                    ) : (
                     <TouchableOpacity key={a.key} style={[s.analysisBtn, (readOnly || pending) && { opacity: 0.5 }]} disabled={readOnly || pending} onPress={() => run({ kind: 'analysis', analysis_key: a.key })}>
                       <Ionicons name="document-text-outline" size={18} color={c.emerald} />
                       <Text style={s.analysisTxt} numberOfLines={2}>{a.title}</Text>
                       <Ionicons name="chevron-forward" size={16} color={c.textSecondary} />
                     </TouchableOpacity>
-                  ))}
+                    );
+                  })}
                 </View>
               </>
             )}
 
             {/* Fil vide (première visite, ou nouvelle conversation) : on dit quoi faire, au lieu de
                 laisser un blanc entre les analyses et la barre de saisie. */}
-            {emptyThread && (
+            {emptyThread && embedded && (
+              <View style={{ marginTop: 18 }}>
+                <PicoBubble mood="thinking">Choisis une analyse pour un point complet, ou pose-moi directement ta question en bas. Chaque demande utilise 1 requête, et je te réponds avec tes vrais chiffres.</PicoBubble>
+              </View>
+            )}
+            {emptyThread && !embedded && (
               <View style={[s.bubbleAssistant, { marginTop: 18, gap: 6 }]}>
                 <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>Par où commencer ?</Text>
                 <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 19 }}>
@@ -614,7 +704,7 @@ function ConseilsIaScreen() {
             {pendingHere && (
               <View style={[s.bubbleAssistant, { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }]}>
                 <ActivityIndicator size="small" color={c.emerald} />
-                <Text style={{ color: c.textSecondary, fontSize: 13 }}>Le conseiller réfléchit…</Text>
+                <Text style={{ color: c.textSecondary, fontSize: 13 }}>{embedded ? 'Pépin réfléchit…' : 'Le conseiller réfléchit…'}</Text>
               </View>
             )}
 
@@ -864,6 +954,12 @@ function formatStamp(iso: string | null | undefined): string {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },

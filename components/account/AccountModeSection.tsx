@@ -3,6 +3,8 @@
 //     prélèvements internes sont invisibles pour votre budget.
 //   • Suivi partagé : vous suivez le compte au quotidien ; ses dépenses comptent dans votre budget
 //     à hauteur de votre part.
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -163,6 +165,12 @@ export default function AccountModeSection({ account }: { account: Account }) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     section: { marginTop: 18 },
     title: { fontSize: 15, fontWeight: '800', color: c.text },

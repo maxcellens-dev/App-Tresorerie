@@ -1,3 +1,5 @@
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 /**
  * ProfileMenuModal — menu en surimpression ouvert depuis l'avatar de l'en-tête.
@@ -165,6 +167,12 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'flex-end', paddingTop: Platform.OS === 'web' ? 56 : 70, paddingRight: 10, paddingLeft: 10 },
     panel: {

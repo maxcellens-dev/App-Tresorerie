@@ -9,6 +9,8 @@
  * Le flux COMPLET de clôture (modale, régularisations, bilan) écrit de vraies transactions : il se
  * teste sur un compte de test, pas ici.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../../hooks/theme/useAppColors';
@@ -53,7 +55,7 @@ export default function BannersGallery() {
         reste sans effet).
       </Text>
 
-      <Text style={styles.section}>Bandeau « prochain geste » (Pilotage)</Text>
+      <Text style={styles.section}>Bandeau « prochain geste » (Jardin)</Text>
       <Text style={styles.p}>
         Une seule action à la fois, la plus prioritaire. Aucune ne réclame le solde : c'est la carte
         Relyka qui le signale, là où le chiffre se lit.
@@ -68,7 +70,7 @@ export default function BannersGallery() {
         </View>
       ))}
 
-      <Text style={styles.section}>Bannière de clôture mensuelle (Pilotage)</Text>
+      <Text style={styles.section}>Bannière de clôture mensuelle (Jardin)</Text>
       <View style={styles.item}>
         <Text style={styles.itemLabel}>1 mois en attente</Text>
         <ClosureBannerCard pendingMonths={[ymAdd(-1)]} />
@@ -101,6 +103,12 @@ export default function BannersGallery() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
     section: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 22, marginBottom: 8 },

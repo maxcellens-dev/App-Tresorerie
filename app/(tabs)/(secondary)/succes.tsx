@@ -2,6 +2,11 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
+import SeedIcon from '../../../components/gamification/SeedIcon';
+import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
+import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
+import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
+import { isGardenPalette } from '../../../lib/garden/gardenPalette';
 import { useMemo, useEffect, useState } from 'react';
 import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Modal, ActivityIndicator } from 'react-native';
@@ -166,7 +171,7 @@ function SuccesScreen() {
         )}
         {!unlocked && gems > 0 && (
           <View style={styles.rewardPill}>
-            <Ionicons name="diamond" size={11} color={COLORS.textSecondary} />
+            <SeedIcon size={12} mono={COLORS.textSecondary} />
             <Text style={[styles.rewardText, { color: COLORS.textSecondary }]}>+{gems}</Text>
           </View>
         )}
@@ -179,11 +184,13 @@ function SuccesScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
+        {isGardenPalette(COLORS) ? null : (
         <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Succès</Text>
+        )}
+        {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Succès</Text>}
 
         {/* ── Ce qu'on affiche quand on ne SAIT pas encore ──────────────────────────────────
             Un « 0 » n'est pas une absence de réponse : la page annonçait 0 relyk, 0 succès et une
@@ -233,14 +240,14 @@ function SuccesScreen() {
               onPress={() => router.push('/(tabs)/(secondary)/boutique?focus=gems' as any)}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel="Recharger en relyks"
+              accessibilityLabel="Recharger en graines"
             >
-              <Ionicons name="diamond" size={22} color={COLORS.blue} />
+              <SeedIcon size={24} />
               <Text style={styles.summaryValue}>{state?.gems ?? 0}</Text>
               {/* Cette case OUVRE la boutique, les deux autres non — rien ne le disait : trois cases
                   strictement identiques, dont une seule réagit au toucher. Le petit « + » le dit. */}
               <View style={styles.summaryLinkRow}>
-                <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
+                <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Graine')}</Text>
                 <Ionicons name="add-circle" size={12} color={COLORS.blue} />
               </View>
             </TouchableOpacity>
@@ -333,8 +340,8 @@ function SuccesScreen() {
                   {!!selected.description && <Text style={styles.modalDesc}>{selected.description}</Text>}
                   {gems > 0 && (
                     <View style={[styles.modalReward, { borderColor: tint + '66', backgroundColor: tint + '14' }]}>
-                      <Ionicons name="diamond" size={15} color={tint} />
-                      <Text style={[styles.modalRewardText, { color: tint }]}>+{gems} {currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
+                      <SeedIcon size={16} />
+                      <Text style={[styles.modalRewardText, { color: tint }]}>+{gems} {currencyPlural(config?.identity.currencyName || 'Graine')}</Text>
                     </View>
                   )}
                   <View style={[styles.modalStatusPill, { backgroundColor: unlocked ? UNLOCK_COLOR + '1A' : COLORS.cardBorder + '55' }]}>
@@ -354,6 +361,42 @@ function SuccesScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPaletteL(c)) return base;
+  // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
+  return withGarden(base, {
+    safe: { ...base.safe, paddingHorizontal: 16 },
+    summary: { ...base.summary, ...gCard, padding: 16 },
+    summaryValue: { ...base.summaryValue, ...gFont('display'), fontSize: 24, color: GL.ink },
+    summaryLabel: { ...base.summaryLabel, ...gFont('body'), fontSize: 12.5, color: GL.inkSoft },
+    summaryDivider: { ...base.summaryDivider, backgroundColor: GL.line },
+    notice: { ...base.notice, backgroundColor: GL.notice, borderWidth: 0, borderRadius: 20 },
+    noticeTitle: { ...base.noticeTitle, ...gFont('bodyHeavy'), color: GL.noticeText },
+    noticeText: { ...base.noticeText, ...gFont('body'), color: GL.noticeText },
+    noticeBtn: { ...base.noticeBtn, borderRadius: 999 },
+    noticeBtnText: { ...base.noticeBtnText, ...gFont('bodyHeavy') },
+    actionBtn: { ...base.actionBtn, borderRadius: 999, backgroundColor: GL.card, borderColor: GL.line, borderWidth: 1, minHeight: 48 },
+    actionText: { ...base.actionText, ...gFont('bodyHeavy'), color: GL.primary },
+    groupTitle: { ...base.groupTitle, ...gLabel, marginLeft: 4 },
+    card: { ...base.card, ...gCard, borderRadius: 20 },
+    badgeLabel: { ...base.badgeLabel, ...gFont('bodyBold'), color: GL.ink },
+    badgeDesc: { ...base.badgeDesc, ...gFont('body'), color: GL.inkSoft },
+    rewardPill: { ...base.rewardPill, borderRadius: 999 },
+    progressTrack: { ...base.progressTrack, backgroundColor: GL.track, borderRadius: 999 },
+    progressFill: { ...base.progressFill, borderRadius: 999 },
+    progressText: { ...base.progressText, ...gFont('bodyBold'), color: GL.inkSoft },
+    rewardText: { ...base.rewardText, ...gFont('bodyHeavy') },
+    modalOverlay: { ...base.modalOverlay, backgroundColor: 'rgba(30,58,44,0.45)' },
+    modalCard: { ...base.modalCard, backgroundColor: GL.bg, borderRadius: 28, borderWidth: 0 },
+    modalLabel: { ...base.modalLabel, ...gFont('display'), color: GL.ink },
+    modalDesc: { ...base.modalDesc, ...gFont('body'), color: GL.inkSoft },
+    modalRewardText: { ...base.modalRewardText, ...gFont('bodyHeavy') },
+    modalStatusPill: { ...base.modalStatusPill, borderRadius: 999 },
+    modalStatusText: { ...base.modalStatusText, ...gFont('bodyHeavy') },
+  } as any);
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

@@ -10,6 +10,8 @@ import { Platform } from 'react-native';
 import { useStyleConfig } from '../../hooks/theme/useStyleConfig';
 import { injectGoogleFonts } from '../../lib/platform/webFonts';
 import { ensureNativeFonts } from '../../lib/platform/nativeFonts';
+import { useGardenFonts } from '../../hooks/garden/useGardenFonts';
+import { GARDEN_FONTS } from '../../lib/garden/fontFamilies';
 
 function fontFormat(url: string): string {
   return /\.woff2(\?.*)?$/i.test(url) ? 'woff2'
@@ -19,7 +21,13 @@ function fontFormat(url: string): string {
 
 export default function FontApplier() {
   const { data: styleConfig } = useStyleConfig();
-  const font = styleConfig?.font_family ?? 'System';
+  /* JARDIN (web) : le texte de TOUS les écrans existants passe en Nunito, la police du Jardin.
+     Les textes du Jardin qui fixent leur propre famille (Fredoka des titres) gardent la leur : la
+     règle globale exclut déjà les éléments porteurs d'un fontFamily explicite. Sur natif, une police
+     globale n'est pas fiable (cf. en-tête) : seuls les écrans du Jardin y sont en Nunito.
+     `font` change avec l'interrupteur → les effets ci-dessous se relancent d'eux-mêmes. */
+  useGardenFonts();
+  const font = `${GARDEN_FONTS.body}, Nunito, system-ui, sans-serif`;
   const importUrl = styleConfig?.font_import_url?.trim() ?? '';
   const appNameFont = styleConfig?.app_name_font?.trim() ?? '';
   const customFonts = styleConfig?.custom_fonts ?? [];
@@ -36,7 +44,7 @@ export default function FontApplier() {
   // quand elles sont sélectionnées (police globale ou police du nom de l'app).
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    injectGoogleFonts('app-google-fonts', [font, appNameFont]);
+    if (false) injectGoogleFonts('app-google-fonts', [font, appNameFont]);
   }, [font, appNameFont]);
 
   // Polices téléversées (fichiers Supabase) → une règle @font-face par police. Web uniquement.
@@ -118,12 +126,12 @@ export default function FontApplier() {
     // `:not([data-fontpreview])` → les APERÇUS du Style Editor gardent la police EN COURS de sélection
     // (leur fontFamily inline), au lieu d'être forcés à la police globale sauvegardée.
     el.textContent = `
-      [data-testid]:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
+      [data-testid]:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
       body, #root,
-      .css-text-146c3p1:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
-      div:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
-      span:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
-      p:not([data-appfont]):not([data-fontpreview]), input, textarea, button {
+      .css-text-146c3p1:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
+      div:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
+      span:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
+      p:not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]), input, textarea, button {
         font-family: ${font} !important;
       }
       /* Le NOM de l'app garde SA police (priorité absolue). */

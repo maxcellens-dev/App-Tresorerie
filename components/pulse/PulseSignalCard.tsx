@@ -7,6 +7,8 @@
  * La seule couleur est l'accent de l'app, sur la barre de progression — un remplissage, pas un
  * jugement. C'est un ÉTAT : aucune action, aucun bouton, le reste de l'app sert à agir.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { useAppColors } from '../../hooks/theme/useAppColors';
@@ -80,6 +82,12 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
 }
 
 function makeStyles(c: AppColors) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     card: {
       backgroundColor: c.card,

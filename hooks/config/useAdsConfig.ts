@@ -42,23 +42,30 @@ export type AdFormat = keyof typeof AD_FORMATS;
  * `label` = description courte de la position dans la page ; `format` = la forme de la zone.
  */
 export const AD_PLACEMENTS = [
-  { value: 'comptes',            group: 'Comptes',      label: 'Bas de page',                      format: 'banner' },
-  { value: 'comptes_actions',    group: 'Comptes',      label: 'À côté des actions',               format: 'compact' },
-  { value: 'transactions',       group: 'Transactions', label: 'Bas de page',                      format: 'banner' },
-  { value: 'transactions_mois',  group: 'Transactions', label: 'Entre 2 mois',                     format: 'banner' },
-  { value: 'pilotage',           group: 'Pilotage',     label: 'Bas de page',                      format: 'banner' },
-  { value: 'pilotage_suivi',     group: 'Pilotage',     label: 'Avant « Suivi du mois »',          format: 'banner' },
+  { value: 'jardin',             group: 'Mon jardin',   label: 'Bas de page',                      format: 'banner' },
+  { value: 'argent',             group: 'Mon argent',   label: 'Aujourd’hui · bas de page',        format: 'banner' },
+  { value: 'argent_mois',        group: 'Mon argent',   label: 'Ce mois · bas de page',            format: 'banner' },
+  { value: 'projection_mois',    group: 'Mon argent',   label: 'Demain · entre 2 mois',            format: 'banner' },
+  { value: 'projection',         group: 'Mon argent',   label: 'Demain et Mes placements · bas',   format: 'banner' },
+  { value: 'projection_invest',  group: 'Mes placements', label: 'Avant « Détail année par année »', format: 'banner' },
   { value: 'projets',            group: 'Projets',      label: 'Bas de page',                      format: 'banner' },
-  { value: 'projets_perso',      group: 'Projets',      label: 'Avant « Projets personnels »',     format: 'banner' },
-  { value: 'projection',         group: 'Projection',   label: 'Bas de page',                      format: 'banner' },
-  { value: 'projection_mois',    group: 'Projection',   label: 'Entre 2 mois',                     format: 'banner' },
-  { value: 'projection_invest',  group: 'Projection',   label: 'Avant « Détail année par année »', format: 'banner' },
+  { value: 'budgets',            group: 'Budgets',      label: 'Bas de page',                      format: 'banner' },
+  { value: 'pepin',              group: 'Pépin',        label: 'Sous ses remarques',               format: 'banner' },
   /* La carte de confirmation de saisie (« C'est enregistré ») : le seul emplacement en RECTANGLE.
      C'est une carte étroite et flottante, pas une page qui défile — un bandeau 3,5 : 1 y serait un
      filet illisible, et un carré y mangeait la moitié de la fenêtre. */
   { value: 'saisie_confirmation', group: 'Saisie',      label: 'Fin de « C’est enregistré »',      format: 'rect' },
 ] as const;
-export type AdPlacement = typeof AD_PLACEMENTS[number]['value'];
+
+/** Emplacements de l'ancienne interface → leur équivalent dans le Jardin. Les bannières déjà
+ *  configurées sur une ancienne page continuent donc de s'afficher, au bon endroit. */
+export const LEGACY_PLACEMENTS: Record<string, string> = {
+  pilotage: 'jardin', pilotage_suivi: 'argent_mois',
+  comptes: 'argent', comptes_actions: 'argent',
+  transactions: 'argent_mois', transactions_mois: 'argent_mois',
+  projets_perso: 'projets',
+};
+export type AdPlacement = typeof AD_PLACEMENTS[number]['value'] | 'transactions' | 'transactions_mois' | 'projets_perso';
 
 /** Format d'un emplacement. Repli `banner` : un emplacement inconnu ne doit pas casser le rendu. */
 export function placementFormat(placement: string): AdFormat {
@@ -81,30 +88,35 @@ export function placementLabel(placement: string): string {
  */
 export const AD_LINK_TARGETS = [
   // ── Pages ──
-  { value: 'comptes',          group: 'Pages',   label: 'Comptes',           route: '/(tabs)/comptes' },
-  { value: 'transactions',     group: 'Pages',   label: 'Transactions',      route: '/(tabs)/transactions' },
-  { value: 'pilotage',         group: 'Pages',   label: 'Pilotage',          route: '/(tabs)/pilotage' },
-  { value: 'projets',          group: 'Pages',   label: 'Projets',           route: '/(tabs)/projects' },
-  { value: 'projection',       group: 'Pages',   label: 'Projection',        route: '/(tabs)/projection' },
-  { value: 'tresorerie',       group: 'Pages',   label: 'Trésorerie',        route: '/(tabs)/tresorerie' },
-  { value: 'reporting',        group: 'Pages',   label: 'Reporting',         route: '/(tabs)/reporting' },
-  { value: 'conseils_ia',      group: 'Pages',   label: 'Conseils IA',       route: '/(tabs)/conseils-ia' },
+  { value: 'pilotage',         group: 'Pages',   label: 'Mon jardin',        route: '/(tabs)/jardin' },
+  { value: 'comptes',          group: 'Pages',   label: 'Mon argent',        route: '/(tabs)/argent' },
+  { value: 'argent_mois',      group: 'Pages',   label: 'Mon argent › Ce mois', route: '/(tabs)/argent?view=month' },
+  { value: 'projection',       group: 'Pages',   label: 'Mon argent › Demain', route: '/(tabs)/argent?view=tomorrow' },
+  { value: 'projets',          group: 'Pages',   label: 'Projets',           route: '/(tabs)/projets' },
+  { value: 'pepin',            group: 'Pages',   label: 'Pépin',             route: '/(tabs)/pico' },
+  { value: 'conseils_ia',      group: 'Pages',   label: 'Pépin › Ta question', route: '/(tabs)/conseils-ia' },
+  { value: 'placements',       group: 'Pages',   label: 'Mes placements',    route: '/(tabs)/(secondary)/placements' },
+  { value: 'credits',          group: 'Pages',   label: 'Mes crédits',       route: '/(tabs)/(secondary)/credits' },
+  { value: 'budgets',          group: 'Pages',   label: 'Budgets',           route: '/(tabs)/projects' },
+  { value: 'tresorerie',       group: 'Pages',   label: 'Plan mois par mois', route: '/(tabs)/tresorerie' },
+  { value: 'reporting',        group: 'Pages',   label: 'Bilan',             route: '/(tabs)/reporting' },
+  { value: 'profil_financier', group: 'Pages',   label: 'Mon parcours',      route: '/(tabs)/(secondary)/parcours' },
   { value: 'apparence',        group: 'Pages',   label: 'Apparence',         route: '/(tabs)/(secondary)/apparence' },
   { value: 'boutique',         group: 'Pages',   label: 'Boutique',          route: '/(tabs)/(secondary)/boutique' },
   { value: 'succes',           group: 'Pages',   label: 'Succès',            route: '/(tabs)/(secondary)/succes' },
   { value: 'plan',             group: 'Pages',   label: 'Plan',              route: '/(tabs)/(secondary)/premium' },
   { value: 'parametres',       group: 'Pages',   label: 'Paramètres',        route: '/(tabs)/(secondary)/parametres' },
-  { value: 'profil_financier', group: 'Pages',   label: 'Profil financier',  route: '/(tabs)/(secondary)/profil-financier' },
-  { value: 'support',          group: 'Pages',   label: 'Support',           route: '/(tabs)/(secondary)/support' },
-  { value: 'profil',           group: 'Pages',   label: 'Mon profil',        route: '/(tabs)/(secondary)/profile' },
-  // ── Actions (ouvrent la page + déclenchent le bouton) ──
-  { value: 'projets_new',        group: 'Actions', label: 'Projets › + Projet',            route: '/(tabs)/projects',   action: 'new' },
-  { value: 'comptes_new',        group: 'Actions', label: 'Comptes › Créer Compte',        route: '/(tabs)/comptes',    action: 'new-account' },
-  { value: 'comptes_credits',    group: 'Actions', label: 'Comptes › onglet Crédits',      route: '/(tabs)/comptes',    action: 'credits' },
-  { value: 'comptes_credit_new', group: 'Actions', label: 'Comptes › Ajouter un crédit',   route: '/(tabs)/comptes',    action: 'credit-new' },
-  { value: 'projection_treso',   group: 'Actions', label: 'Projection › Trésorerie',       route: '/(tabs)/projection', action: 'treso' },
-  { value: 'projection_invest',  group: 'Actions', label: 'Projection › Invest.',          route: '/(tabs)/projection', action: 'invest' },
-  { value: 'projection_epargne', group: 'Actions', label: 'Projection › Épargne',          route: '/(tabs)/projection', action: 'epargne' },
+  { value: 'support',          group: 'Pages',   label: 'Aide',              route: '/(tabs)/(secondary)/support' },
+  { value: 'profil',           group: 'Pages',   label: 'Mon profil',        route: '/(tabs)/(secondary)/moi' },
+  { value: 'transactions',     group: 'Pages',   label: 'Opérations',        route: '/(tabs)/transactions' },
+  // ── Actions (ouvrent directement un écran de saisie) ──
+  { value: 'comptes_new',        group: 'Actions', label: 'Ajouter un compte',          route: '/(tabs)/comptes/add' },
+  { value: 'comptes_credit_new', group: 'Actions', label: 'Ajouter un crédit',          route: '/(tabs)/comptes/credit-add' },
+  { value: 'comptes_credits',    group: 'Actions', label: 'Mes crédits',                route: '/(tabs)/(secondary)/credits' },
+  { value: 'projets_new',        group: 'Actions', label: 'Projets › + Projet',         route: '/(tabs)/projets' },
+  { value: 'projection_treso',   group: 'Actions', label: 'Mon argent › Demain',        route: '/(tabs)/argent?view=tomorrow' },
+  { value: 'projection_invest',  group: 'Actions', label: 'Mes placements',             route: '/(tabs)/(secondary)/placements' },
+  { value: 'projection_epargne', group: 'Actions', label: 'Mon parcours (épargne)',     route: '/(tabs)/(secondary)/parcours' },
 ] as const;
 export type AdLinkTarget = typeof AD_LINK_TARGETS[number]['value'];
 
@@ -145,8 +157,9 @@ export function bannerLink(b: AdBanner): { kind: 'internal'; href: string } | { 
 
 /** Pages ciblées par une bannière (gère la rétrocompat mono-page → liste). */
 export function bannerPlacements(b: AdBanner): AdPlacement[] {
-  if (b.placements && b.placements.length > 0) return b.placements;
-  return [b.placement ?? 'pilotage'];
+  const raw: string[] = b.placements && b.placements.length > 0 ? b.placements : [b.placement ?? 'jardin'];
+  // Anciennes pages → page équivalente du Jardin, sans doublon.
+  return Array.from(new Set(raw.map((p) => LEGACY_PLACEMENTS[p] ?? p))) as AdPlacement[];
 }
 export interface AdsConfig {
   banners: AdBanner[];

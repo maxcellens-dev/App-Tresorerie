@@ -8,6 +8,8 @@
  * perso_account_sharing_enabled (Soft : si OFF, on masque le formulaire d'invitation mais on garde
  * la gestion des membres déjà partagés). Les comptes JOINTS dédiés ne sont jamais gatés.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import AppButton from '../ui/AppButton';
@@ -183,6 +185,12 @@ export default function AccountShareSection({ account }: { account: Account }) {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { marginTop: 8, marginBottom: 20, borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 18 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },

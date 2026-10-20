@@ -10,6 +10,7 @@ import { useAllConseils, useConsilsSeenToday } from '../hooks/pilotage/useConsei
 import { hydrateThemeCache } from '../lib/platform/themeBoot';
 import { hydrateQueryCache, startQueryPersist, getHydratedKeys } from '../lib/platform/queryPersist';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler, AppState, Alert } from 'react-native';
+import { SystemBars } from 'react-native-edge-to-edge';
 import * as SplashScreen from 'expo-splash-screen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AnimatedSplash from '../components/system/AnimatedSplash';
@@ -29,7 +30,7 @@ import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/config/useConfigSync';
 import { usePilotageData } from '../hooks/pilotage/usePilotageData';
 import { supabase } from '../lib/platform/supabase';
-import HeaderWithProfile from '../components/layout/HeaderWithProfile';
+import GardenTopBar from '../components/garden/GardenTopBar';
 import { legalPresentation } from '../components/legal/LegalLayout';
 import { DESKTOP_MIN_WIDTH } from '../hooks/theme/useResponsive';
 import ImpersonationBanner from '../components/system/ImpersonationBanner';
@@ -456,14 +457,18 @@ function AppChrome() {
   return (
     <GuideProvider>
     <View style={styles.root}>
+      {/* Barre de navigation Android (boutons ◁ ○ □) : transparente (edge-to-edge,
+          enforceNavigationBarContrast: false), son style doit donc suivre le thème DE L'APP. Sans
+          ça, elle suivait celui du téléphone : téléphone en sombre + app en clair = boutons blancs
+          sur fond clair, invisibles. Seule la barre du bas est réglée ici ; la barre d'état reste
+          aux <StatusBar> des écrans. */}
+      <SystemBars style={{ navigationBar: COLORS.mode === 'dark' ? 'light' : 'dark' }} />
       <View style={desktopColumnStyle ?? (limitWidth ? styles.webColumn : styles.fullColumn)}>
       <AppDialogHost />
       <SeoHead />
       <ImpersonationBanner />
       {!hideChrome && user && !isTabs && root !== 'legal' && root !== 'confidentialite' && (
-        <SafeAreaView edges={['top']} style={styles.headerSafe}>
-          <HeaderWithProfile height={80} />
-        </SafeAreaView>
+        <GardenTopBar />
       )}
       <View style={styles.content}>
         {/* Transitions en FONDU (pas de slide) : l'accueil apparaît EN PLACE sous le splash,

@@ -1,3 +1,6 @@
+import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
+import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
+import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 /**
  * Support — assistance, idées, confidentialité, mentions légales, liens externes administrés.
@@ -90,7 +93,7 @@ export default function SupportScreen() {
             propre bouton « Retour » et son titre, avec un espacement et une taille qui ne
             correspondaient à aucune autre — c'est le genre d'écart qu'on ne voit qu'en passant
             d'un écran à l'autre. */}
-        <ScreenHeader title="Support" onBack={goBack} />
+        <ScreenHeader title={isGardenPaletteL(COLORS) ? 'Aide' : 'Support'} onBack={goBack} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {sections.map((sec) => (
@@ -127,6 +130,19 @@ export default function SupportScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  if (!isGardenPaletteL(c)) return base;
+  // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
+  return withGarden(base, {
+    safe: { ...base.safe, paddingHorizontal: 16 },
+    sectionTitle: { ...base.sectionTitle, ...gLabel, marginLeft: 4 },
+    card: { ...base.card, ...gCard, overflow: 'hidden' },
+    row: { ...base.row, minHeight: 56, borderBottomColor: GL.line },
+    rowLabel: { ...base.rowLabel, ...gFont('bodyBold'), color: GL.ink },
+  } as any);
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },

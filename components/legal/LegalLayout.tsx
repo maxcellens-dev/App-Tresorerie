@@ -11,6 +11,8 @@
  *  • `app` — mobile, tablette et natif → en-tête D'APP identique aux autres pages (barre « Relyka »
  *    + série/gemmes/avatar, puis flèche « Retour » + titre).
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, useWindowDimensions } from 'react-native';
 import ScreenGradient from '../layout/ScreenGradient';
@@ -25,8 +27,8 @@ import { useLandingConfig, DEFAULT_LANDING } from '../../hooks/config/useLanding
 import { useNavBack } from '../../hooks/platform/useNavBack';
 import { DESKTOP_MIN_WIDTH } from '../../hooks/theme/useResponsive';
 import { MAX_W } from '../../lib/ui/webLayout';
-import HeaderWithProfile from '../layout/HeaderWithProfile';
-import WebSideNav from '../web/WebSideNav';
+import GardenTopBar from '../garden/GardenTopBar';
+import GardenSideNav from '../garden/GardenSideNav';
 
 /** Seuil « bureau » : au-delà, un visiteur PUBLIC voit l'habillage site web. */
 export const LEGAL_DESKTOP_MIN_WIDTH = 900;
@@ -78,11 +80,11 @@ export default function LegalLayout({ title, children }: { title: string; childr
     return (
       <View style={styles.appDesktopShell}>
         <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <WebSideNav />
+        <GardenSideNav />
         <View style={styles.appDesktopMain}>
           {/* En PREMIER : le dégradé est en absoluteFill, il doit passer DERRIÈRE l'en-tête. */}
           <ScreenGradient />
-          <HeaderWithProfile title={title} desktop height={68} />
+          <GardenTopBar title={title} applyTopInset={false} />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.appDesktopScroll}>
             <View style={styles.appDesktopColumn}>
               <TouchableOpacity style={styles.backRow} onPress={goBack} activeOpacity={0.7} accessibilityRole="button">
@@ -163,9 +165,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView edges={['top']}>
-        <HeaderWithProfile title="Relyka" />
-      </SafeAreaView>
+      <GardenTopBar title={title} />
       <SafeAreaView style={styles.appSafe} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.appBackRow} onPress={goBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
@@ -182,6 +182,12 @@ export default function LegalLayout({ title, children }: { title: string; childr
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     contentWrap: { width: '100%', maxWidth: MAX_W.reading, alignSelf: 'center' },

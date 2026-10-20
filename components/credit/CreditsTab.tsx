@@ -11,6 +11,8 @@
  * il s'affiche (pastille rouge d'accès + « hors total ») mais n'entre dans AUCUN total. Un crédit
  * reçu marqué PARTAGÉ, lui, est bien une dette commune et compte.
  */
+import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
@@ -463,6 +465,12 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { paddingHorizontal: 16, paddingTop: 8 },
 

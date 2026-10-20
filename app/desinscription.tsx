@@ -6,6 +6,8 @@
  * propre à chaque compte et ne donne accès à RIEN d'autre : la fonction serveur ne sait que
  * basculer `email_opt_in` à false.
  */
+import { isGardenPalette as isGardenPaletteF } from '../lib/garden/gardenPalette';
+import { gardenFormStyles } from '../lib/garden/legacyStyles';
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -72,6 +74,12 @@ export default function UnsubscribeScreen() {
 }
 
 function makeStyles(c: any) {
+  const base = makeBaseStyles(c);
+  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
+  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+}
+
+function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },

@@ -24,6 +24,11 @@ export default function SecondaryLayout() {
       <Stack.Screen name="premium" />
       <Stack.Screen name="relyka-world" />
       <Stack.Screen name="admin" />
+      <Stack.Screen name="parcours" />
+      <Stack.Screen name="moi" />
+      <Stack.Screen name="demarrer" />
+      <Stack.Screen name="credits" />
+      <Stack.Screen name="placements" />
     </Stack>
   );
 }
