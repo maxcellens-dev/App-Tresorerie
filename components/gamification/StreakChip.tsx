@@ -19,6 +19,7 @@ import { useGamification } from '../../hooks/engagement/useGamification';
 import { useCosmetics } from '../../hooks/theme/useCosmetics';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { isImageIcon } from '../../lib/engagement/gamification';
+import { flameArt } from '../../lib/engagement/shopArt';
 import { clearStreakBump, pendingStreakBump, subscribeStreakBump, type StreakBump } from '../../lib/engagement/streakBump';
 
 /**
@@ -143,6 +144,9 @@ export default function StreakChip() {
       >
         {isImageIcon(streakIcon)
           ? <Image source={{ uri: streakIcon }} style={styles.iconImg} />
+          : streakIcon === '🔥' || streakIcon === 'flame'
+            // la flamme 3D, dans la couleur de la flamme équipée en boutique
+            ? <Image source={flameArt(flameTint)} style={[{ width: 18, height: 18 }, !isActive && !flameTint && { opacity: 0.4 }]} resizeMode="contain" />
           : flameTint
             // Flamme cosmétique : icône vectorielle colorée (l'emoji 🔥 n'est pas recolorable).
             ? <Ionicons name="flame" size={14} color={flameTint} />

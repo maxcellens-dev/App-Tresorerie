@@ -32,7 +32,7 @@ import { useRecurringTransactions } from '../../hooks/data/useRecurringTransacti
 import { formatEuros } from '../../lib/garden/picoChoices';
 import { CURRENCY_SYMBOL, convertAmount, currencySymbolFor } from '../../lib/finance/currency';
 import { computeMonthUpcoming, type UpcomingItem } from '../../lib/finance/monthUpcoming';
-import { ACCOUNT_ICONS } from '../../theme/colors';
+import { GARDEN_ICONS, accountIcon } from '../../lib/garden/icons';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE, mixHex } from '../../lib/garden/theme';
 import { MONEY_VIEWS, TABS, TREE_PARTS, WORDS } from '../../lib/garden/lexicon';
 import { pointer, transition } from '../../lib/ui/webLayout';
@@ -40,13 +40,14 @@ import { pointer, transition } from '../../lib/ui/webLayout';
 type View3 = 'today' | 'month' | 'tomorrow';
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 
-/* Un groupe par type de compte, avec l'icône de l'ancienne page Comptes (ACCOUNT_ICONS) : c'est
-   elle qui permettait de reconnaître un compte d'un coup d'œil. */
+/* Un groupe par type de compte. Chaque compte prend l'icône ET la couleur de SA partie de l'arbre
+   (lib/garden/icons) : courant = arrosoir, épargne = racines, placements = fruits — les mêmes que
+   dans la scène et sur les gestes de Pépin. */
 const GROUPS: { type: string; title: string; meaning: string; color: string; bg: string; typeLabel: string }[] = live(() => ([
-  { type: 'checking', title: TREE_PARTS.can.name, meaning: TREE_PARTS.can.meaning, color: G.waterText, bg: G.waterBg, typeLabel: 'Courant' },
-  { type: 'savings', title: TREE_PARTS.roots.name, meaning: TREE_PARTS.roots.meaning, color: G.rootsText, bg: G.rootsBg, typeLabel: 'Épargne' },
-  { type: 'investment', title: TREE_PARTS.branches.name, meaning: TREE_PARTS.branches.meaning, color: G.branchesText, bg: G.branchesBg, typeLabel: 'Investissement' },
-  { type: 'other', title: 'Autres comptes', meaning: '', color: G.inkSoft, bg: G.field, typeLabel: 'Autre' },
+  { type: 'checking', title: TREE_PARTS.can.name, meaning: TREE_PARTS.can.meaning, color: GARDEN_ICONS.water.fg, bg: GARDEN_ICONS.water.bg, typeLabel: 'Courant' },
+  { type: 'savings', title: TREE_PARTS.roots.name, meaning: TREE_PARTS.roots.meaning, color: GARDEN_ICONS.roots.fg, bg: GARDEN_ICONS.roots.bg, typeLabel: 'Épargne' },
+  { type: 'investment', title: TREE_PARTS.branches.name, meaning: TREE_PARTS.branches.meaning, color: GARDEN_ICONS.fruits.fg, bg: GARDEN_ICONS.fruits.bg, typeLabel: 'Investissement' },
+  { type: 'other', title: 'Autres comptes', meaning: '', color: GARDEN_ICONS.otherAccount.fg, bg: GARDEN_ICONS.otherAccount.bg, typeLabel: 'Autre' },
 ]));
 
 /** Une ligne de détail du reste à dépenser : pastille de couleur, libellé, montant. */
@@ -199,7 +200,7 @@ export default function ArgentScreen() {
                 rows={list.map((a) => ({
                   key: a.id, label: a.name, sub: `${g.typeLabel}${a.is_default ? ' · Principal' : ''}`,
                   value: `${Math.round(Number(a.balance)).toLocaleString('fr-FR')} ${currencySymbolFor(a.currency)}`,
-                  icon: ACCOUNT_ICONS[a.type] ?? 'cash-outline', iconColor: g.color, iconBg: g.bg,
+                  icon: GARDEN_ICONS[accountIcon(a.type)].icon, iconColor: g.color, iconBg: g.bg,
                   onPress: () => go(`/(tabs)/comptes/${a.id}`),
                 }))} />
             );
@@ -209,7 +210,7 @@ export default function ArgentScreen() {
               rows={shared.map((a) => ({
                 key: a.id, label: a.name, sub: a.is_joint ? 'compte joint' : 'partagé avec toi',
                 value: `${Math.round(Number(a.balance)).toLocaleString('fr-FR')} ${currencySymbolFor(a.currency)}`,
-                icon: 'people-outline', iconColor: G.waterText, iconBg: G.waterBg,
+                icon: GARDEN_ICONS.shared.icon, iconColor: GARDEN_ICONS.shared.fg, iconBg: GARDEN_ICONS.shared.bg,
                 onPress: () => go(`/(tabs)/comptes/${a.id}`),
               }))} />
           ) : null}
@@ -221,13 +222,13 @@ export default function ArgentScreen() {
               key: 'credits', label: 'Mes crédits',
               sub: credits.length ? `${credits.length} crédit${credits.length > 1 ? 's' : ''} en cours` : 'aucun crédit en cours',
               value: credits.length ? eur(debts) : undefined,
-              icon: 'home-outline', iconColor: G.picoText, iconBg: G.pico,
+              icon: GARDEN_ICONS.cabin.icon, iconColor: GARDEN_ICONS.cabin.fg, iconBg: GARDEN_ICONS.cabin.bg,
               onPress: () => go('/(tabs)/(secondary)/credits'),
             },
             {
               key: 'placements', label: 'Mes placements', sub: 'tes fruits, et ce qu’ils peuvent devenir',
               value: (p.total_invested ?? 0) > 0 ? eur(p.total_invested) : undefined,
-              icon: 'trending-up-outline', iconColor: G.branchesText, iconBg: G.branchesBg,
+              icon: GARDEN_ICONS.fruits.icon, iconColor: GARDEN_ICONS.fruits.fg, iconBg: GARDEN_ICONS.fruits.bg,
               onPress: () => go('/(tabs)/(secondary)/placements'),
             },
           ]} />
@@ -293,7 +294,7 @@ export default function ArgentScreen() {
             {upcoming.items.length ? (
               <UpcomingRows items={upcoming.items.slice(0, UPCOMING_INLINE)} onOpen={openUpcoming} />
             ) : (
-              <GardenRowGroup rows={[{ key: 'none', label: 'Plus rien d’inscrit ce mois-ci', sub: 'ni prélèvement, ni rentrée, ni opération prévue', icon: 'checkmark-circle-outline', iconColor: G.branchesText, iconBg: G.branchesBg }]} />
+              <GardenRowGroup rows={[{ key: 'none', label: 'Plus rien d’inscrit ce mois-ci', sub: 'ni prélèvement, ni rentrée, ni opération prévue', icon: GARDEN_ICONS.done.icon, iconColor: GARDEN_ICONS.done.fg, iconBg: GARDEN_ICONS.done.bg }]} />
             )}
             {upcoming.items.length > UPCOMING_INLINE ? (
               <GardenButton label={`Tout voir (${upcoming.items.length})`} variant="secondary" onPress={() => setSheet('upcoming')} />
@@ -303,9 +304,9 @@ export default function ArgentScreen() {
           {/* 4 · Ce qu'on ne touche pas, et la gestion des récurrentes (TOUTES, pas seulement ce
               mois-ci : c'est le catalogue à modifier, pas le suivi du mois). */}
           <GardenRowGroup rows={[
-            { key: 'margin', label: WORDS.minimumToKeep, sub: margin > 0 ? "l'eau que tu gardes dans ton arrosoir" : 'aucune marge définie, touche pour en choisir une', value: margin > 0 ? eur(margin) : undefined, icon: 'water-outline', iconColor: G.waterText, iconBg: G.waterBg, onPress: () => setSheet('margin') },
-            { key: 'set', label: WORDS.setAside, sub: 'pour un projet ou plus tard', value: eur(setAside), icon: 'leaf-outline', iconColor: G.rootsText, iconBg: G.rootsBg },
-            { key: 'recurring', label: WORDS.recurring, sub: recurringCount ? `${recurringCount} opération${recurringCount > 1 ? 's' : ''} récurrente${recurringCount > 1 ? 's' : ''} · modifier ou arrêter` : 'salaire, loyer, abonnements… à ajouter', icon: 'repeat-outline', iconColor: G.picoText, iconBg: G.pico, onPress: () => setShowRecurring(true) },
+            { key: 'margin', label: WORDS.minimumToKeep, sub: margin > 0 ? "l'eau que tu gardes dans ton arrosoir" : 'aucune marge définie, touche pour en choisir une', value: margin > 0 ? eur(margin) : undefined, icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg, onPress: () => setSheet('margin') },
+            { key: 'set', label: WORDS.setAside, sub: 'pour un projet ou plus tard', value: eur(setAside), icon: GARDEN_ICONS.setAside.icon, iconColor: GARDEN_ICONS.setAside.fg, iconBg: GARDEN_ICONS.setAside.bg },
+            { key: 'recurring', label: WORDS.recurring, sub: recurringCount ? `${recurringCount} opération${recurringCount > 1 ? 's' : ''} récurrente${recurringCount > 1 ? 's' : ''} · modifier ou arrêter` : 'salaire, loyer, abonnements… à ajouter', icon: GARDEN_ICONS.recurring.icon, iconColor: GARDEN_ICONS.recurring.fg, iconBg: GARDEN_ICONS.recurring.bg, onPress: () => setShowRecurring(true) },
           ]} />
         </>} />
       ) : null}

@@ -2,12 +2,13 @@
  * Liste groupée du Jardin : UNE carte par groupe, des lignes séparées par un filet. C'est la forme
  * des menus et réglages — une carte par ligne éparpillait l'écran et multipliait les « boutons ».
  *
- * Chaque ligne : une icône dans une pastille de couleur douce, un libellé, une valeur ou un badge
+ * Chaque ligne : une icône dans la pastille commune (GardenIcon : ronde, 36 px, couleur de sa partie), un libellé, une valeur ou un badge
  * facultatifs, un chevron. Toute la ligne est la cible (≥ 52 px).
  */
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GardenText from './GardenText';
+import GardenIcon from './GardenIcon';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { pointer, transition } from '../../lib/ui/webLayout';
 
@@ -42,9 +43,7 @@ export default function GardenList({ title, items }: { title?: string; items: Ga
               pointer, transition,
             ]}
           >
-            <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: it.bg, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name={it.icon as any} size={18} color={it.color} />
-            </View>
+            <GardenIcon icon={it.icon} fg={it.color} bg={it.bg} />
             <GardenText variant="bodyStrong" style={{ flex: 1 }} numberOfLines={1}>{it.label}</GardenText>
             {it.value ? <GardenText variant="small" color={GARDEN_COLORS.muted}>{it.value}</GardenText> : null}
             {it.badge ? (
@@ -91,9 +90,7 @@ export function GardenRowGroup({ title, titleColor, total, rows }: { title?: str
           const content = (
             <>
               {r.icon ? (
-                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: r.iconBg ?? GARDEN_COLORS.field, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name={r.icon as any} size={18} color={r.iconColor ?? GARDEN_COLORS.inkSoft} />
-                </View>
+                <GardenIcon icon={r.icon} fg={r.iconColor ?? GARDEN_COLORS.inkSoft} bg={r.iconBg ?? GARDEN_COLORS.field} />
               ) : null}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <GardenText variant="bodyStrong" numberOfLines={1}>{r.label}</GardenText>

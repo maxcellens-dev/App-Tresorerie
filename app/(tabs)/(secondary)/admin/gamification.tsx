@@ -2,7 +2,7 @@
  * Admin — Gamification & Identité.
  * Édite la config app_config.gamification : identité (libellés/icônes), série, remise premium,
  * et la liste des badges (libellé, description, métrique, icône Ionicons OU image téléversée,
- * seuils + gemmes par niveau). Téléversement d'icônes vers le bucket « gamification ».
+ * seuils + noisettes de récompense). Téléversement d'icônes vers le bucket « gamification ».
  */
 import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import NutIcon from '../../../../components/gamification/NutIcon';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAppColors } from '../../../../hooks/theme/useAppColors';
@@ -128,12 +129,16 @@ export default function AdminGamification() {
               <Text style={styles.section}>Identité</Text>
               <Switch value={cfg.identity.enabled} onValueChange={(v) => setIdentity({ enabled: v })} />
             </View>
-            <Field label="Nom de la monnaie" value={cfg.identity.currencyName} onChange={(v) => setIdentity({ currencyName: v })} styles={styles} c={COLORS} />
-            <IconField label="Icône de la monnaie (Ionicons, emoji ou image)" value={cfg.identity.currencyIcon}
-              onChange={(v) => setIdentity({ currencyIcon: v })} onUpload={() => pickImage('currencyIcon', (url) => setIdentity({ currencyIcon: url }))}
-              uploading={uploadingKey === 'currencyIcon'} styles={styles} c={COLORS} />
+            <Field label="Nom de la monnaie (au singulier)" value={cfg.identity.currencyName} onChange={(v) => setIdentity({ currencyName: v })} styles={styles} c={COLORS} />
+            <Text style={styles.hint}>Le « s » du pluriel est ajouté à l'affichage. Les anciens noms (graine, relyk, gemme) sont remplacés par « Noisette ».</Text>
+            {/* L'icône de la monnaie n'est plus réglable : c'est la noisette 3D du Jardin partout (l'ancien
+                champ n'était plus lu par l'app — on ne laisse pas un réglage sans effet). */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
+              <NutIcon size={34} />
+              <Text style={[styles.hint, { flex: 1, marginTop: 0 }]}>Icône de la monnaie : la noisette 3D du Jardin, utilisée dans toute l'app.</Text>
+            </View>
             <Field label="Libellé de la série" value={cfg.identity.streakLabel} onChange={(v) => setIdentity({ streakLabel: v })} styles={styles} c={COLORS} />
-            <IconField label="Icône de série (emoji, Ionicons ou image)" value={cfg.identity.streakIcon}
+            <IconField label="Icône de série (🔥 = flamme 3D, ou emoji, Ionicons, image)" value={cfg.identity.streakIcon}
               onChange={(v) => setIdentity({ streakIcon: v })} onUpload={() => pickImage('streakIcon', (url) => setIdentity({ streakIcon: url }))}
               uploading={uploadingKey === 'streakIcon'} styles={styles} c={COLORS} />
           </View>
@@ -233,9 +238,9 @@ export default function AdminGamification() {
                 ))}
               </View>
               {/* Icône */}
-              <Text style={styles.fieldLabel}>Icône (Ionicons ou image)</Text>
+              <Text style={styles.fieldLabel}>Icône (Ionicons ou image — « trophy », « flame », « ribbon » affichent les images 3D)</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput style={[styles.input, { flex: 1 }]} value={b.icon} onChangeText={(v) => updateBadge(i, { icon: v })} placeholder="trophy ou URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
+                <TextInput style={[styles.input, { flex: 1 }]} value={b.icon} onChangeText={(v) => updateBadge(i, { icon: v })} placeholder="trophy, flame, ribbon… ou URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'icône du succès" style={styles.uploadBtn} onPress={() => uploadIcon(i)} disabled={uploadingKey === b.key}>
                   {uploadingKey === b.key ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
                 </TouchableOpacity>
@@ -245,7 +250,7 @@ export default function AdminGamification() {
               <View style={styles.levelRow}>
                 <Text style={[styles.levelName, { color: COLORS.textSecondary }]}>Seuil</Text>
                 <TextInput style={styles.miniInput} value={String(b.threshold ?? 0)} onChangeText={(v) => updateBadge(i, { threshold: Number(v) || 0 })} keyboardType="numeric" placeholder="seuil" placeholderTextColor={COLORS.textSecondary} />
-                <Ionicons name="diamond" size={12} color={COLORS.blue} />
+                <NutIcon size={14} />
                 <TextInput style={styles.miniInput} value={String(b.gems ?? 0)} onChangeText={(v) => updateBadge(i, { gems: Number(v) || 0 })} keyboardType="numeric" placeholder="récompense" placeholderTextColor={COLORS.textSecondary} />
               </View>
             </View>
@@ -269,7 +274,7 @@ function IconField({ label, value, onChange, onUpload, uploading, styles, c }: {
     <>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput style={[styles.input, { flex: 1 }]} value={value} onChangeText={onChange} placeholder="diamond, 🔥 ou URL" placeholderTextColor={c.textSecondary} autoCapitalize="none" autoCorrect={false} />
+        <TextInput style={[styles.input, { flex: 1 }]} value={value} onChangeText={onChange} placeholder="🔥, flame ou URL" placeholderTextColor={c.textSecondary} autoCapitalize="none" autoCorrect={false} />
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'image" style={styles.uploadBtn} onPress={onUpload} disabled={uploading}>
           {uploading ? <ActivityIndicator size="small" color={c.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={c.emerald} />}
         </TouchableOpacity>

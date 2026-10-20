@@ -59,7 +59,7 @@ export interface BadgeDef {
 export interface GamificationIdentity {
   enabled: boolean;
   currencyName: string;   // ex. « Gemmes de Relyka »
-  currencyIcon: string;   // Ionicons ou URL
+  currencyIcon: string;   // plus lu par l'app (la monnaie = la noisette 3D) ; gardé pour les configs stockées
   streakIcon: string;     // emoji ou Ionicons ou URL
   streakLabel: string;    // ex. « Série »
 }

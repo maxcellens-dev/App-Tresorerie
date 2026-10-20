@@ -1,11 +1,11 @@
 /**
  * Ce que devient l'eau de l'arrosoir (le Relyka) : un geste par recommandation de Pico, avec la
  * partie de l'arbre qu'il fait pousser, son vrai sens et sa couleur. Une seule source pour la carte
- * du Jardin et la feuille des choix de Pico.
+ * du Jardin et la feuille des choix de Pico. Icône et couleurs : lib/garden/icons (UNE par sens).
  */
 import { live } from './live';
 import type { RecoType } from '../finance/recommendationEngine';
-import { GARDEN_COLORS as G } from './theme';
+import { GARDEN_ICONS, RECO_ICON } from './icons';
 
 export interface ChoiceLook {
   /** Le geste, en mots du jardin (« Arrose tes racines »). */
@@ -19,9 +19,14 @@ export interface ChoiceLook {
   fg: string;
 }
 
+const look = (type: RecoType, verb: string, meaning: string): ChoiceLook => {
+  const i = GARDEN_ICONS[RECO_ICON[type]];
+  return { verb, meaning, icon: i.icon, fill: i.fill, bg: i.bg, fg: i.fg };
+};
+
 export const CHOICE_LOOKS: Record<RecoType, ChoiceLook> = live(() => ({
-  save: { verb: 'Arrose tes racines', meaning: 'épargne de secours', icon: 'garden-roots', fill: G.roots, bg: G.rootsBg, fg: G.rootsText },
-  invest: { verb: 'Fais grossir tes fruits', meaning: 'placements', icon: 'nutrition-outline', fill: G.fruits, bg: G.fruitsBg, fg: G.fruitsText },
-  enjoy: { verb: 'Fais fleurir ton jardin', meaning: 'pour te faire plaisir', icon: 'flower-outline', fill: G.flowers, bg: G.flowersBg, fg: G.flowersText },
-  keep: { verb: "Garde dans l'arrosoir", meaning: 'reste sur ton compte courant', icon: 'water-outline', fill: G.water, bg: G.waterBg, fg: G.waterText },
+  save: look('save', 'Arrose tes racines', 'épargne de secours'),
+  invest: look('invest', 'Fais grossir tes fruits', 'placements'),
+  enjoy: look('enjoy', 'Fais fleurir ton jardin', 'pour te faire plaisir'),
+  keep: look('keep', "Garde dans l'arrosoir", 'reste sur ton compte courant'),
 }));

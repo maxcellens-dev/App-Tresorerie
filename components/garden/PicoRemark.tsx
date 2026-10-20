@@ -8,25 +8,23 @@
  */
 import { live } from '../../lib/garden/live';
 import { View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import GardenText from './GardenText';
+import GardenIcon from './GardenIcon';
 import ChoiceIcon from './ChoiceIcon';
+import { GARDEN_ICONS, RECO_ICON, type GardenIconKey } from '../../lib/garden/icons';
 import type { RecoMessage } from '../../lib/finance/recoMessages';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 
 interface Look { bg: string; fg: string; fill: string; icon: string }
 
-const LOOKS: Record<string, Look> = live(() => ({
-  save: { bg: G.rootsBg, fg: G.rootsText, fill: G.roots, icon: 'garden-roots' },
-  invest: { bg: G.branchesBg, fg: G.branchesText, fill: G.branches, icon: 'trending-up-outline' },
-  enjoy: { bg: G.flowersBg, fg: G.flowersText, fill: G.flowers, icon: 'flower-outline' },
-  keep: { bg: G.waterBg, fg: G.waterText, fill: G.water, icon: 'water-outline' },
-  trough: { bg: G.waterBg, fg: G.waterText, fill: G.water, icon: 'trending-down-outline' },
-  budget: { bg: G.fruitsBg, fg: G.fruitsText, fill: G.fruits, icon: 'wallet-outline' },
-  warn: { bg: G.notice, fg: G.noticeText, fill: G.roots, icon: 'alert-circle-outline' },
-  main: { bg: G.branchesBg, fg: G.branchesText, fill: G.branches, icon: 'sparkles-outline' },
-  info: { bg: G.pico, fg: G.picoText, fill: '#E9B872', icon: 'information-circle-outline' },
-}));
+/* Icône et couleurs : lib/garden/icons (UNE par sens, la même que sur les gestes et les comptes). */
+const LOOKS: Record<string, Look> = live(() => {
+  const L = (k: GardenIconKey): Look => { const i = GARDEN_ICONS[k]; return { bg: i.bg, fg: i.fg, fill: i.fill, icon: i.icon }; };
+  return {
+    save: L(RECO_ICON.save), invest: L(RECO_ICON.invest), enjoy: L(RECO_ICON.enjoy), keep: L(RECO_ICON.keep),
+    trough: L('trough'), budget: L('budget'), warn: L('warn'), main: L('main'), info: L('info'),
+  };
+});
 
 function lookFor(m: RecoMessage): Look {
   if (m.recoType && LOOKS[m.recoType]) return LOOKS[m.recoType];
@@ -59,15 +57,13 @@ export default function PicoRemark({ message }: { message: RecoMessage }) {
   return (
     <View style={{ backgroundColor: look.bg, borderRadius: GARDEN_RADII.lg, padding: GARDEN_SPACE.lg, gap: GARDEN_SPACE.md, borderLeftWidth: 5, borderLeftColor: look.fill }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm + 2 }}>
-        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: G.card, alignItems: 'center', justifyContent: 'center' }}>
-          <ChoiceIcon name={look.icon} size={18} color={look.fg} />
-        </View>
+        <GardenIcon icon={look.icon} fg={look.fg} bg={G.card} />
         <GardenText variant="heading" color={look.fg} style={{ flex: 1 }}>{message.label}</GardenText>
       </View>
       {fact ? <Rich text={fact} color={G.ink} /> : null}
       {tip ? (
         <View style={{ flexDirection: 'row', gap: GARDEN_SPACE.sm, backgroundColor: G.card, borderRadius: GARDEN_RADII.md, padding: GARDEN_SPACE.md }}>
-          <Ionicons name="bulb" size={18} color={look.fill} style={{ marginTop: 2 }} />
+          <View style={{ marginTop: 1 }}><ChoiceIcon name={GARDEN_ICONS.tip.icon} size={18} color={look.fg} /></View>
           <View style={{ flex: 1 }}><Rich text={tip} color={look.fg} /></View>
         </View>
       ) : null}

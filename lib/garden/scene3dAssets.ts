@@ -398,8 +398,8 @@ export const SCENE3D = {
   },
   "shop": {
     "nut": {
-      "w": 93,
-      "h": 96
+      "w": 96,
+      "h": 93
     },
     "trophy": {
       "w": 149,

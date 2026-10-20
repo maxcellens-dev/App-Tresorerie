@@ -10,6 +10,7 @@
 import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import NutIcon from './NutIcon';
+import { shopArt } from '../../lib/engagement/shopArt';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -185,6 +186,8 @@ export default function AchievementCelebration() {
           <View style={[styles.iconCircle, { backgroundColor: UNLOCK_COLOR + '22', borderColor: UNLOCK_COLOR + '66' }]}>
             {isImageIcon(current.icon) ? (
               <Image source={{ uri: current.icon }} style={{ width: 44, height: 44, borderRadius: 10 }} />
+            ) : shopArt(null, current.icon || 'trophy') ? (
+              <Image source={shopArt(null, current.icon || 'trophy')!} style={{ width: 54, height: 54 }} resizeMode="contain" />
             ) : (
               <Ionicons name={(current.icon || 'trophy') as any} size={40} color={UNLOCK_COLOR} />
             )}

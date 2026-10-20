@@ -60,6 +60,15 @@ for (const name of names) {
       if (rgba[p * 4 + 3] < 64) rgba[p * 4 + 3] = 0;
     }
   }
+  // noisette : le modèle prend ses deux feuilles pour du fond → détourage à la COULEUR seule (fond gris
+  // uni et son ombre grise retirés ; coque, feuilles et base beige, assez colorées, gardées)
+  if (/^currency_nut\./.test(name)) for (let p = 0; p < W * H; p++) {
+    const r = rgb[p * 3], g = rgb[p * 3 + 1], b = rgb[p * 3 + 2];
+    const dist = Math.hypot(r - bg[0], g - bg[1], b - bg[2]), sat = Math.max(r, g, b) - Math.min(r, g, b);
+    rgba[p * 4 + 3] = sat < 18 ? 0 : Math.round(255 * Math.max(0, Math.min(1, (dist - 18) / 30)) * Math.min(1, (sat - 18) / 14));
+    // couleur d'ORIGINE : le modèle a vidé celle des feuilles, qu'il croyait du fond
+    rgba[p * 4] = r; rgba[p * 4 + 1] = g; rgba[p * 4 + 2] = b;
+  }
   // ronces : l'IA les a posées sur une planchette en bois → on retire tout ce qui a la couleur du bois
   // (brun chaud ; les tiges sont violettes et les feuilles vertes, jamais confondues)
   if (/^brambles\./.test(name)) for (let p = 0; p < W * H; p++) {

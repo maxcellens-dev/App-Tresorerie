@@ -2,6 +2,8 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
+import { shopArt } from '../../../lib/engagement/shopArt';
+import { SCENE3D_IMG } from '../../../lib/garden/scene3dAssets';
 import NutIcon from '../../../components/gamification/NutIcon';
 import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
 import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
@@ -40,6 +42,9 @@ function BadgeIcon({ icon, size, tint, imgStyle }: { icon: string; size: number;
   if (isImageIcon(icon) && !broken) {
     return <Image source={{ uri: icon }} style={imgStyle} onError={() => setBroken(true)} />;
   }
+  // flamme et trophée : les images 3D du Jardin (comme en boutique), à la taille du pictogramme
+  const art = shopArt(null, icon || 'trophy');
+  if (art) return <Image source={art} style={{ width: size * 1.35, height: size * 1.35 }} resizeMode="contain" />;
   const name = isImageIcon(icon) || !icon ? 'trophy' : icon;
   return <Ionicons name={name as any} size={size} color={tint} />;
 }
@@ -225,7 +230,10 @@ function SuccesScreen() {
           {/* Résumé série / gemmes */}
           <View style={styles.summary}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryEmoji}>{config?.identity.streakIcon || '🔥'}</Text>
+              {/* la flamme 3D, sauf si l'admin a choisi une autre icône de série */}
+              {!config?.identity.streakIcon || config.identity.streakIcon === '🔥' || config.identity.streakIcon === 'flame'
+                ? <Image source={SCENE3D_IMG.shop_flame_orange} style={{ width: 28, height: 28 }} resizeMode="contain" />
+                : <Text style={styles.summaryEmoji}>{config.identity.streakIcon}</Text>}
               <Text style={styles.summaryValue}>{state?.streak ?? 0}</Text>
               {/* La flamme compte les semaines où l'utilisateur est VENU (une visite entre lundi et
                   dimanche suffit). Elle ne redescend jamais : les semaines sans visite ne comptent
@@ -253,7 +261,7 @@ function SuccesScreen() {
             </TouchableOpacity>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
-              <Ionicons name="trophy" size={22} color={COLORS.yellow} />
+              <Image source={SCENE3D_IMG.shop_trophy} style={{ width: 28, height: 28 }} resizeMode="contain" />
               <Text style={styles.summaryValue}>{unlockedCount}</Text>
               <Text style={styles.summaryLabel}>Succès</Text>
             </View>

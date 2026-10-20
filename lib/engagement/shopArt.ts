@@ -7,6 +7,7 @@
  */
 import type { ImageSourcePropType } from 'react-native';
 import { SCENE3D_IMG } from '../garden/scene3dAssets';
+import { COSMETIC_DEFS } from './gamification';
 
 const FLAME_BY_KEY: Record<string, keyof typeof SCENE3D_IMG> = {
   cosmetic_flame_silver: 'shop_flame_silver',
@@ -17,6 +18,12 @@ const FLAME_BY_KEY: Record<string, keyof typeof SCENE3D_IMG> = {
   cosmetic_flame_prestige: 'shop_flame_red', // libellé « Flamme rouge »
   cosmetic_flame_violet: 'shop_flame_violet', // libellé « Flamme prestige »
 };
+
+/** Flamme de série équipée, retrouvée par sa COULEUR (useCosmetics ne donne que la couleur) ; sinon la flamme d'origine. */
+export function flameArt(color?: string | null): ImageSourcePropType {
+  const key = color ? Object.keys(FLAME_BY_KEY).find((k) => COSMETIC_DEFS[k]?.value?.toLowerCase() === color.toLowerCase()) : undefined;
+  return SCENE3D_IMG[key ? FLAME_BY_KEY[key] : 'shop_flame_orange'];
+}
 
 export function shopArt(key?: string | null, icon?: string | null): ImageSourcePropType | null {
   if (key && FLAME_BY_KEY[key]) return SCENE3D_IMG[FLAME_BY_KEY[key]];
