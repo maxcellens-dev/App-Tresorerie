@@ -76,3 +76,6 @@ npm-debug.log*
 
 expo-env.d.ts
 # @end expo-cli
+# Jardin 3D : intermédiaires de détourage et aperçus (régénérés par scripts/garden-assets)
+assets/garden-cut/
+scripts/garden-assets/.render/

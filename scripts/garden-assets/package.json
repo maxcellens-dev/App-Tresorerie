@@ -1,0 +1,16 @@
+{
+  "name": "relyka-garden-assets",
+  "private": true,
+  "description": "Outils hors app : détourage et aperçus des images 3D du Jardin (assets/garden-raw → assets/garden-cut).",
+  "type": "module",
+  "scripts": {
+    "cut": "node cut.mjs",
+    "preview": "node preview.mjs",
+    "build": "node build.mjs",
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
+    "sharp": "^0.35.5"
+  }
+}

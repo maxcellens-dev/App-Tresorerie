@@ -18,6 +18,8 @@ module.exports = {
       transform: {
         '^.+\\.ts$': ['ts-jest', { isolatedModules: true }],
       },
+      // Images référencées par les moteurs (lib/garden/scene3dAssets) : un nom suffit en node.
+      moduleNameMapper: { '\\.(webp|png|jpg)$': '<rootDir>/__tests__/__mocks__/image.js' },
     },
     {
       displayName: 'components',
