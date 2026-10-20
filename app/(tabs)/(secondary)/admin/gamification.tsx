@@ -27,7 +27,7 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Semaines connectées (cumul)' },
   { value: 'login_streak_days', label: 'Jours consécutifs connecté' },
   { value: 'account_age_days', label: 'Ancienneté (jours)' },
-  { value: 'gems_earned', label: 'Graines gagnées (cumul)' },
+  { value: 'gems_earned', label: 'Noisettes gagnées (cumul)' },
   { value: 'closures_count', label: 'Clôtures effectuées' },
   { value: 'surplus_months_streak', label: 'Mois consécutifs en excédent' },
   { value: 'invest_followed', label: 'Recos investir suivies' },

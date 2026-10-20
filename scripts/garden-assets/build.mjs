@@ -367,6 +367,7 @@ for (const k of ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond'])
 /* ── Boutique : trophée (titres) et flamme (flammes de série), la flamme recolorée par article ── */
 M.shop = {};
 {
+  M.shop.nut = await emit('currency_nut', await cut('currency_nut'), 96);
   const tr = await cut('trophy');
   M.shop.trophy = await emit('shop_trophy', tr, 160);
   const fl = await cut('flame');

@@ -4,7 +4,7 @@ import { shopArt } from '../../../lib/engagement/shopArt';
  * Boutique — dépense les relyks gagnés (couleurs, cosmétiques, titres, thèmes, bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
-import SeedIcon from '../../../components/gamification/SeedIcon';
+import NutIcon from '../../../components/gamification/NutIcon';
 import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
 import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
 import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
@@ -81,7 +81,7 @@ function BoutiqueScreen() {
   /* Prix final : la remise Premium, et rien d'autre. La « Sélection du mois » (2 articles tournants
      à −30 %) a été retirée — elle encombrait la page et faisait cohabiter deux prix par article. */
   const priceOf = (base: number) => shopFinalPrice(base, { isPremium, premiumPct: discountPct });
-  const currencyName = config?.identity.currencyName ?? 'Graine';
+  const currencyName = config?.identity.currencyName ?? 'Noisette';
   // Libellé / description calculés pour les articles « monnaie » (toujours au nom courant + pluriel).
   const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
   const itemLabel = (item: ShopItem) => (item.type === 'gems_iap' ? formatCurrency(gemsOf(item), currencyName) : item.label);
@@ -249,7 +249,7 @@ function BoutiqueScreen() {
         <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canBuy ? COLORS.emerald : COLORS.cardBorder }]} onPress={() => canBuy && setConfirmItem({ key: item.key, label: item.label, price })} disabled={!canBuy} activeOpacity={0.85}>
           {busy ? <ActivityIndicator size="small" color="#fff" /> : (
             <>
-              <SeedIcon size={13} mono={canBuy ? '#fff' : COLORS.textSecondary} />
+              <NutIcon size={13} mono={canBuy ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.buyText, { color: canBuy ? '#fff' : COLORS.textSecondary }]}>{price}</Text>
             </>
           )}
@@ -282,12 +282,12 @@ function BoutiqueScreen() {
                   if (!submit.acquire()) return;
                   try {
                     const r = await creditGems(100);
-                    if (r.ok) say('+100 graines (admin)', 'ok');
+                    if (r.ok) say('+100 noisettes (admin)', 'ok');
                     else say("Le crédit administrateur n'a pas pu être enregistré.", 'error');
                   } finally { submit.release(); }
                 }}
                 activeOpacity={0.85}
-                accessibilityLabel="Ajouter 100 graines (admin)"
+                accessibilityLabel="Ajouter 100 noisettes (admin)"
               >
                 <Ionicons name="add" size={14} color="#fff" />
                 <Text style={styles.adminGemBtnText}>100</Text>
@@ -299,9 +299,9 @@ function BoutiqueScreen() {
               onPress={() => { setTab('app'); setCatFilter('gems'); }}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Recharger en graines"
+              accessibilityLabel="Recharger en noisettes"
             >
-              <SeedIcon size={16} />
+              <NutIcon size={16} />
               {/* Un solde inconnu n'est pas un solde à zéro : tant que la lecture n'a pas abouti,
                   afficher « 0 » laissait croire que tous les relyks avaient disparu. */}
               <Text style={styles.gemText}>{isReady ? gems : '…'}</Text>
@@ -313,7 +313,7 @@ function BoutiqueScreen() {
         {relykaTabEnabled && (
           <View style={styles.tabsRow}>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'app' && styles.tabBtnActive]} onPress={() => setTab('app')} activeOpacity={0.85}>
-              <SeedIcon size={16} mono={activeTab === 'app' ? COLORS.emerald : COLORS.textSecondary} />
+              <NutIcon size={16} mono={activeTab === 'app' ? COLORS.emerald : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'app' && styles.tabTextActive]}>App</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'relyka' && styles.tabBtnActive]} onPress={() => setTab('relyka')} activeOpacity={0.85}>
@@ -353,7 +353,7 @@ function BoutiqueScreen() {
               {isError && (
                 <View style={[styles.msgBox, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '14', marginBottom: 12 }]}>
                   <Ionicons name="cloud-offline-outline" size={15} color={COLORS.danger} />
-                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de graines n'a pas pu être lu : les achats sont indisponibles.</Text>
+                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de noisettes n'a pas pu être lu : les achats sont indisponibles.</Text>
                 </View>
               )}
 
@@ -391,7 +391,7 @@ function BoutiqueScreen() {
                       ...[...head, ...rest].map((c) => ({
                         cat: c,
                         // « Recharger en relyks » est le titre de SECTION ; sur une pastille, il déborde.
-                        label: c === 'premium' ? 'Premium' : c === 'gems' ? 'Graines' : SHOP_CATEGORY_LABELS[c as ShopCategory],
+                        label: c === 'premium' ? 'Premium' : c === 'gems' ? 'Noisettes' : SHOP_CATEGORY_LABELS[c as ShopCategory],
                         icon: SHOP_CATEGORY_ICONS[c as ShopCategory],
                       })),
                     ];
@@ -424,7 +424,7 @@ function BoutiqueScreen() {
                       </View>
                       {/* Lien « Consulter mes achats » → Apparence, où tout ce qui s'achète s'équipe (couleurs,
                           cadres, décor du jardin, garde-robe de Pépin, saisons). Sur TOUS les rayons sauf la
-                          recharge de graines (rien à équiper) : la liste blanche d'avant oubliait chaque
+                          recharge de noisettes (rien à équiper) : la liste blanche d'avant oubliait chaque
                           nouveau rayon du Jardin. */}
                       {cat !== 'gems' && (
                         <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence?origin=/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.7}>
@@ -546,7 +546,7 @@ function BoutiqueScreen() {
           <Pressable style={{ width: '100%', alignItems: 'center' }} onPress={() => {}}>
           <View style={styles.modalCard}>
             <View style={[styles.modalIcon, { backgroundColor: COLORS.blue + '22' }]}>
-              <SeedIcon size={30} />
+              <NutIcon size={30} />
             </View>
             <Text style={styles.modalTitle}>Confirmer l'achat</Text>
             <Text style={styles.modalText}>

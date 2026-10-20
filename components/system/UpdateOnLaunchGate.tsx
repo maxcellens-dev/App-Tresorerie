@@ -69,7 +69,7 @@ export default function UpdateOnLaunchGate() {
   return (
     <View style={[StyleSheet.absoluteFill, styles.root, { backgroundColor: bg }]}>
       <View style={[styles.logoWrap, { top: logoTop }]}>
-        <Image source={require('../../assets/logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
+        <Image source={require('../../assets/splash-logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
       </View>
       <Animated.View style={[styles.caption, {
         top: insets.top + 20,

@@ -288,7 +288,7 @@ export function useGamification(userId: string | undefined) {
 
     // Prix final = remise Premium le cas échéant (il n'y a plus d'autre remise).
     const price = shopFinalPrice(item.price, { isPremium, premiumPct: config.premium_discount_pct });
-    if (state.gems < price) return { ok: false, reason: 'graines insuffisantes' };
+    if (state.gems < price) return { ok: false, reason: 'noisettes insuffisantes' };
 
     /* ── PAYER PUIS LIVRER, ET VÉRIFIER LES DEUX ────────────────────────────────────────────────
        Aucune de ces deux écritures ne lisait son erreur. Les deux issues étaient réelles :
@@ -315,7 +315,7 @@ export function useGamification(userId: string | undefined) {
         .update({ gems: state.gems, updated_at: new Date().toISOString() })
         .eq('profile_id', userId);
       invalidate();
-      return { ok: false, reason: 'l’article n’a pas pu être livré : tes graines t’ont été rendues' };
+      return { ok: false, reason: 'l’article n’a pas pu être livré : tes noisettes t’ont été rendues' };
     }
     invalidate();
     return { ok: true };

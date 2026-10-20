@@ -7,7 +7,8 @@
     "cut": "node cut.mjs",
     "preview": "node preview.mjs",
     "build": "node build.mjs",
-    "render": "node render.mjs"
+    "render": "node render.mjs",
+    "logo": "node logo.mjs"
   },
   "dependencies": {
     "@imgly/background-removal-node": "^1.4.5",

@@ -39,7 +39,7 @@ import { purchasePremium, restorePurchases, getSubscriptionInfo, getPlanPrices, 
 /** Avantages Premium. `route` = page concernée : la ligne devient cliquable et y renvoie. */
 const BENEFITS: { key: string; icon: string; title: string; desc: string; route?: string }[] = [
   { key: 'ads', icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
-  { key: 'shop', icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en graines.', route: '/(tabs)/(secondary)/boutique' },
+  { key: 'shop', icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en noisettes.', route: '/(tabs)/(secondary)/boutique' },
   { key: 'color', icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.', route: '/(tabs)/(secondary)/apparence' },
   { key: 'reporting', icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.', route: '/(tabs)/reporting' },
   { key: 'ai', icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.', route: '/(tabs)/conseils-ia' },

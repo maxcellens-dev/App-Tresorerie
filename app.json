@@ -13,7 +13,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0D2E2A"
+        "backgroundColor": "#F4EFE6"
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp",
@@ -33,7 +33,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/logo.png",
+          "image": "./assets/splash-logo.png",
           "imageWidth": 96,
           "resizeMode": "contain",
           "backgroundColor": "#F4EFE6"

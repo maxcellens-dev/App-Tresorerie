@@ -275,8 +275,8 @@ function MesDonneesScreen() {
 
     rows.push({ type: 'section', cells: ['GAMIFICATION'] });
     rows.push({ type: 'colhead', cells: ['Champ', 'Valeur'] });
-    rows.push({ type: 'data', cells: ['Graines', String(d.gami?.gems ?? 0)] });
-    rows.push({ type: 'data', cells: ['Graines gagnées au total', String(d.gami?.gems_earned_total ?? 0)] });
+    rows.push({ type: 'data', cells: ['Noisettes', String(d.gami?.gems ?? 0)] });
+    rows.push({ type: 'data', cells: ['Noisettes gagnées au total', String(d.gami?.gems_earned_total ?? 0)] });
     rows.push({ type: 'data', cells: ['Semaines connectées', String(d.gami?.streak ?? 0)] });
     d.badges.forEach((b: any) => {
       rows.push({ type: 'data', cells: [`Succès : ${b.badge_key}`, `débloqué le ${String(b.unlocked_at ?? '').slice(0, 10)}`] });
@@ -414,7 +414,7 @@ function MesDonneesScreen() {
             </View>
             <View style={styles.bullet}>
               <Ionicons name="trophy-outline" size={18} color={COLORS.orange} />
-              <Text style={styles.bulletText}>Gamification (graines, série, succès débloqués).</Text>
+              <Text style={styles.bulletText}>Gamification (noisettes, série, succès débloqués).</Text>
             </View>
             <View style={styles.bullet}>
               <Ionicons name="help-circle-outline" size={18} color={COLORS.violet} />

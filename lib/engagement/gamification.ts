@@ -85,7 +85,7 @@ export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   cosmetiques: 'Cosmétiques',
   titres: 'Titres de profil',
   premium: 'Exclusif Premium',
-  gems: 'Recharger en graines',
+  gems: 'Recharger en noisettes',
 };
 /** Ordre d'affichage des catégories dans la boutique. */
 export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'jardin', 'garde_robe', 'saisons', 'apparence', 'cosmetiques', 'premium', 'gems'];
@@ -276,7 +276,7 @@ export interface GamificationConfig {
 export const DEFAULT_GAMIFICATION: GamificationConfig = {
   identity: {
     enabled: true,
-    currencyName: 'Graine', // forme SINGULIÈRE — le « s » du pluriel est ajouté à l'affichage
+    currencyName: 'Noisette', // forme SINGULIÈRE — le « s » du pluriel est ajouté à l'affichage
     currencyIcon: 'diamond',
     streakIcon: '🔥',
     streakLabel: 'Série',
@@ -313,19 +313,19 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'fiable_6', category: 'Rigueur', metric: 'consecutive_closures', label: 'Régularité', description: '6 mois consécutifs clôturés.', icon: 'shield-checkmark', threshold: 6, gems: 160 },
     { key: 'fiable_12', category: 'Rigueur', metric: 'consecutive_closures', label: 'Un an de suivi fiable', description: '12 mois consécutifs clôturés.', icon: 'shield-checkmark', threshold: 12, gems: 400 },
     // ── Action (investissement) ──
-    { key: 'invest_1', category: 'Action', metric: 'invest_followed', label: 'Première graine', description: 'Suis une recommandation d’investir.', icon: 'trending-up', threshold: 1, gems: 40 },
+    { key: 'invest_1', category: 'Action', metric: 'invest_followed', label: 'Premier fruit', description: 'Suis une recommandation d’investir.', icon: 'trending-up', threshold: 1, gems: 40 },
     { key: 'invest_5', category: 'Action', metric: 'invest_followed', label: 'Investisseur', description: 'Suis 5 recommandations d’investir.', icon: 'trending-up', threshold: 5, gems: 200 },
     // ── Collection (relyks cumulés) ──
-    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 graines.', icon: 'leaf', threshold: 100, gems: 0 },
-    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 graines.', icon: 'leaf', threshold: 500, gems: 0 },
-    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 graines.', icon: 'leaf', threshold: 2000, gems: 0 },
+    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 noisettes.', icon: 'leaf', threshold: 100, gems: 0 },
+    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 noisettes.', icon: 'leaf', threshold: 500, gems: 0 },
+    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 noisettes.', icon: 'leaf', threshold: 2000, gems: 0 },
     // ── Profil & Découverte ──
     { key: 'profil_photo', category: 'Profil', metric: 'profile_photo', label: 'Mon plus beau profil', description: 'Ajoute une photo de profil.', icon: 'camera', threshold: 1, gems: 20 },
     { key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done', label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».', icon: 'compass', threshold: 1, gems: 50 },
   ],
   shop: [
     // ── Gratuit ──
-    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 graines offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
+    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 noisettes offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
     /* ── Décor du jardin : visible autour de ton arbre, à équiper dans Apparence ── */
     { key: 'garden_mushrooms', type: 'cosmetic', category: 'jardin', label: 'Champignons', description: 'Deux champignons au pied de l’arrosoir.', price: 60, icon: 'garden:mushrooms' },
     { key: 'garden_lantern', type: 'cosmetic', category: 'jardin', label: 'Lanterne', description: 'Une lanterne qui brille dans ton arbre.', price: 80, icon: 'garden:lantern' },
@@ -392,17 +392,27 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'cosmetic_title_visionnaire', type: 'cosmetic', category: 'premium', label: 'Titre « Visionnaire »', description: 'Un titre exclusif réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     { key: 'cosmetic_title_elite', type: 'cosmetic', category: 'premium', label: 'Titre « Élite »', description: 'Le titre le plus prestigieux, réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     // ── Recharger en gemmes (argent réel via le store) ──
-    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 graines', description: 'Recharge instantanée.', price: 0, icon: 'leaf', payload: { gems: 100, productId: '100_relyks' } },
-    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 graines', description: 'Le pack le plus populaire.', price: 0, icon: 'leaf', payload: { gems: 500, productId: '500_relyks' } },
-    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 graines', description: 'Le meilleur rapport.', price: 0, icon: 'leaf', payload: { gems: 1000, productId: '1000_relyks' } },
+    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 noisettes', description: 'Recharge instantanée.', price: 0, icon: 'leaf', payload: { gems: 100, productId: '100_relyks' } },
+    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 noisettes', description: 'Le pack le plus populaire.', price: 0, icon: 'leaf', payload: { gems: 500, productId: '500_relyks' } },
+    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 noisettes', description: 'Le meilleur rapport.', price: 0, icon: 'leaf', payload: { gems: 1000, productId: '1000_relyks' } },
   ],
 };
+
+/** Anciens noms de la monnaie (seuls, au singulier ou au pluriel). */
+const LEGACY_CURRENCY = /^\s*(graines?|relyks?|gemmes?|gemmes de relyka)\s*$/i;
+/** Textes de succès enregistrés en base qui citent encore l'ancienne monnaie. */
+const legacyText = (s?: string) => s?.replace(/\bgraines\b/g, 'noisettes').replace(/\bGraines\b/g, 'Noisettes');
 
 /** Fusionne la config stockée avec les valeurs par défaut. */
 export function mergeGamificationConfig(stored: Partial<GamificationConfig> | undefined): GamificationConfig {
   if (!stored) return DEFAULT_GAMIFICATION;
+  /* Nom de monnaie enregistré en admin avant le passage aux noisettes (graine, relyk, gemme) : c'est
+     l'ancien défaut gelé en base, pas un choix — on reprend le défaut du code. Un AUTRE nom saisi en
+     admin reste prioritaire. */
+  const identity = { ...DEFAULT_GAMIFICATION.identity, ...(stored.identity ?? {}) };
+  if (LEGACY_CURRENCY.test(identity.currencyName ?? '')) identity.currencyName = DEFAULT_GAMIFICATION.identity.currencyName;
   return {
-    identity: { ...DEFAULT_GAMIFICATION.identity, ...(stored.identity ?? {}) },
+    identity,
     streak: { ...DEFAULT_GAMIFICATION.streak, ...(stored.streak ?? {}) },
     premium_discount_pct: stored.premium_discount_pct ?? DEFAULT_GAMIFICATION.premium_discount_pct,
     relyka_tab_enabled: stored.relyka_tab_enabled ?? DEFAULT_GAMIFICATION.relyka_tab_enabled,
@@ -459,21 +469,22 @@ function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
   if (oldFormat) return DEFAULT_GAMIFICATION.badges;
   // Garde-fou : la config admin stockée en base peut contenir des badges dont la métrique a été
   // retirée (ex. « sniper » / variable_savings_pct) → indéblocables. On ne les ressuscite pas.
-  const usable = stored.filter((b) => SUPPORTED_METRICS.has(b.metric));
+  const usable = stored.filter((b) => SUPPORTED_METRICS.has(b.metric))
+    .map((b) => (b.key === 'invest_1' && b.label === 'Première graine' ? { ...b, label: 'Premier fruit' } : { ...b, label: legacyText(b.label) ?? b.label, description: legacyText(b.description) ?? b.description }));
   const keys = new Set(usable.map((b) => b.key));
   const missing = DEFAULT_GAMIFICATION.badges.filter((b) => !keys.has(b.key));
   return [...usable, ...missing];
 }
 
-/** Forme plurielle du nom de la monnaie (« Graine » → « Graines »). */
+/** Forme plurielle du nom de la monnaie (« Noisette » → « Noisettes »). */
 export function currencyPlural(currencyName: string): string {
-  const name = currencyName || 'Graine';
+  const name = currencyName || 'Noisette';
   return /s$/i.test(name) ? name : `${name}s`;
 }
 
-/** « 1 Graine », « 50 Graines », « 0 Graines » — ajoute le « s » du pluriel. */
+/** « 1 Noisette », « 50 Noisettes », « 0 Noisettes » — ajoute le « s » du pluriel. */
 export function formatCurrency(n: number, currencyName: string): string {
-  const name = currencyName || 'Graine';
+  const name = currencyName || 'Noisette';
   const singular = /s$/i.test(name) ? name.replace(/s$/i, '') : name;
   return `${n} ${Math.abs(n) === 1 ? singular : currencyPlural(name)}`;
 }

@@ -56,7 +56,7 @@ describe('formatCurrency — le nom de la monnaie est configurable', () => {
   });
 
   it('retombe sur le nom par défaut quand la config est vide', () => {
-    expect(formatCurrency(3, '')).toBe('3 Graines');
+    expect(formatCurrency(3, '')).toBe('3 Noisettes');
   });
 });
 

@@ -9,7 +9,7 @@
  */
 import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
-import SeedIcon from './SeedIcon';
+import NutIcon from './NutIcon';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -151,7 +151,7 @@ export default function AchievementCelebration() {
 
   if (!current) return null;
   const gems = current.gems ?? 0;
-  const currency = config?.identity.currencyName ?? 'Graine';
+  const currency = config?.identity.currencyName ?? 'Noisette';
   const glowScale = glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] });
 
@@ -194,7 +194,7 @@ export default function AchievementCelebration() {
         {!!current.description && <Text style={styles.desc}>{current.description}</Text>}
         {gems > 0 && (
           <View style={styles.reward}>
-            <SeedIcon size={16} />
+            <NutIcon size={16} />
             <Text style={styles.rewardText}>+{formatCurrency(gems, currency)}</Text>
           </View>
         )}

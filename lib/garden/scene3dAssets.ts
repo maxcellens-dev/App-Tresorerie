@@ -397,6 +397,10 @@ export const SCENE3D = {
     }
   },
   "shop": {
+    "nut": {
+      "w": 93,
+      "h": 96
+    },
     "trophy": {
       "w": 149,
       "h": 160
@@ -539,6 +543,7 @@ export const SCENE3D_IMG = {
   "decor_mushrooms": require('../../assets/garden3d/decor_mushrooms.webp'),
   "decor_fence": require('../../assets/garden3d/decor_fence.webp'),
   "decor_pond": require('../../assets/garden3d/decor_pond.webp'),
+  "currency_nut": require('../../assets/garden3d/currency_nut.webp'),
   "shop_trophy": require('../../assets/garden3d/shop_trophy.webp'),
   "shop_flame_orange": require('../../assets/garden3d/shop_flame_orange.webp'),
   "shop_flame_silver": require('../../assets/garden3d/shop_flame_silver.webp'),

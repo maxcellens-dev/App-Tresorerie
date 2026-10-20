@@ -28,7 +28,7 @@ export default function AppLoading() {
       style={[styles.root, { backgroundColor: bg }]}
       {...(Platform.OS === 'web' ? ({ dataSet: { appLoading: '1' } } as any) : {})}
     >
-      <Image source={require('../../assets/logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
+      <Image source={require('../../assets/splash-logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
     </View>
   );
 }

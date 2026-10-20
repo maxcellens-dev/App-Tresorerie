@@ -59,7 +59,7 @@ export async function getPlanPrices(): Promise<{ monthly?: string; annual?: stri
 
 /** Achat d'un pack de gemmes en argent réel (consommable store). No-op / message sur web. */
 export async function purchaseGemsPack(_productId: string): Promise<PurchaseResult> {
-  return { ok: false, reason: 'not_supported', message: "L'achat de graines est disponible depuis l'application mobile." };
+  return { ok: false, reason: 'not_supported', message: "L'achat de noisettes est disponible depuis l'application mobile." };
 }
 
 /** S'abonne aux changements d'entitlement (achat, renouvellement, expiration). No-op sur web. */

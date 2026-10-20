@@ -3,7 +3,7 @@
  *
  * Objectif : l'utilisateur ne voit QUE le logo de l'app pendant tout le chargement, sans jonction
  * visible entre le splash natif et celui-ci.
- *  1. Première frame IDENTIQUE au splash natif : fond crème + logo (assets/logo.png, la même image)
+ *  1. Première frame IDENTIQUE au splash natif : fond crème + logo (assets/splash-logo.png, la même image que app.json › expo-splash-screen)
  *     à 96 dp (= app.json > expo-splash-screen > imageWidth), centré à la MÊME position.
  *  2. Le splash natif s'efface en fondu par-dessus (SplashScreen.setOptions({ fade }) dans
  *     app/_layout.tsx) → jonction invisible puisque les deux calques sont identiques.
@@ -130,7 +130,7 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: themeBg, opacity: bgFade }]} />
       {/* Logo : même image, même taille, même position que le splash natif. */}
       <Animated.View style={[styles.logoWrap, { top: logoTop, transform: [{ translateY: contentY }] }]}>
-        <Image source={require('../../assets/logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
+        <Image source={require('../../assets/splash-logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
       </Animated.View>
     </Animated.View>
   );

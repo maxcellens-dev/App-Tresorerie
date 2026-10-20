@@ -2,7 +2,7 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
-import SeedIcon from '../../../components/gamification/SeedIcon';
+import NutIcon from '../../../components/gamification/NutIcon';
 import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
 import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
 import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
@@ -171,7 +171,7 @@ function SuccesScreen() {
         )}
         {!unlocked && gems > 0 && (
           <View style={styles.rewardPill}>
-            <SeedIcon size={12} mono={COLORS.textSecondary} />
+            <NutIcon size={12} mono={COLORS.textSecondary} />
             <Text style={[styles.rewardText, { color: COLORS.textSecondary }]}>+{gems}</Text>
           </View>
         )}
@@ -240,14 +240,14 @@ function SuccesScreen() {
               onPress={() => router.push('/(tabs)/(secondary)/boutique?focus=gems' as any)}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel="Recharger en graines"
+              accessibilityLabel="Recharger en noisettes"
             >
-              <SeedIcon size={24} />
+              <NutIcon size={24} />
               <Text style={styles.summaryValue}>{state?.gems ?? 0}</Text>
               {/* Cette case OUVRE la boutique, les deux autres non — rien ne le disait : trois cases
                   strictement identiques, dont une seule réagit au toucher. Le petit « + » le dit. */}
               <View style={styles.summaryLinkRow}>
-                <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Graine')}</Text>
+                <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Noisette')}</Text>
                 <Ionicons name="add-circle" size={12} color={COLORS.blue} />
               </View>
             </TouchableOpacity>
@@ -340,8 +340,8 @@ function SuccesScreen() {
                   {!!selected.description && <Text style={styles.modalDesc}>{selected.description}</Text>}
                   {gems > 0 && (
                     <View style={[styles.modalReward, { borderColor: tint + '66', backgroundColor: tint + '14' }]}>
-                      <SeedIcon size={16} />
-                      <Text style={[styles.modalRewardText, { color: tint }]}>+{gems} {currencyPlural(config?.identity.currencyName || 'Graine')}</Text>
+                      <NutIcon size={16} />
+                      <Text style={[styles.modalRewardText, { color: tint }]}>+{gems} {currencyPlural(config?.identity.currencyName || 'Noisette')}</Text>
                     </View>
                   )}
                   <View style={[styles.modalStatusPill, { backgroundColor: unlocked ? UNLOCK_COLOR + '1A' : COLORS.cardBorder + '55' }]}>
