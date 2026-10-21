@@ -39,7 +39,9 @@ import type { HotspotPart } from '../../lib/garden/sceneSvg';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
 import { pointer } from '../../lib/ui/webLayout';
-import { RELYKA_ZERO, WORDS, rootsGoal } from '../../lib/garden/lexicon';
+import { RELYKA_ZERO, WORDS } from '../../lib/garden/lexicon';
+import { computeNextStep } from '../../lib/garden/nextStep';
+import { GARDEN_ICONS } from '../../lib/garden/icons';
 
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 const months = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
@@ -105,9 +107,9 @@ export default function JardinScreen() {
   const range = vm.relConf?.relykaRange;
   const totalChoices = choices.reduce((s, c) => s + c.amount, 0);
 
-  /* ── Prochain pas : le trait de racines suivant (1, 3 puis 6 mois de dépenses) ── */
-  const m = tree.roots.months;
-  const nextMark = m < 1 ? 1 : m < 3 ? 3 : m < 6 ? 6 : null;
+  /* ── Prochain pas : UN geste, le plus utile d'abord (lib/garden/nextStep) ── */
+  const step = computeNextStep(tree, inputs.monthlyReference, inputs.investedValue);
+  const stepLook = GARDEN_ICONS[step.part];
   const showClosure = closureEnabled && pendingMonths.length > 0;
 
   return (
@@ -213,25 +215,22 @@ export default function JardinScreen() {
       ) : null}
 
       {/* ── 4. Prochain pas ── */}
-      {nextMark ? (
-        <GardenCard tint={GARDEN_COLORS.rootsBg} onPress={() => router.push('/(tabs)/(secondary)/parcours' as any)} accessibilityLabel={`${WORDS.nextStep} : ${rootsGoal(nextMark)}`}>
-          <GardenText variant="label" color={GARDEN_COLORS.rootsText}>{WORDS.nextStep}</GardenText>
-          <GardenText variant="heading">{rootsGoal(nextMark)}</GardenText>
-          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>
-            {m > 0 ? `Aujourd'hui, ton épargne de secours paierait ${months(m)} mois de tes dépenses si tes revenus s'arrêtaient.` : "Ton épargne de secours, c'est ce qui paierait tes dépenses si tes revenus s'arrêtaient."}
-          </GardenText>
+      {/* La carte mène là où le geste se fait : crédits, parcours, ajout d'un placement, placements. */}
+      <GardenCard tint={stepLook.bg} accessibilityLabel={`${WORDS.nextStep} : ${step.title}`}
+        onPress={() => router.push((step.kind === 'brambles' ? '/(tabs)/(secondary)/credits'
+          : step.kind === 'roots' ? '/(tabs)/(secondary)/parcours'
+          : step.kind === 'firstFruit' ? '/(tabs)/comptes/add'
+          : '/(tabs)/(secondary)/placements') as any)}>
+        <GardenText variant="label" color={stepLook.fg}>{WORDS.nextStep}</GardenText>
+        <GardenText variant="heading">{step.title}</GardenText>
+        <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{step.text}</GardenText>
+        {step.progress ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
-            <View style={{ flex: 1 }}><GardenBar value={m / nextMark} fill={GARDEN_COLORS.roots} track="#F6E9CC" accessibilityLabel={`${months(m)} mois sur ${nextMark}`} /></View>
-            <GardenText variant="smallStrong" tabular>{months(m)} / {nextMark}</GardenText>
+            <View style={{ flex: 1 }}><GardenBar value={step.progress.value / step.progress.target} fill={stepLook.fill} track={GARDEN_COLORS.track} accessibilityLabel={`${months(step.progress.value)} mois sur ${step.progress.target}`} /></View>
+            <GardenText variant="smallStrong" tabular>{months(step.progress.value)} / {step.progress.target}</GardenText>
           </View>
-        </GardenCard>
-      ) : (
-        <GardenCard tint={GARDEN_COLORS.branchesBg} onPress={() => router.push('/(tabs)/(secondary)/parcours' as any)} accessibilityLabel={`${WORDS.nextStep} : voir mon parcours`}>
-          <GardenText variant="label" color={GARDEN_COLORS.branchesText}>{WORDS.nextStep}</GardenText>
-          <GardenText variant="heading">{`Ton épargne de secours paierait ${months(m)} mois de dépenses`}</GardenText>
-          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>C'est solide : 6 mois suffisent pour faire face à un coup dur. Au-delà, l'argent en plus peut faire grossir tes fruits (tes placements) ; Pépin te dit combien, chaque mois.</GardenText>
-        </GardenCard>
-      )}
+        ) : null}
+      </GardenCard>
 
       </>} />
 
