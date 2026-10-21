@@ -16,6 +16,7 @@ import { signalAppReady } from '../../lib/platform/splashGate';
 import { getCachedAdminTheme } from '../../lib/platform/themeBoot';
 import AppLoading from '../system/AppLoading';
 import GardenLandingPage from './GardenLandingPage';
+import GardenWelcome from './GardenWelcome';
 import PlayStoreBadge from './PlayStoreBadge';
 import SocialLinks from './SocialLinks';
 
@@ -121,6 +122,11 @@ export default function WelcomeScreen({ previewConfig, previewWidth }: { preview
   /* Vitrine du Jardin : affichée quand la refonte est ouverte à tous (garden_ui = 'all'), ou en
      aperçu avec ?jardin=1 dans l'adresse. Sinon, la vitrine actuelle. */
   if (showLanding) return <GardenLandingPage />;
+
+  /* Accueil de l'app (téléphone, et son aperçu en admin) : la version Jardin. Le fondu et la levée du
+     splash restent pilotés ici (cf. canReveal plus haut). L'ancien accueil ci-dessous ne sert plus
+     qu'au navigateur quand la vitrine est désactivée en admin. */
+  if (Platform.OS !== 'web' || previewConfig) return <GardenWelcome L={L} preview={!!previewConfig} fade={fadeAnim} />;
 
   return (
     <View style={styles.root}>

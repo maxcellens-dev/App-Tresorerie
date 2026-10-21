@@ -539,7 +539,7 @@ export default function AdminLanding() {
               <Text style={styles.section}>Accueil mobile (application)</Text>
               <TouchableOpacity onPress={() => set({ mobileFeatures: [...cfg.mobileFeatures, { icon: 'sparkles', title: 'Titre', text: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
             </View>
-            <Text style={styles.hint}>Ces textes s'affichent sur l'écran d'accueil de l'app mobile (le nom de la marque et le logo sont communs). Le badge/héros ci-dessus concernent la version web bureau.</Text>
+            <Text style={styles.hint}>Ces textes s'affichent sur l'écran d'accueil de l'app mobile, au style du Jardin : le logo et le nom, l'arbre en 3D avec Pépin, l'accroche, la carte d'action et la liste des fonctionnalités (icônes affichées en trait fin, aux couleurs de l'arbre dans l'ordre : arrosoir, racines, fruits, fleurs, cabane). Le badge/héros ci-dessus concernent la version web bureau.</Text>
             <Field label="Accroche (sous le nom)" value={cfg.mobileTagline} onChange={(v) => set({ mobileTagline: v })} multiline styles={styles} c={COLORS} />
             <Field label="Sous-accroche" value={cfg.mobileSubtag} onChange={(v) => set({ mobileSubtag: v })} styles={styles} c={COLORS} />
             <Field label="Titre de la carte d'action" value={cfg.mobileCtaTitle} onChange={(v) => set({ mobileCtaTitle: v })} styles={styles} c={COLORS} />

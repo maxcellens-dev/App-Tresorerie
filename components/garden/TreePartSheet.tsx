@@ -19,6 +19,7 @@ import { formatEuros } from '../../lib/garden/picoChoices';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import { GardenRowGroup } from './GardenList';
 import { GARDEN_COLORS, GARDEN_SPACE } from '../../lib/garden/theme';
+import { GARDEN_ICONS } from '../../lib/garden/icons';
 import { TREE_PARTS, WORDS, rootsGoal } from '../../lib/garden/lexicon';
 
 export interface CanFigures {
@@ -119,7 +120,7 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
           <GardenRowGroup rows={investments.map((a) => ({
             key: a.id, label: a.name, sub: 'Investissement',
             value: `${Math.round(a.balance).toLocaleString('fr-FR')} ${currencySymbolFor(a.currency)}`,
-            icon: 'nutrition-outline', iconColor: GARDEN_COLORS.fruitsText, iconBg: GARDEN_COLORS.fruitsBg,
+            icon: GARDEN_ICONS.fruits.icon, iconColor: GARDEN_ICONS.fruits.fg, iconBg: GARDEN_ICONS.fruits.bg,
             onPress: () => go(`/(tabs)/comptes/${a.id}`),
           }))} />
         ) : (

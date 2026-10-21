@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import GardenPage, { GardenColumns, GardenWaiting } from '../../components/garden/GardenPage';
 import GardenText from '../../components/garden/GardenText';
-import ChoiceIcon from '../../components/garden/ChoiceIcon';
+import GardenIcon from '../../components/garden/GardenIcon';
 import GardenCard from '../../components/garden/GardenCard';
 import GardenButton from '../../components/garden/GardenButton';
 import GardenBar from '../../components/garden/GardenBar';
@@ -167,9 +167,7 @@ export default function JardinScreen() {
               const row = { flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 58, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: GARDEN_COLORS.line } as const;
               const content = (
                 <>
-                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: look.bg, alignItems: 'center', justifyContent: 'center' }}>
-                    <ChoiceIcon name={look.icon} size={18} color={look.fg} />
-                  </View>
+                  <GardenIcon icon={look.icon} fg={look.fg} bg={look.bg} />
                   <View style={{ flex: 1 }}>
                     <GardenText variant="bodyStrong">{look.verb}</GardenText>
                     <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{c.kind === 'transfer' && c.to ? `${look.meaning} · vers ${c.to}` : look.meaning}</GardenText>

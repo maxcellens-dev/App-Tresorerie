@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import GardenText from './GardenText';
+import GardenIcon from './GardenIcon';
 import { GARDEN_COLORS as G, GARDEN_SPACE } from '../../lib/garden/theme';
 import { iconForCategory } from '../../lib/ui/categoryIcons';
 import { currencySymbolFor } from '../../lib/finance/currency';
@@ -67,9 +68,7 @@ export default function MonthTxRow({ t, amount, positive, sub, dateBadge, first,
           <GardenText variant="small" color={G.muted} style={{ fontSize: 10.5, lineHeight: 13 }}>{WEEKDAYS[new Date(dateBadge + 'T00:00:00').getDay()].slice(0, 3)}.</GardenText>
         </View>
       ) : (
-        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={iconForCategory(t?.category) as any} size={17} color={color} />
-        </View>
+        <GardenIcon icon={iconForCategory(t?.category)} fg={color} bg={bg} />
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <GardenText variant="bodyStrong" numberOfLines={1}>{label}</GardenText>

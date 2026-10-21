@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import GardenText from '../garden/GardenText';
 import GardenScene from '../garden/GardenScene';
 import Pico from '../garden/Pico';
+import GardenIcon from '../garden/GardenIcon';
+import { GARDEN_ICONS, type GardenIconKey } from '../../lib/garden/icons';
 import PicoBubble from '../garden/PicoBubble';
 import PlayStoreBadge from './PlayStoreBadge';
 import SocialLinks from './SocialLinks';
@@ -35,19 +37,20 @@ const base: GardenInputs = {
   investedValue: 0, investedContributed: 0, enjoyThisMonth: 0, recurringSavingsMonthly: 0, recurringInvestMonthly: 0,
   consecutiveSavingMonths: 0, streakWeeks: 0, credits: [],
 };
-const HERO = computeTreeState({ ...base, securityMonths: 3.4, investedValue: 9000, investedContributed: 7500, investmentCount: 3, enjoyThisMonth: 250, recurringSavingsMonthly: 150, credits: [{ id: 'm', kind: 'healthy', remaining: 6000, borrowed: 15000 }], relyka: 900 });
+export const HERO = computeTreeState({ ...base, securityMonths: 3.4, investedValue: 9000, investedContributed: 7500, investmentCount: 3, enjoyThisMonth: 250, recurringSavingsMonthly: 150, credits: [{ id: 'm', kind: 'healthy', remaining: 6000, borrowed: 15000 }], relyka: 900 });
 const STEPS = [
   computeTreeState({ ...base, securityMonths: 0.3, relyka: 250 }),
   computeTreeState({ ...base, securityMonths: 2, enjoyThisMonth: 120, relyka: 500 }),
   computeTreeState({ ...base, securityMonths: 6.5, investedValue: 30000, investedContributed: 24000, investmentCount: 6, enjoyThisMonth: 300, relyka: 1100 }),
 ];
 
-const PARTS: { icon: string; name: string; meaning: string; text: string; fg: string; bg: string }[] = [
-  { icon: 'water-outline', name: 'Arrosoir', meaning: 'Comptes courants', text: "L'eau qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues.", fg: G.waterText, bg: G.waterBg },
-  { icon: 'git-merge-outline', name: 'Racines', meaning: 'Épargne de secours', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté.', fg: G.rootsText, bg: G.rootsBg },
-  { icon: 'nutrition-outline', name: 'Fruits', meaning: 'Placements', text: 'Un fruit par placement. Ils mûrissent quand tes placements rapportent.', fg: G.fruitsText, bg: G.fruitsBg },
-  { icon: 'flower-outline', name: 'Fleurs', meaning: 'Pour te faire plaisir', text: "La part de ton mois à dépenser pour toi, sans culpabiliser.", fg: G.flowersText, bg: G.flowersBg },
-  { icon: 'home-outline', name: 'Cabane', meaning: 'Crédit', text: 'Une planche de plus à chaque mensualité, jusqu’à ce qu’elle soit à toi.', fg: G.picoText, bg: G.pico },
+/* Icônes et couleurs : lib/garden/icons (les mêmes que dans l'app). */
+const PARTS: { kind: GardenIconKey; name: string; meaning: string; text: string }[] = [
+  { kind: 'water', name: 'Arrosoir', meaning: 'Comptes courants', text: "L'eau qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues." },
+  { kind: 'roots', name: 'Racines', meaning: 'Épargne de secours', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté.' },
+  { kind: 'fruits', name: 'Fruits', meaning: 'Placements', text: 'Un fruit par placement. Ils mûrissent quand tes placements rapportent.' },
+  { kind: 'flowers', name: 'Fleurs', meaning: 'Pour te faire plaisir', text: "La part de ton mois à dépenser pour toi, sans culpabiliser." },
+  { kind: 'cabin', name: 'Cabane', meaning: 'Crédit', text: 'Une planche de plus à chaque mensualité, jusqu’à ce qu’elle soit à toi.' },
 ];
 
 const HOW: { n: string; title: string; text: string }[] = [
@@ -141,12 +144,10 @@ export default function GardenLandingPage() {
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
               {PARTS.map((p) => (
-                <View key={p.name} style={{ flexGrow: 1, flexBasis: wide ? '18%' : narrow ? '100%' : '45%', minWidth: 200, gap: 10, padding: 18, borderRadius: GARDEN_RADII.lg, backgroundColor: p.bg }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: G.card, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name={p.icon as any} size={22} color={p.fg} />
-                  </View>
+                <View key={p.name} style={{ flexGrow: 1, flexBasis: wide ? '18%' : narrow ? '100%' : '45%', minWidth: 200, gap: 10, padding: 18, borderRadius: GARDEN_RADII.lg, backgroundColor: GARDEN_ICONS[p.kind].bg }}>
+                  <GardenIcon kind={p.kind} bg={G.card} size={44} />
                   <View>
-                    <GardenText variant="heading" color={p.fg}>{p.name}</GardenText>
+                    <GardenText variant="heading" color={GARDEN_ICONS[p.kind].fg}>{p.name}</GardenText>
                     <GardenText variant="smallStrong" color={G.inkSoft}>{p.meaning}</GardenText>
                   </View>
                   <GardenText variant="body" color={G.ink}>{p.text}</GardenText>
