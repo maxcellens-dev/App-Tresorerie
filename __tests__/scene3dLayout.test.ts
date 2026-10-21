@@ -8,7 +8,7 @@ import { SCENE3D, SCENE3D_IMG } from '../lib/garden/scene3dAssets';
 const inputs: GardenInputs = {
   currentBalance: 1653, minimumToKeep: 200, monthlyReference: 1900, securityMonths: 1.8,
   investedValue: 0, investedContributed: 0, enjoyThisMonth: 96,
-  recurringSavingsMonthly: 0, recurringInvestMonthly: 0, consecutiveSavingMonths: 3, streakWeeks: 6,
+  recurringInvestMonthly: 0, streakWeeks: 6,
   credits: [{ id: 'auto', kind: 'healthy', remaining: 4300, borrowed: 10000 }],
 };
 const opts = { season: 'summer' as const, moment: 'day' as const };
@@ -35,7 +35,7 @@ describe('scene3dLayout', () => {
 
   it('toutes les images utilisées existent, et tout reste dans le cadre', () => {
     for (const growth of [0.16, 0.3, 0.6, 1]) {
-      const s = layoutScene({ ...computeTreeState(inputs), growth, brambles: 1, flowers: 5, fruits: 10, fruitTier: 10 }, { ...opts, decor: ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond'] });
+      const s = layoutScene({ ...computeTreeState(inputs), growth, brambles: 1, flowers: 5, fruits: 6, harvest: 'big', maturity: 'golden' }, { ...opts, decor: ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond'] });
       for (const l of all(s)) {
         expect(SCENE3D_IMG[l.img]).toBeDefined();
         expect(l.x).toBeGreaterThanOrEqual(0);
@@ -51,13 +51,16 @@ describe('scene3dLayout', () => {
     const half = all(layoutScene({ ...st, water: 0.5 }, opts)).find((l) => l.img === 'can_water')!;
     const full = all(layoutScene({ ...st, water: 1 }, opts)).find((l) => l.img === 'can_water')!;
     expect(half.showBottom!).toBeLessThan(full.showBottom!);
-    // la cabane se construit en 4 images entières : plancher et garde-corps, ossature, toit, cabane habitée
-    const cabinAt = (progress: number) => all(layoutScene({ ...st, cabin: { progress, count: 1 } }, opts)).find((l) => l.key === 'cabin')!;
-    expect([0, 0.3, 0.6, 1].map((p) => cabinAt(p).img)).toEqual(['cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
-    expect([0, 0.3, 0.6, 1].every((p) => cabinAt(p).showBottom == null)).toBe(true);
+    // la cabane se construit en 5 étapes : l'échelle seule, plancher et garde-corps, ossature, toit, cabane habitée
+    const layersAt = (progress: number) => all(layoutScene({ ...st, cabin: { progress, count: 1, owned: false } }, opts));
+    const cabinAt = (progress: number) => layersAt(progress).find((l) => l.key === 'cabin');
+    expect(cabinAt(0)).toBeUndefined();
+    expect(layersAt(0).some((l) => l.key === 'ladder')).toBe(true);
+    expect([0.3, 0.5, 0.7, 1].map((p) => cabinAt(p)!.img)).toEqual(['cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
+    expect([0.3, 0.5, 0.7, 1].every((p) => cabinAt(p)!.showBottom == null)).toBe(true);
     // seule la cabane finie a sa fenêtre allumée
-    expect(layoutScene({ ...st, cabin: { progress: 1, count: 1 } }, opts).vector.windows).toHaveLength(1);
-    expect(layoutScene({ ...st, cabin: { progress: 0.7, count: 1 } }, opts).vector.windows).toHaveLength(0);
+    expect(layoutScene({ ...st, cabin: { progress: 1, count: 1, owned: false } }, opts).vector.windows).toHaveLength(1);
+    expect(layoutScene({ ...st, cabin: { progress: 0.75, count: 1, owned: false } }, opts).vector.windows).toHaveLength(0);
   });
 
   it('sans cabane, le grand arbre perd sa branche nue', () => {

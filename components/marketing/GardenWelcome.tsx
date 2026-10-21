@@ -6,41 +6,32 @@
  * d'exemple : jamais de vraies données), Pépin qui salue, à l'heure et à la saison du moment. Puis
  * l'accroche, les deux boutons, les points forts et les réseaux.
  *
- * Tous les textes viennent de l'administration (app_config.landing › section Mobile), comme sur
- * l'ancien accueil : rien en dur à part la structure. `L` est la config déjà fusionnée par
- * WelcomeScreen, qui garde la main sur le moment de la révélation (police, textes, splash).
+ * Les TEXTES sont ceux de la vitrine web (slogan, arrosoir, les trois gestes de HOW) : une seule
+ * voix, celle du Jardin. L'administration garde la marque, les libellés des deux boutons et les
+ * réseaux (`L`, config déjà fusionnée par WelcomeScreen, qui garde la main sur la révélation).
  */
 import { Animated, Image, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import GardenText from '../garden/GardenText';
 import GardenScene from '../garden/GardenScene';
 import GardenButton from '../garden/GardenButton';
 import GardenIcon from '../garden/GardenIcon';
 import WateringCan from '../garden/WateringCan';
 import SocialLinks from './SocialLinks';
-import { HERO } from './GardenLandingPage';
+import { HERO, HOW } from './GardenLandingPage';
 import { useGardenFonts } from '../../hooks/garden/useGardenFonts';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useBrandFont';
 import type { mergeLanding } from '../../hooks/config/useLandingConfig';
 import type { GardenIconKey } from '../../lib/garden/icons';
 import { GARDEN_COLORS as G, GARDEN_SPACE } from '../../lib/garden/theme';
 
-/** Les icônes des points forts sont saisies en admin, souvent pleines (« wallet ») : on prend leur
- *  version « outline » quand elle existe, pour le même trait que toutes les icônes du Jardin. */
-const outline = (name?: string) => {
-  if (!name) return undefined;
-  if (name.endsWith('-outline')) return name;
-  const o = `${name}-outline`;
-  return o in Ionicons.glyphMap ? o : name;
-};
 /** Fond sombre (jardin de nuit) → icônes de la barre d'état claires. */
 const isDarkBg = () => { const h = G.bg.replace('#', ''); const v = (i: number) => parseInt(h.slice(i, i + 2), 16) / 255; return 0.299 * v(0) + 0.587 * v(2) + 0.114 * v(4) < 0.5; };
 
-/* Les points forts (textes admin) prennent, dans l'ordre, les couleurs des parties de l'arbre. */
-const FEATURE_KINDS: GardenIconKey[] = ['water', 'roots', 'fruits', 'flowers', 'cabin'];
+/* Les trois gestes : planter (racines), regarder l'arrosoir (eau), arroser avec Pépin (fruits). */
+const STEP_KINDS: GardenIconKey[] = ['roots', 'water', 'fruits'];
 
 interface Props {
   L: ReturnType<typeof mergeLanding>;
@@ -71,8 +62,9 @@ export default function GardenWelcome({ L, preview, fade }: Props) {
           <GardenScene state={HERO} options={{ mood: 'joy', marks: false, label: 'Un arbre en fruits, ses racines, son arrosoir et Pépin le hérisson qui salue' }} />
 
           <View style={{ gap: 6, alignItems: 'center' }}>
-            <GardenText variant="display" center style={{ fontSize: 28, lineHeight: 34 }}>{L.mobileTagline}</GardenText>
-            <GardenText variant="body" color={G.inkSoft} center>{L.mobileSubtag}</GardenText>
+            <GardenText variant="smallStrong" color={G.branchesText} center>Ton argent, comme un jardin</GardenText>
+            <GardenText variant="display" center style={{ fontSize: 30, lineHeight: 36 }} accessibilityRole="header">Regarde ton argent pousser.</GardenText>
+            <GardenText variant="body" color={G.inkSoft} center>Chaque partie de l'arbre, c'est un vrai bout de ton argent : tes comptes, ton épargne, tes placements, tes crédits.</GardenText>
           </View>
 
           {/* La métaphore en une phrase : le Relyka, c'est l'eau de l'arrosoir, et on choisit où la verser. */}
@@ -84,25 +76,28 @@ export default function GardenWelcome({ L, preview, fade }: Props) {
           </View>
 
           <View style={{ gap: GARDEN_SPACE.sm, backgroundColor: G.card, borderRadius: 20, borderWidth: 1, borderColor: G.line, padding: GARDEN_SPACE.lg }}>
-            {L.mobileCtaTitle ? <GardenText variant="heading" center>{L.mobileCtaTitle}</GardenText> : null}
-            {L.mobileCtaText ? <GardenText variant="small" color={G.inkSoft} center style={{ marginBottom: 4 }}>{L.mobileCtaText}</GardenText> : null}
+            <GardenText variant="heading" center>Ton jardin t’attend.</GardenText>
+            <GardenText variant="small" color={G.inkSoft} center style={{ marginBottom: 4 }}>Gratuit pour commencer. Quelques minutes pour planter ton arbre.</GardenText>
             <GardenButton label={L.mobileCtaPrimaryLabel} onPress={() => go('/login')} />
             <GardenButton label={L.mobileCtaSecondaryLabel} variant="secondary" onPress={() => go('/register')} />
           </View>
 
-          {L.mobileFeatures.length ? (
+          {/* Les trois gestes (mêmes mots que la vitrine web), puis la promesse. */}
+          <View style={{ gap: GARDEN_SPACE.sm }}>
+            <GardenText variant="heading" center>Trois gestes, et ton jardin vit tout seul.</GardenText>
             <View style={{ backgroundColor: G.card, borderRadius: 20, borderWidth: 1, borderColor: G.line, overflow: 'hidden' }}>
-              {L.mobileFeatures.map((f, i) => (
-                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, padding: GARDEN_SPACE.lg, borderTopWidth: i ? 1 : 0, borderTopColor: G.line }}>
-                  <GardenIcon kind={FEATURE_KINDS[i % FEATURE_KINDS.length]} icon={outline(f.icon)} />
+              {HOW.map((h, i) => (
+                <View key={h.n} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, padding: GARDEN_SPACE.lg, borderTopWidth: i ? 1 : 0, borderTopColor: G.line }}>
+                  <GardenIcon kind={STEP_KINDS[i]} />
                   <View style={{ flex: 1 }}>
-                    <GardenText variant="bodyStrong">{f.title}</GardenText>
-                    <GardenText variant="small" color={G.inkSoft}>{f.text}</GardenText>
+                    <GardenText variant="bodyStrong">{h.title}</GardenText>
+                    <GardenText variant="small" color={G.inkSoft}>{h.text}</GardenText>
                   </View>
                 </View>
               ))}
             </View>
-          ) : null}
+            <GardenText variant="smallStrong" color={G.branchesText} center>Relyka ne déplace jamais ton argent : il te conseille, c’est toi qui décides.</GardenText>
+          </View>
 
           {hasSocials ? (
             <View pointerEvents={preview ? 'none' : 'auto'}><SocialLinks config={L.socials} color={G.muted} align="center" /></View>

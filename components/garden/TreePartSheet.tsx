@@ -102,7 +102,7 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
     return (
       <GardenSheet visible onClose={onClose} title={TREE_PARTS.branches.name} subtitle={TREE_PARTS.branches.meaning}
         footer={<GardenButton label="Voir ce qu'ils peuvent devenir" variant="secondary" onPress={() => go('/(tabs)/(secondary)/placements')} />}>
-        <Row label="Valeur de tes placements" value={eur(investedTotal)} hint={tree.investments ? `${tree.investments} placement${tree.investments > 1 ? 's' : ''}, ${tree.ripe ? 'en gain : tes fruits sont mûrs' : 'tes fruits mûrissent'}` : undefined} />
+        <Row label="Valeur de tes placements" value={eur(investedTotal)} hint={tree.investments ? (tree.maturity === 'golden' ? 'Belle plus-value : tes fruits sont dorés' : tree.ripe ? 'En gain : tes fruits sont mûrs' : 'Pas encore de gain : tes fruits mûrissent') : undefined} />
         {/* Tous les placements, un par fruit : chacun ouvre sa fiche. */}
         {investments.length ? (
           <GardenRowGroup rows={investments.map((a) => ({
@@ -129,7 +129,14 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
           : 'Un crédit qui coûte cher. Le rembourser plus vite fait reculer les ronces.'}
       </GardenText>
       {/* Une seule cabane pour tous les crédits : son avancement global, puis chaque crédit. */}
-      {part === 'cabin' && tree.cabin && tree.cabin.count > 1 ? (
+      {/* Tout est remboursé : la cabane est à toi (fanion sur le toit). */}
+      {part === 'cabin' && tree.cabin?.owned ? (
+        <GardenCard tint={GARDEN_COLORS.pico}>
+          <GardenText variant="label" color={GARDEN_COLORS.picoText}>Ta cabane est à toi</GardenText>
+          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{tree.cabin.count > 1 ? 'Tes crédits sont' : 'Ton crédit est'} entièrement remboursé{tree.cabin.count > 1 ? 's' : ''} : le fanion flotte sur le toit, et la cabane reste dans ton jardin.</GardenText>
+        </GardenCard>
+      ) : null}
+      {part === 'cabin' && tree.cabin && !tree.cabin.owned && tree.cabin.count > 1 ? (
         <GardenCard tint={GARDEN_COLORS.pico}>
           <GardenText variant="label" color={GARDEN_COLORS.picoText}>Ta cabane · {tree.cabin.count} crédits</GardenText>
           <GardenBar value={tree.cabin.progress} fill="#C9A57E" track="#F3E2C8" accessibilityLabel={`Construite à ${Math.round(tree.cabin.progress * 100)} %`} />

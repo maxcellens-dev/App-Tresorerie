@@ -267,7 +267,7 @@ M.basket = { w: basket.w, h: basket.h };
    0,60 au milieu. Les pommes sont posées dans l'ouverture et tout ce qui passe sous cette courbe est
    caché — elles sont DANS le panier, pas posées sur son bord. */
 const frontRim = (fx) => 0.525 + 0.075 * Math.max(0, 1 - ((fx - 0.5) / 0.47) ** 2);
-for (const n of [3, 5]) for (const kind of ['ripe', 'young']) {
+for (const n of [3, 5]) for (const kind of ['ripe', 'young', 'gold']) {
   const im = clone(basket), aw = Math.round(basket.w * 0.25), a = await resize(apples[kind], aw, Math.round(aw * appleSrc.h / appleSrc.w));
   // tas de pommes : rang du fond plus haut, rang de devant plus bas (centres en fractions du panier)
   const spots = n === 3 ? [[0.36, 0.49], [0.64, 0.49], [0.5, 0.53]] : [[0.3, 0.47], [0.5, 0.44], [0.7, 0.47], [0.4, 0.53], [0.6, 0.53]];

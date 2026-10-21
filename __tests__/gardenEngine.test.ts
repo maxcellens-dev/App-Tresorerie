@@ -11,16 +11,16 @@ import { describeScene } from '../lib/garden/sceneTypes';
 const base: GardenInputs = {
   currentBalance: 0, minimumToKeep: 200, monthlyReference: 2000, securityMonths: 0,
   investedValue: 0, investedContributed: 0, enjoyThisMonth: 0,
-  recurringSavingsMonthly: 0, recurringInvestMonthly: 0, consecutiveSavingMonths: 0, streakWeeks: 0, credits: [],
+  recurringInvestMonthly: 0, streakWeeks: 0, credits: [],
 };
 const person = (p: Partial<GardenInputs>): GardenInputs => ({ ...base, ...p });
 
 const PEOPLE: Record<string, GardenInputs> = {
-  camille: person({ currentBalance: 1653, monthlyReference: 1900, securityMonths: 1.8, enjoyThisMonth: 96, consecutiveSavingMonths: 3, streakWeeks: 6, credits: [{ id: 'auto', kind: 'healthy', remaining: 4300, borrowed: 10000 }] }),
+  camille: person({ currentBalance: 1653, monthlyReference: 1900, securityMonths: 1.8, enjoyThisMonth: 96, streakWeeks: 6, credits: [{ id: 'auto', kind: 'healthy', remaining: 4300, borrowed: 10000 }] }),
   lea: person({ currentBalance: 140, minimumToKeep: 50, monthlyReference: 900, securityMonths: 0.13 }),
   karim: person({ currentBalance: -90, minimumToKeep: 0, monthlyReference: 1810, securityMonths: 0, credits: [{ id: 'revo', kind: 'expensive', remaining: 3000 }] }),
   sophie: person({ currentBalance: 70, minimumToKeep: 50, monthlyReference: 1700, securityMonths: 0.18, enjoyThisMonth: 20 }),
-  couple: person({ currentBalance: 1900, monthlyReference: 3300, securityMonths: 2.7, recurringSavingsMonthly: 300, credits: [{ id: 'maison', kind: 'healthy', remaining: 186000, borrowed: 230000 }] }),
+  couple: person({ currentBalance: 1900, monthlyReference: 3300, securityMonths: 2.7, credits: [{ id: 'maison', kind: 'healthy', remaining: 186000, borrowed: 230000 }] }),
   marc: person({ currentBalance: 2300, monthlyReference: 2300, securityMonths: 3, enjoyThisMonth: 200 }),
   nadia: person({ currentBalance: 300, monthlyReference: 2800, securityMonths: 0, enjoyThisMonth: 400 }),
   pierre: person({ currentBalance: 15000, monthlyReference: 2000, securityMonths: 42 }),
@@ -41,13 +41,12 @@ describe('computeTreeState — les 10 personnes', () => {
     });
   });
 
-  it('Camille : jeune arbre, racines au-delà du 1er mois, cabane à 57 %, fleurs, arrosage régulier', () => {
+  it('Camille : jeune arbre, racines au-delà du 1er mois, cabane à 57 %, fleurs', () => {
     const s = S.camille;
     expect(s.stage).toBe('young');
     expect(s.roots.marks).toEqual({ one: true, three: false, six: false });
     expect(s.cabin?.progress).toBeCloseTo(0.57, 2);
     expect(s.flowers).toBeGreaterThan(0);
-    expect(s.drip.roots).toBe(true);
     expect(s.rings).toBe(6);
     expect(s.brambles).toBe(0);
   });
@@ -66,17 +65,16 @@ describe('computeTreeState — les 10 personnes', () => {
     expect(S.pierre.roots.depth).toBe(1);
   });
 
-  it('Hugo : un placement en gain = un fruit mûr, des racines encore courtes', () => {
-    expect(S.hugo.fruits).toBe(1);
+  it('Hugo : 4 mois de dépenses placés, en gain = 3 fruits mûrs, des racines encore courtes', () => {
+    expect(S.hugo.fruits).toBe(3);
+    expect(S.hugo.maturity).toBe('ripe');
     expect(S.hugo.ripe).toBe(true);
     expect(S.hugo.branches).toBeGreaterThan(0);
     expect(S.hugo.roots.depth).toBe(0);
-    expect(S.hugo.drip.branches).toBe(true);
   });
 
-  it('Thomas et Julie : cabane de la maison encore en construction, arrosage régulier', () => {
+  it('Thomas et Julie : cabane de la maison encore en construction', () => {
     expect(S.couple.cabin?.progress).toBeLessThan(0.3);
-    expect(S.couple.drip.roots).toBe(true);
   });
 
   it('Nadia : pas de racines mais des fleurs (elle se fait plaisir)', () => {
@@ -110,14 +108,33 @@ describe('computeTreeState — règles générales', () => {
 
   it('pas de gain → le fruit reste jeune (jamais abîmé ni tombé)', () => {
     const s = computeTreeState(person({ investedValue: 4000, investedContributed: 5000 }));
-    expect(s.fruits).toBe(1);
+    expect(s.fruits).toBe(2);
+    expect(s.maturity).toBe('young');
     expect(s.ripe).toBe(false);
   });
 
-  it('un fruit par placement, avec des paliers 0 / 1 / 2 / 3 / 5+ / 10+', () => {
-    const at = (n: number) => computeTreeState(person({ investedValue: n ? 5000 : 0, investedContributed: 4000, investmentCount: n }));
-    expect([0, 1, 2, 3, 4, 5, 9, 10, 25].map((n) => at(n).fruitTier)).toEqual([0, 1, 2, 3, 3, 5, 5, 10, 10]);
-    expect([0, 1, 2, 3, 4, 5, 9, 10, 25].map((n) => at(n).fruits)).toEqual([0, 1, 2, 3, 4, 6, 6, 10, 10]);
+  it('les fruits suivent la VALEUR placée (en mois de dépenses), pas le nombre de placements', () => {
+    const ref = 2000;
+    const at = (months: number, count = 1) => computeTreeState(person({ monthlyReference: ref, investedValue: months * ref, investedContributed: months * ref, investmentCount: count }));
+    expect([0, 0.5, 1, 3, 6, 12, 40].map((m) => at(m).fruits)).toEqual([0, 1, 2, 3, 4, 6, 6]);
+    expect([0.5, 12, 36].map((m) => at(m).harvest)).toEqual(['none', 'small', 'big']);
+    // dix petits placements ne valent pas mieux qu'un seul du même montant
+    expect(at(1, 10).fruits).toBe(at(1, 1).fruits);
+  });
+
+  it('la couleur suit la plus-value : jeunes, mûrs, dorés', () => {
+    const ref = 2000;
+    const st = (value: number, contributed: number) => computeTreeState(person({ monthlyReference: ref, investedValue: value, investedContributed: contributed, investmentCount: 1 }));
+    expect(st(5000, 6000).maturity).toBe('young');
+    expect(st(6000, 5000).maturity).toBe('ripe');
+    // UN placement, 500 000 € de plus-value : fruits dorés et grand panier doré
+    const rich = st(600000, 100000);
+    expect(rich.maturity).toBe('golden');
+    expect(rich.harvest).toBe('big');
+    // placement doublé, avec au moins 3 mois de dépenses de gain → doré aussi
+    expect(st(14000, 7000).maturity).toBe('golden');
+    // doublé mais le gain reste petit → simplement mûr
+    expect(st(2000, 1000).maturity).toBe('ripe');
   });
 
   it('les ronces ne viennent que d\'un crédit cher', () => {
@@ -125,8 +142,10 @@ describe('computeTreeState — règles générales', () => {
     expect(computeTreeState(person({ credits: [{ id: 'b', kind: 'expensive', remaining: 100 }] })).brambles).toBeGreaterThan(0);
   });
 
-  it('un crédit soldé ne dessine plus de cabane', () => {
-    expect(computeTreeState(person({ credits: [{ id: 'a', kind: 'healthy', remaining: 0, borrowed: 8000 }] })).cabin).toBeNull();
+  it('un crédit sain soldé laisse une cabane terminée, qui est à toi', () => {
+    expect(computeTreeState(person({ credits: [{ id: 'a', kind: 'healthy', remaining: 0, borrowed: 8000 }] })).cabin).toEqual({ progress: 1, count: 1, owned: true });
+    // un crédit en cours passe devant : la cabane se construit (pas encore à toi)
+    expect(computeTreeState(person({ credits: [{ id: 'a', kind: 'healthy', remaining: 0, borrowed: 8000 }, { id: 'b', kind: 'healthy', remaining: 4000, borrowed: 8000 }] })).cabin?.owned).toBe(false);
   });
 
   it('plusieurs crédits sains = UNE cabane, avancement pondéré par les montants', () => {

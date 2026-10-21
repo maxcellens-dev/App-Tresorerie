@@ -21,10 +21,9 @@ export function describeScene(state: TreeState): string {
   parts.push({ sprout: 'Une jeune pousse', young: 'Un jeune arbre', tree: 'Un arbre', fruiting: 'Un arbre en fruits', grand: 'Un grand arbre' }[state.stage]);
   const m = state.roots.months;
   parts.push(m > 6 ? `racines au-delà de 6 mois (${Math.round(m)} mois)` : `racines à ${m.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} mois`);
-  if (state.investments) parts.push(`${state.investments} placement${state.investments > 1 ? 's' : ''} en fruits${state.ripe ? ' mûrs' : ''}`);
+  if (state.fruits) parts.push(`${state.fruits} fruit${state.fruits > 1 ? 's' : ''}${state.maturity === 'golden' ? (state.fruits > 1 ? ' dorés' : ' doré') : state.ripe ? (state.fruits > 1 ? ' mûrs' : ' mûr') : ''}${state.harvest !== 'none' ? ' et un panier de récolte' : ''}`);
   if (state.flowers) parts.push(`${state.flowers} fleurs`);
-  if (state.drip.roots || state.drip.branches) parts.push('arrosage régulier');
-  if (state.cabin) parts.push(`une cabane construite à ${Math.round(state.cabin.progress * 100)} %${state.cabin.count > 1 ? ` (${state.cabin.count} crédits)` : ''}`);
+  if (state.cabin) parts.push(state.cabin.owned ? 'une cabane terminée, à toi, avec son fanion' : `une cabane construite à ${Math.round(state.cabin.progress * 100)} %${state.cabin.count > 1 ? ` (${state.cabin.count} crédits)` : ''}`);
   if (state.brambles > 0) parts.push('des ronces autour du tronc');
   return parts.join(', ') + '.';
 }

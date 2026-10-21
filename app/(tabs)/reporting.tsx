@@ -1,9 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
-import ScreenGradient from '../../components/layout/ScreenGradient';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import PageLoader from '../../components/layout/PageLoader';
 import { useDeferredMount } from '../../hooks/platform/useDeferredMount';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,7 +10,7 @@ import { Animated, Easing } from 'react-native';
 // onPress n'est pas reconnu par les éléments SVG sur web — on utilise onClick à la place
 const svgPress = (handler: () => void): Record<string, unknown> =>
   Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
-import Svg, { Rect, Text as SvgText, Line, Path, G, Circle } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Line, Path, G as SvgG, Circle } from 'react-native-svg';
 import { useTransactions, TX_FETCH_LIMIT } from '../../hooks/data/useTransactions';
 import { useAccounts } from '../../hooks/data/useAccounts';
 import { useCategories } from '../../hooks/data/useCategories';
@@ -23,10 +20,17 @@ import { useSharedContribution } from '../../hooks/data/useSharedContribution';
 import { useProfile } from '../../hooks/data/useProfile';
 import { usePlan } from '../../hooks/config/usePlan';
 import { useNavBack } from '../../hooks/platform/useNavBack';
-import { ACCOUNT_COLORS } from '../../theme/colors';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
+import GardenPage from '../../components/garden/GardenPage';
+import GardenText from '../../components/garden/GardenText';
+import GardenIcon from '../../components/garden/GardenIcon';
+import GardenButton from '../../components/garden/GardenButton';
+import PicoBubble from '../../components/garden/PicoBubble';
+import ScreenHeader from '../../components/layout/ScreenHeader';
+import { GARDEN_ICONS, type GardenIconKey } from '../../lib/garden/icons';
 import { useResponsive } from '../../hooks/theme/useResponsive';
-import { pageColumn } from '../../lib/ui/webLayout';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/finance/currency';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
@@ -44,24 +48,23 @@ import {
   type ReportTx, type InsightTone, type MonthlyFlux,
 } from '../../lib/finance/reportingEngine';
 
-/* ── Palette catégorielle VALIDÉE (dataviz) — light/dark, ordre fixe (jamais cyclé). ── */
-const CAT_LIGHT = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834'];
-const CAT_DARK = ['#3987e5', '#199e70', '#c98500', '#008300', '#9085e9', '#e66767', '#d55181', '#d95926'];
-
-/* ── Couleurs sémantiques (indépendantes du thème pour la lisibilité des graphes). ── */
-const SEM = { income: '#1baf7a', incomeDark: '#199e70', expense: '#e34948', expenseDark: '#e66767', amber: '#eda100', violet: '#4a3aa7' };
-
+/* ── Couleurs du Jardin : chaque série prend la matière de l'arbre qui lui correspond (lues au rendu :
+   elles suivent le mode clair/sombre). Rentrées = feuillage, dépenses = terre cuite (jamais un
+   rouge d'alarme), comptes courants = eau, épargne = racines, placements = fruits. Catégories :
+   ordre fixe, jamais cyclé. ── */
 function useReportingColors() {
   const t = useAppColors();
-  const cat = t.mode === 'light' ? CAT_LIGHT : CAT_DARK;
   return {
     ...t,
-    cat,
+    cat: [G.water, G.branches, G.roots, G.flowers, '#6B4FB0', '#1F7A7A', G.fruits, G.brambles],
     catMuted: t.textSecondary,
-    income: t.mode === 'light' ? SEM.income : SEM.incomeDark,
-    expense: t.mode === 'light' ? SEM.expense : SEM.expenseDark,
-    amber: t.mode === 'light' ? SEM.amber : '#c98500',
-    violet: t.mode === 'light' ? SEM.violet : '#9085e9',
+    income: G.branches,
+    expense: G.fruitsText,
+    amber: G.roots,
+    violet: G.waterText,
+    checking: G.water,
+    savings: G.roots,
+    investment: G.fruits,
   };
 }
 
@@ -109,10 +112,10 @@ function IncomeExpenseBars({ data, width }: {
           {[0, 0.5, 1].map((pct, i) => {
             const y = padT + (1 - pct) * usableH;
             return (
-              <G key={i}>
+              <SvgG key={i}>
                 <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
                 <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * pct)}</SvgText>
-              </G>
+              </SvgG>
             );
           })}
           {/* Frontière réel / prévu : une simple ligne verticale, pour qu'on ne lise jamais une
@@ -132,12 +135,12 @@ function IncomeExpenseBars({ data, width }: {
             const on = sel === i;
             const dim = d.forecast ? 0.55 : 1;
             return (
-              <G key={i}>
+              <SvgG key={i}>
                 {on && <Rect x={gx} y={0} width={groupW} height={chartH} rx={8} fill={C.violet + '14'} />}
                 <Rect x={x} y={chartH - ih} width={barW} height={Math.max(ih, 1)} rx={4} fill={C.income} opacity={(on ? 1 : 0.5) * dim} />
                 <Rect x={x + barW + gap} y={chartH - eh} width={barW} height={Math.max(eh, 1)} rx={4} fill={C.expense} opacity={(on ? 1 : 0.5) * dim} />
                 <SvgText x={x + barW + gap / 2} y={chartH + 14} fill={on ? C.text : C.textSecondary} fontSize={10} fontWeight={on ? '700' : '400'} textAnchor="middle" opacity={d.forecast ? 0.75 : 1}>{d.label}</SvgText>
-              </G>
+              </SvgG>
             );
           })}
         </Svg>
@@ -162,7 +165,7 @@ function IncomeExpenseBars({ data, width }: {
           <View style={s.ieDetailVals}>
             <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.income)}</Text></View>
             <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.expense)}</Text></View>
-            <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Net</Text><Text style={[s.ieDetailTxt, { color: selData.income - selData.expense >= 0 ? C.income : C.expense, fontWeight: '800' }]}>{fmtSigned(selData.income - selData.expense)}</Text></View>
+            <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Net</Text><Text style={[s.ieDetailTxt, { color: selData.income - selData.expense >= 0 ? C.income : C.expense, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>{fmtSigned(selData.income - selData.expense)}</Text></View>
           </View>
         </View>
       ) : null}
@@ -197,8 +200,8 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
   const maxVal = Math.max(...data.map((d) => d.saved), 1);
   const sel = active != null && active < data.length ? active : data.length - 1;
   const selData = data[sel];
-  const cSav = ACCOUNT_COLORS.savings;
-  const cInv = ACCOUNT_COLORS.investment;
+  const cSav = C.savings;
+  const cInv = C.investment;
   return (
     <View>
       <View style={s.legendRow}>
@@ -210,10 +213,10 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
           {[0, 0.5, 1].map((pct, i) => {
             const y = padT + (1 - pct) * usableH;
             return (
-              <G key={i}>
+              <SvgG key={i}>
                 <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
                 <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * pct)}</SvgText>
-              </G>
+              </SvgG>
             );
           })}
           {data.map((d, i) => {
@@ -227,13 +230,13 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
             const gapSeg = hSav > 0.5 && hInv > 0.5 ? 2 : 0;
             const yInv = chartH - hSav - gapSeg - hInv;
             return (
-              <G key={i}>
+              <SvgG key={i}>
                 {on && <Rect x={gx} y={0} width={groupW} height={chartH} rx={8} fill={cSav + '18'} />}
                 {hSav > 0.5 && <Rect x={bx} y={chartH - hSav} width={barW} height={hSav} rx={3} fill={cSav} opacity={op} />}
                 {hInv > 0.5 && <Rect x={bx} y={yInv} width={barW} height={hInv} rx={3} fill={cInv} opacity={op} />}
                 {d.saved <= 0 && <Rect x={bx} y={chartH - 1} width={barW} height={1} fill={C.cardBorder} />}
                 <SvgText x={gx + groupW / 2} y={chartH + 14} fill={on ? C.text : C.textSecondary} fontSize={10} fontWeight={on ? '700' : '400'} textAnchor="middle">{d.label}</SvgText>
-              </G>
+              </SvgG>
             );
           })}
         </Svg>
@@ -254,7 +257,7 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
           <View style={s.ieDetailVals}>
             <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: cSav }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.savings)}</Text></View>
             <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: cInv }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.invest)}</Text></View>
-            <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Total</Text><Text style={[s.ieDetailTxt, { fontWeight: '800' }]}>{fmtFull(selData.saved)}</Text></View>
+            <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Total</Text><Text style={[s.ieDetailTxt, { fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>{fmtFull(selData.saved)}</Text></View>
           </View>
         </View>
       ) : null}
@@ -272,7 +275,7 @@ function InvestmentValueChart({ points, apports, width }: {
   const [active, setActive] = useState<number | null>(null);
   if (points.length < 2) return <Text style={s.emptyChart}>Pas encore assez d'historique.</Text>;
 
-  const color = ACCOUNT_COLORS.investment;
+  const color = C.investment;
   const chartH = 150, padT = 12, padL = 48, padR = 12;
   const usableW = width - padL - padR;
   const usableH = chartH - padT;
@@ -294,10 +297,10 @@ function InvestmentValueChart({ points, apports, width }: {
           {[0, 0.5, 1].map((pct, i) => {
             const yy = padT + (1 - pct) * usableH;
             return (
-              <G key={i}>
+              <SvgG key={i}>
                 <Line x1={padL} y1={yy} x2={width - padR} y2={yy} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
                 <SvgText x={padL - 6} y={yy + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(minVal + pct * range)}</SvgText>
-              </G>
+              </SvgG>
             );
           })}
           <Path d={area} fill={color} fillOpacity={0.12} />
@@ -367,18 +370,18 @@ function CategoryDonut({ data, width }: { data: { label: string; amount: number 
           ))}
         </Svg>
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
-          <Text style={{ fontSize: 11, color: C.textSecondary }}>{sel ? sel.label : 'Dépenses'}</Text>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: C.text }}>{fmtFull(sel ? sel.amount : total)}</Text>
-          {sel ? <Text style={{ fontSize: 11, color: C.textSecondary, fontWeight: '700' }}>{Math.round((sel.amount / total) * 100)} %</Text> : null}
+          <Text style={{ fontFamily: GF.body, fontSize: 11, color: C.textSecondary }}>{sel ? sel.label : 'Dépenses'}</Text>
+          <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: C.text }}>{fmtFull(sel ? sel.amount : total)}</Text>
+          {sel ? <Text style={{ fontFamily: GF.bodyBold, fontSize: 11, color: C.textSecondary, fontWeight: 'normal' }}>{Math.round((sel.amount / total) * 100)} %</Text> : null}
         </View>
       </View>
       <View style={{ width: '100%', marginTop: 12, gap: 7 }}>
         {data.map((d, i) => (
           <TouchableOpacity key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} activeOpacity={0.7} onPress={() => setActive(active === i ? null : i)}>
             <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: colorOf(i) }} />
-            <Text style={{ flex: 1, fontSize: 12.5, color: C.text }} numberOfLines={1}>{d.label}</Text>
-            <Text style={{ fontSize: 12, color: C.textSecondary, fontWeight: '600', width: 40, textAlign: 'right' }}>{Math.round((d.amount / total) * 100)}%</Text>
-            <Text style={{ fontSize: 12.5, color: C.text, fontWeight: '700', width: 70, textAlign: 'right' }}>{fmtFull(d.amount)}</Text>
+            <Text style={{ fontFamily: GF.body, flex: 1, fontSize: 12.5, color: C.text }} numberOfLines={1}>{d.label}</Text>
+            <Text style={{ fontFamily: GF.bodyBold, fontSize: 12, color: C.textSecondary, fontWeight: 'normal', width: 40, textAlign: 'right' }}>{Math.round((d.amount / total) * 100)}%</Text>
+            <Text style={{ fontFamily: GF.bodyBold, fontSize: 12.5, color: C.text, fontWeight: 'normal', width: 70, textAlign: 'right' }}>{fmtFull(d.amount)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -435,14 +438,14 @@ function HBarCompare({ rows, width }: { rows: { label: string; current: number; 
         return (
           <View key={i} style={{ marginBottom: 13 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ width: labelW, color: C.text, fontSize: 12, fontWeight: '500' }} numberOfLines={1}>{r.label}</Text>
+              <Text style={{ fontFamily: GF.body, width: labelW, color: C.text, fontSize: 12, fontWeight: 'normal' }} numberOfLines={1}>{r.label}</Text>
               <View style={{ width: trackW }}>
                 <View style={{ height: 5, borderRadius: 3, backgroundColor: C.cardBorder, marginBottom: 3, width: `${Math.max((r.previous / maxVal) * 100, 1.5)}%` as any }} />
                 <View style={{ height: 12, borderRadius: 4, backgroundColor: C.violet, width: `${Math.max((r.current / maxVal) * 100, 1.5)}%` as any }} />
               </View>
-              <Text style={{ width: valW, textAlign: 'right', color: C.text, fontSize: 12, fontWeight: '700', paddingLeft: 4 }} numberOfLines={1}>{fmtFull(r.current)}</Text>
+              <Text style={{ fontFamily: GF.bodyBold, width: valW, textAlign: 'right', color: C.text, fontSize: 12, fontWeight: 'normal', paddingLeft: 4 }} numberOfLines={1}>{fmtFull(r.current)}</Text>
             </View>
-            <Text style={{ marginLeft: labelW, color: diff > 0 ? C.expense : C.income, fontSize: 10, marginTop: 2 }}>
+            <Text style={{ fontFamily: GF.body, marginLeft: labelW, color: diff > 0 ? C.expense : C.income, fontSize: 10, marginTop: 2 }}>
               {r.previous === 0 ? 'nouveau ce mois' : diff === 0 ? '= stable' : `${diff > 0 ? '▲' : '▼'} ${fmtFull(Math.abs(diff))} vs mois préc.`}
             </Text>
           </View>
@@ -474,11 +477,11 @@ function SafetyGauge({ value, min, optimal, comfort, monthsCovered, monthsBase }
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: '600' }}>Épargne de sécurité</Text>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: status.color, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(value)}</Text>
+          <Text style={{ fontFamily: GF.bodyBold, fontSize: 12.5, color: C.textSecondary, fontWeight: 'normal' }}>Épargne de sécurité</Text>
+          <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 26, fontWeight: 'normal', color: status.color, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(value)}</Text>
         </View>
         <View style={{ backgroundColor: status.color + '1F', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 2 }}>
-          <Text style={{ fontSize: 12, fontWeight: '800', color: status.color }}>{status.label}</Text>
+          <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: status.color }}>{status.label}</Text>
         </View>
       </View>
       <View style={{ height: 12, backgroundColor: C.cardBorder, borderRadius: 6, overflow: 'hidden', marginTop: 12 }}>
@@ -488,7 +491,7 @@ function SafetyGauge({ value, min, optimal, comfort, monthsCovered, monthsBase }
           calcul réel : tant qu'aucune charge récurrente n'est saisie, le moteur retombe sur le
           REVENU (cf. lib/securityCushion) — l'écran affirmait alors couvrir des dépenses qu'il
           n'avait jamais mesurées. La page Profil financier nomme déjà la base ; on fait pareil. */}
-      <Text style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 9, lineHeight: 18 }}>
+      <Text style={{ fontFamily: GF.body, fontSize: 12.5, color: C.textSecondary, marginTop: 9, lineHeight: 18 }}>
         {monthsCovered != null && monthsCovered > 0
           ? (monthsCovered < 0.75
               ? `Ton épargne couvre moins d’1 mois ${monthsBase === 'income' ? 'de revenus' : 'de dépenses'}. `
@@ -497,7 +500,7 @@ function SafetyGauge({ value, min, optimal, comfort, monthsCovered, monthsBase }
         {target > value ? `Objectif conseillé : ${fmtFull(target)} — encore ${fmtFull(target - value)}.` : 'Objectif atteint 🎉'}
       </Text>
       {monthsCovered != null && monthsCovered > 0 && securityBaseLabel(monthsBase) ? (
-        <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 4, lineHeight: 16 }}>{securityBaseLabel(monthsBase)}</Text>
+        <Text style={{ fontFamily: GF.body, fontSize: 11, color: C.textSecondary, marginTop: 4, lineHeight: 16 }}>{securityBaseLabel(monthsBase)}</Text>
       ) : null}
     </View>
   );
@@ -510,9 +513,9 @@ function KpiCard({ icon, label, value, color, sub, desktop }: { icon: string; la
   return (
     // Bureau : quatre cartes sur une ligne. À 46 % de base, elles restaient deux par ligne dans une
     // colonne de 1 180 px — deux pavés de 570 px pour y écrire « 1 240 € ».
-    <View style={[s.kpiCard, desktop && s.kpiCardDesktop, { borderLeftColor: color }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-        <Ionicons name={icon as any} size={15} color={color} />
+    <View style={[s.kpiCard, desktop && s.kpiCardDesktop]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <GardenIcon icon={icon} fg={color} bg={G.field} size={28} />
         <Text style={s.kpiLabel} numberOfLines={1}>{label}</Text>
       </View>
       <Text style={[s.kpiValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
@@ -528,15 +531,13 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
   return <Animated.View style={{ opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}>{children}</Animated.View>;
 }
 
-function GroupHeader({ icon, title, color }: { icon: string; title: string; color: string }) {
-  const C = useReportingColors();
+/** En-tête de groupe : la partie de l'arbre qui en parle (icône du Jardin), le titre, un filet. */
+function GroupHeader({ kind, title }: { kind: GardenIconKey; title: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 32, marginBottom: 2 }}>
-      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: color + '22', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon as any} size={19} color={color} />
-      </View>
-      <Text style={{ fontSize: 19, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>{title}</Text>
-      <View style={{ flex: 1, height: 1, backgroundColor: C.cardBorder, marginLeft: 4 }} />
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: GARDEN_SPACE.xl }}>
+      <GardenIcon kind={kind} />
+      <GardenText variant="heading">{title}</GardenText>
+      <View style={{ flex: 1, height: 1, backgroundColor: G.line, marginLeft: 4 }} />
     </View>
   );
 }
@@ -890,43 +891,27 @@ function ReportingBody() {
     hasVariableBaseline: (pilotage?.avg_variable_expenses_3m ?? 0) > 0,
   }), [monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved, expenseCompare, pilotage]);
 
-  const toneMeta: Record<InsightTone, { color: string; label: string }> = {
-    alert: { color: C.expense, label: 'À surveiller' }, win: { color: C.income, label: 'Bravo' }, tip: { color: C.violet, label: 'Opportunité' },
+  const toneMeta: Record<InsightTone, { kind: GardenIconKey; label: string }> = {
+    alert: { kind: 'warn', label: 'À surveiller' }, win: { kind: 'done', label: 'Bravo' }, tip: { kind: 'tip', label: 'Une idée' },
   };
 
-  if (!user) return <Gate C={C} s={s} icon="lock-closed-outline" text="Connecte-toi pour accéder au reporting." />;
+  if (!user) return <Gate text="Connecte-toi pour accéder au Reporting." />;
   /* Tant que le plan n'est pas CONNU, on ne refuse rien : `isPremium` vaut `false` par défaut, pas
      par réponse. Sans cette attente, un abonné qui ouvrait le Reporting à froid (ou après une
      lecture réseau ratée des drapeaux) tombait sur le mur « réservé aux abonnés Premium », son
      abonnement en poche. Un mur d'accès se ferme sur une réponse, jamais sur une absence. */
   if (!planResolved && !reportingAllowed) return <PageLoader />;
+  /* L'offre Premium peut être coupée globalement (admin) : inviter à « passer Premium » mènerait
+     alors à une page qui répond « pas encore disponible ». Même règle que les questions à Pépin. */
   if (!reportingAllowed) return (
-    <View style={s.root}>
-      <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['left', 'right']}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
-          <Ionicons name="star-outline" size={48} color={C.amber} />
-          {/* L'offre Premium peut être coupée globalement (admin) : inviter à « passer Premium »
-              mènerait alors à une page qui répond « pas encore disponible ». Même règle que la page
-              Conseils Intelligents, qui la respectait déjà — les deux murs disent désormais la
-              même chose du même état. */}
-          <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>
-            {premiumEnabled ? 'Reporting réservé aux abonnés Premium' : 'Reporting bientôt disponible'}
-          </Text>
-          {/* TUTOIEMENT — comme partout ailleurs dans l'app (« passez » détonnait ici seulement). */}
-          <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>
-            {premiumEnabled
-              ? 'Total de tes comptes, répartition des dépenses et bilan intelligent : passe Premium pour y accéder.'
-              : "Total de tes comptes, répartition des dépenses et bilan intelligent : cette fonctionnalité n'est pas encore ouverte. Reviens bientôt !"}
-          </Text>
-          {premiumEnabled && (
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
-              <Ionicons name="star" size={16} color="#0f172a" /><Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </SafeAreaView>
-    </View>
+    <GardenPage secondary header={<ScreenHeader title="Reporting" onBack={goBack} />}>
+      <PicoBubble mood="happy">
+        {premiumEnabled
+          ? 'Le Reporting te montre tes derniers mois d’un coup d’œil : ce qui rentre et ce qui sort, où part ton argent, ce que tu mets de côté. Il est réservé aux abonnés Premium.'
+          : "Le Reporting te montrera tes derniers mois d’un coup d’œil. Il n'est pas encore ouvert : reviens bientôt !"}
+      </PicoBubble>
+      {premiumEnabled ? <GardenButton label="Passer Premium" onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} /> : null}
+    </GardenPage>
   );
 
   /* Données pas encore là → cercle, pas une page de graphes vides et de « 0 € » qui sauteront aux
@@ -943,36 +928,17 @@ function ReportingBody() {
         sharedQuery.refetch(); categoriesQuery.refetch();
       };
       return (
-        <View style={s.root}>
-          <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
-          <SafeAreaView style={s.safe} edges={['left', 'right']}>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
-              <Ionicons name="cloud-offline-outline" size={48} color={C.textSecondary} />
-              <Text style={{ color: C.text, marginTop: 14, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>Tes données n’ont pas pu être chargées</Text>
-              <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>
-                Vérifie ta connexion, puis réessaie. Rien n’a été modifié.
-              </Text>
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.violet, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }}
-                onPress={retry} activeOpacity={0.85} accessibilityRole="button"
-              >
-                <Ionicons name="refresh" size={16} color="#fff" /><Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>Réessayer</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </View>
+        <GardenPage secondary header={<ScreenHeader title="Reporting" onBack={goBack} />}>
+          <PicoBubble mood="thinking">Je n’arrive pas à charger tes données. Vérifie ta connexion, puis réessaie : rien n’a été modifié.</PicoBubble>
+          <GardenButton label="Réessayer" variant="secondary" onPress={retry} />
+        </GardenPage>
       );
     }
     return <PageLoader label="Analyse de tes données…" />;
   }
 
   return (
-    <View style={s.root}>
-      <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
-      {/* Bureau : colonne de tableau de bord centrée (les graphes gagnent de la largeur utile). */}
-      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
-        <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, isDesktop && { paddingBottom: 56 }]} showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.income} progressBackgroundColor={C.card} />}>
+    <GardenPage secondary header={<ScreenHeader title="Reporting" onBack={goBack} />} refreshing={refreshing} onRefresh={handleRefresh}>
 
 
           {/* KPIs */}
@@ -983,7 +949,7 @@ function ReportingBody() {
                   mot choisi par la page Comptes ; deux écrans ne peuvent pas promettre deux choses
                   différentes pour le même chiffre. */}
               <KpiCard
-                icon="layers-outline" label="Total des comptes" value={fmtFull(comptesTotal)} color={ACCOUNT_COLORS.checking}
+                icon="layers-outline" label="Total des comptes" value={fmtFull(comptesTotal)} color={C.checking}
                 desktop={isDesktop}
                 sub={netWorthTotal.length >= 2
                   ? `${fmtSigned(netWorthTotal[netWorthTotal.length - 1].value - netWorthTotal[0].value)} depuis fin ${netWorthTotal[0].label}`
@@ -1015,7 +981,7 @@ function ReportingBody() {
               <View style={{ marginTop: 10, gap: 4 }}>
                 {expenseCompare?.toDate ? (
                   <Text style={s.kpiNote}>
-                    « Dépenses vs M-1 » compare le mois en cours au mois précédent <Text style={{ fontWeight: '700' }}>arrêté au même jour</Text> (le {expenseCompare.day}) — sinon un mois entamé paraîtrait toujours moins cher.
+                    « Dépenses vs M-1 » compare le mois en cours au mois précédent <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>arrêté au même jour</Text> (le {expenseCompare.day}) — sinon un mois entamé paraîtrait toujours moins cher.
                   </Text>
                 ) : null}
                 {historyTruncated ? (
@@ -1030,26 +996,25 @@ function ReportingBody() {
           {/* Bilan intelligent */}
           {insights.length > 0 && (
             <FadeIn delay={140}>
-              <View style={[s.section, { borderColor: C.violet + '55', borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 22 }]}>
-                <View style={s.sectionHeader}><Ionicons name="sparkles" size={20} color={C.violet} /><Text style={s.sectionTitle}>Bilan intelligent</Text></View>
-                <Text style={s.sectionSub}>Constats générés automatiquement, du plus important au moins</Text>
-                {insights.slice(0, 5).map((ins, i) => (
-                  <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 11 }}>
-                    <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: toneMeta[ins.tone].color + '1F', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-                      <Ionicons name={ins.icon as any} size={15} color={toneMeta[ins.tone].color} />
+              <View style={[s.section, { gap: GARDEN_SPACE.sm }]}>
+                <PicoBubble mood="joy">Voici ce que je remarque sur tes derniers mois, du plus important au moins.</PicoBubble>
+                <View style={s.chartCard}>
+                  {insights.slice(0, 5).map((ins, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: GARDEN_SPACE.md, paddingTop: i ? 12 : 0, marginTop: i ? 12 : 0, borderTopWidth: i ? 1 : 0, borderTopColor: G.line }}>
+                      <GardenIcon kind={toneMeta[ins.tone].kind} size={32} />
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <GardenText variant="label" color={GARDEN_ICONS[toneMeta[ins.tone].kind].fg}>{toneMeta[ins.tone].label}</GardenText>
+                        <GardenText variant="body">{ins.text}</GardenText>
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: toneMeta[ins.tone].color, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 1 }}>{toneMeta[ins.tone].label}</Text>
-                      <Text style={{ fontSize: 13, color: C.text, lineHeight: 19 }}>{ins.text}</Text>
-                    </View>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
             </FadeIn>
           )}
 
           {/* ══ RÉCAPITULATIF ══ */}
-          <FadeIn delay={180}><GroupHeader icon="grid-outline" title="Récapitulatif" color={C.violet} /></FadeIn>
+          <FadeIn delay={180}><GroupHeader kind="water" title="Ce qui rentre et ce qui sort" /></FadeIn>
           {/* Un seul titre pour les deux vues d'une MÊME donnée : le tableau (détail chiffré) et
               les barres (lecture rapide). D'où l'en-tête unique posé au-dessus du tableau. */}
           <FadeIn delay={210}>
@@ -1117,10 +1082,10 @@ function ReportingBody() {
                   const ti = sectionFlux.reduce((a, r) => a + r.income, 0), te = sectionFlux.reduce((a, r) => a + r.expense, 0);
                   return (
                     <View style={[s.tableRow, { borderTopWidth: 1, borderTopColor: C.cardBorder }]}>
-                      <Text style={[s.tableCell, { flex: 2, fontWeight: '800' }]} numberOfLines={1}>Total</Text>
-                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, fontWeight: '800' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(ti)}</Text>
-                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, fontWeight: '800' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(te)}</Text>
-                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: ti - te >= 0 ? C.income : C.expense, fontWeight: '800' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtSigned(ti - te)}</Text>
+                      <Text style={[s.tableCell, { flex: 2, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]} numberOfLines={1}>Total</Text>
+                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(ti)}</Text>
+                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(te)}</Text>
+                      <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: ti - te >= 0 ? C.income : C.expense, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]} numberOfLines={1} adjustsFontSizeToFit>{fmtSigned(ti - te)}</Text>
                     </View>
                   );
                 })()}
@@ -1157,7 +1122,7 @@ function ReportingBody() {
           </FadeIn>
 
           {/* ══ DÉPENSES ══ */}
-          <FadeIn delay={300}><GroupHeader icon="card-outline" title="Dépenses" color={C.expense} /></FadeIn>
+          <FadeIn delay={300}><GroupHeader kind="budget" title="Tes dépenses" /></FadeIn>
           <FadeIn delay={330}>
             <View style={s.section}>
               <View style={s.sectionHeader}>
@@ -1218,7 +1183,7 @@ function ReportingBody() {
           )}
 
           {/* ══ ÉPARGNE & INVESTISSEMENT ══ */}
-          <FadeIn delay={410}><GroupHeader icon="leaf-outline" title="Épargne et Investissement" color={ACCOUNT_COLORS.savings} /></FadeIn>
+          <FadeIn delay={410}><GroupHeader kind="roots" title="Ton épargne et tes placements" /></FadeIn>
           {pilotage ? (
             <FadeIn delay={440}>
               <View style={s.section}>
@@ -1256,7 +1221,7 @@ function ReportingBody() {
           ) : null}
           <FadeIn delay={480}>
             <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={ACCOUNT_COLORS.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
+              <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={C.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
               {/* « Versements », pas seulement « virements » : un apport saisi directement sur un
                   compte d'investissement compte aussi (cf. buildSavingsSeries). */}
               <Text style={s.sectionSub}>Versements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
@@ -1266,17 +1231,17 @@ function ReportingBody() {
           {hasInvestAccounts && (
             <FadeIn delay={520}>
               <View style={s.section}>
-                <View style={s.sectionHeader}><Ionicons name="trending-up-outline" size={20} color={ACCOUNT_COLORS.investment} /><Text style={s.sectionTitle}>Tes investissements</Text></View>
+                <View style={s.sectionHeader}><Ionicons name="trending-up-outline" size={20} color={C.investment} /><Text style={s.sectionTitle}>Tes investissements</Text></View>
                 <Text style={s.sectionSub}>Valeur du portefeuille sur {months.length} mois · touche un mois pour le détail</Text>
                 <View style={s.chartCard} onLayout={onChartCardLayout}>
-                  <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(investValue)}</Text>
+                  <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 26, fontWeight: 'normal', color: C.text, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(investValue)}</Text>
                   <InvestmentValueChart points={investSeries} apports={investApports} width={chartWidth} />
                   {/* Ce que la Projection ne dit pas : ce qui, dans la hausse, vient de TES apports
                       et ce qui vient de la performance. */}
                   <View style={s.investStatRow}>
                     <View style={s.investStat}>
                       <Text style={s.investStatLabel}>Apports sur la période</Text>
-                      <Text style={[s.investStatValue, { color: ACCOUNT_COLORS.investment }]}>{fmtFull(investApportsPeriod)}</Text>
+                      <Text style={[s.investStatValue, { color: C.investment }]}>{fmtFull(investApportsPeriod)}</Text>
                     </View>
                     <View style={s.investStatDivider} />
                     <View style={s.investStat}>
@@ -1289,42 +1254,29 @@ function ReportingBody() {
             </FadeIn>
           )}
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </SafeAreaView>
-    </View>
+    </GardenPage>
   );
 }
 
-function Gate({ C, s, icon, text }: { C: any; s: any; icon: string; text: string }) {
+function Gate({ text }: { text: string }) {
   return (
-    <View style={s.root}>
-      <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['left', 'right']}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Ionicons name={icon as any} size={48} color={C.textSecondary} />
-          <Text style={{ color: C.textSecondary, marginTop: 12, fontSize: 15 }}>{text}</Text>
-        </View>
-      </SafeAreaView>
-    </View>
+    <GardenPage secondary header={<ScreenHeader title="Reporting" />}>
+      <PicoBubble mood="thinking">{text}</PicoBubble>
+    </GardenPage>
   );
 }
 
 /* ═══════════════════  STYLES  ═══════════════════ */
 function makeStyles(C: any) {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: C.bg },
-    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    scroll: { flex: 1 },
-    scrollContent: { paddingBottom: 120 },
 
     kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
-    kpiCard: { flexGrow: 1, flexBasis: '46%', backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.cardBorder, borderLeftWidth: 3, paddingVertical: 12, paddingHorizontal: 14 },
+    kpiCard: { flexGrow: 1, flexBasis: '46%', backgroundColor: G.card, borderRadius: GARDEN_RADII.lg, borderWidth: 1, borderColor: G.line, paddingVertical: 14, paddingHorizontal: 14 },
     kpiCardDesktop: { flexBasis: '22%' },
-    kpiLabel: { fontSize: 11.5, color: C.textSecondary, fontWeight: '600', flex: 1 },
-    kpiValue: { fontSize: 20, fontWeight: '800', marginTop: 1 },
-    kpiSub: { fontSize: 10.5, color: C.textSecondary, marginTop: 1 },
-    kpiNote: { fontSize: 11, color: C.textSecondary, lineHeight: 16 },
+    kpiLabel: { fontFamily: GF.bodyBold, fontSize: 11.5, color: C.textSecondary, fontWeight: 'normal', flex: 1 },
+    kpiValue: { fontFamily: GF.display, fontSize: 22, fontWeight: 'normal', marginTop: 1 },
+    kpiSub: { fontFamily: GF.body, fontSize: 10.5, color: C.textSecondary, marginTop: 1 },
+    kpiNote: { fontFamily: GF.body, fontSize: 11, color: C.textSecondary, lineHeight: 16 },
 
     section: { marginTop: 20 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1335,57 +1287,57 @@ function makeStyles(C: any) {
       paddingHorizontal: 9, paddingVertical: 5,
       borderRadius: 999, borderWidth: 1, borderColor: C.cardBorder, backgroundColor: C.card,
     },
-    detailToggleText: { fontSize: 11.5, fontWeight: '700', color: C.textSecondary },
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: C.text },
-    sectionSub: { fontSize: 12, color: C.textSecondary, marginTop: 2, marginBottom: 12 },
+    detailToggleText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: C.textSecondary },
+    sectionTitle: { fontFamily: GF.display, fontSize: 18, fontWeight: 'normal', color: G.ink },
+    sectionSub: { fontFamily: GF.body, fontSize: 13, color: G.muted, marginTop: 2, marginBottom: 12 },
 
-    chartCard: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.cardBorder, padding: 16, overflow: 'hidden' },
-    emptyChart: { color: C.textSecondary, textAlign: 'center', padding: 24, fontSize: 13 },
+    chartCard: { backgroundColor: G.card, borderRadius: GARDEN_RADII.lg, borderWidth: 1, borderColor: G.line, padding: 16, overflow: 'hidden' },
+    emptyChart: { fontFamily: GF.body, color: C.textSecondary, textAlign: 'center', padding: 24, fontSize: 13 },
 
     legendWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10, justifyContent: 'center' },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendDot: { width: 10, height: 10, borderRadius: 5 },
-    legendLabel: { fontSize: 11, color: C.text },
+    legendLabel: { fontFamily: GF.body, fontSize: 11, color: C.text },
     legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 12 },
     legendInline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendSmall: { fontSize: 11, color: C.textSecondary },
+    legendSmall: { fontFamily: GF.body, fontSize: 11, color: C.textSecondary },
 
     ieDetail: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.cardBorder, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
-    ieDetailMonth: { fontSize: 13, fontWeight: '800', color: C.text, textTransform: 'capitalize' },
+    ieDetailMonth: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: C.text, textTransform: 'capitalize' },
     ieDetailVals: { flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' },
     ieDetailItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    ieDetailTxt: { fontSize: 13, fontWeight: '700', color: C.text },
-    ieDetailNetLabel: { fontSize: 11, color: C.textSecondary, fontWeight: '600' },
-    forecastNote: { marginTop: 8, fontSize: 11, color: C.textSecondary, lineHeight: 16 },
+    ieDetailTxt: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: C.text },
+    ieDetailNetLabel: { fontFamily: GF.bodyBold, fontSize: 11, color: C.textSecondary, fontWeight: 'normal' },
+    forecastNote: { fontFamily: GF.body, marginTop: 8, fontSize: 11, color: C.textSecondary, lineHeight: 16 },
 
     // Filtre par compte courant (section Revenus vs Dépenses)
     acctFilterRow: { flexDirection: 'row', gap: 8, paddingVertical: 10, paddingRight: 4 },
     acctChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: C.cardBorder, backgroundColor: C.card, maxWidth: 190 },
-    acctChipOn: { backgroundColor: C.violet, borderColor: C.violet },
-    acctChipTxt: { fontSize: 12.5, fontWeight: '700', color: C.textSecondary },
-    acctChipTxtOn: { color: '#fff' },
-    acctFilterHint: { fontSize: 11, color: C.textSecondary, lineHeight: 16, marginBottom: 8 },
+    acctChipOn: { backgroundColor: G.branchesBg, borderColor: G.primary },
+    acctChipTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: C.textSecondary },
+    acctChipTxtOn: { color: G.primary },
+    acctFilterHint: { fontFamily: GF.body, fontSize: 11, color: C.textSecondary, lineHeight: 16, marginBottom: 8 },
 
     investStatRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.cardBorder },
     investStat: { flex: 1, alignItems: 'center' },
     investStatDivider: { width: 1, alignSelf: 'stretch', backgroundColor: C.cardBorder, marginHorizontal: 10 },
-    investStatLabel: { fontSize: 11, color: C.textSecondary, marginBottom: 3, textAlign: 'center' },
-    investStatValue: { fontSize: 16, fontWeight: '800' },
+    investStatLabel: { fontFamily: GF.body, fontSize: 11, color: C.textSecondary, marginBottom: 3, textAlign: 'center' },
+    investStatValue: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal' },
 
     healthRow: { flexDirection: 'row' },
     healthItem: { flex: 1, alignItems: 'center' },
     healthDivider: { width: 1, backgroundColor: C.cardBorder, marginHorizontal: 12 },
-    healthLabel: { fontSize: 12, color: C.textSecondary, marginBottom: 4 },
-    healthValue: { fontSize: 20, fontWeight: '800' },
-    healthHint: { fontSize: 11, color: C.textSecondary, marginTop: 2, textAlign: 'center' },
+    healthLabel: { fontFamily: GF.body, fontSize: 12, color: C.textSecondary, marginBottom: 4 },
+    healthValue: { fontFamily: GF.bodyHeavy, fontSize: 20, fontWeight: 'normal' },
+    healthHint: { fontFamily: GF.body, fontSize: 11, color: C.textSecondary, marginTop: 2, textAlign: 'center' },
 
-    tableCard: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.cardBorder, overflow: 'hidden' },
-    tableHeaderRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.cardBorder },
-    tableHeaderCell: { fontSize: 11, color: C.textSecondary, fontWeight: '700', textTransform: 'uppercase' },
+    tableCard: { backgroundColor: G.card, borderRadius: GARDEN_RADII.lg, borderWidth: 1, borderColor: G.line, overflow: 'hidden' },
+    tableHeaderRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: G.field },
+    tableHeaderCell: { fontFamily: GF.bodyBold, fontSize: 11, color: C.textSecondary, fontWeight: 'normal', textTransform: 'uppercase' },
     tableRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
-    tableRowAlt: { backgroundColor: C.mode === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' },
+    tableRowAlt: { backgroundColor: G.bg },
     // Ligne de PRÉVISION : atténuée et détachée du bloc réel par un liseré.
     tableRowForecast: { borderTopWidth: 1, borderTopColor: C.cardBorder, borderStyle: 'dashed' },
-    tableCell: { fontSize: 13, color: C.text },
+    tableCell: { fontFamily: GF.body, fontSize: 13, color: C.text },
   });
 }

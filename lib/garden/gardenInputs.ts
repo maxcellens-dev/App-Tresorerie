@@ -85,11 +85,9 @@ export function buildGardenInputs(s: GardenSources): GardenInputs {
     investedContributed: invested - num(s.investmentGains),
     investmentCount: s.investmentCount,
     enjoyThisMonth: Math.max(0, num(s.enjoyAmount)),
-    recurringSavingsMonthly: Math.max(0, num(p.monthly_savings_planned)),
     recurringInvestMonthly: Math.max(0, num(p.monthly_invest_planned)),
     // Aucune donnée existante ne compte les mois d'épargne d'affilée : l'arrosage régulier se
     // déduit donc des seuls virements récurrents (on n'invente pas de mesure).
-    consecutiveSavingMonths: 0,
     streakWeeks: Math.max(0, num(s.streakWeeks)),
     credits: s.credits.map((c) => ({ id: c.id, kind: creditKind(c.rateAnnual), remaining: Math.max(0, num(c.remaining)), borrowed: Math.max(0, num(c.principal)) })),
   };

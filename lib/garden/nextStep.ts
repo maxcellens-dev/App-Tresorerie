@@ -32,7 +32,7 @@ const FRUIT_MARKS = [6, 12, 24];
 const fmtMonths = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 const fmtEur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
 
-export function computeNextStep(tree: TreeState, monthlyReference: number, investedValue: number): NextStep {
+export function computeNextStep(tree: TreeState, monthlyReference: number, investedValue: number, investMonthly = 0): NextStep {
   const ref = monthlyReference > 0 ? monthlyReference : 0;
   const m = tree.roots.months;
 
@@ -67,7 +67,7 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
     };
   }
 
-  if (!tree.drip.branches) {
+  if (!(investMonthly > 0)) {
     return {
       kind: 'dripFruits', part: 'fruits',
       title: 'Arrose tes fruits chaque mois',

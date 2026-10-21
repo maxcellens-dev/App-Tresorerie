@@ -118,7 +118,7 @@ export default function JardinScreen() {
   const totalChoices = choices.reduce((s, c) => s + c.amount, 0);
 
   /* ── Prochain pas : UN geste, le plus utile d'abord (lib/garden/nextStep) ── */
-  const step = computeNextStep(tree, inputs.monthlyReference, inputs.investedValue);
+  const step = computeNextStep(tree, inputs.monthlyReference, inputs.investedValue, inputs.recurringInvestMonthly);
   const stepLook = GARDEN_ICONS[step.part];
   const showClosure = closureEnabled && pendingMonths.length > 0;
 

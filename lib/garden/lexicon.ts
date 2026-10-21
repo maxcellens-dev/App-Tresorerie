@@ -25,8 +25,6 @@ export const TREE_PARTS = {
   /** Crédit sain : la cabane se construit à chaque mensualité, jusqu'à être vraiment à toi. */
   cabin: { name: 'Cabane', meaning: 'Crédit' },
   rings: { name: 'Anneaux', meaning: 'Série' },
-  /** Épargne (ou investissement) qui revient chaque mois : un goutte-à-goutte relié aux racines ou aux branches. */
-  drip: { name: 'Arrosage régulier', meaning: 'Épargne chaque mois' },
 } as const;
 
 export type TreePart = keyof typeof TREE_PARTS;

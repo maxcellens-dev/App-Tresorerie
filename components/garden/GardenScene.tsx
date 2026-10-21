@@ -163,7 +163,6 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
             <SvgText x="798" y={m.y + 8} textAnchor="middle" fontFamily="Nunito_800ExtraBold" fontWeight="800" fontSize="23" fill={m.reached ? '#3E2A17' : '#6E5639'}>{m.label}</SvgText>
           </G>
         ))}
-        {v.dripRoots ? <Line x1="470" y1="742" x2="470" y2="808" stroke="#8ED0EA" strokeWidth="5" strokeDasharray="7 11" strokeLinecap="round" opacity="0.9" /> : null}
         {v.shadows.map((s, i) => <Ellipse key={i} cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry} fill={`url(#${id('shadow')})`} opacity={s.o * 1.6} />)}
       </Svg>
 
@@ -171,15 +170,14 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
 
       {/* Arrosage des branches, reflet de l'eau, averse */}
       <Svg style={{ position: 'absolute', left: 0, top: 0 }} width="100%" height="100%" viewBox={`0 0 ${FRAME_W} ${FRAME_H}`} preserveAspectRatio="none" pointerEvents="none">
-        {v.dripBranches ? <Line x1={v.dripBranches.x} y1={v.dripBranches.y0} x2={v.dripBranches.x} y2={v.dripBranches.y1} stroke="#8ED0EA" strokeWidth="4.5" strokeDasharray="7 11" strokeLinecap="round" opacity="0.9" /> : null}
         {v.waterLine ? <Line x1={v.waterLine.x1} y1={v.waterLine.y} x2={v.waterLine.x2} y2={v.waterLine.y} stroke="#E4F6FF" strokeWidth="3" strokeLinecap="round" opacity="0.8" /> : null}
         {options.rain ? RAIN.map(([x, y], i) => <Path key={i} transform={`translate(${x} ${y})`} d="M0-20C7-9 11-2 11 4A11 11 0 0 1-11 4C-11-2-7-9 0-20Z" fill="#6FB9DE" opacity="0.9" />) : null}
       </Svg>
 
       {veil ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: `rgba(${veil.rgb.join(',')},${veil.a})` }} /> : null}
 
-      {/* Fenêtres allumées (cabane finie) : au-dessus du voile, pour briller la nuit aussi */}
-      {v.windows.length ? (
+      {/* Fenêtres allumées (cabane finie) et fanion (cabane à toi) : au-dessus du voile, visibles la nuit aussi */}
+      {v.windows.length || v.flags.length ? (
         <Svg style={{ position: 'absolute', left: 0, top: 0 }} width="100%" height="100%" viewBox={`0 0 ${FRAME_W} ${FRAME_H}`} preserveAspectRatio="none" pointerEvents="none">
           <Defs>
             <RadialGradient id={id('win')} cx="0.5" cy="0.5" r="0.5">
@@ -192,6 +190,12 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
               <Rect x={w.x} y={w.y} width={w.w} height={w.h} rx={w.w * 0.06} fill="#FFD36E" opacity={0.95} />
               <Line x1={w.x + w.w / 2} y1={w.y} x2={w.x + w.w / 2} y2={w.y + w.h} stroke="#7A5A3A" strokeWidth={w.w * 0.09} />
               <Line x1={w.x} y1={w.y + w.h / 2} x2={w.x + w.w} y2={w.y + w.h / 2} stroke="#7A5A3A" strokeWidth={w.w * 0.09} />
+            </G>
+          ))}
+          {v.flags.map((fl, i) => (
+            <G key={`flag${i}`}>
+              <Line x1={fl.x} y1={fl.y} x2={fl.x} y2={fl.y - fl.h} stroke="#6E4E30" strokeWidth={fl.h * 0.07} strokeLinecap="round" />
+              <Path d={`M${fl.x} ${fl.y - fl.h} L${fl.x + fl.h * 0.62} ${fl.y - fl.h * 0.82} L${fl.x} ${fl.y - fl.h * 0.62} Z`} fill="#F0B54A" stroke="#B07A1E" strokeWidth={fl.h * 0.03} strokeLinejoin="round" />
             </G>
           ))}
         </Svg>

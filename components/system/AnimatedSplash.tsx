@@ -21,7 +21,8 @@
  * Version précédente (anneau RelykaLoader) : components/AnimatedSplash.legacy.tsx (pour revert).
  */
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Animated, Easing, Image, Dimensions } from 'react-native';
+import { View, StyleSheet, Animated, Easing, Image, Dimensions, Platform } from 'react-native';
+import { APP_BUILD } from '../../lib/platform/appVersion';
 import { getCachedAdminTheme } from '../../lib/platform/themeBoot';
 import { useLandingConfig } from '../../hooks/config/useLandingConfig';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
@@ -34,6 +35,14 @@ const BG_LIGHT = '#F4EFE6';
 const BG_DARK = '#0D2E2A';
 /** Taille d'affichage du logo = app.json > expo-splash-screen > imageWidth (image carrée 512×512). */
 const LOGO = 96;
+/* Le logo doit être CELUI du splash natif, sinon il change sous les yeux au relais. Le natif ne
+   change qu'à la build : les builds ≤ 45 portent encore l'ancien logo (splash-logo-legacy.png), les
+   suivantes le nouveau (splash-logo.png). Une OTA reçue par une ancienne build garde donc l'ancien.
+   À retirer quand plus personne n'utilise une build ≤ 45. */
+const LAST_LEGACY_SPLASH_BUILD = 45;
+const SPLASH_IMAGE = Platform.OS !== 'web' && APP_BUILD != null && Number(APP_BUILD) <= LAST_LEGACY_SPLASH_BUILD
+  ? require('../../assets/splash-logo-legacy.png')
+  : require('../../assets/splash-logo.png');
 
 export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => void; onDone: () => void }) {
   const { data: landing } = useLandingConfig();
@@ -130,7 +139,7 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: themeBg, opacity: bgFade }]} />
       {/* Logo : même image, même taille, même position que le splash natif. */}
       <Animated.View style={[styles.logoWrap, { top: logoTop, transform: [{ translateY: contentY }] }]}>
-        <Image source={require('../../assets/splash-logo.png')} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
+        <Image source={SPLASH_IMAGE} style={{ width: LOGO, height: LOGO }} resizeMode="contain" fadeDuration={0} />
       </Animated.View>
     </Animated.View>
   );

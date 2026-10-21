@@ -269,11 +269,19 @@ export const SCENE3D = {
       "w": 189,
       "h": 220
     },
+    "gold3": {
+      "w": 189,
+      "h": 220
+    },
     "ripe5": {
       "w": 189,
       "h": 220
     },
     "young5": {
+      "w": 189,
+      "h": 220
+    },
+    "gold5": {
       "w": 189,
       "h": 220
     }
@@ -394,7 +402,7 @@ export const SCENE3D = {
       "h": 93
     },
     "trophy": {
-      "w": 149,
+      "w": 136,
       "h": 160
     },
     "flame": {
@@ -502,8 +510,10 @@ export const SCENE3D_IMG = {
   "apple_gold": require('../../assets/garden3d/apple_gold.webp'),
   "basket_ripe_3": require('../../assets/garden3d/basket_ripe_3.webp'),
   "basket_young_3": require('../../assets/garden3d/basket_young_3.webp'),
+  "basket_gold_3": require('../../assets/garden3d/basket_gold_3.webp'),
   "basket_ripe_5": require('../../assets/garden3d/basket_ripe_5.webp'),
   "basket_young_5": require('../../assets/garden3d/basket_young_5.webp'),
+  "basket_gold_5": require('../../assets/garden3d/basket_gold_5.webp'),
   "tuft_spring_0": require('../../assets/garden3d/tuft_spring_0.webp'),
   "tuft_spring_1": require('../../assets/garden3d/tuft_spring_1.webp'),
   "tuft_spring_2": require('../../assets/garden3d/tuft_spring_2.webp'),

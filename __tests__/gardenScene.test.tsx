@@ -9,7 +9,7 @@ import { computeTreeState } from '../lib/garden/treeState';
 const camille = computeTreeState({
   currentBalance: 1653, minimumToKeep: 200, monthlyReference: 1900, securityMonths: 1.8,
   investedValue: 0, investedContributed: 0, enjoyThisMonth: 96,
-  recurringSavingsMonthly: 0, recurringInvestMonthly: 0, consecutiveSavingMonths: 3, streakWeeks: 6,
+  recurringInvestMonthly: 0, streakWeeks: 6,
   credits: [{ id: 'auto', kind: 'healthy', remaining: 4300, borrowed: 10000 }],
 });
 

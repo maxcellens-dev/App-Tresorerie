@@ -36,10 +36,10 @@ import { MAX_W, pointer, shadow, transition } from '../../lib/ui/webLayout';
 /* Situations d'exemple (jamais de vraies données) : une pousse, un jeune arbre, un arbre en fruits. */
 const base: GardenInputs = {
   currentBalance: 2000, minimumToKeep: 300, monthlyReference: 2000, securityMonths: 0, relyka: 600,
-  investedValue: 0, investedContributed: 0, enjoyThisMonth: 0, recurringSavingsMonthly: 0, recurringInvestMonthly: 0,
-  consecutiveSavingMonths: 0, streakWeeks: 0, credits: [],
+  investedValue: 0, investedContributed: 0, enjoyThisMonth: 0, recurringInvestMonthly: 0,
+  streakWeeks: 0, credits: [],
 };
-export const HERO = computeTreeState({ ...base, securityMonths: 3.4, investedValue: 9000, investedContributed: 7500, investmentCount: 3, enjoyThisMonth: 250, recurringSavingsMonthly: 150, credits: [{ id: 'm', kind: 'healthy', remaining: 6000, borrowed: 15000 }], relyka: 900 });
+export const HERO = computeTreeState({ ...base, securityMonths: 3.4, investedValue: 9000, investedContributed: 7500, investmentCount: 3, enjoyThisMonth: 250, credits: [{ id: 'm', kind: 'healthy', remaining: 6000, borrowed: 15000 }], relyka: 900 });
 const STEPS = [
   computeTreeState({ ...base, securityMonths: 0.3, relyka: 250 }),
   computeTreeState({ ...base, securityMonths: 2, enjoyThisMonth: 120, relyka: 500 }),
@@ -50,7 +50,7 @@ const STEPS = [
 const PARTS: { kind: GardenIconKey; name: string; meaning: string; text: string }[] = [
   { kind: 'water', name: 'Arrosoir', meaning: 'Comptes courants', text: "L'eau qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues." },
   { kind: 'roots', name: 'Racines', meaning: 'Épargne de secours', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté.' },
-  { kind: 'fruits', name: 'Fruits', meaning: 'Placements', text: 'Un fruit par placement. Ils mûrissent quand tes placements rapportent.' },
+  { kind: 'fruits', name: 'Fruits', meaning: 'Placements', text: 'Ils se multiplient avec ce que tu places, mûrissent quand ça rapporte, et deviennent dorés avec une belle plus-value.' },
   { kind: 'flowers', name: 'Fleurs', meaning: 'Pour te faire plaisir', text: "La part de ton mois à dépenser pour toi, sans culpabiliser." },
   { kind: 'cabin', name: 'Cabane', meaning: 'Crédit', text: 'Une planche de plus à chaque mensualité, jusqu’à ce qu’elle soit à toi.' },
 ];
@@ -63,7 +63,8 @@ const WATERING_TEXT: Record<'save' | 'invest' | 'enjoy' | 'keep', string> = {
   keep: 'Un peu d’eau reste au frais : sur ton compte courant, pour la suite du mois.',
 };
 
-const HOW: { n: string; title: string; text: string }[] = [
+/** Les trois gestes de Relyka — partagés avec l'accueil mobile (GardenWelcome). */
+export const HOW: { n: string; title: string; text: string }[] = [
   { n: '1', title: 'Plante ton arbre', text: 'Ajoute tes comptes et tes opérations récurrentes : salaire, loyer, abonnements.' },
   { n: '2', title: 'Regarde ton arrosoir', text: 'Relyka calcule l’eau qu’il te reste vraiment ce mois-ci, sans toucher à ta réserve minimum.' },
   { n: '3', title: 'Arrose avec Pépin', text: 'Racines, fruits, fleurs : Pépin te dit où verser ton eau. Tu fais les virements dans ta banque, ton arbre pousse.' },

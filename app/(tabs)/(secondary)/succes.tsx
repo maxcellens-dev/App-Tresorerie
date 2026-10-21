@@ -286,7 +286,7 @@ function SuccesScreen() {
               haut, sans un mot — on croyait à un écran cassé. */}
           {unlockedBadges.length === 0 && lockedBadges.length === 0 && (
             <View style={styles.notice}>
-              <Ionicons name="trophy-outline" size={22} color={COLORS.textSecondary} />
+              <Image source={SCENE3D_IMG.shop_trophy} style={{ width: 56, height: 56 }} resizeMode="contain" />
               <Text style={styles.noticeTitle}>Aucun succès pour le moment</Text>
               <Text style={styles.noticeText}>De nouveaux trophées arriveront bientôt.</Text>
             </View>

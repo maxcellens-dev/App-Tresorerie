@@ -69,12 +69,11 @@ export async function render(state, opts, file) {
   for (const l of s.back) await drawLayer(c, l);
   await svgLayer(c, `<defs>${rg('sh', [[0, '#1E2A10', 0.55], [1, '#1E2A10', 0]])}</defs>
     ${v.marks.map((m) => `<g opacity="${m.reached ? 1 : 0.55}"><line x1="74" y1="${m.y}" x2="726" y2="${m.y}" stroke="#F4E6CC" stroke-width="2.6" stroke-dasharray="8 10" stroke-linecap="round" opacity="0.9"/><rect x="736" y="${m.y - 21}" width="124" height="42" rx="13" fill="#D9B086" stroke="#8C6442" stroke-width="2"/><text x="798" y="${m.y + 8}" text-anchor="middle" font-family="Nunito, Arial" font-weight="800" font-size="23" fill="${m.reached ? '#3E2A17' : '#6E5639'}">${m.label}</text></g>`).join('')}
-    ${v.dripRoots ? '<line x1="470" y1="742" x2="470" y2="808" stroke="#8ED0EA" stroke-width="5" stroke-dasharray="7 11" stroke-linecap="round" opacity="0.9"/>' : ''}
     ${v.shadows.map((sh) => `<ellipse cx="${sh.cx}" cy="${sh.cy}" rx="${sh.rx}" ry="${sh.ry}" fill="url(#sh)" opacity="${Math.min(1, sh.o * 1.6)}"/>`).join('')}`);
   for (const l of s.front) await drawLayer(c, l);
-  await svgLayer(c, `${v.dripBranches ? `<line x1="${v.dripBranches.x}" y1="${v.dripBranches.y0}" x2="${v.dripBranches.x}" y2="${v.dripBranches.y1}" stroke="#8ED0EA" stroke-width="4.5" stroke-dasharray="7 11" stroke-linecap="round" opacity="0.9"/>` : ''}
-    ${v.waterLine ? `<line x1="${v.waterLine.x1}" y1="${v.waterLine.y}" x2="${v.waterLine.x2}" y2="${v.waterLine.y}" stroke="#E4F6FF" stroke-width="3" stroke-linecap="round" opacity="0.8"/>` : ''}`);
+  await svgLayer(c, `${v.waterLine ? `<line x1="${v.waterLine.x1}" y1="${v.waterLine.y}" x2="${v.waterLine.x2}" y2="${v.waterLine.y}" stroke="#E4F6FF" stroke-width="3" stroke-linecap="round" opacity="0.8"/>` : ''}`);
   if (veil) await svgLayer(c, `<rect width="${W}" height="${H}" fill="rgb(${veil.rgb.join(',')})" opacity="${veil.a}"/>`);
+  if (v.flags.length) await svgLayer(c, v.flags.map((fl) => `<line x1="${fl.x}" y1="${fl.y}" x2="${fl.x}" y2="${fl.y - fl.h}" stroke="#6E4E30" stroke-width="${fl.h * 0.07}" stroke-linecap="round"/><path d="M${fl.x} ${fl.y - fl.h} L${fl.x + fl.h * 0.62} ${fl.y - fl.h * 0.82} L${fl.x} ${fl.y - fl.h * 0.62} Z" fill="#F0B54A" stroke="#B07A1E" stroke-width="${fl.h * 0.03}" stroke-linejoin="round"/>`).join(''));
   if (v.windows.length) await svgLayer(c, `<defs>${rg('win', [[0, '#FFD98A', o.moment === 'day' || !o.moment ? 0.45 : 0.8], [1, '#FFC870', 0]])}</defs>
     ${v.windows.map((w) => `<circle cx="${w.x + w.w / 2}" cy="${w.y + w.h / 2}" r="${w.w * 1.5}" fill="url(#win)"/><rect x="${w.x}" y="${w.y}" width="${w.w}" height="${w.h}" rx="${w.w * 0.06}" fill="#FFD36E" opacity="0.95"/><line x1="${w.x + w.w / 2}" y1="${w.y}" x2="${w.x + w.w / 2}" y2="${w.y + w.h}" stroke="#7A5A3A" stroke-width="${w.w * 0.09}"/><line x1="${w.x}" y1="${w.y + w.h / 2}" x2="${w.x + w.w}" y2="${w.y + w.h / 2}" stroke="#7A5A3A" stroke-width="${w.w * 0.09}"/>`).join('')}`);
   if (o.moment !== 'day') {
@@ -91,8 +90,8 @@ export async function render(state, opts, file) {
 /* ── Scénarios ── */
 const base = {
   growth: 1, stage: 'grand', roots: { months: 6.5, depth: 1, marks: { one: true, three: true, six: true }, beyondSix: true, extraMonths: 0.5 },
-  branches: 1, fruits: 3, fruitTier: 3, investments: 3, ripe: true, flowers: 3, water: 0.6,
-  drip: { roots: false, branches: false }, cabin: { progress: 1, count: 1 }, brambles: 0, rings: 4,
+  branches: 1, fruits: 3, harvest: 'none', maturity: 'ripe', investments: 3, ripe: true, flowers: 3, water: 0.6,
+  cabin: { progress: 1, count: 1, owned: false }, brambles: 0, rings: 4,
 };
 const S = (over) => ({ ...base, ...over, roots: { ...base.roots, ...(over.roots ?? {}) } });
 const board = async (items, cols, file) => {
@@ -101,7 +100,8 @@ const board = async (items, cols, file) => {
   await save(sheet, path.join(outDir, file));
 };
 
-await board([0.1, 0.4, 0.6, 1].map((p) => [S({ cabin: { progress: p, count: 1 } }), { decor: ['mushrooms'], season: 'autumn' }]), 4, 'render_cabin.png');
+await board([0.1, 0.3, 0.5, 0.7, 0.9].map((p) => [S({ cabin: { progress: p, count: 1, owned: false } }), { decor: ['mushrooms'] }]).concat([[S({ cabin: { progress: 1, count: 1, owned: true }, fruits: 6, harvest: 'big', maturity: 'golden' }), {}]]), 6, 'render_cabin.png');
+await board([0.1, 0.5].map((p) => [S({ growth: 0.3, cabin: { progress: p, count: 1, owned: false } }), {}]), 2, 'render_cabin_small.png');
 await render(base, { moment: 'day', decor: [], hotspots: true }, 'render_hotspots.png');
 await board(['day', 'dusk', 'night'].map((moment) => [base, { moment }]), 3, 'render_moments.png');
 await board(['spring', 'summer', 'autumn', 'winter'].map((season) => [base, { season }]), 4, 'render_seasons.png');
@@ -110,8 +110,8 @@ const months = [0, 0.5, 1.2, 2.4, 3.5, 5, 6];
 await board(growths.map((g, i) => [S({ growth: g, fruits: i > 2 ? 2 : 0, cabin: null, flowers: i % 3, water: i / 6, roots: { months: months[i], beyondSix: false, marks: { one: months[i] >= 1, three: months[i] >= 3, six: months[i] >= 6 } } }), {}]), 4, 'render_growth.png');
 await board([
   [S({ cabin: { progress: 0.1, count: 1 } }), {}], [S({ cabin: { progress: 0.5, count: 1 } }), {}], [S({ cabin: { progress: 0.9, count: 1 }, growth: 0.3 }), {}],
-  [S({ brambles: 0.3, cabin: null }), {}], [S({ brambles: 1, cabin: null, growth: 0.2 }), {}], [S({ fruits: 6, fruitTier: 5 }), {}], [S({ fruits: 10, fruitTier: 10, ripe: false }), {}],
-  [S({ drip: { roots: true, branches: true }, water: 0 }), { glow: true, rain: true }],
+  [S({ brambles: 0.3, cabin: null }), {}], [S({ brambles: 1, cabin: null, growth: 0.2 }), {}], [S({ fruits: 6, harvest: 'small' }), {}], [S({ fruits: 6, harvest: 'big', maturity: 'golden' }), {}],
+  [S({ water: 0 }), { glow: true, rain: true }],
 ], 4, 'render_states.png');
 await board([
   [base, { decor: ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond'], outfit: { neck: 'scarf_red', head: 'straw_hat', eyes: 'sunglasses', feet: 'boots' } }],

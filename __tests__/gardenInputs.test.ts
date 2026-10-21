@@ -21,7 +21,6 @@ describe('buildGardenInputs', () => {
     expect(inputs.currentBalance).toBe(1653);
     expect(inputs.minimumToKeep).toBe(200);
     expect(inputs.enjoyThisMonth).toBe(96);
-    expect(inputs.recurringSavingsMonthly).toBe(300);
   });
 
   it('sans charges récurrentes, retombe sur le revenu (repli prudent du moteur existant)', () => {

@@ -7,12 +7,12 @@ import { computeNextStep } from '../lib/garden/nextStep';
 
 const base: GardenInputs = {
   currentBalance: 2000, minimumToKeep: 300, monthlyReference: 2000, securityMonths: 7, relyka: 500,
-  investedValue: 0, investedContributed: 0, enjoyThisMonth: 0, recurringSavingsMonthly: 0, recurringInvestMonthly: 0,
-  consecutiveSavingMonths: 0, streakWeeks: 0, credits: [],
+  investedValue: 0, investedContributed: 0, enjoyThisMonth: 0, recurringInvestMonthly: 0,
+  streakWeeks: 0, credits: [],
 };
 const step = (over: Partial<GardenInputs>) => {
   const i = { ...base, ...over };
-  return computeNextStep(computeTreeState(i), i.monthlyReference, i.investedValue);
+  return computeNextStep(computeTreeState(i), i.monthlyReference, i.investedValue, i.recurringInvestMonthly);
 };
 
 describe('computeNextStep', () => {

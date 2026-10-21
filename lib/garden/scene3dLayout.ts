@@ -62,9 +62,6 @@ export interface Hotspot3d extends Rect { part: HotspotPart }
 export interface Scene3dVector {
   shadows: { cx: number; cy: number; rx: number; ry: number; o: number }[];
   marks: { y: number; label: string; reached: boolean }[];
-  dripRoots: boolean;
-  /** Arrosage des branches : trait le long du tronc (de bas en haut). */
-  dripBranches: { x: number; y0: number; y1: number } | null;
   /** Halo doré derrière le feuillage. */
   glow: { cx: number; cy: number; r: number } | null;
   /** Lueurs (lanternes) visibles au crépuscule et la nuit. */
@@ -75,10 +72,14 @@ export interface Scene3dVector {
   sleepZ: { x: number; y: number } | null;
   /** Fenêtres éclairées de l'intérieur (cabane finie) : dessinées au-dessus du voile de la nuit. */
   windows: Rect[];
+  /** Fanions (cabane remboursée) : pied du mât (x, y) et hauteur du mât. */
+  flags: { x: number; y: number; h: number }[];
 }
 
 /** Vitres de la fenêtre dans l'image de la cabane finie (fractions de l'image cabin.webp). */
 const CABIN_WINDOW = { x: 0.452, y: 0.378, w: 0.103, h: 0.138 };
+/** Faîte du toit dans l'image de la cabane finie (pied du mât du fanion). */
+const CABIN_ROOF_PEAK = { x: 0.52, y: 0.03 };
 
 export interface Scene3d {
   /** Calques derrière l'arbre (nuages, clôture, terre, herbe, banc, mare, fleurs). */
@@ -189,7 +190,7 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     // juste devant ce qu'elle cache (même pied, un cheveu plus près)
     list.push(img(key, `tuft_${o.season}_${variant % M.tuft.variants}`, cx - w / 2, footY - h * M.tuft.foot, w, h, { z: footY + 0.5 }));
   };
-  const v: Scene3dVector = { shadows: [], marks: [], dripRoots: state.drip.roots, dripBranches: null, glow: null, lights: [], waterLine: null, sleepZ: null, windows: [] };
+  const v: Scene3dVector = { shadows: [], marks: [], glow: null, lights: [], waterLine: null, sleepZ: null, windows: [], flags: [] };
   const decor = new Set(o.decor ?? []);
   const night = o.moment !== 'day';
 
@@ -283,7 +284,6 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   const cb = t.canopy, canopy: Rect = { x: tx + cb.x0 * tw, y: ty + cb.y0 * th, w: (cb.x1 - cb.x0) * tw, h: (cb.y1 - cb.y0) * th };
   hot.push({ part: 'tree', x: canopy.x, y: canopy.y, w: canopy.w, h: GROUND - canopy.y });
   if (o.glow) v.glow = { cx: canopy.x + canopy.w / 2, cy: canopy.y + canopy.h / 2, r: Math.max(canopy.w, canopy.h) * 0.75 };
-  if (state.drip.branches && kind !== 'sprout') v.dripBranches = { x: 470 + t.trunkHalf * tw + 6, y0: GROUND - 6, y1: canopy.y + canopy.h - 10 };
 
   // nichoir accroché au tronc
   if (decor.has('birdhouse') && kind !== 'sprout') {
@@ -291,9 +291,10 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     front.push(img('birdhouse', 'decor_birdhouse', 470 - t.trunkHalf * tw - w * 0.9, ty + th * 0.74 - h, w, h, { z: TREE_Z + 0.1 }));
   }
 
-  // pommes = placements (dans la pousse : une seule, sur la tige)
+  // pommes = la valeur des placements, leur couleur = la plus-value (dans la pousse : une seule, sur la tige)
+  const appleKind = state.maturity === 'golden' ? 'gold' : state.maturity;
   if (state.fruits > 0) {
-    const kindOf = (i: number) => (state.fruitTier >= 10 && i < 3 ? 'gold' : state.ripe ? 'ripe' : 'young');
+    const kindOf = (_i: number) => appleKind;
     if (kind === 'sprout') {
       const s = 24; front.push(img('apple0', `apple_${kindOf(0)}`, 470 + 6, GROUND - th * 0.45, s, s * M.apple.h / M.apple.w, { z: TREE_Z + 0.4 }));
     } else {
@@ -306,14 +307,14 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   let pepinX = 660;
   if (cabin) {
     const c = M.cabin, p = Math.max(0, Math.min(1, cabin.progress));
-    /* 4 étapes, chacune une image ENTIÈRE (jamais une image découpée, qui se lit comme un bug) :
-       1. plancher et garde-corps (cabin_stage_2), 2. ossature (cabin_stage_3), 3. toit (cabin_stage_4),
-       4. la cabane habitée, fenêtre allumée. L'ancienne étape « plateforme sur treillis » ne
-       ressemblait à aucune autre : elle a été retirée. À défaut d'image : la cabane finie. */
-    const stage = p < 0.25 ? 1 : p < 0.5 ? 2 : p < 0.75 ? 3 : 4;
+    /* 5 étapes, chacune une image ENTIÈRE (jamais une image découpée, qui se lit comme un bug) :
+       1. l'échelle seule, posée dès qu'un crédit est ouvert ; 2. plancher et garde-corps
+       (cabin_stage_2) ; 3. ossature (cabin_stage_3) ; 4. toit (cabin_stage_4) ; 5. la cabane habitée,
+       fenêtre allumée. À défaut d'image : la cabane finie. */
+    const stage = p < 0.2 ? 1 : p < 0.4 ? 2 : p < 0.6 ? 3 : p < 0.8 ? 4 : 5;
     const stages = M.cabinStages as Record<string, { dx: number; dy: number; sw: number; sh: number } | undefined>;
-    const stImg = stage < 4 ? `cabin_stage_${stage + 1}` : null;
-    const st = stage < 4 ? stages[String(stage + 1)] : undefined;
+    const stImg = stage > 1 && stage < 5 ? `cabin_stage_${stage}` : null;
+    const st = stImg ? stages[String(stage)] : undefined;
     let r: Rect, cabinZ: number | undefined;
     if (kind === 'adult' && 'branchTip' in t) {
       const tipX = tx + t.branchTip.x * tw, tipY = ty + t.branchTip.y * th, cw = tw * 0.34, ch = cw * c.h / c.w;
@@ -325,16 +326,25 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     } else {
       const cw = 150, ch = cw * c.h / c.w;
       r = { x: 512, y: GROUND + 20 - ch, w: cw, h: ch };
-      v.shadows.push({ cx: r.x + cw / 2, cy: GROUND + 14, rx: cw * 0.5, ry: 12, o: 0.45 });
       pepinX = 700;
+      if (stage === 1) {
+        // petit arbre : l'échelle attend, debout là où la cabane s'élèvera
+        const lw = 18, lh = lw * M.ladder.h / M.ladder.w, len = 120;
+        front.push(img('ladder', 'ladder', r.x + cw * 0.45, GROUND + 16 - len, lw, lh, { showTop: Math.min(1, len / lh) }));
+        v.shadows.push({ cx: r.x + cw * 0.45 + lw / 2, cy: GROUND + 15, rx: 16, ry: 5, o: 0.4 });
+      } else {
+        v.shadows.push({ cx: r.x + cw / 2, cy: GROUND + 14, rx: cw * 0.5, ry: 12, o: 0.45 });
+      }
     }
     if (st && stImg) front.push(img('cabin', stImg, r.x + st.dx * r.w, r.y + st.dy * r.h, st.sw * r.w, st.sh * r.h, { z: cabinZ }));
-    else front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { z: cabinZ }));
+    else if (stage > 1) front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { z: cabinZ }));
     hot.push({ part: 'cabin', ...r });
-    if (stage === 4) {
+    if (stage === 5) {
       // la cabane est habitée : la fenêtre s'allume (de jour comme de nuit), la lanterne la nuit
       v.windows.push({ x: r.x + r.w * CABIN_WINDOW.x, y: r.y + r.h * CABIN_WINDOW.y, w: r.w * CABIN_WINDOW.w, h: r.h * CABIN_WINDOW.h });
       if (night) v.lights.push({ cx: r.x + r.w * 0.47, cy: r.y + r.h * 0.2, r: r.w * 0.22 });
+      // remboursée : la cabane est à toi — un fanion flotte sur le faîte du toit
+      if (cabin.owned) v.flags.push({ x: r.x + r.w * CABIN_ROOF_PEAK.x, y: r.y + r.h * CABIN_ROOF_PEAK.y, h: r.h * 0.5 });
     }
   }
 
@@ -388,9 +398,9 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     hot.push({ part: 'pico', x: pepinX - 6, y: y + h * 0.08, w: PEPIN_W + 12, h: h * 0.92 });
   }
 
-  // ── Panier de récolte (5 placements et plus) : la récolte de Pépin, posée devant lui ──
-  if (state.fruitTier >= 5) {
-    const k = `basket_${state.ripe ? 'ripe' : 'young'}_${state.fruitTier >= 10 ? 5 : 3}`, w = 80, h = w * M.basket.h / M.basket.w;
+  // ── Panier de récolte (12 mois de dépenses placés, grand à 36) : la récolte de Pépin, devant lui ──
+  if (state.harvest !== 'none') {
+    const k = `basket_${appleKind}_${state.harvest === 'big' ? 5 : 3}`, w = 80, h = w * M.basket.h / M.basket.w;
     const x = pepinX - 44, bottom = 712;
     v.shadows.push({ cx: x + w / 2, cy: bottom - 2, rx: w * 0.5, ry: 9, o: 0.45 });
     front.push(img('basket', k, x, bottom - h, w, h));
