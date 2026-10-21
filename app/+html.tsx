@@ -31,12 +31,12 @@ export default function Root({ children }: PropsWithChildren) {
 
         {/* SEO de BASE (statique) — repli pour les crawlers sans JS (aperçus sociaux). Les valeurs
             fines sont appliquées au runtime par le SEO Center (composant SeoHead, admin-paramétrable). */}
-        <title>Relyka — Pilote ta trésorerie personnelle</title>
-        <meta name="description" content="Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité." />
+        <title>Relyka — Regarde ton argent pousser</title>
+        <meta name="description" content="Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire." />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Relyka" />
-        <meta property="og:title" content="Relyka — Pilote ta trésorerie personnelle" />
-        <meta property="og:description" content="Pilote ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement." />
+        <meta property="og:title" content="Relyka — Regarde ton argent pousser" />
+        <meta property="og:description" content="Ton argent, comme un jardin : ce qu'il te reste vraiment ce mois-ci, ton épargne, tes placements." />
         <meta name="twitter:card" content="summary_large_image" />
         {/* Nom du site dans Google (la ligne au-dessus de l'URL) : il vient des données
             structurées `WebSite` de la page d'accueil. MIROIR de public/index.html — c'est ce
@@ -125,7 +125,7 @@ const DESKTOP_WEB_CSS = `
 // Lit le dernier thème connu (clés alignées sur lib/themeBoot.ts) et fixe les variables CSS du
 // loader AVANT la première peinture. Priorité au thème UTILISATEUR (refresh d'une page connectée),
 // repli sur le thème ADMIN (pré-auth), puis — si rien n'est connu (1ère visite) — une couleur
-// INTERMÉDIAIRE neutre (#808F88, entre clair et sombre) pour minimiser l'écart au démarrage.
+// fond CLAIR du Jardin (crème, comme le splash) : le Jardin et la vitrine sont clairs par défaut.
 const BOOT_THEME_JS = `
 (function () {
   function mode() {
@@ -141,7 +141,7 @@ const BOOT_THEME_JS = `
   }
   try {
     var m = mode();
-    var bg = m === 'light' ? '#F4EFE6' : m === 'dark' ? '#0D2E2A' : '#808F88';
+    var bg = m === 'dark' ? '#121D18' : '#F4EFE6';
     document.documentElement.style.setProperty('--boot-bg', bg);
   } catch (e) {}
 })();
@@ -154,7 +154,7 @@ const BOOT_THEME_JS = `
 // favicon, lui, est une autre image → il ferait un saut visuel au montage de React.
 const BOOT_LOADER_CSS = `
 #app-boot {
-  position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #808F88);
+  position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #F4EFE6);
   display: flex; align-items: center; justify-content: center;
   transition: opacity .34s ease-in;
 }

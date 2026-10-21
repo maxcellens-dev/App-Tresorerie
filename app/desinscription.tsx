@@ -17,6 +17,7 @@ import ScreenGradient from '../components/layout/ScreenGradient';
 import { useBrandColors } from '../hooks/theme/useBrandColors';
 import { supabase } from '../lib/platform/supabase';
 import { signalAppReady } from '../lib/platform/splashGate';
+import { GARDEN_FONTS as GF } from '../lib/garden/fontFamilies';
 
 export default function UnsubscribeScreen() {
   const COLORS = useBrandColors();
@@ -87,9 +88,9 @@ function makeBaseStyles(c: any) {
       width: '100%', maxWidth: 460, alignItems: 'center', gap: 12,
       backgroundColor: c.card, borderRadius: 22, borderWidth: 1, borderColor: c.cardBorder, padding: 26,
     },
-    title: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
-    text: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 21 },
+    title: { fontFamily: GF.display, fontSize: 20, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+    text: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 21 },
     btn: { marginTop: 8, backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 22 },
-    btnText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    btnText: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   });
 }

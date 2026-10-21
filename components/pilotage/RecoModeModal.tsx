@@ -432,7 +432,7 @@ function makeBaseStyles(c: any) {
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
     },
     pctInput: {
-      width: 48, textAlign: 'center', fontSize: 15, fontWeight: '800',
+      width: 48, textAlign: 'center', fontSize: 15, fontFamily: GF.bodyHeavy, fontWeight: 'normal',
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 9,
       paddingVertical: 5, paddingHorizontal: 2,
     },

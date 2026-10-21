@@ -78,7 +78,7 @@
       "favicon": "./public/favicon.png",
       "name": "Relyka",
       "shortName": "Relyka",
-      "backgroundColor": "#808F88"
+      "backgroundColor": "#F4EFE6"
     },
     "extra": {
       "router": {

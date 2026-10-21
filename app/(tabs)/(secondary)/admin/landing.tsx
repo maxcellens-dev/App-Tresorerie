@@ -1,7 +1,9 @@
 /**
- * Admin — Page d'accueil (landing desktop). Édite app_config.landing : textes, images,
- * menu, fonctionnalités, statistiques, CTA et pied de page. Téléversement d'images vers
- * le bucket public « gamification » (préfixe landing/).
+ * Admin — Vitrine (app_config.landing). La vitrine du Jardin (components/marketing/GardenLandingPage)
+ * et l'accueil de l'app (GardenWelcome) écrivent leurs textes en dur, dans la voix du Jardin : on ne
+ * règle ici que ce qu'elles lisent réellement — activation, thème clair/sombre, nom de la marque,
+ * lien Google Play, réseaux sociaux, chiffres clés, pied de page, boutons de l'accueil de l'app.
+ * Images de réseaux téléversées vers le bucket public « gamification » (préfixe landing/).
  */
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useEffect, useState } from 'react';
@@ -18,12 +20,10 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { supabase } from '../../../../lib/platform/supabase';
-import { useLandingConfig, useSaveLandingConfig, mergeLanding, type LandingConfig, type LandingFeature, type LandingStat, type LandingLink, type LandingSocial } from '../../../../hooks/config/useLandingConfig';
+import { useLandingConfig, useSaveLandingConfig, mergeLanding, type LandingConfig, type LandingStat, type LandingLink, type LandingSocial } from '../../../../hooks/config/useLandingConfig';
 import SocialLinks from '../../../../components/marketing/SocialLinks';
-import LandingPage from '../../../../components/marketing/LandingPage';
+import GardenLandingPage from '../../../../components/marketing/GardenLandingPage';
 import WelcomeScreen from '../../../../components/marketing/WelcomeScreen';
-import LandingMediaEditor from '../../../../components/marketing/LandingMediaEditor';
-import type { LandingMedia, LandingPresentation } from '../../../../hooks/config/useLandingConfig';
 import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 /**
@@ -99,16 +99,7 @@ export default function AdminLanding() {
   }
 
   const set = (patch: Partial<LandingConfig>) => setCfg(current => current ? { ...current, ...patch } : current);
-  const setPresentation = (patch: Partial<LandingPresentation>) => setCfg(current => current ? { ...current, presentation: { ...current.presentation, ...patch } } : current);
-  const setMedia = (key: 'heroMedia' | 'productImage' | 'finalImage', patch: Partial<LandingMedia>) => setCfg(current => current ? {
-    ...current, ...(key === 'heroMedia' && patch.url !== undefined ? { heroImage: patch.url } : {}),
-    presentation: { ...current.presentation, [key]: { ...current.presentation?.[key], ...patch } },
-  } : current);
-  const mediaEditor = (key: 'heroMedia' | 'productImage' | 'finalImage', label: string) => <LandingMediaEditor label={label} media={{ ...cfg.presentation[key], ...(key === 'heroMedia' ? { url: cfg.heroImage } : {}) }} colors={COLORS} uploading={uploading} onChange={patch => setMedia(key, patch)} onUpload={() => pickAndUpload(url => setMedia(key, { url }), 'image/png,image/jpeg,image/webp')} />;
-  const presentationField = (key: keyof LandingPresentation, label: string) => <Field key={key} label={label} value={String(cfg.presentation[key])} onChange={v => setPresentation({ [key]: v })} styles={styles} c={COLORS} />;
-  const setFeature = (i: number, patch: Partial<LandingFeature>) => set({ features: cfg.features.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setStat = (i: number, patch: Partial<LandingStat>) => set({ stats: cfg.stats.map((s, idx) => idx === i ? { ...s, ...patch } : s) });
-  const setNav = (i: number, patch: Partial<LandingLink>) => set({ navLinks: cfg.navLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
   const setFooter = (i: number, patch: Partial<LandingLink>) => set({ footerLinks: cfg.footerLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
 
   /** Choisit un fichier et le téléverse dans le bucket public, puis renvoie son URL à `onDone`.
@@ -169,7 +160,7 @@ export default function AdminLanding() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Page d'accueil" onBack={goBack} />
-        <Text style={styles.sub}>Deux présentations : « Site web » (ordinateur et téléphone) et « Application » (accueil natif). Les boutons mènent aux pages de connexion / inscription.</Text>
+        <Text style={styles.sub}>La vitrine et l'accueil de l'app parlent la voix du Jardin (textes intégrés). Tu règles ici le thème, la marque, les liens, les chiffres clés et le pied de page.</Text>
 
         {/* Onglets Bureau / Mobile → évite une page interminable. */}
         <View style={styles.tabsRow}>
@@ -183,7 +174,7 @@ export default function AdminLanding() {
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
           {tab === 'bureau' && <View style={styles.sectionNav}>
-            {([['general', 'Général'], ['hero', '01 · Hero'], ['features', '02 · Produit'], ['stats', '03 · Engagements'], ['final', '04 · Conclusion'], ['footer', '05 · Navigation & footer']] as const).map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: editorSection === key }} onPress={() => setEditorSection(key)} style={[styles.presetChip, { minHeight: 44 }, editorSection === key && { borderColor: COLORS.emerald }]}><Text style={styles.presetTxt}>{label}</Text></TouchableOpacity>)}
+            {([['general', 'Général'], ['stats', 'Chiffres clés'], ['footer', 'Pied de page']] as const).map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: editorSection === key }} onPress={() => setEditorSection(key)} style={[styles.presetChip, { minHeight: 44 }, editorSection === key && { borderColor: COLORS.emerald }]}><Text style={styles.presetTxt}>{label}</Text></TouchableOpacity>)}
           </View>}
           <View style={styles.previewActions}>
             <TouchableOpacity accessibilityRole="button" style={styles.addBtn} onPress={() => setPreview('desktop')}><Text style={styles.addText}>Aperçu bureau</Text></TouchableOpacity>
@@ -393,14 +384,14 @@ export default function AdminLanding() {
               <Switch value={cfg.enabled} onValueChange={(v) => set({ enabled: v })} />
             </View>
 
-            {/* Thème de la page d'accueil — sombre (actuel) ou clair (même accent émeraude) */}
+            {/* Thème de la vitrine : clair (par défaut, comme le Jardin) ou sombre (le Jardin de nuit) */}
             <Text style={styles.fieldLabel}>Thème de la page</Text>
             <View style={styles.themeRow}>
               {([
                 { id: 'dark' as const, label: 'Sombre', icon: 'moon-outline' },
                 { id: 'light' as const, label: 'Clair', icon: 'sunny-outline' },
               ]).map((t) => {
-                const active = (cfg.theme ?? 'dark') === t.id;
+                const active = (cfg.theme ?? 'light') === t.id;
                 return (
                   <TouchableOpacity key={t.id} style={[styles.themeBtn, active && styles.themeBtnActive]} onPress={() => set({ theme: t.id })} activeOpacity={0.85}>
                     <Ionicons name={t.icon as any} size={16} color={active ? '#fff' : COLORS.textSecondary} />
@@ -411,65 +402,15 @@ export default function AdminLanding() {
             </View>
 
             <Field label="Nom de la marque" value={cfg.brandName} onChange={(v) => set({ brandName: v })} styles={styles} c={COLORS} />
-            <Field label="Bouton principal (S'inscrire)" value={cfg.ctaPrimaryLabel} onChange={(v) => set({ ctaPrimaryLabel: v })} styles={styles} c={COLORS} />
-            <Field label="Bouton secondaire (Se connecter)" value={cfg.ctaSecondaryLabel} onChange={(v) => set({ ctaSecondaryLabel: v })} styles={styles} c={COLORS} />
-          </View>
-
-          {/* Héros */}
-          <View style={[styles.card, tab === 'bureau' && editorSection !== 'hero' && { display: 'none' }]} >
-            <Text style={styles.section}>Héros</Text>
-            <Field label="Badge (petit texte)" value={cfg.heroBadge} onChange={(v) => set({ heroBadge: v })} styles={styles} c={COLORS} />
-            <Field label="Titre principal" value={cfg.heroTitle} onChange={(v) => set({ heroTitle: v })} multiline styles={styles} c={COLORS} />
-            <Field label="Sous-titre" value={cfg.heroSubtitle} onChange={(v) => set({ heroSubtitle: v })} multiline styles={styles} c={COLORS} />
-            {mediaEditor('heroMedia', 'Image du hero · 4:3 recommandé')}
-            <Text style={styles.hint}>Aperçu produit (si aucune image) :</Text>
-            {presentationField('previewLabel', 'Mention de démonstration (commune aux aperçus)')}
-            {presentationField('projectionTitle', 'Titre de la projection')}
-            {presentationField('projectionPeriod', 'Période de démonstration')}
-            {presentationField('transactionDate', 'Date de la transaction')}
-            <Field label="Libellé du solde" value={cfg.heroBalanceLabel} onChange={(v) => set({ heroBalanceLabel: v })} styles={styles} c={COLORS} />
-            <Field label="Montant du solde" value={cfg.heroBalanceValue} onChange={(v) => set({ heroBalanceValue: v })} styles={styles} c={COLORS} />
-            <Field label="Libellé transaction" value={cfg.heroTxLabel} onChange={(v) => set({ heroTxLabel: v })} styles={styles} c={COLORS} />
-            <Field label="Montant transaction" value={cfg.heroTxAmount} onChange={(v) => set({ heroTxAmount: v })} styles={styles} c={COLORS} />
-          </View>
-
-          {/* Fonctionnalités */}
-          <View style={[styles.card, tab === 'bureau' && editorSection !== 'features' && { display: 'none' }]} >
-            <View style={styles.rowBetween}>
-              <Text style={styles.section}>Fonctionnalités</Text>
-              <TouchableOpacity onPress={() => set({ features: [...cfg.features, { icon: 'sparkles', title: 'Titre', text: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
-            </View>
-            {presentationField('featuresEyebrow', 'Surtitre de la section')}
-            <Field label="Titre de section" value={cfg.featuresTitle} onChange={(v) => set({ featuresTitle: v })} styles={styles} c={COLORS} />
-            <Field label="Sous-titre de section" value={cfg.featuresSubtitle} onChange={(v) => set({ featuresSubtitle: v })} multiline styles={styles} c={COLORS} />
-            {mediaEditor('productImage', 'Image produit · 4:3 recommandé')}
-            {presentationField('budgetLabel', 'Aperçu : titre du budget')}
-            {presentationField('budgetValue', 'Aperçu : budget disponible')}
-            {presentationField('budgetCaption', 'Aperçu : explication du budget')}
-            {presentationField('projectLabel', 'Aperçu : nom du projet')}
-            {presentationField('projectValue', 'Aperçu : montant du projet')}
-            <Field label="Aperçu : progression du projet (0–100 %)" value={String(cfg.presentation.projectProgress)} onChange={v => { const n = Number(v); if (Number.isFinite(n)) setPresentation({ projectProgress: Math.max(0, Math.min(100, n)) }); }} styles={styles} c={COLORS} />
-            <Text style={styles.hint}>Les deux premières fonctionnalités accompagnent le grand aperçu. Les suivantes forment la liste ouverte en dessous.</Text>
-            {cfg.features.map((f, i) => (
-              <View key={i} style={styles.subCard}>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.cardTitle}>Fonctionnalité {i + 1}</Text>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la fonctionnalité" onPress={() => set({ features: cfg.features.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
-                </View>
-                <Field label="Icône (Ionicons)" value={f.icon} onChange={(v) => setFeature(i, { icon: v })} styles={styles} c={COLORS} />
-                <Field label="Titre" value={f.title} onChange={(v) => setFeature(i, { title: v })} styles={styles} c={COLORS} />
-                <Field label="Texte" value={f.text} onChange={(v) => setFeature(i, { text: v })} multiline styles={styles} c={COLORS} />
-              </View>
-            ))}
           </View>
 
           {/* Statistiques */}
           <View style={[styles.card, tab === 'bureau' && editorSection !== 'stats' && { display: 'none' }]} >
             <View style={styles.rowBetween}>
-              <Text style={styles.section}>Engagements</Text>
+              <Text style={styles.section}>Chiffres clés</Text>
               <TouchableOpacity onPress={() => set({ stats: [...cfg.stats, { value: '0', label: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
             </View>
-            {presentationField('commitmentsTitle', 'Titre des engagements')}
+            <Text style={styles.hint}>Le bandeau de chiffres de la vitrine (valeur courte + libellé), dans l'ordre de la liste.</Text>
             {cfg.stats.map((s, i) => (
               <View key={i} style={styles.rowItem}>
                 <TextInput style={[styles.input, { width: 90 }]} value={s.value} onChangeText={(v) => setStat(i, { value: v })} placeholder="100%" placeholderTextColor={COLORS.textSecondary} />
@@ -477,40 +418,6 @@ export default function AdminLanding() {
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la statistique" onPress={() => set({ stats: cfg.stats.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
             ))}
-          </View>
-
-          {/* CTA final + footer */}
-          <View style={[styles.card, tab === 'bureau' && editorSection !== 'final' && { display: 'none' }]} >
-            <Text style={styles.section}>Appel à l'action final</Text>
-            {presentationField('finalEyebrow', 'Surtitre de conclusion')}
-            {mediaEditor('finalImage', 'Fond de conclusion · paysage 16:9 recommandé')}
-            <Field label="Titre" value={cfg.finalTitle} onChange={(v) => set({ finalTitle: v })} styles={styles} c={COLORS} />
-            <Field label="Sous-titre" value={cfg.finalSubtitle} onChange={(v) => set({ finalSubtitle: v })} multiline styles={styles} c={COLORS} />
-          </View>
-
-          {/* ── MENU DU HAUT ────────────────────────────────────────────────────────────────
-              Ces liens étaient CONFIGURÉS (valeurs par défaut, fusion, résolution des ancres)
-              mais éditables NULLE PART : le menu de la page d'accueil était le seul élément de
-              cette page qu'on ne pouvait pas corriger d'ici. Un libellé qui ne décrit plus sa
-              section — parce qu'on a changé les chiffres ou renommé un bloc — restait faux. */}
-          <View style={[styles.card, tab === 'bureau' && editorSection !== 'footer' && { display: 'none' }]} >
-            <View style={styles.rowBetween}>
-              <Text style={styles.section}>Menu du haut</Text>
-              <TouchableOpacity onPress={() => set({ navLinks: [...cfg.navLinks, { label: 'Lien', anchor: 'features' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
-            </View>
-            {cfg.navLinks.length === 0 && <Text style={styles.hint}>Aucun lien : le menu ne s'affiche pas.</Text>}
-            {cfg.navLinks.map((l, i) => (
-              <View key={i} style={styles.rowItem}>
-                <TextInput style={[styles.input, { flex: 1 }]} value={l.label} onChangeText={(v) => setNav(i, { label: v })} placeholder="Libellé" placeholderTextColor={COLORS.textSecondary} />
-                <TextInput style={[styles.input, { width: 110 }]} value={l.anchor ?? l.url ?? ''} onChangeText={(v) => setNav(i, /^https?:\/\//.test(v) ? { url: v, anchor: undefined } : { anchor: v, url: undefined })} placeholder="ancre / URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" />
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le lien de menu" onPress={() => set({ navLinks: cfg.navLinks.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
-              </View>
-            ))}
-            <Text style={styles.hint}>
-              Affiché seulement sur écran large (au-delà de 980 px). Ancres des sections de cette page :
-              features (fonctionnalités), stats (les chiffres), final (dernier appel à l'action) — ou une URL https://…
-              Un libellé doit décrire la section qu'il montre, et ne pas doubler « S'inscrire » ou « Se connecter », déjà présents à droite du menu.
-            </Text>
           </View>
 
           <View style={[styles.card, tab === 'bureau' && editorSection !== 'footer' && { display: 'none' }]} >
@@ -526,7 +433,7 @@ export default function AdminLanding() {
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le lien de pied de page" onPress={() => set({ footerLinks: cfg.footerLinks.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
             ))}
-            <Text style={styles.hint}>Ancres : confidentialite, legal (pages publiques), login, register, features, stats, final — ou une URL https://…</Text>
+            <Text style={styles.hint}>Ancres : confidentialite, legal (pages publiques), login, register — ou une URL https://…</Text>
           </View>
 
           </>)}
@@ -557,7 +464,7 @@ export default function AdminLanding() {
             <View style={{ width: preview === 'desktop' ? Math.max(1100, screenWidth) : Math.min(390, screenWidth) }}>
               {preview === 'application'
                 ? <WelcomeScreen previewConfig={cfg} previewWidth={Math.min(390, screenWidth)} />
-                : <LandingPage previewConfig={cfg} previewWidth={preview === 'desktop' ? Math.max(1100, screenWidth) : Math.min(390, screenWidth)} />}
+                : <GardenLandingPage previewConfig={cfg} previewWidth={preview === 'desktop' ? Math.max(1100, screenWidth) : Math.min(390, screenWidth)} />}
             </View>
           </ScrollView>
         </View>

@@ -1,34 +1,22 @@
 /**
- * useBrandColors — palette de marque (accent émeraude), indépendante des préférences
- * utilisateur. Utilisée par les écrans pré-auth (accueil, connexion, inscription, etc.).
- * Le MODE clair/sombre suit le réglage de la page d'accueil (app_config.landing.theme),
- * piloté en admin → toute la vitrine bascule ensemble. L'accent reste émeraude.
- * Respecte les réglages globaux du Style Editor (transparence cartes, presets, couleurs sémantiques).
+ * useBrandColors — couleurs des écrans d'avant connexion (vitrine, connexion, inscription, mot de
+ * passe oublié, pages légales, splash) : la palette du JARDIN, accent par défaut, indépendante des
+ * préférences de l'utilisateur (qui n'est pas encore connu).
+ * Le MODE clair/sombre suit le réglage de la vitrine (app_config.landing.theme), piloté en admin →
+ * tout le site bascule ensemble.
  */
 import { useMemo, useSyncExternalStore } from 'react';
-import { useStyleConfig } from './useStyleConfig';
 import { useLandingConfig } from '../config/useLandingConfig';
 import { getCachedAdminTheme, subscribeThemeCache, themeCacheVersion } from '../../lib/platform/themeBoot';
-import { buildColors, type AppColors, type ThemeMode } from '../../theme/palette';
+import { gardenAppColors } from '../../lib/garden/gardenPalette';
+import type { AppColors, ThemeMode } from '../../theme/palette';
 
 export function useBrandColors(previewMode?: ThemeMode): AppColors {
-  const { data: styleConfig } = useStyleConfig();
   const { data: landing } = useLandingConfig();
   // Avant la réponse réseau : dernier thème admin connu (localStorage web / AsyncStorage natif après
-  // hydratation) → pas de flash sombre. L'abonnement re-render à l'hydratation du cache natif.
+  // hydratation). L'abonnement re-rend à l'hydratation du cache natif.
   useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
-  const mode = (previewMode ?? landing?.theme ?? getCachedAdminTheme() ?? 'dark') as ThemeMode;
-  return useMemo(
-    () => buildColors(mode, 'emerald', {
-      cardAlpha: mode === 'light' ? styleConfig?.light.card_alpha : styleConfig?.dark.card_alpha,
-      bgColor: mode === 'light' ? styleConfig?.light.bg_color : styleConfig?.dark.bg_color,
-      cardColor: mode === 'light' ? styleConfig?.light.card_color : styleConfig?.dark.card_color,
-      headerAlpha: mode === 'light' ? styleConfig?.light.header_alpha : styleConfig?.dark.header_alpha,
-      customAccents: styleConfig?.custom_accents,
-      extraPresets: styleConfig?.extra_presets,
-      semanticColors: styleConfig?.semantic_colors,
-      lightSemanticColors: styleConfig?.light_semantic_colors,
-    }),
-    [mode, styleConfig]
-  );
+  // Repli CLAIR (le Jardin, le splash crème et la vitrine le sont) tant que la config n'a pas répondu.
+  const mode = (previewMode ?? landing?.theme ?? getCachedAdminTheme() ?? 'light') as ThemeMode;
+  return useMemo(() => gardenAppColors(null, mode === 'dark' ? 'dark' : 'light'), [mode]);
 }

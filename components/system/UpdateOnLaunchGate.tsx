@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
 import { useUpdateOnLaunch } from '../../lib/platform/otaUpdate';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** Doit correspondre au splash natif (app.json) et à AnimatedSplash — transition invisible. */
 const SPLASH_BG = '#F4EFE6';
@@ -112,8 +113,8 @@ const styles = StyleSheet.create({
   caption: { position: 'absolute', alignItems: 'center' },
   progress: { width: '100%', maxWidth: 360, gap: 12 },
   captionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 22 },
-  title: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
-  percent: { fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  title: { fontSize: 13, fontFamily: GF.bodyBold, fontWeight: 'normal', flexShrink: 1 },
+  percent: { fontSize: 13, fontFamily: GF.bodyBold, fontWeight: 'normal', fontVariant: ['tabular-nums'] },
   track: { width: '100%', height: 3, borderRadius: 999, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 999 },
 });

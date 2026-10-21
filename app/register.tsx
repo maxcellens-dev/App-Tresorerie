@@ -24,6 +24,7 @@ import { authPage, authCard } from '../lib/ui/webLayout';
 import PasswordStrength from '../components/auth/PasswordStrength';
 import { evaluatePassword } from '../lib/auth/passwordPolicy';
 import { describeAuthError } from '../lib/auth/authErrors';
+import { GARDEN_FONTS as GF } from '../lib/garden/fontFamilies';
 
 
 export default function RegisterScreen() {
@@ -155,7 +156,7 @@ export default function RegisterScreen() {
         <View style={styles.keyboard}>
           <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
+            <Text style={{ fontFamily: GF.bodyBold, color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: 'normal' }}>Retour</Text>
           </TouchableOpacity>
           <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, authPage(isDesktop), keyboardPadding]}>
           {/* Bureau : tout le formulaire vit dans une CARTE posée sur la page (cf. authCard). */}
@@ -338,10 +339,10 @@ function makeBaseStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1 },
   back: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', color: c.text, marginBottom: 8 },
-  subtitle: { fontSize: 15, color: c.textSecondary, marginBottom: 32 },
+  title: { fontFamily: GF.display, fontSize: 28, fontWeight: 'normal', color: c.text, marginBottom: 8 },
+  subtitle: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary, marginBottom: 32 },
   form: {},
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
     borderWidth: 1,
@@ -363,26 +364,26 @@ function makeBaseStyles(c: any) {
     marginTop: 4,
   },
   btnDisabled: { opacity: 0.6 },
-  btnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
-  emailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
-  legalNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 17, marginTop: 14, textAlign: 'center' },
-  legalLink: { color: c.accentText ?? c.emerald, fontWeight: '700', textDecorationLine: 'underline' },
+  btnLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  emailNote: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
+  legalNote: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 17, marginTop: 14, textAlign: 'center' },
+  legalLink: { color: c.accentText ?? c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal', textDecorationLine: 'underline' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 22 },
   dividerLine: { flex: 1, height: 1, backgroundColor: c.cardBorder },
-  dividerText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  dividerText: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal' },
   // Même gabarit que les boutons sociaux (SocialAuthButtons) : trois moyens, trois boutons.
   emailBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
     borderRadius: 14, paddingVertical: 14, marginTop: 4,
   },
-  emailBtnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
+  emailBtnLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
   errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '55', borderRadius: 12, padding: 12, marginBottom: 14 },
-  errorText: { fontSize: 13, color: c.danger, lineHeight: 18, flexShrink: 1 },
-  okText: { fontSize: 13, color: c.emerald, marginTop: 10, fontWeight: '600' },
+  errorText: { fontFamily: GF.body, fontSize: 13, color: c.danger, lineHeight: 18, flexShrink: 1 },
+  okText: { fontFamily: GF.bodyBold, fontSize: 13, color: c.emerald, marginTop: 10, fontWeight: 'normal' },
   sentIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald + '1e', marginBottom: 16 },
-  sentMail: { color: c.text, fontWeight: '700' },
+  sentMail: { color: c.text, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   link: { alignItems: 'center', marginTop: 20 },
-  linkText: { fontSize: 14, color: c.emerald, fontWeight: '500' },
+  linkText: { fontFamily: GF.body, fontSize: 14, color: c.emerald, fontWeight: 'normal' },
 });
 }

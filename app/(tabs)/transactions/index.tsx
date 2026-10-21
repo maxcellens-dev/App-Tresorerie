@@ -739,7 +739,7 @@ function TransactionsListBody() {
               </Text>
             </TouchableOpacity>
             <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
-              {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(accountCurrencyOf(item))}
+              {amt > 0 ? '+' : ''}{amt.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currencySymbolFor(accountCurrencyOf(item))}
             </Text>
           </View>
           {/* Ligne 2 : actions */}
@@ -807,7 +807,7 @@ function TransactionsListBody() {
           </View>
         ) : (
           <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg]}>
-            {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(accountCurrencyOf(item))}
+            {amt > 0 ? '+' : ''}{amt.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currencySymbolFor(accountCurrencyOf(item))}
           </Text>
         )}
       </TouchableOpacity>
@@ -1246,7 +1246,7 @@ function makeBaseStyles(c: any) {
   monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4 },
   monthHeaderText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.textSecondary,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.8,
@@ -1329,7 +1329,7 @@ function makeBaseStyles(c: any) {
   reservationText: {
     color: c.teal,
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   empty: { padding: 24, color: c.textSecondary, textAlign: 'center' },
   // Zone tactile élargie sans hauteur ajoutée : le padding déborde sur celui de l'en-tête.
@@ -1428,7 +1428,7 @@ function makeBaseStyles(c: any) {
   },
   periodText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.text,
     textAlign: 'center',
     textTransform: 'capitalize',

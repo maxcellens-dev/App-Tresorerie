@@ -50,19 +50,19 @@ export interface SeoConfig {
 
 export const SEO_DEFAULTS: SeoConfig = {
   siteName: 'Relyka',
-  titleDefault: 'Relyka — Pilote ta trésorerie personnelle',
+  titleDefault: 'Relyka — Regarde ton argent pousser',
   titleTemplate: '%s · Relyka',
-  description: "Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité.",
-  keywords: 'trésorerie, budget, finances personnelles, épargne, investissement, reste à vivre',
+  description: "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire.",
+  keywords: 'budget, finances personnelles, épargne, investissement, trésorerie, jardin, gestion de l’argent',
   canonicalBase: 'https://relyka.app',
   language: 'fr',
   author: 'Relyka',
-  themeColor: '#0D2E2A',
+  themeColor: '#F4EFE6',
   index: true,
   follow: true,
   ogType: 'website',
   ogImage: '',
-  ogImageAlt: 'Relyka — pilote ta trésorerie',
+  ogImageAlt: 'Relyka — ton argent, comme un jardin',
   twitterCard: 'summary_large_image',
   twitterSite: '',
   twitterCreator: '',
@@ -74,9 +74,25 @@ export const SEO_DEFAULTS: SeoConfig = {
   pages: {},
 };
 
+/**
+ * ANCIENS DÉFAUTS gelés en base au premier enregistrement de l'admin (avant le Jardin) : ce ne sont
+ * pas des choix, on les remplace par les défauts actuels. Toute AUTRE valeur saisie en admin reste
+ * prioritaire.
+ */
+const LEGACY_DEFAULTS: Partial<Record<keyof SeoConfig, string[]>> = {
+  titleDefault: ['Relyka — Pilote ta trésorerie personnelle'],
+  description: ["Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité."],
+  keywords: ['trésorerie, budget, finances personnelles, épargne, investissement, reste à vivre'],
+  themeColor: ['#0D2E2A'],
+  ogImageAlt: ['Relyka — pilote ta trésorerie'],
+};
+
 /** Fusionne une config admin (partielle) avec les défauts. */
 export function resolveSeoConfig(admin?: Partial<SeoConfig> | null): SeoConfig {
-  const a = admin ?? {};
+  const a: Partial<SeoConfig> = { ...(admin ?? {}) };
+  for (const [k, olds] of Object.entries(LEGACY_DEFAULTS) as [keyof SeoConfig, string[]][]) {
+    if (olds.includes(a[k] as any)) delete a[k];
+  }
   return {
     ...SEO_DEFAULTS,
     ...a,

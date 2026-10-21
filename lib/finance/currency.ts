@@ -192,3 +192,9 @@ export function convertAmount(amount: number, from: string, to: string, rates: R
   if (!rf || !rt || rf <= 0 || rt <= 0) return null;
   return (amount * rt) / rf;
 }
+
+/** Montant à deux décimales, à la française (« 1 234,50 ») — jamais `toFixed(2)` à l'affichage. */
+export function fmt2(n: number): string {
+  // Espace insécable FINE (U+202F) → insécable simple : Fredoka n'a pas la fine, le séparateur disparaissait.
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u202F/g, '\u00A0');
+}

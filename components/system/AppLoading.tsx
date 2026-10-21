@@ -11,8 +11,8 @@
 import { View, Image, StyleSheet, Platform } from 'react-native';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
 
-// Fonds accordés au splash : sombre = teal, clair = crème.
-const BG_DARK = '#0D2E2A';
+// Fonds accordés au splash et au Jardin : clair = crème, sombre = le Jardin de nuit.
+const BG_DARK = '#121D18';
 const BG_LIGHT = '#F4EFE6';
 /** Même taille qu'AnimatedSplash et que #app-boot .boot-logo (web). */
 const LOGO = 96;

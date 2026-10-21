@@ -25,7 +25,7 @@ import { computeAmortization, nextPaymentAtDate, rateAtDate } from '../../../../
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
-import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, fmt2 } from '../../../../lib/finance/currency';
 import { sanitizeAmountInput, sanitizeRateInput, parseAmountInput } from '../../../../lib/ui/amountInput';
 import { useSubmitLock } from '../../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
@@ -393,12 +393,12 @@ export default function CreditDetailScreen() {
                   const rowInner = (
                     <View style={[styles.tRow, past && !editTable && !isFocused && { opacity: 0.5 }, isNext && styles.tRowNext, editTable && overridden(r) && styles.tRowEditing, isFocused && styles.tRowFocused]}>
                       <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
-                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.payment.toFixed(2)}</Text>
-                      {hasInsurance && <Text style={[styles.tc, isNext && styles.tNextText]}>{r.insurance.toFixed(2)}</Text>}
-                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.interest.toFixed(2)}</Text>
-                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.principalPart.toFixed(2)}</Text>
-                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.crdAfter.toFixed(2)}</Text>
-                      {hasDeferred && <Text style={[styles.tc, isNext && styles.tNextText]}>{r.deferredAfter != null ? r.deferredAfter.toFixed(2) : '—'}</Text>}
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{fmt2(r.payment)}</Text>
+                      {hasInsurance && <Text style={[styles.tc, isNext && styles.tNextText]}>{fmt2(r.insurance)}</Text>}
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{fmt2(r.interest)}</Text>
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{fmt2(r.principalPart)}</Text>
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{fmt2(r.crdAfter)}</Text>
+                      {hasDeferred && <Text style={[styles.tc, isNext && styles.tNextText]}>{r.deferredAfter != null ? fmt2(r.deferredAfter) : '—'}</Text>}
                       {editTable && <Ionicons name="chevron-forward" size={13} color={COLORS.blue} style={{ marginLeft: 2 }} />}
                     </View>
                   );

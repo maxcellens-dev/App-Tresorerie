@@ -40,6 +40,7 @@ import ProfileChangeModal from '../components/ui/ProfileChangeModal';
 import ProfileTourConclusion from '../components/onboarding/ProfileTourConclusion';
 import LiveProfileSync from '../components/system/LiveProfileSync';
 import FontApplier from '../components/system/FontApplier';
+import { useGardenFonts } from '../hooks/garden/useGardenFonts';
 import GamificationSync from '../components/gamification/GamificationSync';
 import AppDialogHost from '../components/system/AppDialogHost';
 import SeoHead from '../components/system/SeoHead';
@@ -534,6 +535,9 @@ function AppChrome() {
 export default function RootLayout() {
   // Splash animé : natif uniquement (le web a déjà son boot-loader HTML dans app/+html.tsx).
   const [splashDone, setSplashDone] = useState(Platform.OS === 'web');
+  // Polices du Jardin chargées dès la racine : un écran sans composant du Jardin (connexion, pages
+  // légales…) ouvert en premier les afficherait sinon en police système.
+  useGardenFonts();
 
   return (
     // KeyboardProvider : pilote les KeyboardAvoidingView de react-native-keyboard-controller (chats).

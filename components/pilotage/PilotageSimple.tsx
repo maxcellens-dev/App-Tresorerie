@@ -679,7 +679,7 @@ function makeBaseStyles(c: any) {
        et centré. Sans effet dès qu'il y a la place. */
     heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, maxWidth: '100%' },
     heroLabel: {
-      fontSize: 11.5, fontWeight: '800', color: c.textSecondary,
+      fontSize: 11.5, fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.textSecondary,
       textTransform: 'uppercase', letterSpacing: 0.9,
     },
     badge: {

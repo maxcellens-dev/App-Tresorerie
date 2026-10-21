@@ -412,7 +412,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   } as AppColors;
 }
 
-export const DEFAULT_MODE: ThemeMode = 'dark';
+export const DEFAULT_MODE: ThemeMode = 'light';
 export const DEFAULT_PRESET: ThemePreset = 'emerald';
 
 /** Mélange deux couleurs hex : base + overlay à alpha (0-1). Résultat opaque (pas de transparence). */

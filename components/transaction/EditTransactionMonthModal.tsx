@@ -13,10 +13,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../hooks/data/useTransactionMonthOverrides';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, fmt2 } from '../../lib/finance/currency';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { sanitizeAmountInput, parseAmountInput } from '../../lib/ui/amountInput';
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface EditTransactionMonthModalProps {
   visible: boolean;
@@ -175,13 +176,13 @@ export default function EditTransactionMonthModal({
             )}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Montant original:</Text>
-              <Text style={styles.infoValue}>{originalAmount.toFixed(2)} {symbol}</Text>
+              <Text style={styles.infoValue}>{fmt2(originalAmount)} {symbol}</Text>
             </View>
             {currentOverrideAmount !== undefined && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Montant actuel:</Text>
                 <Text style={[styles.infoValue, { color: COLORS.amber }]}>
-                  {currentOverrideAmount.toFixed(2)} {symbol}
+                  {fmt2(currentOverrideAmount)} {symbol}
                 </Text>
               </View>
             )}
@@ -275,7 +276,7 @@ function makeBaseStyles(c: any) {
   },
   title: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.text,
     marginBottom: 4,
   },
@@ -302,7 +303,7 @@ function makeBaseStyles(c: any) {
   infoValue: {
     fontSize: 13,
     color: c.text,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   inputSection: {
     paddingHorizontal: 20,
@@ -310,7 +311,7 @@ function makeBaseStyles(c: any) {
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.textSecondary,
     marginBottom: 8,
   },
@@ -329,11 +330,11 @@ function makeBaseStyles(c: any) {
     paddingHorizontal: 12,
     fontSize: 16,
     color: c.text,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   currency: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.textSecondary,
   },
   actions: {
@@ -360,7 +361,7 @@ function makeBaseStyles(c: any) {
   },
   resetButtonText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.textSecondary,
   },
   cancelButton: {
@@ -371,7 +372,7 @@ function makeBaseStyles(c: any) {
   },
   cancelButtonText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.textSecondary,
   },
   saveButton: {
@@ -380,7 +381,7 @@ function makeBaseStyles(c: any) {
   },
   saveButtonText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.bg,
   },
   buttonDisabled: {

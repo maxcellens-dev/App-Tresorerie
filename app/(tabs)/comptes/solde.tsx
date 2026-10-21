@@ -455,7 +455,13 @@ export default function BalanceUpdateScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  return gardenFormStyles(base);
+  const g = gardenFormStyles(base);
+  // Le champ du solde vit DANS `inputRow` (qui porte déjà le cadre) : pas de second cadre autour.
+  return { ...g, ...StyleSheet.create({
+    inputRow: { ...base.inputRow, backgroundColor: c.card, borderRadius: 16, minHeight: 56, paddingVertical: 6 },
+    input: { ...base.input, fontFamily: GF.bodyHeavy, fontSize: 22, minWidth: 0 },
+    badge: { ...base.badge, fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
+  }) };
 }
 
 function makeBaseStyles(c: any) {
@@ -496,7 +502,7 @@ function makeBaseStyles(c: any) {
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     cardName: { fontFamily: GF.bodyBold, flex: 1, fontSize: 15.5, fontWeight: 'normal', color: c.text },
     badge: {
-      fontSize: 10, fontWeight: '800', color: c.blue, textTransform: 'uppercase', letterSpacing: 0.5,
+      fontSize: 10, fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.blue, textTransform: 'uppercase', letterSpacing: 0.5,
       backgroundColor: c.blue + '1A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
     },
     known: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary },

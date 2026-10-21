@@ -14,6 +14,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { usePlan } from '../../hooks/config/usePlan';
 import { useAdsConfig, bannerPlacements, bannerLink, placementFormat, type AdPlacement } from '../../hooks/config/useAdsConfig';
 import { logEvent } from '../../lib/platform/analytics';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 // Impressions déjà comptées dans la session (1 par bannière × emplacement) → évite le flood.
 const seenImpressions = new Set<string>();
@@ -149,7 +150,7 @@ const styles = StyleSheet.create({
   slotCompact: { marginVertical: 0, height: 64, justifyContent: 'center' },
   imgCompact: { width: '100%', height: 64 },
   textWrapCompact: { paddingHorizontal: 10, paddingVertical: 8 },
-  textCompact: { flex: 1, fontSize: 11.5, fontWeight: '600' },
+  textCompact: { flex: 1, fontSize: 11.5, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   // Image pleine largeur à RATIO FORCÉ (≈3,5:1) → même forme sur toutes les pages, quelle que
   // soit la largeur disponible. Uploader au ratio 3,5:1 (ex. 1400×400) pour éviter tout recadrage.
   img: { width: '100%', aspectRatio: 3.5 },
@@ -167,13 +168,13 @@ const styles = StyleSheet.create({
   imgRect: { width: '100%', aspectRatio: 1.91 },
   textWrapRect: { width: '100%', aspectRatio: 1.91, padding: 14, alignItems: 'center', justifyContent: 'center' },
   textColRect: { flexDirection: 'column', alignItems: 'center', gap: 10 },
-  textRect: { fontSize: 13.5, fontWeight: '700', textAlign: 'center', lineHeight: 19 },
+  textRect: { fontSize: 13.5, fontFamily: GF.bodyBold, fontWeight: 'normal', textAlign: 'center', lineHeight: 19 },
   // Pastille « Sponsorisé » : discrète (−20 % par rapport à la taille d'origine) — elle doit se
   // lire, pas concurrencer le message de la bannière.
   tagOverlay: { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 5.5, paddingVertical: 2.5, borderRadius: 5 },
   tagOverlayText: { fontSize: 7, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, color: '#fff', textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   textWrap: { padding: 12 },
-  tag: { fontSize: 7, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 },
+  tag: { fontSize: 7, fontFamily: GF.bodyBold, fontWeight: 'normal', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 },
   textRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  text: { flex: 1, fontSize: 13, fontWeight: '600' },
+  text: { flex: 1, fontSize: 13, fontFamily: GF.bodyBold, fontWeight: 'normal' },
 });

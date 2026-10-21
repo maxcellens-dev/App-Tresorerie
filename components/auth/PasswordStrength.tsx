@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { evaluatePassword } from '../../lib/auth/passwordPolicy';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function PasswordStrength({ value, colors: c }: { value: string; colors: any }) {
   const evalr = useMemo(() => evaluatePassword(value), [value]);
@@ -49,8 +50,8 @@ const styles = StyleSheet.create({
   wrap: { marginTop: -8, marginBottom: 18 },
   bars: { flexDirection: 'row', gap: 6 },
   bar: { flex: 1, height: 5, borderRadius: 3 },
-  strengthLabel: { fontSize: 12, fontWeight: '700', marginTop: 6 },
+  strengthLabel: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', marginTop: 6 },
   checks: { marginTop: 8, gap: 4 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  checkTxt: { fontSize: 12.5, lineHeight: 17 },
+  checkTxt: { fontFamily: GF.body, fontSize: 12.5, lineHeight: 17 },
 });

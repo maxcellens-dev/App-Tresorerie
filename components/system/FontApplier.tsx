@@ -112,64 +112,35 @@ export default function FontApplier() {
       document.head.appendChild(el);
     }
 
-    if (font === 'System') {
-      el.textContent = '';
-      return;
-    }
-
-    // Force la police sur le texte de React Native Web — MAIS jamais sur les icônes
-    // @expo/vector-icons (sinon le !important écrase leur fontFamily 'Ionicons' → glyphes en carrés).
-    // On les exclut via : `.app-vicon` (classe posée au runtime par l'effet ci-dessous, fiable en
-    // dev ET en prod) + `[class*="r-fontFamily"]` (classe RNW, présente en dev → zéro flash).
-    // `:not([data-appfont])` → on laisse les éléments du NOM de l'app garder LEUR police (app_name_font),
-    // sinon ce !important l'écraserait.
-    // `:not([data-fontpreview])` → les APERÇUS du Style Editor gardent la police EN COURS de sélection
-    // (leur fontFamily inline), au lieu d'être forcés à la police globale sauvegardée.
+    // Le NOM de l'app garde SA police (priorité absolue).
     el.textContent = `
-      [data-testid]:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
-      body, #root,
-      .css-text-146c3p1:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
-      div:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
-      span:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]),
-      p:not([data-appfont]):not([data-fontpreview]):not([data-gardenfont]), input, textarea, button {
-        font-family: ${font} !important;
-      }
-      /* Le NOM de l'app garde SA police (priorité absolue). */
+      body, #root { font-family: ${font}; }
       [data-appfont]:not([data-fontpreview]), [data-appfont] * { font-family: ${appNameFont || font} !important; }
     `;
   }, [font, appNameFont]);
 
-  // Marque les icônes vector (élément dont le texte est un SEUL glyphe en zone d'usage privé Unicode)
-  // d'une classe stable `app-vicon`, pour les exclure de la police globale quel que soit le build
-  // (en prod, les classes RNW deviennent `r-<hash>` et ne sont plus reconnaissables par leur nom).
+  /* Police PAR DÉFAUT du texte (web) : on réécrit la famille des règles de base de React Native Web
+     (`.css-…` de Text / TextInput, police système « 14px -apple-system… ») DANS leur propre feuille.
+     Elles restent ainsi sous les classes atomiques d'un `fontFamily` explicite (Fredoka des titres,
+     Nunito gras…), qui gagnent toujours — une règle globale `!important` (l'ancienne méthode) les
+     écrasait toutes : sur le site, chaque titre et chaque gras retombait en Nunito normal.
+     Seule la DÉCLARATION change (pas le nombre de règles) → la comptabilité interne de RNW est
+     intacte. Les règles de base d'un composant arrivent à son premier rendu : on revérifie quand
+     la feuille grandit. */
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    if (font === 'System') return; // pas de police globale appliquée → rien à protéger
-    const ICON_CLASS = 'app-vicon';
-    const isIconGlyph = (s: string | null): boolean => {
-      if (!s) return false;
-      const chars = Array.from(s.trim());
-      if (chars.length !== 1) return false;
-      const cp = chars[0].codePointAt(0) ?? 0;
-      return (cp >= 0xe000 && cp <= 0xf8ff)        // BMP Private Use Area
-        || (cp >= 0xf0000 && cp <= 0xffffd)        // Supplementary PUA-A
-        || (cp >= 0x100000 && cp <= 0x10fffd);     // Supplementary PUA-B
-    };
-    const tag = (el: Element) => {
-      if (!el.classList.contains(ICON_CLASS) && isIconGlyph(el.textContent)) el.classList.add(ICON_CLASS);
-    };
-    const scan = (root: Element) => { tag(root); root.querySelectorAll('*').forEach(tag); };
-    scan(document.body);
-    const obs = new MutationObserver((muts) => {
-      for (const m of muts) {
-        m.addedNodes.forEach((n) => { if (n.nodeType === 1) scan(n as Element); });
-        if (m.type === 'characterData') {
-          const parent = (m.target as CharacterData).parentElement;
-          if (parent) tag(parent);
-        }
+    let seen = -1;
+    const patch = () => {
+      const sheet = (document.getElementById('react-native-stylesheet') as HTMLStyleElement | null)?.sheet;
+      if (!sheet || sheet.cssRules.length === seen) return;
+      seen = sheet.cssRules.length;
+      for (const r of Array.from(sheet.cssRules) as CSSStyleRule[]) {
+        if (r.selectorText?.startsWith('.css-') && /-apple-system/.test(r.style?.fontFamily ?? '')) r.style.fontFamily = font;
       }
-    });
-    obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+    };
+    patch();
+    const obs = new MutationObserver(patch);
+    obs.observe(document.body, { childList: true, subtree: true });
     return () => obs.disconnect();
   }, [font]);
 

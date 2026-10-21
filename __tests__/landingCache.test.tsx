@@ -2,8 +2,10 @@ import React from 'react';
 import { render, renderHook, screen } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider, dehydrate, hydrate } from '@tanstack/react-query';
 import { DEFAULT_LANDING, useLandingConfig } from '../hooks/config/useLandingConfig';
-import LandingPage from '../components/marketing/LandingPage';
+import GardenLandingPage from '../components/marketing/GardenLandingPage';
 
+jest.mock('../hooks/garden/useGardenFonts', () => ({ useGardenFonts: () => true }));
+jest.mock('../hooks/garden/useGardenCosmetics', () => ({ useGardenCosmetics: () => ({ decor: [], outfit: {}, season: undefined }) }));
 jest.mock('../hooks/theme/useBrandColors', () => ({ useBrandColors: () => ({ emerald: '#34D399', onAccent: '#123B37' }) }));
 jest.mock('../hooks/theme/useBrandFont', () => ({ useAppNameFontStyle: () => ({}), APP_NAME_TEXT_PROPS: {} }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
@@ -27,11 +29,11 @@ it('normalizes a restored pre-redesign cache before any network request', () => 
   expect(result.current.data?.presentation?.heroMedia).toEqual(DEFAULT_LANDING.presentation.heroMedia);
 });
 
-it('renders the public landing immediately from the legacy cache', () => {
+it('renders the public garden showcase immediately from the legacy cache', () => {
   const { wrapper } = restoredCache();
-  render(<LandingPage previewWidth={390} />, { wrapper });
-  expect(screen.getByText('Mon accueil personnalisé')).toBeTruthy();
-  expect(screen.getByText(DEFAULT_LANDING.heroBalanceValue)).toBeTruthy();
+  render(<GardenLandingPage previewWidth={390} />, { wrapper });
+  expect(screen.getByText('Regarde ton argent pousser.')).toBeTruthy();
+  expect(screen.getAllByText(DEFAULT_LANDING.brandName).length).toBeGreaterThan(0);
 });
 
 it('fills partially cached presentation settings without replacing uploaded images', () => {

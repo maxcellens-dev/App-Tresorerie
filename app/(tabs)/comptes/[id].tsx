@@ -46,7 +46,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { contrastRatio, darken, lighten, readableOn } from '../../../theme/palette';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn, MAX_W, GUTTER } from '../../../lib/ui/webLayout';
-import { currencySymbolFor } from '../../../lib/finance/currency';
+import { currencySymbolFor, fmt2 } from '../../../lib/finance/currency';
 import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLoss } from '../../../lib/finance/investment';
 import BalanceChart from '../../../components/charts/BalanceChart';
 import AccountSettingsForm from '../../../components/account/AccountSettingsForm';
@@ -563,7 +563,7 @@ function AccountDetailScreen() {
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceAmount} numberOfLines={1} adjustsFontSizeToFit>
-              {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+              {fmt2(account.balance)} {CURRENCY_SYMBOL}
             </Text>
             <View style={styles.typePill}>
               <Text style={styles.typePillText}>{TYPE_LABELS[account.type] ?? account.type}</Text>

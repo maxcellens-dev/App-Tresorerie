@@ -183,7 +183,7 @@ export const DEFAULT_LANDING: LandingConfig = {
   ],
   finalTitle: 'Prêt à reprendre le contrôle ?',
   finalSubtitle: 'Crée ton espace en quelques secondes. Aucune carte bancaire requise.',
-  footerText: 'Relyka — Prévisions · Budget · Sérénité.',
+  footerText: 'Relyka — Ton argent, comme un jardin.',
   footerLinks: [
     { label: 'Confidentialité', anchor: 'confidentialite' },
     { label: 'Mentions légales', anchor: 'legal' },
@@ -208,8 +208,12 @@ export const DEFAULT_LANDING: LandingConfig = {
 const KEY = 'landing_config';
 
 /** Fusionne la config stockée avec les valeurs par défaut (champ par champ). */
+/** Anciens défauts du code gelés en base (avant le Jardin) : on les remplace par les défauts actuels. */
+const LEGACY_FOOTER = ['Relyka — Prévisions · Budget · Sérénité.'];
+
 export function mergeLanding(stored: Partial<LandingConfig> | undefined): LandingConfig {
   if (!stored) return DEFAULT_LANDING;
+  if (stored.footerText && LEGACY_FOOTER.includes(stored.footerText)) { const { footerText: _old, ...rest } = stored; stored = rest; }
   return {
     ...DEFAULT_LANDING,
     ...stored,

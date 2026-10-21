@@ -61,7 +61,7 @@ import { projectMode, type ProjectMode } from '../../lib/finance/projectTx';
 import { todayISO, isoDay, dayOfMonthISO } from '../../lib/dateUtils';
 import { monthlyOccurrenceCount } from '../../lib/finance/recurrence';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { CURRENCY_SYMBOL, fmt2 } from '../../lib/finance/currency';
 import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
@@ -1000,7 +1000,7 @@ export default function AddProjectModal() {
                       <View style={[styles.field, { backgroundColor: COLORS.background, padding: 12, borderRadius: 8 }]}>
                         <Text style={[styles.label, { color: COLORS.primary }]}>{M.monthlyLabel}</Text>
                         <Text style={[styles.calculatedAmount, { color: COLORS.primary }]}>
-                          {calculatedAllocation.toFixed(2)} {CURRENCY_SYMBOL}/mois
+                          {fmt2(calculatedAllocation)} {CURRENCY_SYMBOL}/mois
                         </Text>
                       </View>
                     )}

@@ -464,7 +464,7 @@ function makeBaseStyles(c: any) {
     },
     errorText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 18, color: c.danger },
     sectionTitle: {
-      fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase', fontWeight: '700',
+      fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase', fontFamily: GF.bodyBold, fontWeight: 'normal',
       color: c.textSecondary, marginTop: 16, marginBottom: 7, paddingHorizontal: 2,
     },
     /* `overflow: hidden` sur la CARTE : filet de sécurité. Quoi qu'il arrive à la mise en page —

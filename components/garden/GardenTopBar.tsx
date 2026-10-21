@@ -58,10 +58,11 @@ export default function GardenTopBar({ title, applyTopInset = true, main }: Prop
             <Svg width={18} height={18} viewBox="0 0 24 24"><Path d="m15 6-6 6 6 6" stroke={GARDEN_COLORS.ink} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>
           </Pressable>
         )}
-        <View style={{ flex: 1 }}>
+        {/* minWidth 0 + maxWidth : sans eux, un titre long déborde sous la pastille au lieu de s'abréger. */}
+        <View style={{ flex: 1, minWidth: 0 }}>
           {/* Le titre ramène au Jardin, comme le titre de l'entête ramenait au Pilotage. */}
           {fontsReady && shown ? (
-            <Pressable onPress={() => router.navigate('/(tabs)/jardin' as any)} accessibilityRole="link" accessibilityLabel={`${shown}, aller au Jardin`} style={[{ alignSelf: 'flex-start' }, pointer]}>
+            <Pressable onPress={() => router.navigate('/(tabs)/jardin' as any)} accessibilityRole="link" accessibilityLabel={`${shown}, aller au Jardin`} style={[{ alignSelf: 'flex-start', maxWidth: '100%' }, pointer]}>
               <GardenText variant={main ? 'title' : 'heading'} numberOfLines={1} accessibilityRole="header">{shown}</GardenText>
             </Pressable>
           ) : null}

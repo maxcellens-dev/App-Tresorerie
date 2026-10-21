@@ -22,6 +22,7 @@ import { supabase } from '../../lib/platform/supabase';
 import { useBrandColors } from '../../hooks/theme/useBrandColors';
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
 import { describeAuthError } from '../../lib/auth/authErrors';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 // Permet à expo-web-browser de finaliser une session d'auth restée ouverte.
 WebBrowser.maybeCompleteAuthSession();
@@ -163,6 +164,6 @@ function makeBaseStyles(c: any) {
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
     },
     btnDimmed: { opacity: 0.5 },
-    btnText: { fontSize: 15, fontWeight: '700' },
+    btnText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal' },
   });
 }

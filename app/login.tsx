@@ -22,6 +22,7 @@ import { useSubmitLock } from '../hooks/platform/useSubmitLock';
 import { useResponsive } from '../hooks/theme/useResponsive';
 import { authPage, authCard } from '../lib/ui/webLayout';
 import { describeAuthError } from '../lib/auth/authErrors';
+import { GARDEN_FONTS as GF } from '../lib/garden/fontFamilies';
 
 
 export default function LoginScreen() {
@@ -85,13 +86,13 @@ export default function LoginScreen() {
         <View style={styles.keyboard}>
           <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
+            <Text style={{ fontFamily: GF.bodyBold, color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: 'normal' }}>Retour</Text>
           </TouchableOpacity>
           <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, authPage(isDesktop), keyboardPadding]}>
           {/* Bureau : tout le formulaire vit dans une CARTE posée sur la page (cf. authCard). */}
           <View style={authCard(isDesktop, COLORS)}>
           <Text style={styles.title}>Connexion</Text>
-          <Text style={styles.subtitle}>Accède à ta trésorerie sur tous tes appareils.</Text>
+          <Text style={styles.subtitle}>Retrouve ton jardin sur tous tes appareils.</Text>
 
           {/* Connexion sociale (mise en avant) */}
           <SocialAuthButtons mode="login" />
@@ -206,10 +207,10 @@ function makeBaseStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1 },
   back: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', color: c.text, marginBottom: 8 },
-  subtitle: { fontSize: 15, color: c.textSecondary, marginBottom: 32 },
+  title: { fontFamily: GF.display, fontSize: 28, fontWeight: 'normal', color: c.text, marginBottom: 8 },
+  subtitle: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary, marginBottom: 32 },
   form: {},
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
     borderWidth: 1,
@@ -231,12 +232,12 @@ function makeBaseStyles(c: any) {
     marginTop: 4,
   },
   btnDisabled: { opacity: 0.6 },
-  btnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
-  emailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
+  btnLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  emailNote: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 22 },
   dividerLine: { flex: 1, height: 1, backgroundColor: c.cardBorder },
-  dividerText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  dividerText: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal' },
   link: { alignItems: 'center', marginTop: 20 },
-  linkText: { fontSize: 14, color: c.emerald, fontWeight: '500' },
+  linkText: { fontFamily: GF.body, fontSize: 14, color: c.emerald, fontWeight: 'normal' },
 });
 }

@@ -26,7 +26,7 @@ import PicoBubble from '../garden/PicoBubble';
 import PlayStoreBadge from './PlayStoreBadge';
 import SocialLinks from './SocialLinks';
 import { useGardenFonts } from '../../hooks/garden/useGardenFonts';
-import { useLandingConfig, mergeLanding, type LandingLink } from '../../hooks/config/useLandingConfig';
+import { useLandingConfig, mergeLanding, type LandingConfig, type LandingLink } from '../../hooks/config/useLandingConfig';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
 import { computeTreeState, type GardenInputs } from '../../lib/garden/treeState';
@@ -70,14 +70,16 @@ export const HOW: { n: string; title: string; text: string }[] = [
   { n: '3', title: 'Arrose avec Pépin', text: 'Racines, fruits, fleurs : Pépin te dit où verser ton eau. Tu fais les virements dans ta banque, ton arbre pousse.' },
 ];
 
-export default function GardenLandingPage() {
+/** `previewConfig` / `previewWidth` : aperçu de l'admin Vitrine (config non enregistrée, largeur simulée). */
+export default function GardenLandingPage({ previewConfig, previewWidth }: { previewConfig?: LandingConfig; previewWidth?: number } = {}) {
   const router = useRouter();
   const fontsReady = useGardenFonts();
-  const { width } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const width = previewWidth ?? windowWidth;
   const wide = width >= 980;
   const narrow = width < 480;
   const { data: loaded } = useLandingConfig();
-  const cfg = useMemo(() => mergeLanding(loaded), [loaded]);
+  const cfg = useMemo(() => mergeLanding(previewConfig ?? loaded), [previewConfig, loaded]);
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const go = (to: string) => router.push(to as any);

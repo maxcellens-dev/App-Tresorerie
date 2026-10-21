@@ -351,7 +351,7 @@ export default function AddAccountScreen() {
           <View style={styles.initDateNote}>
             <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} style={{ marginTop: 1 }} />
             <Text style={styles.initDateNoteText}>
-              Indiquez la date exacte à laquelle ce solde a été constaté (ex. relevé bancaire du 12 mai → saisissez le 12 mai).
+              Indique la date exacte à laquelle ce solde a été constaté (ex. relevé bancaire du 12 mai → saisis le 12 mai).
               Les transactions que tu saisiras à une date antérieure mais dans ce même mois seront considérées comme déjà incluses dans ce solde — elles n'auront aucun impact sur celui-ci.
             </Text>
           </View>

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import LegalLayout from './LegalLayout';
 import { usePublicColors } from '../../hooks/theme/usePublicColors';
 import EditableLegalContent from './EditableLegalContent';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 // Texte par défaut pré-rempli quand un admin clique « Modifier » (§P9).
 const DEFAULT_LEGAL_TEXT = `Mentions légales — dernière mise à jour : juin 2025.
@@ -108,7 +109,7 @@ export default function LegalScreen() {
 
 function B({ children }: { children: React.ReactNode }) {
   const COLORS = usePublicColors();
-  return <Text style={{ fontWeight: '700', color: COLORS.text }}>{children}</Text>;
+  return <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>{children}</Text>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -133,18 +134,18 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   scrollContent: { paddingHorizontal: 24, paddingTop: 12 },
   contentWrap: { width: '100%', maxWidth: 860, alignSelf: 'center' },
-  updated: { fontSize: 12, color: c.textSecondary, marginBottom: 24 },
+  updated: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 24 },
   card: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 20, marginBottom: 12,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: c.emerald, marginBottom: 10 },
-  sectionBody: { fontSize: 13, color: c.textSecondary, lineHeight: 20 },
+  sectionTitle: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.emerald, marginBottom: 10 },
+  sectionBody: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 20 },
   deleteLink: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
     borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12',
     borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12,
   },
-  deleteLinkText: { fontSize: 13, fontWeight: '700', color: c.danger },
+  deleteLinkText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.danger },
 });
 }

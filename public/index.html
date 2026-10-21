@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
-    <title>Relyka — Pilote ta trésorerie personnelle</title>
+    <title>Relyka — Regarde ton argent pousser</title>
 
     <!-- PWA -->
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -26,19 +26,19 @@
 
       Les valeurs ci-dessous recopient SEO_DEFAULTS (lib/seo.ts) : les garder synchronisées.
     -->
-    <meta name="description" data-seo="1" content="Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité." />
-    <meta name="theme-color" data-seo="1" content="#0D2E2A" />
+    <meta name="description" data-seo="1" content="Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire." />
+    <meta name="theme-color" data-seo="1" content="#F4EFE6" />
     <link rel="canonical" data-seo="1" href="https://relyka.app" />
 
     <meta property="og:type" data-seo="1" content="website" />
     <meta property="og:site_name" data-seo="1" content="Relyka" />
-    <meta property="og:title" data-seo="1" content="Relyka — Pilote ta trésorerie personnelle" />
-    <meta property="og:description" data-seo="1" content="Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité." />
+    <meta property="og:title" data-seo="1" content="Relyka — Regarde ton argent pousser" />
+    <meta property="og:description" data-seo="1" content="Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire." />
     <meta property="og:url" data-seo="1" content="https://relyka.app" />
     <!-- Repli : pas d'image sociale dédiée (SEO_DEFAULTS.ogImage est vide) → le logo carré. Une image
          1200×630 paramétrée dans l'admin la remplacera au runtime, mais PAS pour ces robots-là. -->
     <meta property="og:image" data-seo="1" content="https://relyka.app/icon-512.png" />
-    <meta property="og:image:alt" data-seo="1" content="Relyka — pilote ta trésorerie" />
+    <meta property="og:image:alt" data-seo="1" content="Relyka — ton argent, comme un jardin" />
     <meta name="twitter:card" data-seo="1" content="summary_large_image" />
 
     <!--
@@ -208,7 +208,7 @@
     -->
     <style id="boot-loader">
       #app-boot {
-        position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #808F88);
+        position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #F4EFE6);
         display: flex; align-items: center; justify-content: center;
         transition: opacity .34s ease-in;
       }
@@ -241,7 +241,7 @@
         }
         try {
           var m = mode();
-          var bg = m === 'light' ? '#F4EFE6' : m === 'dark' ? '#0D2E2A' : '#808F88';
+          var bg = m === 'dark' ? '#121D18' : '#F4EFE6';
           document.documentElement.style.setProperty('--boot-bg', bg);
         } catch (e) {}
       })();

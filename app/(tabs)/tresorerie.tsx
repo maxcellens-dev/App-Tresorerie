@@ -2019,7 +2019,7 @@ function makeStyles(c: any) {
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     color: c.text,
   },
   menuOption: {
@@ -2033,7 +2033,7 @@ function makeStyles(c: any) {
   },
   menuOptionText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: GF.body, fontWeight: 'normal',
     color: c.text,
   },
 });

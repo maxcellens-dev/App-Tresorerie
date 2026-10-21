@@ -30,6 +30,7 @@ import { evaluatePassword } from '../lib/auth/passwordPolicy';
 import { describeAuthError } from '../lib/auth/authErrors';
 import { parseAuthLink } from '../lib/auth/authDeepLink';
 import { useSubmitLock } from '../hooks/platform/useSubmitLock';
+import { GARDEN_FONTS as GF } from '../lib/garden/fontFamilies';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)
@@ -140,7 +141,7 @@ export default function ResetPasswordScreen() {
             rester en haut à gauche comme sur les autres écrans d'authentification. */}
         <TouchableOpacity style={styles.back} onPress={leave} accessibilityRole="button" accessibilityLabel="Retour">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>
+          <Text style={{ fontFamily: GF.bodyBold, color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: 'normal' }}>
             {showNewPasswordForm ? 'Plus tard' : 'Retour'}
           </Text>
         </TouchableOpacity>
@@ -174,7 +175,7 @@ export default function ResetPasswordScreen() {
             <>
               <Text style={styles.title}>Lien envoyé</Text>
               <Text style={styles.subtitle}>
-                Si un compte existe pour <Text style={{ fontWeight: '700', color: COLORS.text }}>{email.trim()}</Text>, un e-mail de réinitialisation vient de partir. Ouvre le lien pour choisir un nouveau mot de passe.
+                Si un compte existe pour <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>{email.trim()}</Text>, un e-mail de réinitialisation vient de partir. Ouvre le lien pour choisir un nouveau mot de passe.
               </Text>
               {/* L'ancienne mention « la messagerie n'est pas toujours disponible (offre gratuite),
                   contacte un administrateur » datait d'avant le branchement de Brevo : elle était
@@ -265,13 +266,13 @@ function makeBaseStyles(c: any) {
     safe: { flex: 1, paddingHorizontal: 24 },
     keyboard: { flex: 1 },
     back: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 24 },
-    title: { fontSize: 28, fontWeight: '800', color: c.text, marginBottom: 8 },
-    subtitle: { fontSize: 15, color: c.textSecondary, marginBottom: 28, lineHeight: 21 },
-    label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    title: { fontFamily: GF.display, fontSize: 28, fontWeight: 'normal', color: c.text, marginBottom: 8 },
+    subtitle: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary, marginBottom: 28, lineHeight: 21 },
+    label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
     btnDisabled: { opacity: 0.6 },
-    btnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
-    note: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 18 },
+    btnLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
+    note: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 18 },
   });
 }

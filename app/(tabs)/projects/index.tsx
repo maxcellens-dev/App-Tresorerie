@@ -39,7 +39,7 @@ import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
-import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, fmt2 } from '../../../lib/finance/currency';
 import { useCredits } from '../../../hooks/data/useCredits';
 import { useAllCreditEvents } from '../../../hooks/data/useCreditEvents';
 import { computeAmortization } from '../../../lib/finance/amortization';
@@ -437,7 +437,7 @@ function ProjectsScreen() {
                 {mCfg.target}
               </Text>
               <Text style={[styles.detailValue, { color: COLORS.text }]}>
-                {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
+                {fmt2(targetAmount)} {CURRENCY_SYMBOL}
               </Text>
             </View>
             {project.allocation_type === 'ponctuel' ? (
@@ -446,7 +446,7 @@ function ProjectsScreen() {
                   {mCfg.remaining}
                 </Text>
                 <Text style={[styles.detailValue, { color: COLORS.primary }]}>
-                  {CURRENCY_SYMBOL}{Math.max(0, targetAmount - currentAccumulated).toFixed(2)}
+                  {fmt2(Math.max(0, targetAmount - currentAccumulated))} {CURRENCY_SYMBOL}
                 </Text>
               </View>
             ) : (
@@ -456,7 +456,7 @@ function ProjectsScreen() {
                     {mCfg.monthly}
                   </Text>
                   <Text style={[styles.detailValue, { color: COLORS.primary }]}>
-                    {CURRENCY_SYMBOL}{monthlyAllocation.toFixed(2)}/mois
+                    {fmt2(monthlyAllocation)} {CURRENCY_SYMBOL}/mois
                   </Text>
                 </View>
                 {monthsToComplete > 0 && !isComplete && (
@@ -500,7 +500,7 @@ function ProjectsScreen() {
               />
             </View>
             <Text style={[styles.progressAmount, { color: COLORS.textSecondary }]}>
-              {CURRENCY_SYMBOL}{displayAccumulated.toFixed(2)} / {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
+              {fmt2(displayAccumulated)} {CURRENCY_SYMBOL} / {fmt2(targetAmount)} {CURRENCY_SYMBOL}
             </Text>
           </View>
         </View>
@@ -1144,7 +1144,7 @@ function makeBaseStyles(c: any) {
   },
   projectName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     marginBottom: 4,
   },
   projectDescription: {
@@ -1162,7 +1162,7 @@ function makeBaseStyles(c: any) {
   },
   statusText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   projectDetails: {
     marginBottom: 12,
@@ -1177,7 +1177,7 @@ function makeBaseStyles(c: any) {
   },
   detailValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   progressSection: {
     marginTop: 12,
@@ -1193,7 +1193,7 @@ function makeBaseStyles(c: any) {
   },
   progressPercentage: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   progressBar: {
     height: 6,
@@ -1225,7 +1225,7 @@ function makeBaseStyles(c: any) {
   completeBannerText: {
     color: c.green,
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: GF.body, fontWeight: 'normal',
     flex: 1,
   },
   projectActions: {
@@ -1248,7 +1248,7 @@ function makeBaseStyles(c: any) {
   },
   actionButtonText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   emptyState: {
     flex: 1,
@@ -1258,7 +1258,7 @@ function makeBaseStyles(c: any) {
   },
   emptyStateText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     marginTop: 12,
   },
   emptyStateSubtext: {
@@ -1289,7 +1289,7 @@ function makeBaseStyles(c: any) {
   },
   confirmTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   confirmMessage: {
     fontSize: 13,
@@ -1333,7 +1333,7 @@ function makeBaseStyles(c: any) {
   },
   deleteOptionTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
     marginBottom: 3,
   },
   deleteOptionDesc: {
@@ -1346,7 +1346,7 @@ function makeBaseStyles(c: any) {
   },
   datePickerLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   dateChip: {
     paddingHorizontal: 12,
@@ -1363,11 +1363,11 @@ function makeBaseStyles(c: any) {
   dateChipText: {
     color: c.textSecondary,
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: GF.body, fontWeight: 'normal',
   },
   dateChipTextActive: {
     color: c.orange,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   /* Action buttons in confirm dialog */
   confirmActionBtn: {
@@ -1381,7 +1381,7 @@ function makeBaseStyles(c: any) {
   confirmActionBtnText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: GF.bodyBold, fontWeight: 'normal',
   },
   confirmCancelBtn: {
     alignItems: 'center',
@@ -1391,7 +1391,7 @@ function makeBaseStyles(c: any) {
   },
   confirmCancelBtnText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: GF.body, fontWeight: 'normal',
   },
   infoBtn: {
     width: 40, height: 40, borderRadius: 12,
