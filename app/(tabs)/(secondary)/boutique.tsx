@@ -399,7 +399,7 @@ function BoutiqueScreen() {
                     const active = catFilter === f.cat;
                     return (
                       <TouchableOpacity key={f.cat} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setCatFilter(f.cat as any)} activeOpacity={0.85}>
-                        <Ionicons name={f.icon as any} size={13} color={active ? COLORS.emerald : COLORS.textSecondary} />
+                        {f.cat === 'gems' ? <NutIcon size={14} mono={active ? COLORS.emerald : COLORS.textSecondary} /> : <Ionicons name={f.icon as any} size={13} color={active ? COLORS.emerald : COLORS.textSecondary} />}
                         <Text style={[styles.filterChipText, active && { color: COLORS.emerald }]} numberOfLines={1}>{f.label}</Text>
                       </TouchableOpacity>
                     );
@@ -479,7 +479,7 @@ function BoutiqueScreen() {
                       })
                     )}
                     {cat === 'gems' && !PURCHASES_SUPPORTED && (
-                      <Text style={styles.gemsNote}>Les achats de relyks se font depuis l'application mobile Relyka.</Text>
+                      <Text style={styles.gemsNote}>Les achats de noisettes se font depuis l'application mobile Relyka.</Text>
                     )}
                   </View>
                 );
@@ -669,7 +669,7 @@ function makeBaseStyles(c: any) {
     itemIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     itemImg: { width: 28, height: 28, borderRadius: 6 },
     // images 3D (flammes, trophée) : plus grandes qu'un pictogramme, elles remplissent la pastille
-    itemArt: { width: 38, height: 38 },
+    itemArt: { width: 38, height: 38, borderRadius: 8 },
     itemLabel: { fontSize: 14, fontWeight: '700', color: c.text },
     itemDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
     buyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, minWidth: 64, justifyContent: 'center' },

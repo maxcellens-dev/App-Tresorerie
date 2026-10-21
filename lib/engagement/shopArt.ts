@@ -1,7 +1,8 @@
 /**
  * Images 3D des articles de la boutique (même style que le Jardin), à la place des pictogrammes :
  *   - les flammes de série → la flamme en feutrine, recolorée comme l'article (argentée, bleue…) ;
- *   - les titres → le trophée.
+ *   - les titres → le trophée ;
+ *   - les packs de noisettes → un tas de noisettes (1, 3 ou 6, comme les icônes Play Console).
  * Choix par CLÉ d'article (stable), avec repli sur l'icône : un article ajouté par l'administration
  * avec l'icône « flame » reçoit la flamme d'origine. `null` = pas d'image, on garde l'icône.
  */
@@ -25,7 +26,11 @@ export function flameArt(color?: string | null): ImageSourcePropType {
   return SCENE3D_IMG[key ? FLAME_BY_KEY[key] : 'shop_flame_orange'];
 }
 
+/** Packs de noisettes (recharges) : les tas de noisettes des icônes Play Console (store-assets/play-iap). */
+const PACK_BY_KEY: Record<string, keyof typeof SCENE3D_IMG> = { gems_100: 'iap_nuts_100', gems_500: 'iap_nuts_500', gems_1000: 'iap_nuts_1000' };
+
 export function shopArt(key?: string | null, icon?: string | null): ImageSourcePropType | null {
+  if (key && PACK_BY_KEY[key]) return SCENE3D_IMG[PACK_BY_KEY[key]];
   if (key && FLAME_BY_KEY[key]) return SCENE3D_IMG[FLAME_BY_KEY[key]];
   if (icon === 'flame' || icon === 'flame-outline') return SCENE3D_IMG.shop_flame_orange;
   if ((key && key.startsWith('cosmetic_title')) || icon === 'ribbon' || icon === 'ribbon-outline' || icon === 'trophy' || icon === 'trophy-outline') return SCENE3D_IMG.shop_trophy;

@@ -8,7 +8,8 @@
     "preview": "node preview.mjs",
     "build": "node build.mjs",
     "render": "node render.mjs",
-    "logo": "node logo.mjs"
+    "logo": "node logo.mjs",
+    "store-iap": "node store-iap.mjs"
   },
   "dependencies": {
     "@imgly/background-removal-node": "^1.4.5",

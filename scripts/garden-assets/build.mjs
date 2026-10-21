@@ -368,6 +368,11 @@ for (const k of ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond'])
 M.shop = {};
 {
   M.shop.nut = await emit('currency_nut', await cut('currency_nut'), 96);
+  // packs de noisettes : les icônes Play Console (npm run store-iap), réduites pour la boutique
+  for (const n of [100, 500, 1000]) {
+    const f = path.join(root, `store-assets/play-iap/nuts_${n}.png`);
+    if (fs.existsSync(f)) await emit(`iap_nuts_${n}`, await load(f), 160);
+  }
   const tr = await cut('trophy');
   M.shop.trophy = await emit('shop_trophy', tr, 160);
   const fl = await cut('flame');
