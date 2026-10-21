@@ -401,7 +401,9 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
 /** Anciens noms de la monnaie (seuls, au singulier ou au pluriel). */
 const LEGACY_CURRENCY = /^\s*(graines?|relyks?|gemmes?|gemmes de relyka)\s*$/i;
 /** Textes de succès enregistrés en base qui citent encore l'ancienne monnaie. */
-const legacyText = (s?: string) => s?.replace(/\bgraines\b/g, 'noisettes').replace(/\bGraines\b/g, 'Noisettes');
+/* « Relyks » s'écrivait avec une majuscule, comme un nom propre : « noisettes » n'en prend qu'en
+   début de texte. */
+const legacyText = (s?: string) => s?.replace(/\b(graine|relyk|gemme)(s?)\b/gi, (_m, _w, plural: string, at: number) => `${at === 0 ? 'N' : 'n'}oisette${plural}`);
 
 /** Fusionne la config stockée avec les valeurs par défaut. */
 export function mergeGamificationConfig(stored: Partial<GamificationConfig> | undefined): GamificationConfig {

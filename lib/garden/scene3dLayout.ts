@@ -194,9 +194,13 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   }
 
   // ── Clôture (bord arrière du plateau) ──
+  /* Une grande clôture continue tout le long du bord ARRIÈRE du plateau : des tronçons bout à bout
+     (légèrement chevauchés pour qu'on ne voie pas de jointure), posés derrière la plaque d'herbe —
+     son bord avant cache le pied des piquets. Les deux bouts rentrent un peu : les coins sont arrondis. */
   if (decor.has('fence')) {
-    const f = M.decor.fence, w = 175, h = w * f.h / f.w;
-    back.push(img('fenceL', 'decor_fence', 62, 614 - h, w, h), img('fenceR', 'decor_fence', 690, 614 - h, w, h, { flip: true }));
+    const f = M.decor.fence, h = 64, w = h * f.w / f.h, x0 = 78, x1 = 850, foot = 606;
+    const step = w * 0.94, n = Math.ceil((x1 - x0 - w) / step) + 1, gap = (x1 - x0 - w) / Math.max(1, n - 1);
+    for (let i = 0; i < n; i++) back.push(img(`fence${i}`, 'decor_fence', x0 + i * gap, foot - h, w, h, { flip: i % 2 === 1 }));
   }
 
   // ── Plateau : terre (niveau de racines) puis plaque d'herbe de la saison ──

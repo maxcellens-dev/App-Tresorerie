@@ -27,7 +27,10 @@ const root = path.resolve(here, '../..');
 const cutDir = path.join(root, 'assets/garden-cut');
 const outDir = path.join(root, 'assets/garden3d');
 const manifestFile = path.join(root, 'lib/garden/scene3dAssets.ts');
-fs.rmSync(outDir, { recursive: true, force: true });
+/* ⚠️ NE PAS vider le dossier : supprimer assets/garden3d entier pendant que le serveur de dev tourne
+   lui fait perdre la trace des fichiers (Windows) — il ne les « voit » plus, même recréés, et l'app
+   ne charge plus (« Unable to resolve module …webp », erreur 500). On réécrit les fichiers en place
+   et on ne retire, à la fin, que ceux qui ne sont plus produits. */
 fs.mkdirSync(outDir, { recursive: true });
 
 const OFF = JSON.parse(fs.readFileSync(path.join(cutDir, 'offsets.json'), 'utf8'));
@@ -43,8 +46,11 @@ async function emit(name, im, max) {
   let out = im;
   const k = Math.min(1, max / Math.max(im.w, im.h));
   if (k < 1) out = await resize(im, Math.round(im.w * k), Math.round(im.h * k));
-  await sharp(Buffer.from(out.data.buffer), { raw: { width: out.w, height: out.h, channels: 4 } })
-    .webp({ quality: 82, alphaQuality: 90, effort: 5 }).toFile(path.join(outDir, `${name}.webp`));
+  const buf = await sharp(Buffer.from(out.data.buffer), { raw: { width: out.w, height: out.h, channels: 4 } })
+    .webp({ quality: 82, alphaQuality: 90, effort: 5 }).toBuffer();
+  // n'écrit que si l'image a changé (le serveur de dev et git ne voient que les vrais changements)
+  const file = path.join(outDir, `${name}.webp`);
+  if (!fs.existsSync(file) || !fs.readFileSync(file).equals(buf)) fs.writeFileSync(file, buf);
   files.push(name);
   return { w: out.w, h: out.h };
 }
@@ -368,9 +374,9 @@ for (const k of ['lantern', 'birdhouse', 'bench', 'mushrooms', 'fence', 'pond'])
 M.shop = {};
 {
   M.shop.nut = await emit('currency_nut', await cut('currency_nut'), 96);
-  // packs de noisettes : les icônes Play Console (npm run store-iap), réduites pour la boutique
+  // packs de noisettes : les tas des icônes Play Console, en version SANS fond (npm run store-iap)
   for (const n of [100, 500, 1000]) {
-    const f = path.join(root, `store-assets/play-iap/nuts_${n}.png`);
+    const f = path.join(cutDir, `pile_${n}.png`);
     if (fs.existsSync(f)) await emit(`iap_nuts_${n}`, await load(f), 160);
   }
   // succès : une image 3D par famille (souche, cadran solaire, pot, panneau) + l'arrosoir rempli
@@ -475,6 +481,8 @@ ${files.map((f) => `  ${JSON.stringify(f)}: ${req(f)},`).join('\n')}
 export type Scene3dImage = keyof typeof SCENE3D_IMG;
 `;
 fs.writeFileSync(manifestFile, ts);
+// les images qui ne sont plus produites (article retiré, image renommée)
+for (const f of fs.readdirSync(outDir)) if (f.endsWith('.webp') && !files.includes(f.slice(0, -5))) fs.rmSync(path.join(outDir, f));
 
 const total = files.reduce((s, f) => s + fs.statSync(path.join(outDir, `${f}.webp`)).size, 0);
 console.log(`✓ ${files.length} images, ${(total / 1024 / 1024).toFixed(2)} Mo → assets/garden3d ; manifeste → lib/garden/scene3dAssets.ts`);

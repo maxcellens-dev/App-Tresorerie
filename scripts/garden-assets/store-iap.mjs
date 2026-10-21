@@ -2,7 +2,8 @@
  * Icônes des produits Play Console (packs de noisettes), SANS texte (règle Google : ni texte, ni
  * promotion, ni branding sur l'icône d'un produit) : la quantité se lit au nombre de noisettes.
  *   100 → 1 noisette · 500 → un petit tas (3) · 1000 → un gros tas (6)
- * Sortie : store-assets/play-iap/nuts_<n>.png — 1024 × 1024, PNG 32 bits.
+ * Sortie : store-assets/play-iap/nuts_<n>.png — 1024 × 1024, PNG 32 bits (fond crème, pour le store) ;
+ *         assets/garden-cut/pile_<n>.png — le même tas SANS fond, recadré (pour l'app : boutique, succès).
  *
  *   npm run store-iap
  */
@@ -38,5 +39,8 @@ for (const [n, pile] of Object.entries(PILES)) {
   }
   const file = path.join(outDir, `nuts_${n}.png`);
   await sharp(bg).composite(layers).ensureAlpha().png().toFile(file);
+  // version transparente pour l'app (sans le fond ni l'ombre du store), recadrée au plus juste
+  await sharp({ create: { width: S, height: S, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(layers).png().toBuffer()
+    .then((b) => sharp(b).trim({ threshold: 0 }).png().toFile(path.join(root, `assets/garden-cut/pile_${n}.png`)));
   console.log('✓', path.relative(root, file));
 }

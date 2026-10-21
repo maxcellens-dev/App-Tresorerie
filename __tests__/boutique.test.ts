@@ -122,6 +122,13 @@ describe('mergeGamificationConfig — ce que l’administration pilote, et ce qu
     expect(merged.relyka_tab_enabled).toBe(DEFAULT_GAMIFICATION.relyka_tab_enabled);
     expect(merged.identity.currencyName).toBe(DEFAULT_GAMIFICATION.identity.currencyName);
   });
+
+  it("les anciens noms de la monnaie, gelés en base, deviennent « noisettes »", () => {
+    const stored = DEFAULT_GAMIFICATION.badges.map((b) => (b.key === 'collect_2000' ? { ...b, description: 'Accumule 2000 Relyks.' } : b));
+    const merged = mergeGamificationConfig({ identity: { ...DEFAULT_GAMIFICATION.identity, currencyName: 'Relyk' }, badges: stored });
+    expect(merged.identity.currencyName).toBe('Noisette');
+    expect(merged.badges.find((b) => b.key === 'collect_2000')?.description).toBe('Accumule 2000 noisettes.');
+  });
 });
 
 /**
