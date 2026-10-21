@@ -192,7 +192,6 @@ describe('le Relyka — une seule façon d’assembler ses huit termes', () => {
       'lib/finance/relyka.ts',
       'lib/finance/pilotageEngine.ts',
       'lib/finance/pilotagePatch.ts',
-      'components/pilotage/detail/RelykaDetail.tsx',
       'app/(tabs)/pilotage.tsx',
     ];
     expect(filesMatching(/cashflow_trough(?!_)/, allowed)).toEqual([]);

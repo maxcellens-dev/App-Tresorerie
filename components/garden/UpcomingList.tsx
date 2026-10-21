@@ -21,7 +21,7 @@ function subOf(it: UpcomingItem): string {
   const parts: string[] = [];
   const t = it.tx;
   if (t?.category?.name && t?.note) parts.push(t.category.name);
-  if (it.source === 'recurring') parts.push(it.occurrences > 1 ? `${it.occurrences} fois d'ici la fin du mois` : 'revient chaque mois');
+  if (it.source === 'recurring') parts.push(it.occurrences > 1 ? `${it.occurrences} fois d'ici la fin du mois` : 'opération récurrente');
   else parts.push('déjà saisie');
   return parts.join(' · ');
 }
@@ -41,16 +41,18 @@ type Filter = 'all' | 'expense' | 'income';
 
 /**
  * Le contenu complet de « À venir » : sorties et rentrées prévues, filtre Tout / Sorties / Rentrées,
- * les lignes datées. Affiché tel quel dans la page « Ce mois » (section « D'ici la fin du mois ») —
+ * les lignes datées. Affiché tel quel dans le mois de l'arrosoir (MonthPanel, « D'ici la fin du mois ») —
  * c'était le contenu d'une fenêtre, en double avec cette section.
  */
-export function UpcomingPanel({ upcoming, onOpen }: { upcoming: MonthUpcoming; onOpen: (it: UpcomingItem) => void }) {
+/** `totals` : les deux tuiles Sorties / Rentrées. Le mois de l'arrosoir les remplace par une ligne dans
+ *  le titre (UpcomingTotals) : deux tuiles de plus, sous « Dépensé / Encore prévu », faisaient doublon. */
+export function UpcomingPanel({ upcoming, onOpen, totals = true }: { upcoming: MonthUpcoming; onOpen: (it: UpcomingItem) => void; totals?: boolean }) {
   const [filter, setFilter] = useState<Filter>('all');
   const items = filter === 'all' ? upcoming.items : upcoming.items.filter((i) => i.kind === filter);
   const hasIncome = upcoming.incomeTotal > 0;
   return (
     <View style={{ gap: GARDEN_SPACE.md }}>
-      <View style={{ flexDirection: 'row', gap: GARDEN_SPACE.md }}>
+      {totals ? <View style={{ flexDirection: 'row', gap: GARDEN_SPACE.md }}>
         <View style={{ flex: 1, gap: 2, padding: GARDEN_SPACE.md, borderRadius: 18, backgroundColor: G.fruitsBg }}>
           <GardenText variant="small" color={G.fruitsText}>Sorties prévues</GardenText>
           <GardenText variant="heading" tabular color={G.fruitsText}>− {eur(upcoming.expenseTotal)}</GardenText>
@@ -59,7 +61,7 @@ export function UpcomingPanel({ upcoming, onOpen }: { upcoming: MonthUpcoming; o
           <GardenText variant="small" color={G.branchesText}>Rentrées prévues</GardenText>
           <GardenText variant="heading" tabular color={G.branchesText}>+ {eur(upcoming.incomeTotal)}</GardenText>
         </View>
-      </View>
+      </View> : null}
       {hasIncome && upcoming.expenseTotal > 0 ? (
         <GardenSegmented<Filter> accessibilityLabel="Filtrer les opérations à venir" value={filter} onChange={setFilter}
           items={[{ key: 'all', label: 'Tout' }, { key: 'expense', label: 'Sorties' }, { key: 'income', label: 'Rentrées' }]} />
@@ -71,5 +73,19 @@ export function UpcomingPanel({ upcoming, onOpen }: { upcoming: MonthUpcoming; o
         Tes dépenses du quotidien (courses, sorties…) ne sont pas listées ici : elles sont estimées dans « Encore prévu ».
       </GardenText>
     </View>
+  );
+}
+
+/** Les totaux à venir en une ligne discrète (titre de section) : sorties en rouge, rentrées en vert ;
+ *  un total nul n'est pas affiché. */
+export function UpcomingTotals({ upcoming }: { upcoming: MonthUpcoming }) {
+  const parts: { text: string; color: string; label: string }[] = [];
+  if (upcoming.expenseTotal > 0) parts.push({ text: `− ${eur(upcoming.expenseTotal)}`, color: G.fruitsText, label: `${eur(upcoming.expenseTotal)} de sorties prévues` });
+  if (upcoming.incomeTotal > 0) parts.push({ text: `+ ${eur(upcoming.incomeTotal)}`, color: G.branchesText, label: `${eur(upcoming.incomeTotal)} de rentrées prévues` });
+  if (!parts.length) return null;
+  return (
+    <GardenText variant="smallStrong" tabular accessibilityLabel={parts.map((p) => p.label).join(', ')}>
+      {parts.map((p, i) => <GardenText key={p.text} variant="smallStrong" tabular color={p.color}>{i ? '  ·  ' : ''}{p.text}</GardenText>)}
+    </GardenText>
   );
 }

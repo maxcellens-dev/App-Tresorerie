@@ -285,25 +285,25 @@ export const SCENE3D = {
     "foot": 0.93
   },
   "can": {
-    "w": 632,
-    "h": 542,
-    "waterTop": 0.285,
-    "waterBottom": 0.933,
+    "w": 814,
+    "h": 784,
+    "waterTop": 0.231,
+    "waterBottom": 0.884,
     "bodyTop": [
-      0.203,
-      0.669
+      0.393,
+      0.393
     ],
     "bodyBottom": [
-      0.166,
-      0.706
+      0.23,
+      0.511
     ],
     "empty": {
       "w": 340,
-      "h": 292
+      "h": 327
     },
     "water": {
       "w": 340,
-      "h": 292
+      "h": 327
     }
   },
   "cabin": {

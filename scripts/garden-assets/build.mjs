@@ -308,37 +308,51 @@ async function tuft(season, variant) {
 M.tuft = { w: 200, h: 110, variants: 3, foot: 0.93 };
 for (const s of SEASONS) for (let v = 0; v < 3; v++) await emit(`tuft_${s}_${v}`, await tuft(s, v), 200);
 
-/* ── Arrosoir : vide + calque d'eau (cadre commun = celui du vide) ─────────────────────────────── */
+/* ── Arrosoir : vide + calque d'eau ────────────────────────────────────────────────────────────────
+   Arrosoir en métal avec une FENÊTRE en verre (can_full / can_empty, générés dans le même cadre).
+   Cadre commun = celui du vide ; le plein y est recalé par les positions d'origine des découpes.
+   - fenêtre = la zone SOMBRE de l'arrosoir vide (l'intérieur vu à travers le verre), ligne par ligne
+     autour de l'axe du corps ;
+   - calque d'eau = l'arrosoir plein, limité à l'INTÉRIEUR de la fenêtre (les petites différences de
+     patine du métal entre les deux images ne se voient donc jamais) ;
+   - l'eau de l'image pleine (de sa surface au fond) est ÉTIRÉE sur toute la hauteur de la fenêtre :
+     niveau 1 = fenêtre pleine jusqu'en haut, niveau 0 = vide (le niveau se lit sur toute la fenêtre). */
 {
   const empty = await cut('can_empty'), fullSrc = await cut('can_full');
-  const full = await resize(fullSrc, empty.w);
-  const dy = empty.h - full.h;
-  const WATER_TOP = 0.25, WATER_BOTTOM = 0.93;
-  /* L'eau = l'arrosoir plein, limité au CORPS : sur chaque ligne, la bande opaque continue qui contient
-     le centre du fond. L'anse (séparée du corps par du vide) est écartée ; bords adoucis sur 6 px. */
-  const water = blank(empty.w, empty.h), mask = new Float32Array(empty.w * empty.h);
-  const cx = Math.round(foot(empty) * empty.w);
-  for (let y = Math.round(full.h * WATER_TOP); y < full.h; y++) {
-    const o = (y + dy) * empty.w, ok = (x) => full.data[(y * full.w + x) * 4 + 3] > 60 && empty.data[(o + x) * 4 + 3] > 60;
-    if (!ok(cx)) continue;
-    let l = cx, r = cx; while (l > 0 && ok(l - 1)) l--; while (r < empty.w - 1 && ok(r + 1)) r++;
-    // le bec rejoint le corps en bas à droite : on borne la bande à la largeur du fond
-    r = Math.min(r, cx + (cx - l) * 1.15);
-    for (let x = l; x <= r; x++) mask[o + x] = Math.min(1, Math.min(x - l, r - x) / 6);
+  const oe = OFF.can_empty, of = OFF.can_full;
+  const full = over(blank(empty.w, empty.h), fullSrc, of.x - oe.x, of.y - oe.y);
+  const W = empty.w, H = empty.h, px = (im, x, y) => (y * W + x) * 4;
+  const lumAt = (im, x, y) => { const i = px(im, x, y); return 0.3 * im.data[i] + 0.59 * im.data[i + 1] + 0.11 * im.data[i + 2]; };
+  // axe du corps : milieu des pixels opaques de la ligne du bas, côté gauche du bec
+  const cx = Math.round(foot(empty) * W);
+  // intérieur vu à travers le verre : sombre, ou bleuté (les gouttes au fond de l'arrosoir vide)
+  const dark = (x, y) => { const i = px(empty, x, y), d = empty.data; return d[i + 3] > 200 && (lumAt(empty, x, y) < 95 || d[i + 2] > d[i] + 35); };
+  // fenêtre : lignes où l'axe est sombre ; sur chaque ligne, la bande sombre continue autour de l'axe
+  const span = new Map();
+  for (let y = 0; y < H; y++) {
+    if (!dark(cx, y)) continue;
+    let l = cx, r = cx; while (l > 0 && dark(l - 1, y)) l--; while (r < W - 1 && dark(r + 1, y)) r++;
+    if (r - l > W * 0.12) span.set(y, [l + 3, r - 3]);
   }
-  for (let y = Math.round(full.h * WATER_TOP); y < full.h; y++) for (let x = 0; x < full.w; x++) {
-    const s = (y * full.w + x) * 4, o = (y + dy) * empty.w + x, e = o * 4;
-    if (!mask[o]) continue;
-    // eau plus franche que dans la photo : sinon les niveaux se lisent mal en petit
-    water.data[e] = full.data[s] * 0.8; water.data[e + 1] = full.data[s + 1] * 0.9; water.data[e + 2] = Math.min(255, full.data[s + 2] * 1.04 + 6);
-    water.data[e + 3] = Math.min(full.data[s + 3], empty.data[e + 3]) * mask[o];
+  const rows = [...span.keys()];
+  const winTop = Math.min(...rows), winBot = Math.max(...rows);
+  // surface de l'eau (image pleine) : première ligne de la fenêtre où l'axe est nettement bleu
+  let surf = winBot;
+  for (let y = winTop; y <= winBot; y++) { const i = px(full, cx, y); if (full.data[i + 2] > full.data[i] + 40) { surf = y; break; } }
+  const water = blank(W, H);
+  for (const [y, [l, r]] of span) {
+    // ligne source dans l'eau de l'image pleine (sous sa surface), étirée sur la fenêtre entière
+    const sy = Math.min(winBot, Math.round(surf + 6 + (y - winTop) * (winBot - surf - 6) / Math.max(1, winBot - winTop)));
+    for (let x = l; x <= r; x++) {
+      const i = px(full, x, sy), o = px(water, x, y), f = Math.min(1, Math.min(x - l, r - x) / 3);
+      water.data.set(full.data.subarray(i, i + 3), o); water.data[o + 3] = 255 * f;
+    }
   }
-  // largeur intérieure (bord gauche / droit de l'eau), mesurée sur quelques lignes : reflet de la surface
-  const bodyAt = (fy) => { const y = Math.round(fy * empty.h); let l = empty.w, r = 0; for (let x = 0; x < empty.w; x++) if (mask[y * empty.w + x] > 0.5) { l = Math.min(l, x); r = Math.max(r, x); } return [round3(l / empty.w), round3(r / empty.w)]; };
-  const wt = (full.h * WATER_TOP + dy) / empty.h, wb = (full.h * WATER_BOTTOM + dy) / empty.h;
-  M.can = { w: empty.w, h: empty.h, waterTop: round3(wt), waterBottom: round3(wb), bodyTop: bodyAt(wt + 0.02), bodyBottom: bodyAt(wb - 0.04) };
+  const bodyAt = (y) => { const s = span.get(y) ?? [cx, cx]; return [round3(s[0] / W), round3(s[1] / W)]; };
+  M.can = { w: W, h: H, waterTop: round3(winTop / H), waterBottom: round3((winBot + 1) / H), bodyTop: bodyAt(winTop + 6), bodyBottom: bodyAt(winBot - 14) };
   M.can.empty = await emit('can_empty', empty, 340);
   M.can.water = await emit('can_water', water, 340);
+  console.log(`arrosoir : fenêtre y ${winTop}→${winBot}, surface de l'eau y ${surf} (sur ${H})`);
 }
 
 /* ── Cabane, échelle, ronces, fleurs, décors, nuages ──────────────────────────────────────────── */

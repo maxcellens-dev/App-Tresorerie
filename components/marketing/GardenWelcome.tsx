@@ -19,6 +19,7 @@ import GardenText from '../garden/GardenText';
 import GardenScene from '../garden/GardenScene';
 import GardenButton from '../garden/GardenButton';
 import GardenIcon from '../garden/GardenIcon';
+import WateringCan from '../garden/WateringCan';
 import SocialLinks from './SocialLinks';
 import { HERO } from './GardenLandingPage';
 import { useGardenFonts } from '../../hooks/garden/useGardenFonts';
@@ -72,6 +73,14 @@ export default function GardenWelcome({ L, preview, fade }: Props) {
           <View style={{ gap: 6, alignItems: 'center' }}>
             <GardenText variant="display" center style={{ fontSize: 28, lineHeight: 34 }}>{L.mobileTagline}</GardenText>
             <GardenText variant="body" color={G.inkSoft} center>{L.mobileSubtag}</GardenText>
+          </View>
+
+          {/* La métaphore en une phrase : le Relyka, c'est l'eau de l'arrosoir, et on choisit où la verser. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, backgroundColor: G.waterBg, borderRadius: 20, padding: GARDEN_SPACE.md }}>
+            <WateringCan level={0.6} width={64} />
+            <GardenText variant="small" color={G.ink} style={{ flex: 1 }}>
+              Ton Relyka, c'est l'eau de ton arrosoir : ce qu'il te reste vraiment ce mois-ci. Chaque mois, Pépin t'aide à la verser au bon endroit, racines, fruits ou fleurs.
+            </GardenText>
           </View>
 
           <View style={{ gap: GARDEN_SPACE.sm, backgroundColor: G.card, borderRadius: 20, borderWidth: 1, borderColor: G.line, padding: GARDEN_SPACE.lg }}>

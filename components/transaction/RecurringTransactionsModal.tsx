@@ -109,7 +109,7 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
           <View style={s.grabber} />
           <View style={s.header}>
             <Ionicons name="repeat" size={20} color={c.text} />
-            <Text style={s.title}>{garden ? 'Ce qui revient chaque mois' : 'Transactions récurrentes'}</Text>
+            <Text style={s.title}>{garden ? 'Tes opérations récurrentes' : 'Transactions récurrentes'}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} hitSlop={12}><Ionicons name="close" size={22} color={c.textSecondary} /></Pressable>
           </View>
           {/* Ce n'est PAS le suivi du mois : c'est le catalogue de toutes les récurrentes, pour les

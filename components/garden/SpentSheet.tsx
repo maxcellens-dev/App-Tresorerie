@@ -5,7 +5,7 @@
  * renvoie vers ce suivi). Même liste que l'ancien détail du Pilotage (`vm.suiviDetail.spent`) :
  *   - la répartition par catégorie PARENTE (anneau + légende) — toucher une catégorie filtre la
  *     liste, la toucher à nouveau retire le filtre ;
- *   - un filtre « Récurrentes » (ce qui revient chaque mois, là-dedans) ;
+ *   - un filtre « Récurrentes » (les opérations récurrentes, là-dedans) ;
  *   - les opérations, regroupées par jour, de la plus récente à la plus ancienne.
  * Un remboursement (montant positif sur une catégorie de dépense) diminue le total de sa catégorie,
  * exactement comme dans le chiffre « Dépensé ».
@@ -113,7 +113,7 @@ export default function SpentSheet({ visible, onClose, spent, monthName, catPare
               <Pressable onPress={() => setRecurOnly((v) => !v)} accessibilityRole="switch" accessibilityState={{ checked: recurOnly }}
                 style={({ hovered }: any) => [{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: GARDEN_RADII.pill, borderWidth: 1, borderColor: recurOnly ? G.waterText : G.line, backgroundColor: recurOnly ? G.waterBg : hovered ? G.field : 'transparent' }, pointer, transition]}>
                 <Ionicons name="repeat" size={14} color={recurOnly ? G.waterText : G.inkSoft} />
-                <GardenText variant="smallStrong" color={recurOnly ? G.waterText : G.inkSoft}>Seulement ce qui revient chaque mois</GardenText>
+                <GardenText variant="smallStrong" color={recurOnly ? G.waterText : G.inkSoft}>Seulement les opérations récurrentes</GardenText>
               </Pressable>
             ) : null}
           </View>

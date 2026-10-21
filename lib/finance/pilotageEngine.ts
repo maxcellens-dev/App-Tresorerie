@@ -381,24 +381,33 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   );
   const { perimeter: accounts, outside: outsidePerimeterAccounts } = splitPerimeterAccounts(accountsAll, perimeterCtx);
   const transactions = transformFluxTransactions(transactionsAll, perimeterCtx) as typeof transactionsAll;
+  /* COMPTES FERMÉS : un compte archivé (is_active = false) garde son dernier solde en base, mais
+     l'argent n'y est plus. Il comptait pourtant dans TOUS les soldes (total, épargne, placements,
+     Relyka) alors que plus aucun écran ne le montrait — « Mes placements » affichait 9 327 € au-dessus
+     d'un seul PEA à 869 €. Règle :
+       - SOLDES (totaux, trésorerie projetée, découvert, doute) → comptes ACTIFS seulement ;
+       - CLASSEMENT des opérations (courant ? épargne ?) → TOUS les comptes : les dépenses passées
+         faites sur un compte depuis fermé restent des dépenses de leur mois. */
+  const isLive = (a: any) => a.is_active !== false;
+  const liveAccounts = accounts.filter(isLive);
   // Part patrimoniale des joints « contribution » (hors flux).
-  const joint_share_outside_perimeter = outsidePerimeterAccounts.reduce((s, a) => s + Number(a.balance), 0);
+  const joint_share_outside_perimeter = outsidePerimeterAccounts.filter(isLive).reduce((s, a) => s + Number(a.balance), 0);
   // Part (pondérée) des comptes partagés « quotidien » incluse dans le solde COURANT du périmètre —
   // affichée à côté du solde pour expliquer d'où il vient (le montant impacte le budget).
-  const joint_share_in_checking = accounts
+  const joint_share_in_checking = liveAccounts
     .filter((a) => a.id in sharedFactor && a.type === 'checking')
     .reduce((s, a) => s + Number(a.balance), 0);
 
   // =====================================================================
   // AGGREGATIONS: Accounts by Type
   // =====================================================================
-  const total_checking = accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + Number(a.balance), 0);
-  const total_savings = accounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + Number(a.balance), 0);
+  const total_checking = liveAccounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + Number(a.balance), 0);
+  const total_savings = liveAccounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + Number(a.balance), 0);
   /* EXISTENCE, pas montant : un livret à 0 € est une donnée connue, l'absence de livret est une
      donnée MANQUANTE. Les deux donnent « 0 € d'épargne » et ne disent pas du tout la même chose —
      le classement s'en sert comme porte d'entrée, la fiabilité comme cause à afficher. */
-  const has_savings_account = accounts.some(a => a.type === 'savings');
-  const total_invested = accounts.filter(a => a.type === 'investment').reduce((sum, a) => sum + Number(a.balance), 0);
+  const has_savings_account = liveAccounts.some(a => a.type === 'savings');
+  const total_invested = liveAccounts.filter(a => a.type === 'investment').reduce((sum, a) => sum + Number(a.balance), 0);
 
   /* Seuils d'épargne : STOCKÉS EN EUR (base, cf. hooks/useSavingsConfig) → convertis dans la devise
      de RÉFÉRENCE avant toute comparaison. Les soldes, eux, sont déjà convertis quelques lignes plus
@@ -418,7 +427,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
      naïve compterait dans le rouge précisément ceux qui corrigent leurs soldes. */
   const consecutive_overdraft_months = countConsecutiveOverdraftMonths(
     transactions as any[],
-    accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, balance: Number(a.balance) })),
+    liveAccounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, balance: Number(a.balance) })),
     now,
   );
 
@@ -1139,7 +1148,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
      plutôt dire que l'app est aveugle, pas que le compte dort — mieux vaut alors laisser le doute
      s'installer que d'afficher un « À jour » qui ne repose sur rien. */
   const anchorByChecking = new Map<string, string>();
-  for (const a of accounts) {
+  for (const a of liveAccounts) {
     if (a.type !== 'checking') continue;
     const d = String((a as any).init_date ?? (a as any).created_at ?? '').slice(0, 10);
     if (!d || d > todayStr) continue;
@@ -1217,7 +1226,7 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
   }
   const projection_rows_12m = computeTresoRows({
     transactions,
-    accounts,
+    accounts: liveAccounts,
     overridesMap: signedOvrAllMonths,
     variableMonthly: variable_envelope_initial,
     variableRemaining: variable_envelope_remaining,

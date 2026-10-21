@@ -72,6 +72,10 @@ export interface GardenRow {
   iconBg?: string;
   /** Libellé en italique : un compte partagé, rangé avec les miens mais reconnaissable. */
   italic?: boolean;
+  /** Fond de la ligne : une ligne de TOTAL (sans icône), à ne pas confondre avec un compte. */
+  bg?: string;
+  /** Montant en retrait (gris, sans gras) : un compte qui n'entre pas dans ton total. */
+  valueMuted?: boolean;
 }
 
 /**
@@ -98,11 +102,11 @@ export function GardenRowGroup({ title, titleColor, total, rows }: { title?: str
                 <GardenText variant="bodyStrong" numberOfLines={1} style={r.italic ? { fontStyle: 'italic' } : undefined}>{r.label}</GardenText>
                 {r.sub ? <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{r.sub}</GardenText> : null}
               </View>
-              {r.value ? <GardenText variant="bodyStrong" tabular>{r.value}</GardenText> : null}
+              {r.value ? <GardenText variant={r.valueMuted ? "body" : "bodyStrong"} tabular color={r.valueMuted ? GARDEN_COLORS.muted : undefined}>{r.value}</GardenText> : null}
               {r.onPress ? <Ionicons name="chevron-forward" size={16} color={GARDEN_COLORS.muted} /> : null}
             </>
           );
-          const base = [{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: GARDEN_SPACE.md, minHeight: 56, paddingHorizontal: GARDEN_SPACE.lg, paddingVertical: 10 }, i > 0 ? { borderTopWidth: 1, borderTopColor: GARDEN_COLORS.line } : null];
+          const base = [{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: GARDEN_SPACE.md, minHeight: 56, paddingHorizontal: GARDEN_SPACE.lg, paddingVertical: 10 }, i > 0 ? { borderTopWidth: 1, borderTopColor: GARDEN_COLORS.line } : null, r.bg ? { backgroundColor: r.bg } : null];
           return r.onPress ? (
             <Pressable key={r.key} onPress={r.onPress} accessibilityRole="button" accessibilityLabel={r.accessibilityLabel ?? `${r.label}${r.value ? `, ${r.value}` : ''}`}
               style={({ pressed, hovered }: any) => [...base, (pressed || hovered) ? { backgroundColor: GARDEN_COLORS.field } : null, pointer, transition]}>

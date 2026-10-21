@@ -25,7 +25,14 @@ const out = async (file, size, frac, bg) => { await canvas(size, bg).composite([
 await out('assets/logo.png', 512, 0.92, transparent);
 await out('assets/icon.png', 1024, 0.7, CREAM);
 await out('assets/adaptive-icon.png', 1024, 0.58, transparent);
-await out('public/favicon.png', 256, 0.94, transparent);
+/* Favicon : le logo seul se perdait en 16-32 px (fond transparent, traits fins) → posé sur un ROND
+   crème uni, coins transparents. */
+{
+  const S = 256;
+  const disc = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}"><circle cx="${S / 2}" cy="${S / 2}" r="${S / 2}" fill="rgb(${CREAM.r},${CREAM.g},${CREAM.b})"/></svg>`);
+  await sharp(disc).composite([{ input: await fit(S, 0.74), gravity: 'center' }]).png().toFile(path.join(root, 'public/favicon.png'));
+  console.log('✓ public/favicon.png');
+}
 await out('public/icon-192.png', 192, 0.72, CREAM);
 // notification : silhouette blanche pleine (l'alpha du logo, couleur blanche)
 {

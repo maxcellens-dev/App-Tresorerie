@@ -1233,7 +1233,7 @@ function TransactionsListBody() {
         visible={guide.is('tx_recurring') && txFocused && !showRecurring && !recurAttempt}
         icon="repeat"
         iconColor={COLORS.orange}
-        eyebrow="Étape 2 · Ce qui revient chaque mois"
+        eyebrow="Étape 2 · Opérations récurrentes"
         step={{ index: 2, total: 4 }}
         title="Enregistre une dépense ou une recette récurrente"
         text="Ton salaire, ton loyer, tes abonnements : saisis-les une seule fois en cochant « Récurrent ». C'est ce qui permet à Relyka d'anticiper ton mois."

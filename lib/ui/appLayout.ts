@@ -3,7 +3,8 @@
 // Les Modaux React Native s'affichent, eux, dans un portail plein écran → sans contrainte, une
 // feuille (bottom sheet) prend toute la largeur du navigateur. `sheetWidth` la recentre et la
 // plafonne à la largeur de l'app (sur mobile, l'écran < APP_MAX_WIDTH → pleine largeur, inchangé).
-import { Platform, useWindowDimensions } from 'react-native';
+import { Dimensions, Platform, useWindowDimensions } from 'react-native';
+import { live } from '../garden/live';
 import type { ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,23 +20,28 @@ export const APP_MAX_WIDTH = 840;
  * boîte de dialogue. Sur mobile, l'écran est toujours plus étroit → aucun changement visible.
  */
 export const SHEET_MAX_WIDTH_WEB = 640;
-export const sheetWidth: ViewStyle = {
+/** Largeur à partir de laquelle le web est « bureau » (= DESKTOP_MIN_WIDTH de hooks/theme/useResponsive). */
+const DESKTOP_WEB_MIN_WIDTH = 1024;
+
+/* Relu à CHAQUE utilisation (live) : la largeur de la fenêtre décide du placement au moment où la
+   feuille construit ses styles. */
+export const sheetWidth: ViewStyle = live(() => ({
   width: '100%',
   maxWidth: Platform.OS === 'web' ? SHEET_MAX_WIDTH_WEB : APP_MAX_WIDTH,
   alignSelf: 'center',
-  /* WEB : la feuille est aussi centrée VERTICALEMENT. Le plafond de largeur ci-dessus la faisait
-     déjà ressembler à une boîte de dialogue, mais elle restait collée au bas de la fenêtre — tous
-     les voiles de feuille sont en `justifyContent: 'flex-end'`, ce qui a un sens sur un téléphone
-     (le pouce est en bas) et aucun sur un écran d'ordinateur, où le regard est au centre.
-     On centre par MARGES AUTOMATIQUES : en flexbox elles priment sur le `justifyContent` du
-     parent, donc les 22 feuilles de l'app se recentrent sans toucher à leur voile.
-     Les coins BAS sont arrondis ici seulement : détachée du bord, une feuille à fond plat se lit
-     comme une boîte coupée. Les feuilles ne définissent que leurs coins HAUTS, ces deux règles ne
-     leur sont donc jamais retirées. */
-  ...(Platform.OS === 'web'
+  /* WEB BUREAU : la feuille est aussi centrée VERTICALEMENT. Tous les voiles de feuille sont en
+     `justifyContent: 'flex-end'`, ce qui a un sens sur un téléphone (le pouce est en bas) et aucun
+     sur un écran d'ordinateur, où le regard est au centre. On centre par MARGES AUTOMATIQUES : en
+     flexbox elles priment sur le `justifyContent` du parent, donc les feuilles de l'app se
+     recentrent sans toucher à leur voile. Les coins BAS sont arrondis ici seulement : détachée du
+     bord, une feuille à fond plat se lit comme une boîte coupée.
+     ⚠️ BUREAU SEULEMENT, comme les feuilles du Jardin (GardenSheet) : sur un navigateur étroit (web
+     mobile), ces feuilles flottaient au milieu alors que celles du Jardin s'ouvraient par le bas —
+     deux comportements sur la même page. */
+  ...(Platform.OS === 'web' && Dimensions.get('window').width >= DESKTOP_WEB_MIN_WIDTH
     ? { marginTop: 'auto', marginBottom: 'auto', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }
     : null),
-};
+}) as ViewStyle);
 
 /**
  * Marge basse d'une FEUILLE (bottom sheet), barre de navigation système COMPRISE.

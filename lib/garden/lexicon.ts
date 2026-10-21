@@ -64,7 +64,7 @@ export const WORDS = {
   minimumToKeep: 'Réserve minimum',
   lowestDay: 'Jour le plus bas',
   setAside: 'Argent mis de côté',
-  recurring: 'Ce qui revient chaque mois',
+  recurring: 'Tes opérations récurrentes',
   operations: 'Opérations',
   upcoming: 'À venir',
   credit: 'Crédit',

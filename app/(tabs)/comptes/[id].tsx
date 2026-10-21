@@ -144,8 +144,13 @@ function AccountDetailScreen() {
      solde » — on tournait en rond entre les deux écrans sans jamais remonter à la liste des
      comptes. useNavBack suit le chemin à plat (navHistory) et sort de la boucle. */
   const goBack = useNavBack();
-  const params = useLocalSearchParams<{ id: string; verify?: string }>();
+  const params = useLocalSearchParams<{ id: string; verify?: string; tab?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  /* L'écran reste MONTÉ d'un compte à l'autre : l'onglet du compte précédent restait affiché (on
+     ouvrait un placement depuis le Jardin et l'on tombait sur « Transactions »). Chaque compte
+     ouvert repart donc sur « Solde », sauf si le lien demande un autre onglet (?tab=). */
+  const askedTab = (params.tab === 'transactions' || params.tab === 'parametres' || params.tab === 'solde') ? params.tab : 'solde';
+  useEffect(() => { setTab(askedTab); }, [id, askedTab]);
   const { user } = useAuth();
   const accountsQuery = useAllAccounts(user?.id);
   const accounts = accountsQuery.data ?? [];

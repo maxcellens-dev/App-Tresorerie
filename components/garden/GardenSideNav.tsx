@@ -3,7 +3,7 @@
  * actuelle de l'app (WebSideNav), à la place de la barre du bas — convention tactile qui n'a pas
  * sa place sur un écran d'ordinateur.
  *
- * Contenu : le bouton « Ajouter », les quatre espaces du Jardin (Mon argent, Jardin, Projets, Pico),
+ * Contenu : le bouton « Ajouter », les quatre espaces du Jardin (Mon argent, Projets, Jardin, Pico),
  * puis — comme l'ancienne navigation de bureau — des accès directs : le suivi de ton argent, ton
  * jardin et tes réglages. Sur un grand écran, la place ne manque pas : tout est à un clic.
  * Elle porte aussi la synchro en direct et les badges d'invitations (useGardenNavBadges).
@@ -25,14 +25,14 @@ import { SIDEBAR_WIDTH, pointer, transition } from '../../lib/ui/webLayout';
 
 const MAIN: { route: GardenTabRoute; label: string; icon: 'tree' | 'wallet' | 'pots' | 'pico' }[] = [
   { route: 'argent', label: TABS.money, icon: 'wallet' },
-  { route: 'jardin', label: TABS.garden, icon: 'tree' },
   { route: 'projets', label: TABS.projects, icon: 'pots' },
+  { route: 'jardin', label: TABS.garden, icon: 'tree' },
   { route: 'pico', label: TABS.pico, icon: 'pico' },
 ];
 /* Accès directs du bureau, rangés par sujet. `key` = dernier segment du chemin (surbrillance). */
 const GROUPS: { title: string; items: { key: string; label: string; icon: string; route: string }[] }[] = [
   { title: 'Ton argent', items: [
-    { key: 'month', label: 'Suivi du mois', icon: 'calendar-outline', route: '/(tabs)/argent?view=month' },
+    { key: 'month', label: 'Suivi du mois', icon: 'calendar-outline', route: '/(tabs)/jardin?open=can' },
     { key: 'tresorerie', label: WORDS.monthPlan, icon: 'stats-chart-outline', route: '/(tabs)/tresorerie' },
     { key: 'credits', label: 'Mes crédits', icon: 'home-outline', route: '/(tabs)/(secondary)/credits' },
     { key: 'placements', label: 'Mes placements', icon: 'nutrition-outline', route: '/(tabs)/(secondary)/placements' },
@@ -96,7 +96,7 @@ export default function GardenSideNav() {
           {fontsReady ? <GardenText variant="label" style={{ paddingHorizontal: GARDEN_SPACE.md, marginBottom: 4 }}>{g.title}</GardenText> : null}
           {/* `t` : un lien vers une vue de Mon argent doit y rebasculer même si l'écran, resté monté,
               a déjà reçu ce paramètre (cf. menuTarget). */}
-          {g.items.map((m) => item(m.key, m.label, () => router.push((m.route.includes('/argent?') ? `${m.route}&t=${Date.now()}` : m.route) as any), <Ionicons name={m.icon as any} size={20} color={current === m.key ? GARDEN_COLORS.ink : GARDEN_COLORS.muted} />))}
+          {g.items.map((m) => item(m.key, m.label, () => router.push((m.route.includes('?') ? `${m.route}&t=${Date.now()}` : m.route) as any), <Ionicons name={m.icon as any} size={20} color={current === m.key ? GARDEN_COLORS.ink : GARDEN_COLORS.muted} />))}
         </View>
       ))}
       <GardenAddSheet visible={addOpen} onClose={() => setAddOpen(false)} />

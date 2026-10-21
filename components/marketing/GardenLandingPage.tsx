@@ -19,6 +19,8 @@ import GardenText from '../garden/GardenText';
 import GardenScene from '../garden/GardenScene';
 import Pico from '../garden/Pico';
 import GardenIcon from '../garden/GardenIcon';
+import WateringCan from '../garden/WateringCan';
+import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
 import { GARDEN_ICONS, type GardenIconKey } from '../../lib/garden/icons';
 import PicoBubble from '../garden/PicoBubble';
 import PlayStoreBadge from './PlayStoreBadge';
@@ -53,10 +55,18 @@ const PARTS: { kind: GardenIconKey; name: string; meaning: string; text: string 
   { kind: 'cabin', name: 'Cabane', meaning: 'Crédit', text: 'Une planche de plus à chaque mensualité, jusqu’à ce qu’elle soit à toi.' },
 ];
 
+/* Ce que chaque geste fait POUSSER (section « Chaque mois, tu arroses ton jardin »). */
+const WATERING_TEXT: Record<'save' | 'invest' | 'enjoy' | 'keep', string> = {
+  save: 'Tes racines s’enfoncent : l’épargne qui te protège d’un coup dur, vers 1, 3 puis 6 mois de dépenses.',
+  invest: 'Tes fruits grossissent : l’argent placé qui travaille pour toi, et mûrit quand il rapporte.',
+  enjoy: 'Ton jardin fleurit : la part du mois pour te faire plaisir, sans culpabiliser.',
+  keep: 'Un peu d’eau reste au frais : sur ton compte courant, pour la suite du mois.',
+};
+
 const HOW: { n: string; title: string; text: string }[] = [
-  { n: '1', title: 'Plante ton arbre', text: 'Ajoute tes comptes et ce qui revient chaque mois : salaire, loyer, abonnements.' },
-  { n: '2', title: 'Regarde ton arrosoir', text: 'Relyka calcule ce qu’il te reste vraiment à utiliser ce mois-ci, sans toucher à ton minimum de sécurité.' },
-  { n: '3', title: 'Suis les choix de Pépin', text: 'Racines, fruits, fleurs : Pépin te propose quoi faire de ton argent. Tu fais les virements dans ta banque, ton arbre pousse.' },
+  { n: '1', title: 'Plante ton arbre', text: 'Ajoute tes comptes et tes opérations récurrentes : salaire, loyer, abonnements.' },
+  { n: '2', title: 'Regarde ton arrosoir', text: 'Relyka calcule l’eau qu’il te reste vraiment ce mois-ci, sans toucher à ta réserve minimum.' },
+  { n: '3', title: 'Arrose avec Pépin', text: 'Racines, fruits, fleurs : Pépin te dit où verser ton eau. Tu fais les virements dans ta banque, ton arbre pousse.' },
 ];
 
 export default function GardenLandingPage() {
@@ -154,6 +164,45 @@ export default function GardenLandingPage() {
                 </View>
               ))}
             </View>
+          </View>
+        </View>
+
+        {/* ── L'arrosage : la métaphore qui porte toute l'app. Le Relyka, c'est l'eau de l'arrosoir ;
+            chaque mois, on choisit où la verser — les quatre gestes de Pépin, mêmes mots et mêmes
+            couleurs que dans l'app (CHOICE_LOOKS). ── */}
+        <View nativeID="watering" style={[col, { paddingVertical: wide ? 72 : 44, gap: 28 }]}>
+          <View style={{ flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'center' : 'stretch', gap: wide ? 48 : 24 }}>
+            <View style={{ flex: wide ? 1 : undefined, gap: 10, maxWidth: 560 }}>
+              <GardenText variant="label" color={G.primary}>Chaque mois, tu arroses ton jardin</GardenText>
+              <GardenText variant="display" style={{ fontSize: narrow ? 30 : 38, lineHeight: narrow ? 36 : 44 }}>Ton Relyka, c'est l'eau de ton arrosoir.</GardenText>
+              <GardenText variant="body" color={G.inkSoft}>
+                C'est ce qu'il te reste vraiment à utiliser ce mois-ci, une fois tes dépenses prévues et ta réserve gardée. L'arrosoir se remplit quand ton salaire tombe, baisse au fil de tes dépenses, et c'est toi qui choisis où verser l'eau.
+              </GardenText>
+              <GardenText variant="small" color={G.muted}>Un mois serré, c'est juste un peu moins d'eau : ton arbre ne tombe jamais malade.</GardenText>
+            </View>
+            <View style={{ flex: wide ? 1 : undefined, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: narrow ? 10 : 20 }}>
+              {([[0.15, 'Un mois serré'], [0.55, 'Un mois normal'], [0.95, 'Un mois large']] as [number, string][]).map(([lv, t]) => (
+                <View key={t} style={{ alignItems: 'center', gap: 6 }}>
+                  <WateringCan level={lv} width={narrow ? 92 : 130} accessibilityLabel={`${t} : arrosoir rempli à ${Math.round(lv * 100)} %`} />
+                  <GardenText variant="smallStrong" color={G.inkSoft} center>{t}</GardenText>
+                </View>
+              ))}
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
+            {(['save', 'invest', 'enjoy', 'keep'] as const).map((k) => {
+              const look = CHOICE_LOOKS[k];
+              return (
+                <View key={k} style={{ flexGrow: 1, flexBasis: wide ? '22%' : narrow ? '100%' : '45%', minWidth: 200, gap: 10, padding: 18, borderRadius: GARDEN_RADII.lg, backgroundColor: look.bg }}>
+                  <GardenIcon icon={look.icon} fg={look.fg} bg={G.card} size={44} />
+                  <View>
+                    <GardenText variant="heading" color={look.fg}>{look.verb}</GardenText>
+                    <GardenText variant="smallStrong" color={G.inkSoft}>{look.meaning}</GardenText>
+                  </View>
+                  <GardenText variant="body" color={G.ink}>{WATERING_TEXT[k]}</GardenText>
+                </View>
+              );
+            })}
           </View>
         </View>
 

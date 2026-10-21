@@ -18,6 +18,8 @@ import { creditKind } from '../../lib/garden/gardenInputs';
 import { formatEuros } from '../../lib/garden/picoChoices';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import { GardenRowGroup } from './GardenList';
+import { useMonthPanel } from './MonthPanel';
+import type { PilotageCore } from '../../hooks/garden/usePilotageCore';
 import { GARDEN_COLORS, GARDEN_SPACE } from '../../lib/garden/theme';
 import { GARDEN_ICONS } from '../../lib/garden/icons';
 import { TREE_PARTS, WORDS, rootsGoal } from '../../lib/garden/lexicon';
@@ -39,11 +41,12 @@ interface Props {
   enjoyAmount?: number;
   /** Placements (comptes d'investissement) : un fruit chacun. */
   investments?: { id: string; name: string; balance: number; currency?: string }[];
+  /** Données du Pilotage : la fiche de l'arrosoir y lit le mois (useMonthPanel). */
+  core?: PilotageCore;
 }
 
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 const months = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
-const dayLabel = (iso: string | null) => (iso ? new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) : null);
 
 function Row({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -57,27 +60,12 @@ function Row({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
-export default function TreePartSheet({ part, onClose, tree, can, credits, savingsTotal, investedTotal, enjoyAmount = 0, investments = [] }: Props) {
+export default function TreePartSheet({ part, onClose, tree, can, credits, savingsTotal, investedTotal, enjoyAmount = 0, investments = [], core }: Props) {
   const router = useRouter();
   const go = (route: string) => { onClose(); setTimeout(() => router.push(route as any), 60); };
   if (!part || part === 'pico') return null;
 
-  if (part === 'can') {
-    return (
-      <GardenSheet visible onClose={onClose} title={`${TREE_PARTS.can.name} · ce mois`} subtitle={TREE_PARTS.can.meaning}
-        footer={<GardenButton label={WORDS.gardenTour} onPress={() => go('/(tabs)/comptes/solde')} />}>
-        {can ? (
-          <>
-            <Row label="Sur tes comptes courants" value={eur(can.checking)} />
-            <Row label={WORDS.spent} value={eur(can.spent)} hint="depuis le début du mois" />
-            <Row label={WORDS.leftToSpend} value={eur(can.leftToSpend)} hint={`${WORDS.leftToSpendHint}, ${can.variableSource === 'onboarding' ? "d'après ton estimation" : "d'après tes habitudes"}`} />
-            <Row label={WORDS.minimumToKeep} value={eur(can.minimum)} hint="ton compte ne descend pas en dessous" />
-            <Row label={WORDS.lowestDay} value={eur(can.lowest)} hint={dayLabel(can.lowestDate) ?? undefined} />
-          </>
-        ) : null}
-      </GardenSheet>
-    );
-  }
+  if (part === 'can') return core ? <ArrosoirSheet core={core} can={can} onClose={onClose} onTour={() => go('/(tabs)/comptes/solde')} /> : null;
 
   if (part === 'roots') {
     const m = tree.roots.months;
@@ -162,5 +150,29 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
         );
       })}
     </GardenSheet>
+  );
+}
+
+/**
+ * L'ARROSOIR · ce mois : ce qu'il y a sur tes comptes courants, puis tout le mois (ce qui était
+ * l'onglet « Ce mois » de Mon argent). Quand un détail s'ouvre (Dépensé, Encore prévu, réserve…),
+ * cette feuille s'efface le temps qu'il soit ouvert : une seule fenêtre à la fois (cf. MonthPanel).
+ */
+function ArrosoirSheet({ core, can, onClose, onTour }: { core: PilotageCore; can: CanFigures | null; onClose: () => void; onTour: () => void }) {
+  const month = useMonthPanel(core, onClose);
+  return (
+    <>
+      <GardenSheet visible={!month.subOpen} onClose={onClose} title={`${TREE_PARTS.can.name} · ce mois`} subtitle={TREE_PARTS.can.meaning}
+        footer={<GardenButton label={WORDS.gardenTour} onPress={onTour} />}>
+        {can ? (
+          <GardenCard tint={GARDEN_ICONS.water.bg} style={{ gap: 2 }}>
+            <GardenText variant="label" color={GARDEN_ICONS.water.fg}>Sur tes comptes courants</GardenText>
+            <GardenText variant="amount" tabular>{eur(can.checking)}</GardenText>
+          </GardenCard>
+        ) : null}
+        {month.content}
+      </GardenSheet>
+      {month.sheets}
+    </>
   );
 }

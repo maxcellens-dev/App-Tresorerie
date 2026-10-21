@@ -2,7 +2,7 @@
  * DÉMARRER — « Plante ton arbre » (refonte Jardin, phase 8).
  *
  * Pas de questionnaire : comme dans l'app actuelle, le démarrage consiste à installer de VRAIES
- * données (comptes avec leur solde du jour, puis ce qui revient chaque mois), et l'arbre se dessine
+ * données (comptes avec leur solde du jour, puis les opérations récurrentes), et l'arbre se dessine
  * à partir d'elles. Les étapes et leur état viennent du moteur existant (computeSetupState) ; chaque
  * étape ouvre l'écran qui sert déjà à la faire.
  */
@@ -31,7 +31,7 @@ export default function DemarrerScreen() {
   const steps = [
     { done: hasChecking, title: `Ton ${TREE_PARTS.can.name.toLowerCase()}`, text: 'Ajoute ton compte courant avec le solde affiché par ta banque aujourd\'hui.', route: '/(tabs)/comptes/add' },
     { done: hasSavings, title: `Tes ${TREE_PARTS.roots.name.toLowerCase()}`, text: 'Ajoute ton livret ou tes placements, même avec un petit montant. Facultatif.', route: '/(tabs)/comptes/add' },
-    { done: !!vm.hasRecurringTx, title: 'Ce qui revient chaque mois', text: 'Ton salaire et tes charges fixes (loyer, abonnements), en opérations récurrentes.', route: '/(tabs)/transactions/add' },
+    { done: !!vm.hasRecurringTx, title: 'Tes opérations récurrentes', text: 'Ton salaire et tes charges fixes (loyer, abonnements, assurances…), chaque semaine, mois, trimestre ou année.', route: '/(tabs)/transactions/add' },
   ];
   const doneCount = steps.filter((s) => s.done).length;
 

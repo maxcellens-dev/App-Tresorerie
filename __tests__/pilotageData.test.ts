@@ -87,6 +87,22 @@ describe('computePilotageData — compte vide', () => {
     });
     expect(r.current_checking_balance).toBe(1500);
   });
+
+  it("un compte FERMÉ ne compte plus dans les soldes, mais ses dépenses passées restent des dépenses", () => {
+    const r = run({
+      accounts: [
+        account({ id: 'a1', balance: 1000 }),
+        account({ id: 'old', balance: 400, is_active: false }),
+        account({ id: 'pea', type: 'investment', balance: 869 }),
+        account({ id: 'pea-old', type: 'investment', balance: 8458, is_active: false }),
+      ],
+      // dépense du mois faite sur le compte courant depuis fermé
+      transactions: [tx({ account_id: 'old', amount: -80, date: iso(2026, 6, 3) })],
+    });
+    expect(r.current_checking_balance).toBe(1000);
+    expect(r.total_invested).toBe(869);
+    expect(r.month_expenses_total).toBe(80);
+  });
 });
 
 describe('computePilotageData — dépenses passées et à venir du mois', () => {

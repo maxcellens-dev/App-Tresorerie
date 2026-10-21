@@ -32,7 +32,7 @@ const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 const parse = (s: string) => Math.max(0, parseFloat(String(s).replace(',', '.')) || 0);
 
 /** Champ de montant du Jardin. */
-function AmountField({ value, onChange, unit }: { value: string; onChange: (v: string) => void; unit: string }) {
+export function AmountField({ value, onChange, unit }: { value: string; onChange: (v: string) => void; unit: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm }}>
       <TextInput value={value} onChangeText={(v) => onChange(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={G.muted}
@@ -44,7 +44,7 @@ function AmountField({ value, onChange, unit }: { value: string; onChange: (v: s
 }
 
 /** Refus d'écrire en « connecté en tant que » — même règle que le Pilotage. */
-function useWriteGuard() {
+export function useWriteGuard() {
   const { isImpersonating } = useAuth();
   return () => {
     if (!isImpersonating) return false;

@@ -63,7 +63,7 @@ const STEP_COPY: Record<WelcomeStep, { title: string; text: string; cta: string;
 /** Les quatre jalons du démarrage, dans l'ordre. Sert à situer l'étape en cours. */
 const MILESTONES: { icon: string; label: string; steps: WelcomeStep[] }[] = [
   { icon: 'wallet-outline', label: 'Tes comptes', steps: ['accounts', 'checking', 'savings'] },
-  { icon: 'repeat', label: 'Ce qui revient chaque mois', steps: ['recurring'] },
+  { icon: 'repeat', label: 'Opérations récurrentes', steps: ['recurring'] },
   { icon: 'options-outline', label: 'Tes deux repères', steps: [] },
   { icon: 'sparkles', label: 'Ton Relyka et ton profil', steps: [] },
 ];

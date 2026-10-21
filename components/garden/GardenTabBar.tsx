@@ -1,5 +1,5 @@
 /**
- * Barre d'onglets du Jardin (téléphone et navigateur étroit) : Mon argent · Jardin · + · Projets · Pico.
+ * Barre d'onglets du Jardin (téléphone et navigateur étroit) : Mon argent · Projets · + · Jardin · Pico.
  * Sur bureau, la navigation passe à gauche (GardenSideNav) et cette barre n'est pas rendue.
  *
  * Elle remplace la barre actuelle (CustomTabBar) quand l'interrupteur `garden_ui` est ouvert pour
@@ -18,7 +18,7 @@ import { GARDEN_COLORS, GARDEN_TOUCH } from '../../lib/garden/theme';
 import { TABS } from '../../lib/garden/lexicon';
 
 /** Routes du groupe (tabs) qui forment la navigation du Jardin. */
-export const GARDEN_TAB_ROUTES = ['argent', 'jardin', 'projets', 'pico'] as const;
+export const GARDEN_TAB_ROUTES = ['argent', 'projets', 'jardin', 'pico'] as const;
 export type GardenTabRoute = (typeof GARDEN_TAB_ROUTES)[number];
 
 export function GardenNavIcon({ name, color, size = 24 }: { name: 'tree' | 'wallet' | 'pots' | 'pico'; color: string; size?: number }) {
@@ -84,14 +84,14 @@ export default function GardenTabBar({ state, navigation }: any) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: GARDEN_COLORS.card, borderTopWidth: 1, borderTopColor: GARDEN_COLORS.line, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 10), paddingHorizontal: 6 }}>
       {tab('argent', TABS.money, 'wallet')}
-      {tab('jardin', TABS.garden, 'tree')}
+      {tab('projets', TABS.projects, 'pots')}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Pressable onPress={() => setAddOpen(true)} accessibilityRole="button" accessibilityLabel={TABS.add}
           style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, backgroundColor: pressed ? GARDEN_COLORS.primaryPressed : GARDEN_COLORS.primary, alignItems: 'center', justifyContent: 'center', marginTop: -18, shadowColor: '#26784A', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 6 })}>
           <Svg width={26} height={26} viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth={2.6} strokeLinecap="round" /></Svg>
         </Pressable>
       </View>
-      {tab('projets', TABS.projects, 'pots')}
+      {tab('jardin', TABS.garden, 'tree')}
       {tab('pico', TABS.pico, 'pico')}
       <GardenAddSheet visible={addOpen} onClose={() => setAddOpen(false)} />
     </View>
