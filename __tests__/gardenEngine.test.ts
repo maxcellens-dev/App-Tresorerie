@@ -6,7 +6,7 @@
  */
 import { computeTreeState, type GardenInputs } from '../lib/garden/treeState';
 import { buildPicoChoices, permanentTransferHint } from '../lib/garden/picoChoices';
-import { buildScene, describeScene } from '../lib/garden/sceneSvg';
+import { describeScene } from '../lib/garden/sceneTypes';
 
 const base: GardenInputs = {
   currentBalance: 0, minimumToKeep: 200, monthlyReference: 2000, securityMonths: 0,
@@ -183,36 +183,7 @@ describe('buildPicoChoices', () => {
   });
 });
 
-describe('buildScene', () => {
-  const scene = (k: keyof typeof PEOPLE, extra = {}) => buildScene(computeTreeState(PEOPLE[k]), { id: k, ...extra });
-
-  it('n\'utilise aucun filtre SVG (rendu identique Android, iOS, web)', () => {
-    Object.keys(PEOPLE).forEach((k) => expect(scene(k as keyof typeof PEOPLE).svg).not.toMatch(/<filter|filter=/));
-  });
-
-  it('ne contient aucune valeur invalide', () => {
-    Object.keys(PEOPLE).forEach((k) => expect(scene(k as keyof typeof PEOPLE).svg).not.toMatch(/NaN|undefined|Infinity/));
-  });
-
-  it('dessine la nappe pour Pierre, pas pour Camille', () => {
-    expect(scene('pierre').svg).toContain('pierre-nappe');
-    expect(scene('camille').svg).not.toContain('url(#camille-nappe)');
-  });
-
-  it('pose le toit de la cabane seulement quand le crédit est presque remboursé', () => {
-    const roofless = buildScene(computeTreeState(person({ securityMonths: 2, credits: [{ id: 'a', kind: 'healthy', remaining: 6000, borrowed: 10000 }] })), { id: 'a' });
-    const roofed = buildScene(computeTreeState(person({ securityMonths: 2, credits: [{ id: 'a', kind: 'healthy', remaining: 1000, borrowed: 10000 }] })), { id: 'b' });
-    expect(roofless.svg).not.toContain('url(#a-roof)');
-    expect(roofed.svg).toContain('url(#b-roof)');
-  });
-
-  it('expose les zones touchables des parties présentes', () => {
-    const parts = scene('camille').hotspots.map((h) => h.part);
-    expect(parts).toEqual(expect.arrayContaining(['can', 'roots', 'tree', 'cabin', 'pico']));
-    expect(parts).not.toContain('brambles');
-    expect(scene('karim').hotspots.map((h) => h.part)).toContain('brambles');
-  });
-
+describe('describeScene', () => {
   it('décrit la scène en français pour les lecteurs d\'écran', () => {
     expect(describeScene(computeTreeState(PEOPLE.pierre))).toContain('au-delà de 6 mois');
     expect(describeScene(computeTreeState(PEOPLE.camille))).toMatch(/cabane construite à 57 %/);

@@ -12,8 +12,8 @@
 import { memo, useEffect, useId, useMemo, useState } from 'react';
 import { Image, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
-import { describeScene, type HotspotPart } from '../../lib/garden/sceneSvg';
-import type { SceneExtras } from '../../lib/garden/sceneCinematic';
+import { describeScene, type HotspotPart } from '../../lib/garden/sceneTypes';
+import type { SceneExtras } from '../../lib/garden/sceneTypes';
 import type { TreeState } from '../../lib/garden/treeState';
 import { seasonFor, type Season } from '../../lib/garden/season';
 import { momentFor, type Moment } from '../../lib/garden/daylight';

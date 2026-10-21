@@ -4,7 +4,7 @@
  *
  * Rien n'est promis que l'app ne fasse : Relyka ne déplace jamais d'argent, il conseille (les
  * choix de Pico) et l'utilisateur fait ses virements dans sa banque. Les dessins sont les VRAIS
- * dessins de l'app (lib/garden/sceneSvg), sur des situations d'exemple.
+ * dessins de l'app (lib/garden/scene3dLayout), sur des situations d'exemple.
  *
  * Ce qui reste réglable en administration (app_config.landing) est repris : nom, lien du store,
  * liens de pied de page, réseaux sociaux, chiffres clés. Les textes de cette version, eux, sont

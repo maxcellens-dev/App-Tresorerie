@@ -101,7 +101,7 @@ const board = async (items, cols, file) => {
   await save(sheet, path.join(outDir, file));
 };
 
-await board([0.1, 0.3, 0.5, 0.7, 1].map((p) => [S({ cabin: { progress: p, count: 1 } }), { decor: ['mushrooms'] }]), 5, 'render_cabin.png');
+await board([0.1, 0.4, 0.6, 1].map((p) => [S({ cabin: { progress: p, count: 1 } }), { decor: ['mushrooms'], season: 'autumn' }]), 4, 'render_cabin.png');
 await render(base, { moment: 'day', decor: [], hotspots: true }, 'render_hotspots.png');
 await board(['day', 'dusk', 'night'].map((moment) => [base, { moment }]), 3, 'render_moments.png');
 await board(['spring', 'summer', 'autumn', 'winter'].map((season) => [base, { season }]), 4, 'render_seasons.png');

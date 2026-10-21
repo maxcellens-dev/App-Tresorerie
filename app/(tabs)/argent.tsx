@@ -12,6 +12,10 @@
 import { live } from '../../lib/garden/live';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import Pico from '../../components/garden/Pico';
+import { pointer } from '../../lib/ui/webLayout';
 import GardenPage, { GardenGrid, GardenWaiting } from '../../components/garden/GardenPage';
 import GardenText from '../../components/garden/GardenText';
 import GardenCard from '../../components/garden/GardenCard';
@@ -19,13 +23,13 @@ import GardenButton from '../../components/garden/GardenButton';
 import GardenSegmented from '../../components/garden/GardenSegmented';
 import { GardenRowGroup } from '../../components/garden/GardenList';
 import AdSlot from '../../components/marketing/AdSlot';
-import { ProjectionSection } from './projection';
+import { ProjectionSection } from '../../components/money/ProjectionSection';
 import { useGardenModel } from '../../hooks/garden/useGardenModel';
 import { formatEuros } from '../../lib/garden/picoChoices';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import { GARDEN_ICONS, accountIcon } from '../../lib/garden/icons';
 import { effectiveSharedMode } from '../../lib/finance/perimeter';
-import { GARDEN_COLORS as G, mixHex } from '../../lib/garden/theme';
+import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE, mixHex } from '../../lib/garden/theme';
 import { MONEY_VIEWS, TABS, TREE_PARTS } from '../../lib/garden/lexicon';
 
 type View2 = 'today' | 'tomorrow';
@@ -61,19 +65,29 @@ export default function ArgentScreen() {
   const shared = accounts.filter((a) => a.is_joint || a._role !== 'owner');
   const debts = credits.reduce((s, c) => s + Math.max(0, c.remaining), 0);
 
+  /* Les deux vues, et à droite l'accès à TOUTES les opérations (liste, recherche, filtres). */
   const segmented = (
-    <GardenSegmented<View2>
-      accessibilityLabel="Vues de Mon argent"
-      items={[{ key: 'today', label: MONEY_VIEWS.today }, { key: 'tomorrow', label: MONEY_VIEWS.tomorrow }]}
-      value={view}
-      onChange={setView}
-    />
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={{ flex: 1 }}>
+        <GardenSegmented<View2>
+          accessibilityLabel="Vues de Mon argent"
+          items={[{ key: 'today', label: MONEY_VIEWS.today }, { key: 'tomorrow', label: MONEY_VIEWS.tomorrow }]}
+          value={view}
+          onChange={setView}
+        />
+      </View>
+      <Pressable onPress={() => go('/(tabs)/transactions')} accessibilityRole="button" accessibilityLabel="Toutes mes opérations"
+        style={({ pressed, hovered }: any) => [{ width: 52, height: 52, borderRadius: GARDEN_RADII.md, alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: pressed || hovered ? G.field : G.track }, pointer]}>
+        <Ionicons name="receipt-outline" size={20} color={G.primary} />
+        <GardenText variant="small" color={G.primary} style={{ fontSize: 10, lineHeight: 12 }}>Opérations</GardenText>
+      </Pressable>
+    </View>
   );
 
   /* DEMAIN : la trésorerie de la Projection telle quelle. Elle défile déjà elle-même : elle prend
      le bas de la page sous un haut fixe, au lieu d'être glissée dans le défilement du Jardin. */
   if (view === 'tomorrow') {
-    return <GardenPage title={TABS.money} fill={<ProjectionSection section="treso" />}>{segmented}</GardenPage>;
+    return <GardenPage calculator="argent" title={TABS.money} fill={<ProjectionSection section="treso" />}>{segmented}</GardenPage>;
   }
 
   if (!core.ready || !p) return <GardenPage title={TABS.money}>{segmented}<GardenWaiting message="Tes comptes arrivent…" /></GardenPage>;
@@ -81,14 +95,17 @@ export default function ArgentScreen() {
   const total = (p.total_checking ?? 0) + (p.total_savings ?? 0) + (p.total_invested ?? 0);
 
   return (
-    <GardenPage title={TABS.money}>
+    <GardenPage calculator="argent" title={TABS.money}>
       {segmented}
 
       {view === 'today' ? (
         <>
-          <GardenCard>
-            <GardenText variant="label">Tout ce que tu as</GardenText>
-            <GardenText variant="amount" tabular>{eur(total)}</GardenText>
+          <GardenCard style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <GardenText variant="label">Tout ce que tu as</GardenText>
+              <GardenText variant="amount" tabular>{eur(total)}</GardenText>
+            </View>
+            <Pico size={84} mood="joy" />
           </GardenCard>
           {/* Ordre : arrosoir (courants), fruits (placements), racines (épargne), crédits, autres.
               Les comptes PARTAGÉS sont rangés avec ceux de leur type, toujours après les miens,

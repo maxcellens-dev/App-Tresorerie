@@ -13,6 +13,7 @@ import {
   Modal,
   useWindowDimensions,
 } from 'react-native';
+import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
@@ -416,7 +417,7 @@ function AccountDetailScreen() {
      colonne de 1 180 px : la carte fait plus de 1 000 px de large, et la courbe restait plantée au
      milieu à 572 px, entourée de vide (`chartCard` la centre). Mesurer, c'est aussi suivre les
      changements que la fenêtre ne dit pas — repli de la barre latérale, redimensionnement.
-     Même schéma que la courbe de trésorerie (app/(tabs)/projection.tsx).
+     Même schéma que la courbe de trésorerie (components/money/ProjectionSection).
      La valeur initiale n'est qu'un repli pour la 1ʳᵉ frame, avant la mesure. */
   const [chartWidth, setChartWidth] = useState(() => Math.max(
     220,
@@ -1010,6 +1011,7 @@ function AccountDetailScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      <CalculatorButton page="comptes" />
     </View>
   );
 }

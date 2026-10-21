@@ -1,6 +1,7 @@
 ﻿import { isGardenPalette } from '../../lib/garden/gardenPalette';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl } from 'react-native';
+import CalculatorButton from '../../components/transaction/CalculatorButton';
 import ScreenGradient from '../../components/layout/ScreenGradient';
 import PageLoader from '../../components/layout/PageLoader';
 import { useDeferredMount } from '../../hooks/platform/useDeferredMount';
@@ -1773,6 +1774,7 @@ function TreasuryPlanBody() {
         colors={COLORS}
       />
 
+      <CalculatorButton page="tresorerie" />
     </View>
   );
 }

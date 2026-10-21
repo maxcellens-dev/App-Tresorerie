@@ -22,6 +22,8 @@ export interface GardenListItem {
   bg: string;
   value?: string;
   badge?: number;
+  /** Fonction Premium : une petite étoile avant le chevron. */
+  premium?: boolean;
   onPress: () => void;
 }
 
@@ -35,7 +37,7 @@ export default function GardenList({ title, items }: { title?: string; items: Ga
             key={it.key}
             onPress={it.onPress}
             accessibilityRole="button"
-            accessibilityLabel={it.badge ? `${it.label}, ${it.badge} non lu${it.badge > 1 ? 's' : ''}` : it.label}
+            accessibilityLabel={`${it.label}${it.premium ? ' (Premium)' : ''}${it.badge ? `, ${it.badge} non lu${it.badge > 1 ? 's' : ''}` : ''}`}
             style={({ pressed, hovered }: any) => [
               { flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 52, paddingHorizontal: GARDEN_SPACE.lg, paddingVertical: 10 },
               i > 0 ? { borderTopWidth: 1, borderTopColor: GARDEN_COLORS.line } : null,
@@ -51,6 +53,7 @@ export default function GardenList({ title, items }: { title?: string; items: Ga
                 <GardenText variant="smallStrong" color="#FFFFFF" style={{ fontSize: 11 }}>{it.badge > 99 ? '99+' : it.badge}</GardenText>
               </View>
             ) : null}
+            {it.premium ? <Ionicons name="star" size={15} color={GARDEN_COLORS.noticeText} /> : null}
             <Ionicons name="chevron-forward" size={16} color={GARDEN_COLORS.muted} />
           </Pressable>
         ))}

@@ -3,7 +3,7 @@
  *
  * Fonction PURE. Elle ne calcule aucune notion financière nouvelle : elle reçoit des valeurs déjà
  * produites par les moteurs existants (matelas de sécurité, comptes, crédits, placements, série,
- * récurrentes, recommandations) et décide seulement de leur dessin. Le rendu (lib/garden/sceneSvg)
+ * récurrentes, recommandations) et décide seulement de leur dessin. Le rendu (lib/garden/scene3dLayout)
  * ne lit que ce résultat.
  *
  * ── RÈGLES DE LA REFONTE ─────────────────────────────────────────────────────────────────────────

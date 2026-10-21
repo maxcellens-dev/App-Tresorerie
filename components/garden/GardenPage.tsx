@@ -22,6 +22,8 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { GARDEN_COLORS, GARDEN_SPACE } from '../../lib/garden/theme';
 import { useResponsive } from '../../hooks/theme/useResponsive';
 import { contentWidth } from '../../lib/ui/webLayout';
+import CalculatorButton from '../transaction/CalculatorButton';
+import type { CalculatorPageId } from '../../hooks/config/useUiPrefs';
 
 interface Props {
   /** Grand titre de la page (ou un en-tête complet via `header`). */
@@ -40,9 +42,11 @@ interface Props {
    * (titre + enfants) reste fixe et `fill` occupe le reste — jamais un défilement dans un défilement.
    */
   fill?: ReactNode;
+  /** Page qui propose la calculatrice flottante (si l'utilisateur l'a retenue dans les Paramètres). */
+  calculator?: CalculatorPageId;
 }
 
-export default function GardenPage({ title, subtitle, header, children, refreshing, onRefresh, footer, secondary, fill }: Props) {
+export default function GardenPage({ title, subtitle, header, children, refreshing, onRefresh, footer, secondary, fill, calculator }: Props) {
   const fontsReady = useGardenFonts();
   const { isDesktop } = useResponsive();
   /* Thème (clair/sombre, accent) : la clé change → tout le contenu se redessine avec les nouvelles
@@ -82,6 +86,7 @@ export default function GardenPage({ title, subtitle, header, children, refreshi
           </>
         )}
       </SafeAreaView>
+      {calculator ? <CalculatorButton page={calculator} /> : null}
     </View>
   );
 }

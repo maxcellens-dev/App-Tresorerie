@@ -8,7 +8,7 @@
  * n'ont rien à montrer → `null`.
  */
 import { COSMETIC_DEFS } from './gamification';
-import type { SceneExtras } from '../garden/sceneCinematic';
+import type { SceneExtras } from '../garden/sceneTypes';
 import type { Season } from '../garden/season';
 
 export type GardenLook = SceneExtras & { season?: Season };

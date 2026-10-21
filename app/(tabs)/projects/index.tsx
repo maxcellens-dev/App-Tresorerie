@@ -1044,7 +1044,7 @@ function ProjectsScreen() {
         </View>
       )}
 
-      <CalculatorButton page="projets" />
+      <CalculatorButton page="budgets" />
     </View>
   );
 }

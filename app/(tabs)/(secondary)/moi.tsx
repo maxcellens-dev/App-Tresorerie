@@ -42,6 +42,7 @@ export default function MoiScreen() {
 
   const garden: GardenListItem[] = [
     row('parcours', WORDS.myJourney, 'leaf-outline', G.branchesText, G.branchesBg, '/(tabs)/(secondary)/parcours'),
+    row('reporting', 'Reporting', 'bar-chart-outline', G.waterText, G.waterBg, '/(tabs)/reporting', { premium: true }),
     row('succes', WORDS.successes, 'ribbon-outline', G.picoText, G.pico, '/(tabs)/(secondary)/succes'),
     row('boutique', WORDS.shop, 'bag-handle-outline', G.waterText, G.waterBg, '/(tabs)/(secondary)/boutique'),
   ];

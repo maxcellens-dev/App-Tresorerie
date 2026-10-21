@@ -34,7 +34,7 @@ export default function CreditsScreen() {
   const total = active.reduce((s, c) => s + c.remaining, 0);
 
   return (
-    <GardenPage secondary header={<ScreenHeader title="Mes crédits" onBack={goBack} />}>
+    <GardenPage calculator="comptes" secondary header={<ScreenHeader title="Mes crédits" onBack={goBack} />}>
       {!core.ready ? <GardenWaiting message="Tes crédits arrivent…" /> : active.length === 0 ? (
         <PicoBubble>Aucun crédit en cours. Si tu en as un (maison, voiture, travaux), ajoute-le : il apparaîtra comme une cabane qui se construit à chaque mensualité.</PicoBubble>
       ) : (

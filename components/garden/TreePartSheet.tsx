@@ -12,7 +12,7 @@ import GardenText from './GardenText';
 import GardenCard from './GardenCard';
 import GardenButton from './GardenButton';
 import GardenBar from './GardenBar';
-import type { HotspotPart } from '../../lib/garden/sceneSvg';
+import type { HotspotPart } from '../../lib/garden/sceneTypes';
 import type { TreeState } from '../../lib/garden/treeState';
 import { creditKind } from '../../lib/garden/gardenInputs';
 import { formatEuros } from '../../lib/garden/picoChoices';

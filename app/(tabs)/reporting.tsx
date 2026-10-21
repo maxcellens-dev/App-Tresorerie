@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import ScreenGradient from '../../components/layout/ScreenGradient';
-import CalculatorButton from '../../components/transaction/CalculatorButton';
 import PageLoader from '../../components/layout/PageLoader';
 import { useDeferredMount } from '../../hooks/platform/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -1293,7 +1292,6 @@ function ReportingBody() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
-      <CalculatorButton page="reporting" />
     </View>
   );
 }

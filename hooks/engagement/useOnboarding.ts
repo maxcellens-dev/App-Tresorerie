@@ -62,7 +62,7 @@ const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: s
   { key: 'reco_validated',    label: 'Suivre une recommandation',           route: '/(tabs)/pilotage',     hint: 'Section Recommandations → Épargner, Investir, Réserver ou Cumuler, puis enregistre l\'action.' },
   { key: 'reserved_consulted',label: 'Voir tes montants réservés',          route: '/(tabs)/pilotage',     hint: 'Suivi du mois → appuie sur la ligne « Réservé » pour voir le détail.' },
   { key: 'project',           label: 'Créer un projet',                     route: '/(tabs)/projects',     hint: 'Appuie sur « + Projet » : mettre de côté, dépenser petit à petit, ou réserver pour plus tard.' },
-  { key: 'projection_edited', label: 'Personnaliser une projection',        route: '/(tabs)/projection',   hint: 'Saisis une valeur dans « Hypothèse » ou « Épargne personnalisée ».' },
+  { key: 'projection_edited', label: 'Personnaliser une projection',        route: '/(tabs)/(secondary)/placements', hint: 'Saisis une valeur dans les hypothèses d’un placement.' },
 ];
 
 /** Indices par étape, pour le coachmark affiché à l'arrivée sur l'écran. */

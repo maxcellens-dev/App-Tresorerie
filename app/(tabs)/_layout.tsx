@@ -14,7 +14,7 @@ const GARDEN_ROUTES = new Set<string>(GARDEN_TAB_ROUTES);
 const GARDEN_TAB_TITLES: Record<string, string> = { jardin: 'Mon jardin', argent: 'Mon argent', projets: 'Projets', pepin: 'Pépin' };
 /** Titres des autres écrans (ceux qui n'en déclarent pas via ScreenHeader), dans les mots du Jardin. */
 const GARDEN_TITLES: Record<string, string> = {
-  comptes: 'Mes comptes', transactions: 'Opérations', projects: 'Budgets', projection: 'Dans 5 ans',
+  comptes: 'Mes comptes', transactions: 'Opérations', projects: 'Budgets',
   tresorerie: 'Plan de trésorerie', reporting: 'Bilan', 'conseils-ia': 'Pépin · tes questions',
   succes: 'Succès', boutique: 'Boutique', premium: 'Plan', parametres: 'Paramètres', categories: 'Catégories',
 };

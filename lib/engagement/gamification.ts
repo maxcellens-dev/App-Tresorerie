@@ -198,7 +198,7 @@ export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
   cosmetic_title_legend:      title('Légende'),
   cosmetic_title_visionnaire: title('Visionnaire'),
   cosmetic_title_elite:       title('Élite'),
-  // ── Jardin (value = objet dessiné dans la scène, cf. lib/garden/sceneCinematic) ──
+  // ── Jardin (value = objet dessiné dans la scène, cf. lib/garden/scene3dLayout) ──
   garden_lantern:   decor('decor_lantern', 'lantern'),
   garden_birdhouse: decor('decor_birdhouse', 'birdhouse'),
   garden_bench:     decor('decor_bench', 'bench'),

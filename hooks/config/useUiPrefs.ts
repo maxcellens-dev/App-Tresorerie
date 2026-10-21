@@ -7,6 +7,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { useProfile } from '../data/useProfile';
 import type { Profile, UiPrefs } from '../../types/database';
+import { resolveCalculatorPages, type CalculatorPageId } from '../../lib/ui/calculatorPages';
+export { CALCULATOR_PAGES, CALCULATOR_GROUPS, DEFAULT_CALCULATOR_PAGES, type CalculatorPageId } from '../../lib/ui/calculatorPages';
 
 export function useUiPrefs(userId: string | undefined) {
   const qc = useQueryClient();
@@ -58,30 +60,11 @@ export function useCalculatorEnabledPref(userId: string | undefined) {
   };
 }
 
-/** Pages pouvant afficher le bouton calculatrice (id stable + libellé pour les Paramètres). */
-/* Les pages qui portent le bouton (CalculatorButton). Les identifiants restent ceux enregistrés
-   chez les utilisateurs ; seuls les libellés suivent les mots du Jardin. */
-export const CALCULATOR_PAGES = [
-  { id: 'transactions', label: 'Saisie' },
-  { id: 'projets', label: 'Projets et budgets' },
-  { id: 'projection', label: 'Dans 5 ans' },
-  { id: 'reporting', label: 'Bilan' },
-  { id: 'conseils-ia', label: 'Questions à Pépin' },
-] as const;
-export type CalculatorPageId = (typeof CALCULATOR_PAGES)[number]['id'];
-
-/** Défaut : Transactions uniquement — les autres pages s'ajoutent dans les Paramètres. */
-export const DEFAULT_CALCULATOR_PAGES: CalculatorPageId[] = ['transactions'];
-
-/** Pages où le bouton calculatrice est affiché (multi-sélection, défaut = sélection historique). */
+/** Pages où le bouton calculatrice est affiché (liste et lecture : lib/ui/calculatorPages). */
 export function useCalculatorPagesPref(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
-  const valid = new Set<string>(CALCULATOR_PAGES.map((p) => p.id));
-  const stored = Array.isArray(prefs.calculator_pages)
-    ? (prefs.calculator_pages.filter((p) => valid.has(p)) as CalculatorPageId[])
-    : null;
   return {
-    pages: stored ?? DEFAULT_CALCULATOR_PAGES,
+    pages: resolveCalculatorPages(prefs.calculator_pages),
     setPages: (v: CalculatorPageId[]): void => { void patch({ calculator_pages: v }); },
   };
 }

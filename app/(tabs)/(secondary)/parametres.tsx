@@ -25,7 +25,7 @@ import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
 import { useCalculator } from '../../../contexts/CalculatorContext';
-import { usePilotageTips, CALCULATOR_PAGES } from '../../../hooks/config/useUiPrefs';
+import { usePilotageTips, CALCULATOR_PAGES, CALCULATOR_GROUPS, type CalculatorPageId } from '../../../hooks/config/useUiPrefs';
 import { useRecoThresholds } from '../../../hooks/pilotage/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/pilotage/useFinancialProfile';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
@@ -87,12 +87,66 @@ function Toggle({ value, onChange, label, disabled }: { value: boolean; onChange
   return <Switch accessibilityLabel={label} value={value} onValueChange={onChange} disabled={disabled} trackColor={{ false: G.track, true: G.primary }} thumbColor="#FFFFFF" />;
 }
 
-function Chip({ label, on, onPress, disabled, role = 'radio' }: { label: string; on: boolean; onPress: () => void; disabled?: boolean; role?: 'radio' | 'checkbox' }) {
+function Chip({ label, on, onPress, disabled }: { label: string; on: boolean; onPress: () => void; disabled?: boolean }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole={role} accessibilityState={role === 'radio' ? { selected: on, disabled } : { checked: on, disabled }}
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="radio" accessibilityState={{ selected: on, disabled }}
       style={[{ paddingVertical: 8, paddingHorizontal: 13, borderRadius: GARDEN_RADII.pill, borderWidth: 1.5, borderColor: on ? G.primary : G.line, backgroundColor: on ? G.branchesBg : G.card }, pointer]}>
       <GardenText variant="smallStrong" color={on ? G.primary : G.inkSoft}>{label}</GardenText>
     </Pressable>
+  );
+}
+
+/**
+ * Les pages de la calculatrice : une ligne repliée qui résume le choix (« Sur 3 pages sur 9 »), qui
+ * s'ouvre sur la liste rangée par sujet — une case par page, et « Tout cocher / Tout décocher ».
+ */
+function CalculatorPagesPicker({ pages, onChange, disabled }: { pages: CalculatorPageId[]; onChange: (v: CalculatorPageId[]) => void; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const all = CALCULATOR_PAGES.map((p) => p.id);
+  const allOn = pages.length === all.length;
+  const names = CALCULATOR_PAGES.filter((p) => pages.includes(p.id)).map((p) => p.label);
+  const summary = pages.length === 0 ? 'Aucune page : le bouton n’apparaît nulle part'
+    : allOn ? 'Sur toutes les pages'
+    : names.length <= 2 ? names.join(' et ') : `${names.slice(0, 2).join(', ')} et ${names.length - 2} autre${names.length > 3 ? 's' : ''}`;
+  const toggle = (id: CalculatorPageId) => onChange(pages.includes(id) ? pages.filter((x) => x !== id) : [...pages, id]);
+
+  return (
+    <View style={{ borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: G.line, backgroundColor: G.bg, overflow: 'hidden' }}>
+      <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`Pages de la calculatrice : ${summary}`}
+        style={({ pressed, hovered }: any) => [{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm, paddingHorizontal: 12, paddingVertical: 11, backgroundColor: pressed || hovered ? G.field : 'transparent' }, pointer]}>
+        <View style={{ flex: 1, gap: 1 }}>
+          <GardenText variant="smallStrong">Pages : {pages.length} / {all.length}</GardenText>
+          <GardenText variant="small" color={G.muted} numberOfLines={1}>{summary}</GardenText>
+        </View>
+        <GardenText variant="smallStrong" color={G.primary}>{open ? 'Replier' : 'Choisir'}</GardenText>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={G.primary} />
+      </Pressable>
+      {open ? (
+        <View style={{ borderTopWidth: 1, borderTopColor: G.line, paddingBottom: 6 }}>
+          {CALCULATOR_GROUPS.map((g) => (
+            <View key={g.title}>
+              <GardenText variant="label" style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 }}>{g.title}</GardenText>
+              {g.pages.map((p) => {
+                const on = pages.includes(p.id);
+                return (
+                  <Pressable key={p.id} onPress={() => toggle(p.id)} disabled={disabled} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled }} accessibilityLabel={p.label}
+                    style={({ pressed, hovered }: any) => [{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 46, paddingHorizontal: 12, backgroundColor: pressed || hovered ? G.field : 'transparent' }, pointer]}>
+                    <GardenIcon icon={p.icon} fg={on ? G.branchesText : G.muted} bg={on ? G.branchesBg : G.field} size={30} />
+                    <GardenText variant="body" style={{ flex: 1 }}>{p.label}</GardenText>
+                    <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: on ? G.primary : G.line, backgroundColor: on ? G.primary : G.card, alignItems: 'center', justifyContent: 'center' }}>
+                      {on ? <Ionicons name="checkmark" size={14} color={G.onPrimary} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+          <Pressable onPress={() => onChange(allOn ? [] : all)} disabled={disabled} accessibilityRole="button" style={[{ alignSelf: 'flex-start', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6 }, pointer]}>
+            <GardenText variant="smallStrong" color={G.primary}>{allOn ? 'Tout décocher' : 'Tout cocher'}</GardenText>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -255,20 +309,10 @@ function SettingsScreen() {
         <Section title="Aides">
           <Row first icon="bulb-outline" fg={G.picoText} bg={G.pico} label="Le conseil du jour" sub="une astuce en bas de la page Jardin"
             right={<Toggle label="Le conseil du jour" value={tipsEnabled} onChange={setTipsEnabled} disabled={readOnly} />} />
-          <Row icon="calculator-outline" fg={G.waterText} bg={G.waterBg} label="Calculatrice" sub="un bouton flottant, à déplacer où tu veux"
+          <Row icon="calculator-outline" fg={G.waterText} bg={G.waterBg} label="Calculatrice" sub="un bouton flottant, à déplacer où tu veux, sur les pages de ton choix"
             right={<Toggle label="Calculatrice" value={calculatorEnabled} onChange={setCalculatorEnabled} disabled={readOnly} />}>
             {calculatorEnabled ? (
-              <View style={{ gap: 6 }}>
-                <GardenText variant="small" color={G.inkSoft}>Sur ces pages :</GardenText>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                  {CALCULATOR_PAGES.map((p) => {
-                    const on = calculatorPages.includes(p.id);
-                    return <Chip key={p.id} role="checkbox" label={p.label} on={on} disabled={readOnly}
-                      onPress={() => setCalculatorPages(on ? calculatorPages.filter((id) => id !== p.id) : [...calculatorPages, p.id])} />;
-                  })}
-                </View>
-                {calculatorPages.length === 0 ? <GardenText variant="small" color={G.muted}>Aucune page choisie : le bouton n'apparaîtra nulle part.</GardenText> : null}
-              </View>
+              <CalculatorPagesPicker pages={calculatorPages} onChange={setCalculatorPages} disabled={readOnly} />
             ) : null}
           </Row>
         </Section>

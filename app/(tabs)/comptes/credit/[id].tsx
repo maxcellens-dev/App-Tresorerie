@@ -5,6 +5,7 @@ import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, BackHandler, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import CalculatorButton from '../../../../components/transaction/CalculatorButton';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -475,6 +476,7 @@ export default function CreditDetailScreen() {
         c={COLORS}
         styles={styles}
       />
+      <CalculatorButton page="comptes" />
     </View>
   );
 

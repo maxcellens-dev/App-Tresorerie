@@ -37,10 +37,10 @@ export default function PepinScreen() {
   );
 
   /* L'écran des questions défile lui-même (et suit le clavier) : il prend le bas de la page. */
-  if (tab === 'ask') return <GardenPage fill={<AskPepin />}>{tabs}</GardenPage>;
+  if (tab === 'ask') return <GardenPage calculator="pepin" fill={<AskPepin />}>{tabs}</GardenPage>;
 
   return (
-    <GardenPage>
+    <GardenPage calculator="pepin">
       {tabs}
       {!core.ready ? <GardenWaiting message="Pépin fait le tour du jardin…" /> : (
         <PicoBubble mood={messages.length ? 'joy' : 'happy'}>

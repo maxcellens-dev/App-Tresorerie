@@ -37,7 +37,6 @@ import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { TABS, WORDS } from '../../lib/garden/lexicon';
 import { pointer } from '../../lib/ui/webLayout';
-import CalculatorButton from '../../components/transaction/CalculatorButton';
 
 type Tab = 'mine' | 'shared';
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
@@ -100,8 +99,7 @@ export default function ProjetsScreen() {
   };
 
   return (
-    <>
-    <GardenPage title={TABS.projects} subtitle="Des plantes en pot à côté de ton arbre : chacune fleurit quand l'objectif est atteint."
+    <GardenPage calculator="projets" title={TABS.projects} subtitle="Des plantes en pot à côté de ton arbre : chacune fleurit quand l'objectif est atteint."
       footer={<GardenButton label="Nouveau projet" onPress={() => setNewOpen(true)} />}>
       {/* L'ampoule de l'ancienne page : ce qu'est un projet, ses trois modes, ses rythmes, le partagé. */}
       <Pressable onPress={() => setInfoOpen(true)} accessibilityRole="button" accessibilityLabel="À quoi servent les projets ?"
@@ -224,7 +222,5 @@ export default function ProjetsScreen() {
       {/* Zone publicité (maison) — bas de page */}
       <AdSlot placement="projets" />
     </GardenPage>
-    <CalculatorButton page="projets" />
-    </>
   );
 }

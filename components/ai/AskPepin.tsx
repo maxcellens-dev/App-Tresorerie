@@ -28,7 +28,6 @@ import PicoBubble from '../garden/PicoBubble';
 import GardenText from '../garden/GardenText';
 import GardenButton from '../garden/GardenButton';
 import GardenSheet from '../garden/GardenSheet';
-import CalculatorButton from '../transaction/CalculatorButton';
 import { withDeferredMount } from '../../hooks/platform/useDeferredMount';
 import { useAuth } from '../../contexts/AuthContext';
 import { useResponsive } from '../../hooks/theme/useResponsive';
@@ -569,7 +568,6 @@ function AskPepin() {
           <GardenText variant="small" style={{ flex: 1 }}>Ne plus me demander : envoyer directement les prochaines fois</GardenText>
         </Pressable>
       </GardenSheet>
-      <CalculatorButton page="conseils-ia" />
     </View>
   );
 }

@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCosmetics } from '../theme/useCosmetics';
 import { COSMETIC_DEFS } from '../../lib/engagement/gamification';
 import type { Season } from '../../lib/garden/season';
-import type { SceneExtras } from '../../lib/garden/sceneCinematic';
+import type { SceneExtras } from '../../lib/garden/sceneTypes';
 
 export function useGardenCosmetics(): SceneExtras & { season?: Season } {
   const { user } = useAuth();

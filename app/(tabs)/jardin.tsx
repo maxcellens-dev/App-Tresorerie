@@ -38,7 +38,7 @@ import { signalAppReady } from '../../lib/platform/splashGate';
 import { gardenRelykaZero } from '../../lib/garden/relykaWords';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { formatEuros } from '../../lib/garden/picoChoices';
-import type { HotspotPart } from '../../lib/garden/sceneSvg';
+import type { HotspotPart } from '../../lib/garden/sceneTypes';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
 import { pointer } from '../../lib/ui/webLayout';
@@ -123,7 +123,7 @@ export default function JardinScreen() {
   const showClosure = closureEnabled && pendingMonths.length > 0;
 
   return (
-    <GardenPage refreshing={refreshing} onRefresh={refresh}
+    <GardenPage calculator="jardin" refreshing={refreshing} onRefresh={refresh}
       footer={(
         <View style={{ gap: 6 }}>
           <GardenButton label={WORDS.gardenTour} onPress={() => router.push('/(tabs)/comptes/solde' as any)} />

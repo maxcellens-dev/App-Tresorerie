@@ -12,8 +12,7 @@
 import type { TreeState } from './treeState';
 import type { Season } from './season';
 import type { Moment } from './daylight';
-import type { HotspotPart } from './sceneSvg';
-import type { SceneExtras } from './sceneCinematic';
+import type { HotspotPart, SceneExtras } from './sceneTypes';
 import { SCENE3D as M, type Scene3dImage } from './scene3dAssets';
 
 export const FRAME_W = 928;
@@ -307,14 +306,14 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   let pepinX = 660;
   if (cabin) {
     const c = M.cabin, p = Math.max(0, Math.min(1, cabin.progress));
-    /* 5 étapes LOGIQUES (plancher, garde-corps, ossature, toit, cabane habitée). Les étapes 2 à 4 sont
-       des images à part (cabin_stage_k) ; le plancher est le bas de l'étape 2 (même plancher que les
-       suivantes : l'ancienne image à part, sur treillis, ne ressemblait à aucune autre et faisait
-       croire les étapes inversées). L'étape finale est éclairée de l'intérieur. À défaut d'image :
-       la cabane finie révélée de bas en haut. */
-    const stage = p < 0.2 ? 1 : p < 0.4 ? 2 : p < 0.6 ? 3 : p < 0.8 ? 4 : 5;
+    /* 4 étapes, chacune une image ENTIÈRE (jamais une image découpée, qui se lit comme un bug) :
+       1. plancher et garde-corps (cabin_stage_2), 2. ossature (cabin_stage_3), 3. toit (cabin_stage_4),
+       4. la cabane habitée, fenêtre allumée. L'ancienne étape « plateforme sur treillis » ne
+       ressemblait à aucune autre : elle a été retirée. À défaut d'image : la cabane finie. */
+    const stage = p < 0.25 ? 1 : p < 0.5 ? 2 : p < 0.75 ? 3 : 4;
     const stages = M.cabinStages as Record<string, { dx: number; dy: number; sw: number; sh: number } | undefined>;
-    const st = stage === 1 ? stages['2'] : stage < 5 ? stages[String(stage)] : undefined;
+    const stImg = stage < 4 ? `cabin_stage_${stage + 1}` : null;
+    const st = stage < 4 ? stages[String(stage + 1)] : undefined;
     let r: Rect, cabinZ: number | undefined;
     if (kind === 'adult' && 'branchTip' in t) {
       const tipX = tx + t.branchTip.x * tw, tipY = ty + t.branchTip.y * th, cw = tw * 0.34, ch = cw * c.h / c.w;
@@ -329,10 +328,10 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
       v.shadows.push({ cx: r.x + cw / 2, cy: GROUND + 14, rx: cw * 0.5, ry: 12, o: 0.45 });
       pepinX = 700;
     }
-    if (st) front.push(img('cabin', `cabin_stage_${stage === 1 ? 2 : stage}`, r.x + st.dx * r.w, r.y + st.dy * r.h, st.sw * r.w, st.sh * r.h, { z: cabinZ, ...(stage === 1 ? { showBottom: 0.3 } : {}) }));
-    else front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { z: cabinZ, ...(stage < 5 ? { showBottom: 0.25 + 0.75 * p } : {}) }));
+    if (st && stImg) front.push(img('cabin', stImg, r.x + st.dx * r.w, r.y + st.dy * r.h, st.sw * r.w, st.sh * r.h, { z: cabinZ }));
+    else front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { z: cabinZ }));
     hot.push({ part: 'cabin', ...r });
-    if (stage === 5) {
+    if (stage === 4) {
       // la cabane est habitée : la fenêtre s'allume (de jour comme de nuit), la lanterne la nuit
       v.windows.push({ x: r.x + r.w * CABIN_WINDOW.x, y: r.y + r.h * CABIN_WINDOW.y, w: r.w * CABIN_WINDOW.w, h: r.h * CABIN_WINDOW.h });
       if (night) v.lights.push({ cx: r.x + r.w * 0.47, cy: r.y + r.h * 0.2, r: r.w * 0.22 });
