@@ -32,10 +32,10 @@ const MAIN: { route: GardenTabRoute; label: string; icon: 'tree' | 'wallet' | 'p
 /* Accès directs du bureau, rangés par sujet. `key` = dernier segment du chemin (surbrillance). */
 const GROUPS: { title: string; items: { key: string; label: string; icon: string; route: string }[] }[] = [
   { title: 'Ton argent', items: [
-    { key: 'tresorerie', label: WORDS.monthPlan, icon: 'stats-chart-outline', route: '/(tabs)/tresorerie' },
     { key: 'placements', label: 'Mes placements', icon: 'nutrition-outline', route: '/(tabs)/(secondary)/placements' },
     { key: 'credits', label: 'Mes crédits', icon: 'home-outline', route: '/(tabs)/(secondary)/credits' },
     { key: 'projects', label: 'Budgets', icon: 'pie-chart-outline', route: '/(tabs)/projects' },
+    { key: 'tresorerie', label: WORDS.monthPlan, icon: 'stats-chart-outline', route: '/(tabs)/tresorerie' },
   ] },
   { title: 'Ton jardin', items: [
     { key: 'parcours', label: WORDS.myJourney, icon: 'leaf-outline', route: '/(tabs)/(secondary)/parcours' },

@@ -15,7 +15,7 @@ const GARDEN_TAB_TITLES: Record<string, string> = { jardin: 'Mon jardin', argent
 /** Titres des autres écrans (ceux qui n'en déclarent pas via ScreenHeader), dans les mots du Jardin. */
 const GARDEN_TITLES: Record<string, string> = {
   comptes: 'Mes comptes', transactions: 'Opérations', projects: 'Budgets', projection: 'Dans 5 ans',
-  tresorerie: 'Plan mois par mois', reporting: 'Bilan', 'conseils-ia': 'Pépin · tes questions',
+  tresorerie: 'Plan de trésorerie', reporting: 'Bilan', 'conseils-ia': 'Pépin · tes questions',
   succes: 'Succès', boutique: 'Boutique', premium: 'Plan', parametres: 'Paramètres', categories: 'Catégories',
 };
 
@@ -84,7 +84,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="transactions" options={{ href: null, title: 'Opérations' }} />
           <Tabs.Screen name="projects" options={{ href: null, title: 'Budgets' }} />
           <Tabs.Screen name="projection" options={{ href: null, title: 'Projection' }} />
-          <Tabs.Screen name="tresorerie" options={{ href: null, title: 'Plan mois par mois' }} />
+          <Tabs.Screen name="tresorerie" options={{ href: null, title: 'Plan de trésorerie' }} />
           <Tabs.Screen name="reporting" options={{ href: null, title: 'Bilan' }} />
           <Tabs.Screen name="conseils-ia" options={{ href: null, title: 'Pépin · tes questions' }} />
           {/* Ancienne adresse du tableau de bord : redirige vers le Jardin (liens et notifications). */}

@@ -380,8 +380,10 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     const w = PEPIN_W / p.bodyW, h = w * p.h / p.w, x = pepinX - p.bodyX * w, y = 672 - p.foot * h;
     /* Deux ombres : un halo doux, et une ombre de CONTACT serrée sous les pattes (sans elle, Pépin
        semblait flotter au-dessus de l'herbe). */
-    v.shadows.push({ cx: pepinX + PEPIN_W * 0.5, cy: 674, rx: PEPIN_W * 0.44, ry: 11, o: 0.3 });
-    v.shadows.push({ cx: pepinX + PEPIN_W * 0.44, cy: 672, rx: PEPIN_W * 0.3, ry: 6, o: 0.75 });
+    v.shadows.push({ cx: pepinX + PEPIN_W * 0.5, cy: 674, rx: PEPIN_W * 0.46, ry: 12, o: 0.4 });
+    // le dégradé plafonne son opacité : deux couches au centre pour qu'elle se voie aussi sur l'herbe d'automne
+    v.shadows.push({ cx: pepinX + PEPIN_W * 0.44, cy: 672, rx: PEPIN_W * 0.32, ry: 7, o: 0.75 });
+    v.shadows.push({ cx: pepinX + PEPIN_W * 0.44, cy: 672, rx: PEPIN_W * 0.24, ry: 5, o: 0.75 });
     pepinLayers(mood, o.outfit).forEach((name, i) => front.push(img(`pepin${i}`, name, x, y, w, h)));
     if (mood === 'sleep') v.sleepZ = { x: pepinX + PEPIN_W * 0.62, y: y + h * 0.12 };
     hot.push({ part: 'pico', x: pepinX - 6, y: y + h * 0.08, w: PEPIN_W + 12, h: h * 0.92 });

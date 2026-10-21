@@ -73,7 +73,7 @@ export const WORDS = {
   sharedProjects: 'Projets partagés',
   sharedAccounts: 'Comptes partagés',
   inFiveYears: 'Dans 5 ans',
-  monthPlan: 'Plan mois par mois',
+  monthPlan: 'Plan de trésorerie',
   review: 'Bilan',
   myJourney: 'Mon parcours',
   myStep: 'Ton étape',

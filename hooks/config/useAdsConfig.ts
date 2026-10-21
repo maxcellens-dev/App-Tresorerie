@@ -98,7 +98,7 @@ export const AD_LINK_TARGETS = [
   { value: 'placements',       group: 'Pages',   label: 'Mes placements',    route: '/(tabs)/(secondary)/placements' },
   { value: 'credits',          group: 'Pages',   label: 'Mes crédits',       route: '/(tabs)/(secondary)/credits' },
   { value: 'budgets',          group: 'Pages',   label: 'Budgets',           route: '/(tabs)/projects' },
-  { value: 'tresorerie',       group: 'Pages',   label: 'Plan mois par mois', route: '/(tabs)/tresorerie' },
+  { value: 'tresorerie',       group: 'Pages',   label: 'Plan de trésorerie', route: '/(tabs)/tresorerie' },
   { value: 'reporting',        group: 'Pages',   label: 'Bilan',             route: '/(tabs)/reporting' },
   { value: 'profil_financier', group: 'Pages',   label: 'Mon parcours',      route: '/(tabs)/(secondary)/parcours' },
   { value: 'apparence',        group: 'Pages',   label: 'Apparence',         route: '/(tabs)/(secondary)/apparence' },
