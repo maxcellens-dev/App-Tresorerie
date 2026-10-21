@@ -70,6 +70,8 @@ export interface GardenRow {
   icon?: string;
   iconColor?: string;
   iconBg?: string;
+  /** Libellé en italique : un compte partagé, rangé avec les miens mais reconnaissable. */
+  italic?: boolean;
 }
 
 /**
@@ -93,7 +95,7 @@ export function GardenRowGroup({ title, titleColor, total, rows }: { title?: str
                 <GardenIcon icon={r.icon} fg={r.iconColor ?? GARDEN_COLORS.inkSoft} bg={r.iconBg ?? GARDEN_COLORS.field} />
               ) : null}
               <View style={{ flex: 1, minWidth: 0 }}>
-                <GardenText variant="bodyStrong" numberOfLines={1}>{r.label}</GardenText>
+                <GardenText variant="bodyStrong" numberOfLines={1} style={r.italic ? { fontStyle: 'italic' } : undefined}>{r.label}</GardenText>
                 {r.sub ? <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{r.sub}</GardenText> : null}
               </View>
               {r.value ? <GardenText variant="bodyStrong" tabular>{r.value}</GardenText> : null}

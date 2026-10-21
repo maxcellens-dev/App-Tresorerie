@@ -2,12 +2,11 @@
  * « À venir d'ici la fin du mois » — les opérations déjà inscrites qui n'ont pas encore eu lieu
  * (prélèvements et rentrées récurrents, opérations saisies pour plus tard). Cf. lib/finance/monthUpcoming.
  *
- * `UpcomingRows` : les lignes datées, dans une carte. `UpcomingSheet` : la liste complète, avec un
- * filtre Tout / Sorties / Rentrées.
+ * `UpcomingRows` : les lignes datées, dans une carte. `UpcomingPanel` : la liste complète, avec les
+ * totaux et un filtre Tout / Sorties / Rentrées.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
-import GardenSheet from './GardenSheet';
 import GardenText from './GardenText';
 import GardenSegmented from './GardenSegmented';
 import MonthTxRow, { MonthTxCard } from './MonthTxRow';
@@ -40,21 +39,17 @@ export function UpcomingRows({ items, onOpen }: { items: UpcomingItem[]; onOpen:
 
 type Filter = 'all' | 'expense' | 'income';
 
-export function UpcomingSheet({ visible, onClose, upcoming, monthName, onOpen }: {
-  visible: boolean;
-  onClose: () => void;
-  upcoming: MonthUpcoming;
-  monthName: string;
-  onOpen: (it: UpcomingItem) => void;
-}) {
+/**
+ * Le contenu complet de « À venir » : sorties et rentrées prévues, filtre Tout / Sorties / Rentrées,
+ * les lignes datées. Affiché tel quel dans la page « Ce mois » (section « D'ici la fin du mois ») —
+ * c'était le contenu d'une fenêtre, en double avec cette section.
+ */
+export function UpcomingPanel({ upcoming, onOpen }: { upcoming: MonthUpcoming; onOpen: (it: UpcomingItem) => void }) {
   const [filter, setFilter] = useState<Filter>('all');
-  useEffect(() => { if (visible) setFilter('all'); }, [visible]);
   const items = filter === 'all' ? upcoming.items : upcoming.items.filter((i) => i.kind === filter);
   const hasIncome = upcoming.incomeTotal > 0;
-
   return (
-    <GardenSheet visible={visible} onClose={onClose} title={`À venir en ${monthName}`}
-      subtitle="ce qui est déjà inscrit et n'a pas encore eu lieu sur ton compte courant">
+    <View style={{ gap: GARDEN_SPACE.md }}>
       <View style={{ flexDirection: 'row', gap: GARDEN_SPACE.md }}>
         <View style={{ flex: 1, gap: 2, padding: GARDEN_SPACE.md, borderRadius: 18, backgroundColor: G.fruitsBg }}>
           <GardenText variant="small" color={G.fruitsText}>Sorties prévues</GardenText>
@@ -75,6 +70,6 @@ export function UpcomingSheet({ visible, onClose, upcoming, monthName, onOpen }:
       <GardenText variant="small" color={G.muted} center>
         Tes dépenses du quotidien (courses, sorties…) ne sont pas listées ici : elles sont estimées dans « Encore prévu ».
       </GardenText>
-    </GardenSheet>
+    </View>
   );
 }

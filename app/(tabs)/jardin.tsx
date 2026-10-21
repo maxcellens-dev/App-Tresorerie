@@ -152,7 +152,7 @@ export default function JardinScreen() {
         ) : (
           <>
             <GardenText variant="amount" tabular>{eur(vm.relykaAffiche)}</GardenText>
-            <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>Ce qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues et ton minimum gardé. Pépin te propose :</GardenText>
+            <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>Ce qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues et ta réserve minimum gardée. Pépin te propose :</GardenText>
           </>
         )}
         {totalChoices > 0 ? (

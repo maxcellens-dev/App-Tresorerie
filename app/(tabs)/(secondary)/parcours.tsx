@@ -36,6 +36,7 @@ import { resolveRecoMode, appliedAllocation } from '../../../lib/finance/recoMod
 import { formatEuros } from '../../../lib/garden/picoChoices';
 import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../../lib/garden/theme';
+import { GARDEN_ICONS } from '../../../lib/garden/icons';
 import { TREE_PARTS, WORDS, rootsGoal } from '../../../lib/garden/lexicon';
 import { pointer } from '../../../lib/ui/webLayout';
 
@@ -156,7 +157,7 @@ export default function ParcoursScreen() {
         { key: 'variable', label: 'Dépenses variables', sub: p?.variable_envelope_source === 'history' ? `moyenne réelle sur ${p.variable_envelope_months_used} mois` : 'ton estimation, en attendant 2 mois d’historique', value: (p?.variable_envelope_initial ?? 0) > 0 ? `${eur(p!.variable_envelope_initial)} / mois` : '—', icon: 'cart-outline', iconColor: G.flowersText, iconBg: G.flowersBg },
       ]} />
       <GardenRowGroup title="Ce que tu nous dis" rows={[
-        { key: 'margin', label: WORDS.minimumToKeep, sub: "l'eau que tu gardes dans ton arrosoir", value: margin > 0 ? eur(margin) : 'aucune', icon: 'water-outline', iconColor: G.waterText, iconBg: G.waterBg, onPress: () => setEditing('margin') },
+        { key: 'margin', label: WORDS.minimumToKeep, sub: "l'eau que tu gardes dans ton arrosoir", value: margin > 0 ? eur(margin) : 'aucune', icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg, onPress: () => setEditing('margin') },
         { key: 'weekly', label: 'Dépenses du quotidien (estimation)', sub: 'sert tant que tu n’as pas 2 mois d’historique', value: weekly > 0 ? `${eur(weekly)} / sem.` : 'estimé pour toi', icon: 'create-outline', iconColor: G.picoText, iconBg: G.pico, onPress: () => setEditing('weekly') },
       ]} />
     </>

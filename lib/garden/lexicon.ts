@@ -6,7 +6,7 @@
  * ── LA RÈGLE DES MOTS ────────────────────────────────────────────────────────────────────────────
  * Les mots du jardin décrivent SEULEMENT ce qu'on voit sur le dessin (arrosoir, racines, branches,
  * fruits, fleurs, ronces), toujours accompagnés du vrai terme. Partout ailleurs : le mot courant,
- * celui que tout le monde comprend (« Crédit », « Opérations », « Minimum à garder »…). Pas de
+ * celui que tout le monde comprend (« Crédit », « Opérations », « Réserve minimum »…). Pas de
  * métaphore pour la métaphore : un terme qui demande une explication est un mauvais terme.
  *
  * Tutoiement partout (règle de l'app), sauf pages légales et admin.
@@ -61,7 +61,7 @@ export const WORDS = {
   /** Dépenses courantes habituelles : une prévision, pas une obligation. */
   dailyForecast: 'Dépenses du quotidien prévues',
   dailyBudget: 'Budget du quotidien',
-  minimumToKeep: 'Minimum à garder',
+  minimumToKeep: 'Réserve minimum',
   lowestDay: 'Jour le plus bas',
   setAside: 'Argent mis de côté',
   recurring: 'Ce qui revient chaque mois',

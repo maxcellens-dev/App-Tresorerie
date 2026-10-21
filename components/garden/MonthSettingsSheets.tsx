@@ -1,6 +1,6 @@
 /**
  * Réglages du mois, en feuilles du Jardin — les MÊMES écritures que le Pilotage :
- *   - MarginSheet : le minimum à garder (profiles.safety_margin_amount) ;
+ *   - MarginSheet : la réserve minimum (profiles.safety_margin_amount) ;
  *   - EstimateSheet : l'estimation des dépenses du quotidien (profiles.weekly_variable_budget) ;
  *   - LeftToSpendSheet : le reste à dépenser, son addition et le choix de la base des dépenses du
  *     quotidien (Auto / Estimation / Calculé → profiles.variable_envelope_mode), avec l'annonce du
@@ -53,7 +53,7 @@ function useWriteGuard() {
   };
 }
 
-/* ── Minimum à garder ─────────────────────────────────────────────────────────────────────────── */
+/* ── Réserve minimum ──────────────────────────────────────────────────────────────────────────── */
 
 export function MarginSheet({ visible, onClose, userId }: { visible: boolean; onClose: () => void; userId: string | undefined }) {
   const { data: profile } = useProfile(userId);
