@@ -28,6 +28,7 @@ import type { Account, AccountType } from '../../types/database';
 import AccountShareSection from './AccountShareSection';
 import AccountImpactSection from './AccountImpactSection';
 import AccountModeSection from './AccountModeSection';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** Le nom du compte s'affiche chez les AUTRES membres d'un compte partagé : il lui faut une borne. */
 const ACCOUNT_NAME_MAX = 40;
@@ -255,7 +256,7 @@ function makeStyles(c: AppColors) {
 
 function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
-    label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
     input: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
       paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20,
@@ -266,7 +267,7 @@ function makeBaseStyles(c: AppColors) {
       backgroundColor: c.danger + '1F', borderWidth: 1, borderColor: c.danger + '66',
       borderRadius: 10, padding: 12, marginBottom: 20,
     },
-    errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
+    errorBannerText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
     chip: { ...chipStyles(c).chip },
     chipActive: { ...chipStyles(c).chipActive },
@@ -277,10 +278,10 @@ function makeBaseStyles(c: AppColors) {
       backgroundColor: c.card, padding: 14, borderRadius: 10,
       borderWidth: 1, borderColor: c.cardBorder, marginBottom: 20,
     },
-    infoText: { fontSize: 13, color: c.textSecondary, flex: 1 },
+    infoText: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, flex: 1 },
     defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, marginTop: 4 },
-    defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-    defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
+    defaultLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    defaultHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
     // Boutons : `components/ui/AppButton`.
   });
 }

@@ -16,8 +16,8 @@ export const DEFAULT_FISCAL_RATES: FiscalEnvelopeRate[] = [
   { envelope: 'pea', label: 'PEA - Plan Epargne Investissement', tax_rate: 18.6, sort_order: 0, note: 'Taux après 5 ans de détention. Un retrait avant 5 ans est taxé à ~30 % — ajustez le % pour une projection courte.' },
   { envelope: 'av', label: 'Assurance-vie', tax_rate: 18.6, sort_order: 1, note: 'Taux après 8 ans de détention. Avant, la fiscalité est plus élevée — ajustez le % si besoin.' },
   { envelope: 'cto', label: 'CTO - Compte-Titres', tax_rate: 31.4, sort_order: 2, note: 'Flat tax (PFU) sur les plus-values, sans condition de durée.' },
-  { envelope: 'per', label: 'PER - Plan Epargne Retraite', tax_rate: 31.4, sort_order: 3, note: 'Taux indicatif sur la sortie en capital du PER. Ajustez-le selon votre situation.' },
-  { envelope: 'autre', label: 'Autre', tax_rate: 31.4, sort_order: 4, note: 'Taux appliqué par défaut. Ajustez-le selon votre situation.' },
+  { envelope: 'per', label: 'PER - Plan Epargne Retraite', tax_rate: 31.4, sort_order: 3, note: 'Taux indicatif sur la sortie en capital du PER. Ajuste-le selon ta situation.' },
+  { envelope: 'autre', label: 'Autre', tax_rate: 31.4, sort_order: 4, note: 'Taux appliqué par défaut. Ajuste-le selon ta situation.' },
 ];
 
 /** Note d'une enveloppe depuis la liste. */

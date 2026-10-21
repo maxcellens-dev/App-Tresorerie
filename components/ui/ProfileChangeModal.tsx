@@ -17,6 +17,7 @@ import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { resolveRecoMode, appliedAllocation, type Allocation } from '../../lib/finance/recoMode';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 
 interface Props {
@@ -344,10 +345,10 @@ export default function ProfileChangeModal({ userId }: Props) {
               <Ionicons
                 name={isUpgrade ? 'trending-up' : isDowngrade ? 'trending-down' : isSame ? 'sync' : 'warning'}
                 size={16}
-                color={isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : isSame ? '#60a5fa' : '#f59e0b'}
+                color={isUpgrade ? COLORS.emerald : isDowngrade ? COLORS.danger : isSame ? COLORS.blue : COLORS.amber}
               />
               <Text style={[styles.directionText, {
-                color: isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : isSame ? '#60a5fa' : '#f59e0b',
+                color: isUpgrade ? COLORS.emerald : isDowngrade ? COLORS.danger : isSame ? COLORS.blue : COLORS.amber,
               }]}>
                 {/* Pas « Bilan du mois » : ce message n'est pas un bilan mensuel, il peut arriver
                     à n'importe quel moment dès que les données bougent. */}
@@ -524,29 +525,29 @@ function makeBaseStyles(c: any) {
     alignSelf: 'flex-start', borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 6,
   },
-  directionText: { fontSize: 13, fontWeight: '700' },
+  directionText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal' },
 
-  title: { fontSize: 22, fontWeight: '800', color: c.text, lineHeight: 28 },
+  title: { fontFamily: GF.bodyHeavy, fontSize: 22, fontWeight: 'normal', color: c.text, lineHeight: 28 },
 
   profileCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     borderWidth: 2, borderRadius: 16, padding: 16,
     backgroundColor: c.card,
   },
-  profileEmoji: { fontSize: 36 },
+  profileEmoji: { fontFamily: GF.body, fontSize: 36 },
   profileInfo: { flex: 1, gap: 2 },
-  profileName: { fontSize: 17, fontWeight: '800' },
-  profileTier: { fontSize: 12, color: c.textSecondary },
+  profileName: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal' },
+  profileTier: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
 
-  body: { color: c.text, fontSize: 15, lineHeight: 24 },
+  body: { fontFamily: GF.body, color: c.text, fontSize: 15, lineHeight: 24 },
 
   transitionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: c.card, borderRadius: 12, padding: 14,
     borderWidth: 1, borderColor: c.cardBorder,
   },
-  transitionFrom: { color: c.textSecondary, fontSize: 13, fontWeight: '500', flex: 1 },
-  transitionTo: { fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
+  transitionFrom: { fontFamily: GF.body, color: c.textSecondary, fontSize: 13, fontWeight: 'normal', flex: 1 },
+  transitionTo: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', flex: 1, textAlign: 'right' },
 
   // Répartition des recos : volontairement compacte (la feuille est déjà dense) — une phrase, puis
   // les quatre postes sur une ligne qui se replie.
@@ -555,16 +556,16 @@ function makeBaseStyles(c: any) {
     borderWidth: 1, borderColor: c.cardBorder,
   },
   allocHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  allocNote: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+  allocNote: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
   allocGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   allocChip: {
     flexDirection: 'row', alignItems: 'baseline', gap: 5,
     backgroundColor: c.bg, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 6,
     borderWidth: 1, borderColor: c.cardBorder,
   },
-  allocLabel: { fontSize: 11.5, color: c.textSecondary },
-  allocPct: { fontSize: 13, fontWeight: '800' },
-  allocDelta: { fontSize: 10.5, color: c.textSecondary, fontWeight: '700' },
+  allocLabel: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary },
+  allocPct: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal' },
+  allocDelta: { fontFamily: GF.bodyBold, fontSize: 10.5, color: c.textSecondary, fontWeight: 'normal' },
 
   // Coche « revenir à l'automatique » — bordure seule, aucun aplat : c'est une option, pas l'action
   // principale de la fenêtre (qui reste « J'ai compris »).
@@ -579,10 +580,10 @@ function makeBaseStyles(c: any) {
     borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8,
   },
   relDot: { width: 8, height: 8, borderRadius: 4 },
-  relText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+  relText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
-  switchLabel: { fontSize: 13.5, fontWeight: '700', color: c.text },
-  switchHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
+  switchLabel: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+  switchHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
 
   // Marge basse MINIMALE : c'est le SafeAreaView autour qui ajoute la hauteur réelle de la barre
   // système. Cumuler les deux repoussait le bouton hors de la feuille sur les petits écrans.
@@ -590,6 +591,6 @@ function makeBaseStyles(c: any) {
     marginHorizontal: 24, marginBottom: 14, marginTop: 8,
     paddingVertical: 16, borderRadius: 16, alignItems: 'center',
   },
-  ctaText: { fontSize: 16, fontWeight: '800', color: c.bg },
+  ctaText: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.bg },
 });
 }

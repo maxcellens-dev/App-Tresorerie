@@ -5,6 +5,7 @@
  */
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export interface DonutSegment { key: string; value: number; color: string }
 
@@ -93,6 +94,6 @@ export default function CategoryDonut({ segments, size = 150, strokeWidth = 20, 
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 18, fontWeight: '800' },
-  sub: { fontSize: 10, opacity: 0.6, marginTop: 1 },
+  label: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal' },
+  sub: { fontFamily: GF.body, fontSize: 10, opacity: 0.6, marginTop: 1 },
 });

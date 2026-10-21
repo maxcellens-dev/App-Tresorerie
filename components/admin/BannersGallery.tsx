@@ -17,6 +17,7 @@ import { getCurrentAction, type AppStateInputs } from '../../lib/engagement/appS
 import { unverifiedSincePhrase, verifiedAgoPhrase } from '../../lib/finance/confidenceEngine';
 import { ActionBannerCard } from '../onboarding/NextActionBanner';
 import { ClosureBannerCard } from '../closure/MonthlyClosure';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 function ymAdd(n: number): string {
   const d = new Date();
@@ -108,14 +109,14 @@ function makeStyles(c: any) {
 
 function makeBaseStyles(c: any) {
   return StyleSheet.create({
-    p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
-    section: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 22, marginBottom: 8 },
+    p: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
+    section: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 22, marginBottom: 8 },
     item: { marginBottom: 16 },
-    itemLabel: { fontSize: 12.5, fontWeight: '800', color: c.emerald, marginBottom: 6 },
+    itemLabel: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal', color: c.emerald, marginBottom: 6 },
     phraseCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, gap: 10, marginTop: 8 },
     phraseRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-    phraseDays: { width: 40, fontSize: 13, fontWeight: '800', color: c.text },
-    phraseTxt: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
-    phraseStrong: { color: c.text, fontWeight: '700' },
+    phraseDays: { fontFamily: GF.bodyHeavy, width: 40, fontSize: 13, fontWeight: 'normal', color: c.text },
+    phraseTxt: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    phraseStrong: { color: c.text, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   });
 }

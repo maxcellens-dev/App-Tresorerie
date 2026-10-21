@@ -5,7 +5,9 @@
  * Rien de nouveau n'est calculé, tout vient des mêmes sources que l'écran Profil financier :
  *   - le palier (PROFILE_INFO / resolveProfileId) et sa fiabilité (useProfileReliability) ;
  *   - la répartition APPLIQUÉE (appliedAllocation + table admin) — jamais une copie ;
- *   - le matelas mesuré (computeSecurityCushion) et les traits des racines de l'arbre ;
+ *   - le matelas mesuré (computeSecurityCushion) et les traits des racines de l'arbre (une seule
+ *     ligne une fois le dernier trait atteint : les étapes franchies n'ont plus à prendre la place) ;
+ *   - TOUTES les étapes du profil (P1 → P9), avec la tienne : l'arbre grandit avec elles ;
  *   - marge de sécurité et budget variable, lus et écrits dans `profiles` (source unique).
  * Les réglages s'ouvrent dans des feuilles, la page reste courte.
  */
@@ -38,25 +40,27 @@ import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../../lib/garden/theme';
 import { GARDEN_ICONS } from '../../../lib/garden/icons';
 import { TREE_PARTS, WORDS, rootsGoal } from '../../../lib/garden/lexicon';
+import { CHOICE_LOOKS } from '../../../lib/garden/choiceLooks';
+import { CLASSED_PROFILES } from '../../../lib/garden/gardenRules';
+import { treeSize } from '../../../lib/garden/scene3dLayout';
 import { pointer } from '../../../lib/ui/webLayout';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 const months = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 
-/* Chaque part du Relyka garde la couleur de la partie de l'arbre qu'elle fait pousser. */
-const ALLOC = live(() => ([
-  { key: 'save' as const, label: 'Épargner', part: TREE_PARTS.roots.name, fill: G.roots, track: G.rootsBg, fg: G.rootsText },
-  { key: 'invest' as const, label: 'Investir', part: TREE_PARTS.branches.name, fill: G.branches, track: G.branchesBg, fg: G.branchesText },
-  { key: 'enjoy' as const, label: 'Confort', part: TREE_PARTS.flowers.name, fill: G.flowers, track: G.flowersBg, fg: G.flowersText },
-  { key: 'keep' as const, label: 'Conserver', part: TREE_PARTS.can.name, fill: G.water, track: G.waterBg, fg: G.waterText },
-]));
+/* Chaque part du Relyka : le geste de Pépin (mêmes mots et couleurs que le Jardin, lib/garden/choiceLooks). */
+const ALLOC = live(() => (['save', 'invest', 'enjoy', 'keep'] as const).map((key) => {
+  const l = CHOICE_LOOKS[key];
+  return { key, label: l.meaning.charAt(0).toUpperCase() + l.meaning.slice(1), part: l.verb, fill: l.fill, track: l.bg, fg: l.fg };
+}));
 
 type Editing = null | 'margin' | 'weekly';
 
 export default function ParcoursScreen() {
   const router = useRouter();
   const goBack = useNavBack();
-  const { core, tree } = useGardenModel();
+  const { core, tree, rules } = useGardenModel();
   const p = core.pilotageData;
   const { data: fp } = useFinancialProfile(core.userId);
   const { data: allocTable } = useProfileAllocations();
@@ -80,7 +84,8 @@ export default function ParcoursScreen() {
     avgMonthlyIncome: p?.avg_monthly_income ?? 0,
   });
   const m = tree.roots.months;
-  const marks: [number, boolean][] = [[1, tree.roots.marks.one], [3, tree.roots.marks.three], [6, tree.roots.marks.six]];
+  const [mk1, mk2, mk3] = tree.roots.markMonths;
+  const marks: [number, boolean][] = [[mk1, tree.roots.marks.one], [mk2, tree.roots.marks.three], [mk3, tree.roots.marks.six]];
   const relColor = reliability ? (reliability.tone === 'good' ? G.branchesText : reliability.tone === 'warn' ? G.noticeText : G.fruitsText) : G.muted;
 
   /* ── Ton étape : qui tu es aujourd'hui, et d'où ça vient ── */
@@ -132,8 +137,18 @@ export default function ParcoursScreen() {
     </GardenCard>
   ) : null;
 
-  /* ── Tes racines : l'épargne de secours et ses traits ── */
-  const rootsCard = (
+  /* ── Tes racines : l'épargne de secours et ses traits — une seule ligne quand tout est franchi ── */
+  const rootsCard = tree.roots.marks.six ? (
+    <GardenCard tint={G.rootsBg} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
+      <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: G.roots }}>
+        <Ionicons name="checkmark" size={17} color={G.ink} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <GardenText variant="bodyStrong" color={G.rootsText}>{TREE_PARTS.roots.name} · {months(m)} mois de dépenses de côté</GardenText>
+        <GardenText variant="small" color={G.inkSoft}>{tree.roots.beyondSix ? `${months(tree.roots.extraMonths)} mois au-delà des ${months(mk3)} : ils pourraient faire pousser tes fruits.` : `Tes ${months(mk3)} mois de secours sont là : c'est solide.`}</GardenText>
+      </View>
+    </GardenCard>
+  ) : (
     <GardenCard tint={G.rootsBg}>
       <GardenText variant="label" color={G.rootsText}>{TREE_PARTS.roots.name} · {months(m)} mois</GardenText>
       {marks.map(([n, ok]) => (
@@ -144,7 +159,33 @@ export default function ParcoursScreen() {
           <GardenText variant={ok ? 'body' : 'bodyStrong'} color={ok ? G.inkSoft : G.ink} style={{ flex: 1 }}>{ok ? `${n} mois d'épargne disponible` : rootsGoal(n)}</GardenText>
         </View>
       ))}
-      {tree.roots.beyondSix ? <GardenText variant="small" color={G.inkSoft}>Au-delà de 6 mois : {months(tree.roots.extraMonths)} mois de plus, qui pourraient faire pousser tes branches.</GardenText> : null}
+    </GardenCard>
+  );
+
+  /* ── Toutes les étapes : où tu te situes, et comment ton arbre grandit avec elles ── */
+  const pidIdx = pid ? CLASSED_PROFILES.indexOf(pid as any) : -1;
+  const ladderCard = (
+    <GardenCard>
+      <GardenText variant="label">Les étapes</GardenText>
+      <GardenText variant="small" color={G.inkSoft}>Neuf étapes, de la plus fragile au patrimoine d'exception. Ton arbre grandit à chacune.</GardenText>
+      <View style={{ borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: G.line, overflow: 'hidden' }}>
+        {CLASSED_PROFILES.map((p, i) => {
+          const pi = PROFILE_INFO[p], here = i === pidIdx, passed = pidIdx > i;
+          return (
+            <View key={p} accessible accessibilityLabel={`${pi.name}, ${pi.tier}${here ? ', ton étape' : passed ? ', franchie' : ''}`}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, paddingVertical: 9, paddingHorizontal: 12, borderTopWidth: i ? 1 : 0, borderTopColor: G.line, backgroundColor: here ? G.branchesBg : G.card, opacity: here || passed ? 1 : 0.62 }}>
+              <GardenText variant="heading" style={{ width: 30, textAlign: 'center' }}>{pi.emoji}</GardenText>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <GardenText variant="bodyStrong" color={here ? G.branchesText : G.ink} numberOfLines={1}>{pi.name}</GardenText>
+                <GardenText variant="small" color={G.muted} numberOfLines={1}>{pi.tier} · arbre taille {treeSize(rules.growthByProfile[p])}/7</GardenText>
+              </View>
+              {here ? <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: GARDEN_RADII.pill, backgroundColor: G.primary }}><GardenText variant="smallStrong" color={G.onPrimary} style={{ fontFamily: GF.body, fontSize: 11 }}>Tu es ici</GardenText></View>
+                : passed ? <Ionicons name="checkmark-circle" size={18} color={G.branches} /> : null}
+            </View>
+          );
+        })}
+      </View>
+      {pid === 'P0' || !pid ? <GardenText variant="small" color={G.muted}>Ton étape apparaîtra dès que tes comptes et tes rentrées d'argent seront renseignés.</GardenText> : null}
     </GardenCard>
   );
 
@@ -167,7 +208,7 @@ export default function ParcoursScreen() {
   return (
     <GardenPage secondary header={<ScreenHeader title={WORDS.myJourney} onBack={goBack} />}>
       <GardenColumns ratio={0.5}
-        left={<>{stepCard}{rootsCard}</>}
+        left={<>{stepCard}{rootsCard}{ladderCard}</>}
         right={<>{allocCard}{figures}</>}
       />
 

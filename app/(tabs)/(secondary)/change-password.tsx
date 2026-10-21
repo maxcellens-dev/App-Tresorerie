@@ -28,6 +28,7 @@ import PasswordStrength from '../../../components/auth/PasswordStrength';
 import PasswordInput from '../../../components/auth/PasswordInput';
 import { evaluatePassword, PASSWORD_MIN_LENGTH } from '../../../lib/auth/passwordPolicy';
 import { describeAuthError } from '../../../lib/auth/authErrors';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)
@@ -129,12 +130,12 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    sub: { fontSize: 13, color: c.textSecondary, marginBottom: 24, lineHeight: 18 },
+    sub: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 24, lineHeight: 18 },
     notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14 },
-    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 6 },
-    btnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+    btnLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
   });
 }

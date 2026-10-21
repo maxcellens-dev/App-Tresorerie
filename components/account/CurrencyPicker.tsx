@@ -21,6 +21,7 @@ import { CURRENCIES, currencySymbolFor } from '../../lib/finance/currency';
 import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   value: string;                       // code ISO sélectionné
@@ -147,15 +148,15 @@ function makeStyles(c: any) {
 
 function makeBaseStyles(c: any) {
   return StyleSheet.create({
-    label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
     trigger: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
     },
     triggerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    triggerSymbol: { fontSize: 18, fontWeight: '800', color: c.emerald, minWidth: 28 },
-    triggerText: { fontSize: 15, color: c.text, flex: 1 },
+    triggerSymbol: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.emerald, minWidth: 28 },
+    triggerText: { fontFamily: GF.body, fontSize: 15, color: c.text, flex: 1 },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: {
@@ -164,24 +165,24 @@ function makeBaseStyles(c: any) {
       paddingTop: 12, paddingHorizontal: 20, maxHeight: '80%', borderTopWidth: 1, borderColor: c.cardBorder,
     },
     sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    sheetTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+    sheetTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
     closeBtn: { padding: 4 },
     searchBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, marginBottom: 12,
     },
-    searchInput: { flex: 1, color: c.text, fontSize: 15, paddingVertical: 12 },
+    searchInput: { fontFamily: GF.body, flex: 1, color: c.text, fontSize: 15, paddingVertical: 12 },
     list: { marginBottom: 8 },
     row: {
       flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12,
       paddingHorizontal: 8, borderRadius: 10,
     },
     rowActive: { backgroundColor: c.card },
-    rowSymbol: { fontSize: 16, fontWeight: '700', color: c.text, minWidth: 40 },
-    rowName: { fontSize: 15, color: c.text },
-    rowCode: { fontSize: 12, color: c.textSecondary },
-    rowNoRate: { fontSize: 12, color: c.orange, fontWeight: '600' },
+    rowSymbol: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, minWidth: 40 },
+    rowName: { fontFamily: GF.body, fontSize: 15, color: c.text },
+    rowCode: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
+    rowNoRate: { fontFamily: GF.bodyBold, fontSize: 12, color: c.orange, fontWeight: 'normal' },
     warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14' },
-    warnText: { flex: 1, fontSize: 11.5, lineHeight: 16, color: c.orange },
+    warnText: { fontFamily: GF.body, flex: 1, fontSize: 11.5, lineHeight: 16, color: c.orange },
   });
 }

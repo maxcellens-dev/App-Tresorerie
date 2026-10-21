@@ -37,6 +37,7 @@ import { notePlaceholder } from '../../../../lib/finance/txPlaceholders';
 import { appAlert } from '../../../../lib/ui/appDialog';
 import PageLoader from '../../../../components/layout/PageLoader';
 import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 
 function EditTransactionScreen() {
@@ -559,7 +560,7 @@ function EditTransactionScreen() {
     if (roGuard.blocked()) return;
     if (!id) return;
     if (closureLockDate && tx && tx.date <= closureLockDate) {
-      showConfirm({ title: 'Période clôturée', message: 'Cette transaction appartient à un mois clôturé et ne peut plus être supprimée.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+      showConfirm({ title: 'Période clôturée', message: 'Cette transaction appartient à un mois clôturé et ne peut plus être supprimée.', confirmLabel: 'OK', confirmColor: COLORS.textSecondary, onConfirm: () => {} });
       return;
     }
     // Transaction récurrente → proposer le périmètre de suppression.
@@ -574,7 +575,7 @@ function EditTransactionScreen() {
       title: 'Supprimer la transaction',
       message,
       confirmLabel: 'Supprimer',
-      confirmColor: '#f87171',
+      confirmColor: COLORS.danger,
       /* SUPPRESSION OPTIMISTE — on rend la main D'ABORD (même principe que la saisie).
          Attendre la mutation, c'était rester plusieurs secondes sur cet écran… qui n'avait plus
          rien à afficher : la ligne est retirée du cache dès qu'elle est supprimée en base, donc
@@ -606,7 +607,7 @@ function EditTransactionScreen() {
       title: 'Confirmer la suppression',
       message: `Tu souhaites supprimer ${label} ?`,
       confirmLabel: 'Supprimer',
-      confirmColor: '#f87171',
+      confirmColor: COLORS.danger,
       onConfirm: () => { deleteRecurringScope(scope); },
     });
   }
@@ -969,9 +970,9 @@ function EditTransactionScreen() {
             <Pressable style={styles.calendarContainer} onPress={() => {}}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => setShowCalendar(false)}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+                  <Text style={{ fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: COLORS.emerald }}>Fermer</Text>
                 </TouchableOpacity>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
+                <Text style={{ fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: COLORS.text }}>
                   {showCalendar === 'end' ? 'Date de fin' : 'Sélectionner une date'}
                 </Text>
                 <View style={{ width: 50 }} />
@@ -1116,30 +1117,30 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 16 },
+  title: { fontFamily: GF.bodyBold, fontSize: 22, fontWeight: 'normal', color: c.text, marginBottom: 16 },
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(248,113,113,0.15)', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: c.danger },
-  warningText: { flex: 1, fontSize: 13, color: c.danger },
+  warningText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.danger },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   virementBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#1e3a5f', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 20, alignSelf: 'flex-start' as const },
-  virementBadgeText: { fontSize: 14, fontWeight: '700', color: '#60a5fa' },
+  virementBadgeText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.blue },
   typeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 20, alignSelf: 'flex-start' as const },
-  typeBadgeText: { fontSize: 14, fontWeight: '700' },
+  typeBadgeText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
   virementAccounts: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 20 },
-  virementAccountText: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text, textAlign: 'center' as const },
+  virementAccountText: { fontFamily: GF.bodyBold, flex: 1, fontSize: 14, fontWeight: 'normal', color: c.text, textAlign: 'center' as const },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  toggleLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
+  toggleLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.textSecondary },
   toggleLabelActive: { color: c.onAccent },
   refundToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 16 },
-  refundLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-  refundHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
-  input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20 },
+  refundLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  refundHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
+  input: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20 },
   inputError: { borderColor: c.danger },
   lockedField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: 0.7 },
-  lockedFieldText: { fontSize: 16, color: c.textSecondary, fontWeight: '600' },
+  lockedFieldText: { fontFamily: GF.bodyBold, fontSize: 16, color: c.textSecondary, fontWeight: 'normal' },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1151,8 +1152,8 @@ function makeBaseStyles(c: any) {
     padding: 12,
     marginBottom: 20,
   },
-  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
-  hint: { color: c.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 16 },
+  errorBannerText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
+  hint: { fontFamily: GF.body, color: c.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   /* Périodicité : les quatre choix tiennent sur UNE ligne quel que soit l'écran. */
   periodRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
@@ -1160,27 +1161,27 @@ function makeBaseStyles(c: any) {
     flex: 1, paddingHorizontal: 4, paddingVertical: 9, borderRadius: 14,
     borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
   },
-  periodChipText: { fontSize: 12.5, fontWeight: '600', color: c.text },
+  periodChipText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text },
   chip: { ...chipStyles(c).chip, marginRight: 8 },
   chipActive: { ...chipStyles(c).chipActive },
   chipTextActive: { ...chipStyles(c).labelActive },
   recurringSection: { marginTop: 8, marginBottom: 16 },
   recurringInfoBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
-  recurringInfoText: { flex: 1, fontSize: 13, lineHeight: 18, color: c.textSecondary },
+  recurringInfoText: { fontFamily: GF.body, flex: 1, fontSize: 13, lineHeight: 18, color: c.textSecondary },
   recurringToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 12 },
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  recurringLabel: { fontSize: 15, color: c.textSecondary },
-  recurringLabelActive: { color: c.onAccent, fontWeight: '600' },
+  recurringLabel: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary },
+  recurringLabelActive: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   instanceModeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   instanceModeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center' },
   instanceModeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  instanceModeLabel: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
-  instanceModeLabelActive: { color: c.onAccent, fontWeight: '600' },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 10 },
+  instanceModeLabel: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
+  instanceModeLabelActive: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  sectionTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text, marginBottom: 10 },
   futureBlock: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
   /* Boutons : `components/ui/AppButton` (couleurs du thème, hauteurs communes). */
-  deleteLabel: { fontSize: 15, color: c.danger, fontWeight: '600' },
+  deleteLabel: { fontFamily: GF.bodyBold, fontSize: 15, color: c.danger, fontWeight: 'normal' },
   text: { color: c.text },
   calendarBtn: {
     backgroundColor: c.card,
@@ -1217,16 +1218,16 @@ function makeBaseStyles(c: any) {
   },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
-  confirmTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 10 },
-  confirmMessage: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  confirmTitle: { fontFamily: GF.bodyBold, fontSize: 17, fontWeight: 'normal', color: c.text, marginBottom: 10 },
+  confirmMessage: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   confirmBtns: { flexDirection: 'row', gap: 12 },
   confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-  confirmCancelText: { color: c.textSecondary, fontWeight: '600', fontSize: 15 },
+  confirmCancelText: { fontFamily: GF.bodyBold, color: c.textSecondary, fontWeight: 'normal', fontSize: 15 },
   confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  confirmOkText: { fontWeight: '700', fontSize: 15 },
+  confirmOkText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 15 },
   recScopeBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 },
-  recScopeText: { fontSize: 14, fontWeight: '600', color: c.text, flex: 1 },
-  recScopeHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
+  recScopeText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text, flex: 1 },
+  recScopeHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
   recScopeCancel: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
 });
 }

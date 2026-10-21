@@ -16,6 +16,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useAllSupportRequests, useDeleteSupportRequest, useDeleteClosedSupportRequests, type SupportRequest } from '../../../../hooks/admin/useSupport';
 import SupportThreadModal from '../../../../components/ui/SupportThreadModal';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 function confirmThen(message: string, onYes: () => void) {
   // Confirmation in-app (§7)
@@ -213,24 +214,24 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
+    subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 16 },
     filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     bulkDeleteBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', marginBottom: 14 },
-    bulkDeleteText: { fontSize: 12, fontWeight: '700', color: c.danger },
+    bulkDeleteText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.danger },
     cardDeleteBtn: { padding: 4 },
     chip: { ...chipStyles(c).chip },
     chipActive: { ...chipStyles(c).chipActive },
     chipText: { ...chipStyles(c).label },
     chipTextActive: { ...chipStyles(c).labelActive },
     scroll: { flex: 1 },
-    empty: { color: c.textSecondary, textAlign: 'center', marginTop: 32, fontSize: 14 },
+    empty: { fontFamily: GF.body, color: c.textSecondary, textAlign: 'center', marginTop: 32, fontSize: 14 },
     reqCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10 },
     statusDot: { width: 10, height: 10, borderRadius: 5 },
-    reqSubject: { fontSize: 15, fontWeight: '700', color: c.text },
-    reqEmail: { fontSize: 12, color: c.emerald, marginTop: 2 },
-    reqMeta: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
+    reqSubject: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+    reqEmail: { fontFamily: GF.body, fontSize: 12, color: c.emerald, marginTop: 2 },
+    reqMeta: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 2 },
     unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.danger },
     text: { color: c.text, padding: 20 },
-    actionMsg: { fontSize: 12.5, fontWeight: '700', marginBottom: 10 },
+    actionMsg: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', marginBottom: 10 },
   });
 }

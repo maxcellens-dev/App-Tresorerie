@@ -5,6 +5,7 @@
  * seuils + noisettes de récompense). Téléversement d'icônes vers le bucket « gamification ».
  */
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
+import GardenRulesEditor from '../../../../components/admin/GardenRulesEditor';
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
@@ -22,6 +23,7 @@ import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { supabase } from '../../../../lib/platform/supabase';
 import { useGamificationConfig, useSaveGamificationConfig } from '../../../../hooks/engagement/useGamificationConfig';
 import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../../lib/engagement/gamification';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Semaines connectées (cumul)' },
@@ -48,7 +50,7 @@ export default function AdminGamification() {
   const [cfg, setCfg] = useState<GamificationConfig | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<'identite' | 'streak' | 'badges'>('identite');
+  const [tab, setTab] = useState<'identite' | 'streak' | 'badges' | 'jardin'>('identite');
   const [catFilter, setCatFilter] = useState<string>('__all__');
 
   useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
@@ -113,7 +115,7 @@ export default function AdminGamification() {
 
         {/* Onglets par catégorie de réglages */}
         <View style={styles.tabsRow}>
-          {([['identite', 'Identité'], ['streak', 'Série & boutique'], ['badges', 'Succès']] as const).map(([key, label]) => (
+          {([['identite', 'Identité'], ['streak', 'Série & boutique'], ['badges', 'Succès'], ['jardin', 'Jardin']] as const).map(([key, label]) => (
             <TouchableOpacity key={key} style={[styles.tabBtn, tab === key && styles.tabBtnActive]} onPress={() => setTab(key)} activeOpacity={0.85}>
               <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
             </TouchableOpacity>
@@ -191,6 +193,9 @@ export default function AdminGamification() {
             );
           })()}
 
+          {/* Règles du jardin : seuils d'apparition (lib/garden/gardenRules) */}
+          {tab === 'jardin' && <GardenRulesEditor value={cfg.garden} onChange={(garden) => setCfg({ ...cfg, garden })} />}
+
           {/* Badges */}
           {tab === 'badges' && (() => {
             const categories = Array.from(new Set(cfg.badges.map((b) => b.category || 'Divers')));
@@ -219,7 +224,7 @@ export default function AdminGamification() {
             <View key={b.key} style={styles.card}>
               <View style={styles.rowBetween}>
                 <View style={[styles.badgePreview, { backgroundColor: COLORS.emerald + '22' }]}>
-                  {isImageIcon(b.icon) ? <Text style={{ fontSize: 9, color: COLORS.textSecondary }}>IMG</Text> : <Ionicons name={(b.icon || 'trophy') as any} size={20} color={COLORS.emerald} />}
+                  {isImageIcon(b.icon) ? <Text style={{ fontFamily: GF.body, fontSize: 9, color: COLORS.textSecondary }}>IMG</Text> : <Ionicons name={(b.icon || 'trophy') as any} size={20} color={COLORS.emerald} />}
                 </View>
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le succès" onPress={() => removeBadge(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
@@ -303,37 +308,37 @@ function makeBaseStyles(c: any) {
     tabsRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
     tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 9, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
-    tabText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    tabText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     tabTextActive: { color: c.emerald },
     catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10, marginLeft: 4 },
     catChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     catChipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    catChipText: { fontSize: 12, color: c.text, fontWeight: '600' },
+    catChipText: { fontFamily: GF.bodyBold, fontSize: 12, color: c.text, fontWeight: 'normal' },
     catChipTextActive: { color: c.onAccent },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 80 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12, gap: 4 },
-    section: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },
+    section: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text, marginBottom: 4 },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginTop: 8, marginBottom: 4 },
-    hint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic', marginTop: 2 },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal', marginTop: 8, marginBottom: 4 },
+    hint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, fontStyle: 'italic', marginTop: 2 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     metricChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-    metricChipText: { fontSize: 11, color: c.text, fontWeight: '600' },
+    metricChipText: { fontFamily: GF.bodyBold, fontSize: 11, color: c.text, fontWeight: 'normal' },
     badgePreview: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     levelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 3 },
-    levelName: { width: 54, fontSize: 12, fontWeight: '600' },
+    levelName: { fontFamily: GF.bodyBold, width: 54, fontSize: 12, fontWeight: 'normal' },
     miniInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, color: c.text, fontSize: 12, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     shopPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-    shopPriceLabel: { flex: 1, fontSize: 12.5, color: c.text, fontWeight: '600' },
-    shopPriceUnit: { fontSize: 11, color: c.textSecondary },
+    shopPriceLabel: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, color: c.text, fontWeight: 'normal' },
+    shopPriceUnit: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
     shopPriceInput: { width: 72, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, color: c.text, fontSize: 12, textAlign: 'right', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10 },
-    addBtnText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
+    addBtnText: { fontFamily: GF.bodyBold, color: c.emerald, fontWeight: 'normal', fontSize: 13 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
-    msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
+    saveLabel: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 15 },
+    msg: { textAlign: 'center', marginTop: 10, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   });
 }

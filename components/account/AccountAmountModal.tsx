@@ -30,6 +30,7 @@ import CalendarWithPicker from '../transaction/CalendarWithPicker';
 import { formatDateFrench, todayISO } from '../../lib/dateUtils';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** « Montant » : on saisit la variation. « Nouveau solde » : on la déduit du solde final. */
 export type AmountMethod = 'amount' | 'balance';
@@ -256,7 +257,7 @@ export default function AccountAmountModal({
             <View style={styles.calendarHeader}>
               <Text style={styles.title}>Date</Text>
               <TouchableOpacity onPress={() => setShowCalendar(false)}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: accent }}>Fermer</Text>
+                <Text style={{ fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: accent }}>Fermer</Text>
               </TouchableOpacity>
             </View>
             <CalendarWithPicker
@@ -288,9 +289,9 @@ function makeBaseStyles(c: any) {
       width: '100%', maxWidth: 380, backgroundColor: c.cardSolid,
       borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 24,
     },
-    title: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 20, textAlign: 'center' },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
-    sectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 10 },
+    title: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', color: c.text, marginBottom: 20, textAlign: 'center' },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6 },
+    sectionLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 10 },
     input: {
       backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,
       color: c.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
@@ -299,15 +300,15 @@ function makeBaseStyles(c: any) {
       backgroundColor: c.cardBorder, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,
       paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, opacity: 0.7,
     },
-    readOnlyText: { fontSize: 16, color: c.textSecondary },
+    readOnlyText: { fontFamily: GF.body, fontSize: 16, color: c.textSecondary },
     dateField: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,
       paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
     },
-    dateText: { color: c.text, fontSize: 16 },
-    helperText: { color: c.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
+    dateText: { fontFamily: GF.body, color: c.text, fontSize: 16 },
+    helperText: { fontFamily: GF.body, color: c.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
     toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
     toggleBtn: {
       flex: 1, backgroundColor: c.bg, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
@@ -315,7 +316,7 @@ function makeBaseStyles(c: any) {
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
     },
     toggleBtnActive: { backgroundColor: c.emerald + '1F', borderColor: c.emerald },
-    toggleLabel: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
+    toggleLabel: { fontFamily: GF.bodyBold, color: c.textSecondary, fontSize: 14, fontWeight: 'normal' },
     toggleLabelActive: { color: c.emerald },
     dropdownField: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -323,13 +324,13 @@ function makeBaseStyles(c: any) {
       paddingHorizontal: 14, paddingVertical: 14, marginBottom: 14,
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
     },
-    dropdownText: { color: c.text, fontSize: 15, fontWeight: '600' },
+    dropdownText: { fontFamily: GF.bodyBold, color: c.text, fontSize: 15, fontWeight: 'normal' },
     dropdownOptions: {
       backgroundColor: c.bg, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
       marginBottom: 18, overflow: 'hidden',
     },
     dropdownOption: { paddingVertical: 14, paddingHorizontal: 14 },
-    dropdownOptionLabel: { color: c.text, fontSize: 15 },
+    dropdownOptionLabel: { fontFamily: GF.body, color: c.text, fontSize: 15 },
     calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 },
     actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
     // Boutons : `components/ui/AppButton`.

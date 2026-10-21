@@ -15,6 +15,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
 import { useSetPremium } from '../../../../hooks/config/usePlan';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 
 
@@ -142,16 +143,16 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
+    subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 16 },
     tabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     tab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     tabOn: { backgroundColor: c.emerald + '18', borderColor: c.emerald },
-    tabTxt: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    tabTxtOn: { color: c.emerald, fontWeight: '700' },
+    tabTxt: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
+    tabTxtOn: { color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' },
     linkCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
     card: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
-    cardTitle: { fontSize: 15, fontWeight: '700', color: c.text },
-    cardDesc: { fontSize: 12, color: c.textSecondary, marginTop: 3, lineHeight: 16 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+    cardDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 3, lineHeight: 16 },
     switch: { width: 50, height: 30, borderRadius: 15, backgroundColor: c.cardBorder, padding: 3, justifyContent: 'center' },
     switchOn: { backgroundColor: c.emerald },
     knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' },

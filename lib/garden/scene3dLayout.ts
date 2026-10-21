@@ -157,6 +157,9 @@ const MUSHROOM_SLOTS: [number, number, number, boolean][] = [
   [300, 702, 28, false], [468, 698, 22, true], [362, 712, 34, false], [500, 714, 28, true],
 ];
 const PEPIN_W = 178;
+const fmtMonths = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+/** Pattes de Pépin dans ses images : [centre x, remontée par rapport au point le plus bas, demi-largeur] (fractions de l'image). */
+const PEPIN_FEET: [number, number, number][] = [[0.48, 0, 0.075], [0.665, 0.031, 0.065], [0.245, 0.06, 0.06], [0.395, 0.1, 0.05]];
 const CAN_W = 205;
 /* Herbe semée sur tout le dessus du plateau, du fond (petites, y bas) au bord avant (plus grandes) :
    [x, y du pied, largeur]. Triées par profondeur avec le reste : celles du fond passent derrière. */
@@ -222,7 +225,7 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   hot.push({ part: 'roots', x: soil.x, y: M.slab.y + M.slab.h - 20, w: soil.w, h: soil.y + soil.h - (M.slab.y + M.slab.h - 20) });
   if (o.marks !== false) {
     const { one, three, six } = state.roots.marks;
-    v.marks = [{ y: M.marks.one, label: '1 mois', reached: one }, { y: M.marks.three, label: '3 mois', reached: three }, { y: M.marks.six, label: '6 mois', reached: six }];
+    v.marks = [{ y: M.marks.one, label: `${fmtMonths(state.roots.markMonths[0])} mois`, reached: one }, { y: M.marks.three, label: `${fmtMonths(state.roots.markMonths[1])} mois`, reached: three }, { y: M.marks.six, label: `${fmtMonths(state.roots.markMonths[2])} mois`, reached: six }];
   }
 
   // ── Banc (au fond à droite), mare (devant), champignons ──
@@ -306,12 +309,12 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   // ── Cabane : sur la branche (grand arbre) ou posée au sol (petit arbre) ──
   let pepinX = 660;
   if (cabin) {
-    const c = M.cabin, p = Math.max(0, Math.min(1, cabin.progress));
+    const c = M.cabin;
     /* 5 étapes, chacune une image ENTIÈRE (jamais une image découpée, qui se lit comme un bug) :
        1. l'échelle seule, posée dès qu'un crédit est ouvert ; 2. plancher et garde-corps
        (cabin_stage_2) ; 3. ossature (cabin_stage_3) ; 4. toit (cabin_stage_4) ; 5. la cabane habitée,
        fenêtre allumée. À défaut d'image : la cabane finie. */
-    const stage = p < 0.2 ? 1 : p < 0.4 ? 2 : p < 0.6 ? 3 : p < 0.8 ? 4 : 5;
+    const stage = cabin.stage; // seuils réglables en admin (lib/garden/gardenRules › cabinSteps)
     const stages = M.cabinStages as Record<string, { dx: number; dy: number; sw: number; sh: number } | undefined>;
     const stImg = stage > 1 && stage < 5 ? `cabin_stage_${stage}` : null;
     const st = stImg ? stages[String(stage)] : undefined;
@@ -387,12 +390,16 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   if (o.mascot !== false) {
     const p = M.pepin, mood: PepinMood = o.mood ?? (o.moment === 'night' ? 'sleep' : 'happy');
     const w = PEPIN_W / p.bodyW, h = w * p.h / p.w, x = pepinX - p.bodyX * w, y = 672 - p.foot * h;
-    /* Deux ombres : un halo doux, et une ombre de CONTACT serrée sous les pattes (sans elle, Pépin
-       semblait flotter au-dessus de l'herbe). */
-    v.shadows.push({ cx: pepinX + PEPIN_W * 0.5, cy: 674, rx: PEPIN_W * 0.46, ry: 12, o: 0.4 });
-    // le dégradé plafonne son opacité : deux couches au centre pour qu'elle se voie aussi sur l'herbe d'automne
-    v.shadows.push({ cx: pepinX + PEPIN_W * 0.44, cy: 672, rx: PEPIN_W * 0.32, ry: 7, o: 0.75 });
-    v.shadows.push({ cx: pepinX + PEPIN_W * 0.44, cy: 672, rx: PEPIN_W * 0.24, ry: 5, o: 0.75 });
+    /* Ombres : un halo doux sous le corps, puis une ombre de CONTACT sous CHAQUE patte, à l'endroit
+       exact où elle touche l'herbe (mesuré sur les images : patte avant au sol vers 48 % de la largeur,
+       patte arrière vers 66 %, 3 % plus haut ; les deux du fond, plus hautes en perspective). Une seule ombre large, centrée entre les deux, laissait
+       les pattes au-dessus du gris : Pépin semblait flotter. */
+    v.shadows.push({ cx: x + w * 0.52, cy: 674, rx: w * 0.34, ry: 9, o: 0.28 });
+    const footY = y + 0.984 * h;
+    for (const [fx, dy, rx] of PEPIN_FEET) {
+      v.shadows.push({ cx: x + w * fx, cy: footY - dy * h + 1.5, rx: w * rx * 1.1, ry: 5, o: 0.8 });
+      v.shadows.push({ cx: x + w * fx, cy: footY - dy * h + 1, rx: w * rx * 0.7, ry: 3, o: 0.8 });
+    }
     pepinLayers(mood, o.outfit).forEach((name, i) => front.push(img(`pepin${i}`, name, x, y, w, h)));
     if (mood === 'sleep') v.sleepZ = { x: pepinX + PEPIN_W * 0.62, y: y + h * 0.12 };
     hot.push({ part: 'pico', x: pepinX - 6, y: y + h * 0.08, w: PEPIN_W + 12, h: h * 0.92 });

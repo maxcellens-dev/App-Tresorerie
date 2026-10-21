@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, Modal, Pressable, ScrollView, TouchableOpacity 
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CATEGORY_ICON_GLOSSARY } from '../../lib/ui/categoryIcons';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   visible: boolean;
@@ -69,7 +70,7 @@ function makeBaseStyles(c: any) {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     box: { width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 18 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    title: { fontSize: 17, fontWeight: '800', color: c.text, flex: 1 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text, flex: 1 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 6 },
     cell: {
       width: 52, height: 52, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,

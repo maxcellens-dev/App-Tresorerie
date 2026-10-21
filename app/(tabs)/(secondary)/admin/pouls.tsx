@@ -34,6 +34,7 @@ import {
 } from '../../../../lib/pulse/pulseEngine';
 import { PROFILE_INFO, FINANCIAL_PROFILE_IDS } from '../../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../../types/database';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 // Liste DÉRIVÉE du référentiel : un profil ajouté doit apparaître ici sans qu'on y pense.
 const PROFILES: FinancialProfileId[] = FINANCIAL_PROFILE_IDS;
@@ -207,7 +208,7 @@ export default function AdminPouls() {
                     onPress={() => toggleSignal(openProfile, id)}
                   >
                     {on && <View style={styles.orderBadge}><Text style={styles.orderTxt}>{index + 1}</Text></View>}
-                    <Text style={[styles.signalTxt, on && { color: COLORS.text, fontWeight: '700' }]}>
+                    <Text style={[styles.signalTxt, on && { color: COLORS.text, fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>
                       {PULSE_SIGNAL_LABELS[id]}
                     </Text>
                     {always && <Text style={styles.alwaysTxt}>toujours affiché</Text>}
@@ -268,46 +269,46 @@ function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    h2: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 24, marginBottom: 8 },
-    p: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 10 },
-    note: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic', marginTop: 8 },
-    strong: { fontWeight: '700', color: c.text },
+    h2: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 24, marginBottom: 8 },
+    p: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 10 },
+    note: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic', marginTop: 8 },
+    strong: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.text },
     stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 8 },
     stepNum: {
       width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.emerald + '22', marginTop: 1,
     },
-    stepNumTxt: { fontSize: 11, fontWeight: '800', color: c.emerald },
-    stepTxt: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    stepNumTxt: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.emerald },
+    stepTxt: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14 },
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-    fieldLabel: { fontSize: 14, fontWeight: '700', color: c.text },
-    fieldHelp: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    fieldHelp: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
     previewBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10,
       borderWidth: 1, borderColor: c.emerald, borderRadius: 12, paddingVertical: 11,
     },
-    previewTxt: { fontSize: 12.5, fontWeight: '800', color: c.emerald },
+    previewTxt: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal', color: c.emerald },
     tabs: { flexDirection: 'row', gap: 6, marginBottom: 10 },
     tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
-    tabTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
-    profileName: { fontSize: 16, fontWeight: '800', color: c.text },
-    profileDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 3 },
-    blockLabel: { fontSize: 11, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 8 },
+    tabTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
+    profileName: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text },
+    profileDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 3 },
+    blockLabel: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 8 },
     signals: { gap: 7 },
     signal: {
       flexDirection: 'row', alignItems: 'center', gap: 9,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 12,
     },
     orderBadge: { width: 19, height: 19, borderRadius: 999, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
-    orderTxt: { fontSize: 10.5, fontWeight: '800', color: c.onAccent },
-    signalTxt: { flex: 1, fontSize: 13, color: c.textSecondary },
-    alwaysTxt: { fontSize: 10, fontWeight: '700', color: c.textSecondary, fontStyle: 'italic' },
+    orderTxt: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal', color: c.onAccent },
+    signalTxt: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.textSecondary },
+    alwaysTxt: { fontFamily: GF.bodyBold, fontSize: 10, fontWeight: 'normal', color: c.textSecondary, fontStyle: 'italic' },
     actions: { flexDirection: 'row', gap: 10, marginTop: 26 },
     resetBtn: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
-    resetTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
+    resetTxt: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary },
     saveBtn: { flex: 2, alignItems: 'center', paddingVertical: 14, borderRadius: 12, backgroundColor: c.emerald },
-    saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
-    saved: { fontSize: 12.5, color: c.emerald, textAlign: 'center', marginTop: 10, fontWeight: '700' },
+    saveTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
+    saved: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.emerald, textAlign: 'center', marginTop: 10, fontWeight: 'normal' },
   });
 }

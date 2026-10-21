@@ -15,6 +15,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, runDeviceAuth } from '../../lib/auth/appLock';
 import { setAppLocked } from '../../lib/auth/appLockState';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function AppLockGate() {
   const COLORS = useAppColors();
@@ -103,9 +104,9 @@ function makeBaseStyles(c: any) {
       width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 22,
     },
-    title: { fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 10 },
-    sub: { fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 21, marginBottom: 26, maxWidth: 320 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 22, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 10 },
+    sub: { fontFamily: GF.body, fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 21, marginBottom: 26, maxWidth: 320 },
     btn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 28 },
-    btnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    btnTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   });
 }

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function ImpersonationBanner() {
   const { isImpersonating, impersonatedEmail, stopImpersonating } = useAuth();
@@ -41,12 +42,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f59e0b', paddingHorizontal: 14, paddingVertical: 8,
     ...(Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 1000 } as any : {}),
   },
-  text: { flex: 1, fontSize: 13, fontWeight: '700', color: '#1f2937' },
-  email: { fontWeight: '800' },
+  text: { fontFamily: GF.bodyBold, flex: 1, fontSize: 13, fontWeight: 'normal', color: '#1f2937' },
+  email: { fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
   exitBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#1f2937', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
-  exitText: { fontSize: 12, fontWeight: '800', color: '#fff' },
+  exitText: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: '#fff' },
 });

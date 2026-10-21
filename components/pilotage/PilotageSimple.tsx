@@ -32,6 +32,7 @@ import RecoMessagesCarousel from './RecoMessagesCarousel';
 import type { SmartRecommendation, RecoType } from '../../lib/finance/recommendationEngine';
 import type { RecoMessage } from '../../lib/finance/recoMessages';
 import type { GlossaryTerm } from '../../lib/ui/glossary';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const TERM: Record<RecoType, GlossaryTerm> = {
   save: 'epargner', invest: 'investir', enjoy: 'confort', keep: 'conserver',
@@ -262,7 +263,7 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
               dimensionne donc nous-mêmes, à partir de la longueur réelle du texte : même rendu sur
               toutes les plateformes. La prop est conservée — quand elle marche, elle affine. */}
           <Text
-            style={[styles.heroAmount, { fontSize: heroFontSize, color: p.relykaColor }]}
+            style={[styles.heroAmount, { fontFamily: GF.body, fontSize: heroFontSize, color: p.relykaColor }]}
             numberOfLines={1}
             adjustsFontSizeToFit
           >
@@ -601,7 +602,7 @@ export function PilotageLoading({ error, onRetry }: { error?: string; onRetry?: 
         {!!onRetry && <TouchableOpacity onPress={onRetry} accessibilityRole="button" accessibilityLabel="Réessayer"
           style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: 12, backgroundColor: c.teal + '12' }}>
           <Ionicons name="refresh" size={14} color={c.teal} />
-          <Text style={{ color: c.teal, fontSize: 12, fontWeight: '700' }}>Réessayer</Text>
+          <Text style={{ fontFamily: GF.bodyBold, color: c.teal, fontSize: 12, fontWeight: 'normal' }}>Réessayer</Text>
         </TouchableOpacity>}
       </View> : <Text style={s.heroHint}>Tes montants arrivent…</Text>}
     </View>
@@ -686,49 +687,49 @@ function makeBaseStyles(c: any) {
       borderRadius: 999, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2,
     },
     // `numberOfLines={1}` côté rendu + pas de retour à la ligne ici : la pastille reste une pastille.
-    badgeText: { fontSize: 10.5, fontWeight: '800' },
+    badgeText: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal' },
     badgeSep: { width: 1, height: 10, opacity: 0.6, marginHorizontal: 1 },
     heroAmountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 2 },
-    heroAmount: { fontSize: 40, fontWeight: '800', letterSpacing: -1 },
+    heroAmount: { fontFamily: GF.bodyHeavy, fontSize: 40, fontWeight: 'normal', letterSpacing: -1 },
     heroInfo: {
       width: 16, height: 16, borderRadius: 8, borderWidth: 1,
       alignItems: 'center', justifyContent: 'center', marginTop: 4, opacity: 0.7,
     },
-    heroInfoText: { fontSize: 10.5, fontWeight: '800', lineHeight: 14 },
-    heroHint: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
+    heroInfoText: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal', lineHeight: 14 },
+    heroHint: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
     /* Le montant repoussé sous le mot (Relyka à 0). Même graisse que les bornes de la fourchette,
        à la même place : c'est la même fonction — préciser le grand libellé sans le concurrencer. */
-    heroZeroSub: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textAlign: 'center', marginTop: 1 },
+    heroZeroSub: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textAlign: 'center', marginTop: 1 },
 
     // Fourchette : discrète, sous le montant. Deux bornes séparées par un point médian.
     rangeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },
-    rangeText: { fontSize: 11.5, color: c.textSecondary },
-    rangeStrong: { fontWeight: '800', color: c.text },
+    rangeText: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary },
+    rangeStrong: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
     rangeSep: { width: 3, height: 3, borderRadius: 2, backgroundColor: c.cardBorder },
 
     card: {
       backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder,
       padding: 16, gap: 10,
     },
-    cardTitle: { fontSize: 15.5, fontWeight: '800', color: c.text },
+    cardTitle: { fontFamily: GF.bodyHeavy, fontSize: 15.5, fontWeight: 'normal', color: c.text },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     modePill: {
       borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
       backgroundColor: c.teal + '1A', borderWidth: 1, borderColor: c.teal + '40',
     },
-    modePillText: { fontSize: 10.5, fontWeight: '800', color: c.teal },
+    modePillText: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal', color: c.teal },
     modeBtn: {
       width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
     },
-    empty: { fontSize: 13, color: c.textSecondary, lineHeight: 19 },
+    empty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 19 },
 
     overspend: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9,
       borderColor: c.danger + '55', backgroundColor: c.danger + '14',
     },
-    overspendText: { flex: 1, fontSize: 12, color: c.text, lineHeight: 17 },
+    overspendText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.text, lineHeight: 17 },
 
     // Grille 2 colonnes. `width: 48%` + space-between plutôt que `gap` : la gouttière est alors
     // portée par la mise en page elle-même, sans risque de débordement au pixel près.
@@ -736,13 +737,13 @@ function makeBaseStyles(c: any) {
     decision: { width: '48%', borderWidth: 1, borderRadius: 15, paddingHorizontal: 11, paddingVertical: 11, gap: 6 },
     decisionHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     decisionIcon: { width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-    decisionTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: c.text },
-    decisionAmount: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
+    decisionTitle: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 13, fontWeight: 'normal', color: c.text },
+    decisionAmount: { fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', letterSpacing: -0.4 },
     decisionAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     // `flexShrink` : le libellé porte parfois un montant (« Virer 1 240 € ») dans une tuile de
     // demi-largeur — sans lui, c'est la FLÈCHE qui sortait du cadre sur les petits écrans.
-    decisionActionText: { fontSize: 11.5, fontWeight: '700', flexShrink: 1 },
-    decisionFree: { fontSize: 11.5, color: c.textSecondary },
+    decisionActionText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', flexShrink: 1 },
+    decisionFree: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary },
 
     line: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -750,9 +751,9 @@ function makeBaseStyles(c: any) {
     },
     lineLabelCol: { flex: 1, gap: 1 },
     lineLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    lineLabel: { fontSize: 13.5, color: c.text },
-    lineHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15 },
-    lineValue: { fontSize: 15, fontWeight: '800' },
+    lineLabel: { fontFamily: GF.body, fontSize: 13.5, color: c.text },
+    lineHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 15 },
+    lineValue: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal' },
 
     // Trois tuiles compactes sur une ligne : réservé / épargné / investi.
     stash: {
@@ -764,8 +765,8 @@ function makeBaseStyles(c: any) {
       paddingHorizontal: 9, paddingVertical: 9, gap: 3,
     },
     stashHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    stashLabel: { flex: 1, fontSize: 10.5, fontWeight: '700', color: c.textSecondary },
-    stashValue: { fontSize: 14.5, fontWeight: '800' },
+    stashLabel: { fontFamily: GF.bodyBold, flex: 1, fontSize: 10.5, fontWeight: 'normal', color: c.textSecondary },
+    stashValue: { fontFamily: GF.bodyHeavy, fontSize: 14.5, fontWeight: 'normal' },
 
     // Le lien de bascule est le dernier élément : il doit rester dégagé du bouton « + » flottant,
     // qui vient sinon se poser dessus en bas d'écran.
@@ -776,6 +777,6 @@ function makeBaseStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
       paddingVertical: 4,
     },
-    switchText: { fontSize: 13, fontWeight: '600', color: c.textSecondary, textDecorationLine: 'underline' },
+    switchText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textDecorationLine: 'underline' },
   });
 }

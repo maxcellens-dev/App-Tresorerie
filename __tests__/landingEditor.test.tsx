@@ -85,13 +85,14 @@ it('previews unsaved mobile copy without persisting it', () => {
 it('previews the installed application with unsaved native copy', () => {
   render(<AdminLanding />);
   fireEvent.press(screen.getByText('Application'));
-  fireEvent.changeText(screen.getByLabelText('Accroche (sous le nom)'), 'Mon accueil application');
+  fireEvent.changeText(screen.getByLabelText('Bouton principal'), 'Entrer dans mon jardin');
   fireEvent.press(screen.getByText('Aperçu application installée'));
-  expect(screen.getByText('Mon accueil application')).toBeTruthy();
-  expect(screen.getByText(DEFAULT_LANDING.mobileCtaTitle)).toBeTruthy();
+  // l'accueil reprend le slogan du Jardin (mêmes mots que la vitrine web), avec le bouton non enregistré
+  expect(screen.getByText('Regarde ton argent pousser.')).toBeTruthy();
+  expect(screen.getByText('Entrer dans mon jardin')).toBeTruthy();
   expect(signalAppReady).not.toHaveBeenCalled();
   expect(screen.queryByText(DEFAULT_LANDING.heroTitle)).toBeNull();
-  fireEvent.press(screen.getByText(DEFAULT_LANDING.mobileCtaPrimaryLabel));
+  fireEvent.press(screen.getByText('Entrer dans mon jardin'));
   expect(mockRouter.push).not.toHaveBeenCalled();
   expect(mockSave).not.toHaveBeenCalled();
 });

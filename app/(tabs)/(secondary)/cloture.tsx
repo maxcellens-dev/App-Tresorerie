@@ -13,6 +13,7 @@ import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useMonthlyClosure, monthLabel } from '../../../hooks/pilotage/useMonthlyClosure';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 export default function ClotureScreen() {
   const COLORS = useAppColors();
@@ -158,7 +159,7 @@ export default function ClotureScreen() {
                   })
                 )}
               </View>
-              <Text style={styles.note}>Astuce : pour clôturer avec saisie de ton solde réel, utilise la bannière de clôture sur le Pilotage.</Text>
+              <Text style={styles.note}>Astuce : pour clôturer avec saisie de ton solde réel, utilise le bandeau de clôture en haut du Jardin.</Text>
             </>
           )}
         </ScrollView>
@@ -221,29 +222,29 @@ function makeBaseStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     // (l'en-tête vient de ScreenHeader : ni pageHeader, ni backBtn, ni title à redéfinir ici)
-    subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 20, lineHeight: 20 },
-    sectionTitle: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 20, lineHeight: 20 },
+    sectionTitle: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 16, marginBottom: 20 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
-    rowLabel: { flex: 1, fontSize: 15, color: c.text, fontWeight: '600', textTransform: 'capitalize' },
+    rowLabel: { fontFamily: GF.bodyBold, flex: 1, fontSize: 15, color: c.text, fontWeight: 'normal', textTransform: 'capitalize' },
     actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
-    actionText: { fontSize: 12, fontWeight: '700' },
-    empty: { fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
-    note: { fontSize: 12, color: c.textSecondary, lineHeight: 17, fontStyle: 'italic' },
-    lockedHint: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', maxWidth: 170, textAlign: 'right' },
+    actionText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
+    empty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
+    note: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, fontStyle: 'italic' },
+    lockedHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', maxWidth: 170, textAlign: 'right' },
     errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 11, marginBottom: 16 },
-    errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
+    errorText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
     // Attente affichée DANS le calque de confirmation (jamais un second calque).
     busyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
-    busyLabel: { fontSize: 15, fontWeight: '700', color: c.text },
+    busyLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
     overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
     box: { backgroundColor: c.cardSolid, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
-    confirmTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 10 },
-    confirmMessage: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+    confirmTitle: { fontFamily: GF.bodyBold, fontSize: 17, fontWeight: 'normal', color: c.text, marginBottom: 10 },
+    confirmMessage: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
     confirmBtns: { flexDirection: 'row', gap: 12 },
     confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-    confirmCancelText: { color: c.textSecondary, fontWeight: '600', fontSize: 15 },
+    confirmCancelText: { fontFamily: GF.bodyBold, color: c.textSecondary, fontWeight: 'normal', fontSize: 15 },
     confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-    confirmOkText: { fontWeight: '700', fontSize: 15 },
+    confirmOkText: { fontFamily: GF.bodyBold, fontWeight: 'normal', fontSize: 15 },
   });
 }

@@ -13,6 +13,7 @@ import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   /** Étape en cours, à partir de 1. */
@@ -55,7 +56,7 @@ function makeBaseStyles(c: any) {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
     },
     dotOn: { backgroundColor: c.emerald, borderColor: c.emerald },
-    dotText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
+    dotText: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.onAccent },
     // La barre est le TRAIT entre deux pastilles : elle appartient à celle de droite (d'où `n > 1`).
     bar: { width: 60, height: 2, backgroundColor: c.cardBorder },
     barOn: { backgroundColor: c.emerald },

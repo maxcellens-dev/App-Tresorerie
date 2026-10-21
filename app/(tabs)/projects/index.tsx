@@ -18,7 +18,6 @@ import ScreenGradient from '../../../components/layout/ScreenGradient';
 import SegmentedControl from '../../../components/ui/SegmentedControl';
 import BudgetsView from '../../../components/budget/BudgetsView';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
-import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
 import AdSlot from '../../../components/marketing/AdSlot';
 import CurrencyPicker from '../../../components/account/CurrencyPicker';
 import { useOnbHighlight, onbGlow } from '../../../lib/engagement/onbHighlight';
@@ -52,6 +51,7 @@ import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/engagement/useRelykaWorld';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -407,7 +407,7 @@ function ProjectsScreen() {
             {(creditsByProject[project.id] ?? []).map((cr, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                 <Ionicons name="card-outline" size={12} color={COLORS.blue} />
-                <Text style={{ fontSize: 11.5, color: COLORS.blue, fontWeight: '600' }} numberOfLines={1}>
+                <Text style={{ fontFamily: GF.bodyBold, fontSize: 11.5, color: COLORS.blue, fontWeight: 'normal' }} numberOfLines={1}>
                   Financé par crédit · {cr.label} · {Math.round(cr.crd).toLocaleString('fr-FR')} € dû
                 </Text>
               </View>
@@ -558,7 +558,6 @@ function ProjectsScreen() {
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <OnboardingHintBanner />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={['left', 'right']}>
         {/* BUDGETS ET PROJETS RÉPONDENT À LA MÊME QUESTION — où va mon argent, et où je veux qu'il
             aille — l'un dans le mois, l'autre sur plusieurs. Ils partagent donc l'onglet. La ROUTE
@@ -632,7 +631,7 @@ function ProjectsScreen() {
                   {/* Invitations Relyka World en attente */}
                   {rwInvitations.map((inv) => (
                     <View key={inv.id} style={styles.rwInvCard}>
-                      <Text style={{ fontSize: 22 }}>{inv.project_emoji ?? '💸'}</Text>
+                      <Text style={{ fontFamily: GF.body, fontSize: 22 }}>{inv.project_emoji ?? '💸'}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.rwProjName} numberOfLines={1}>{inv.project_name}</Text>
                         <Text style={styles.rwProjSub} numberOfLines={1}>Invitation de {inv.from_name}</Text>
@@ -655,7 +654,7 @@ function ProjectsScreen() {
                           .filter((s) => s.amount > 0);
                         return (
                           <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
-                            <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
+                            <Text style={{ fontFamily: GF.body, fontSize: 26 }}>{p.emoji || '💸'}</Text>
                             <View style={{ flex: 1 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                 <Text style={[styles.rwProjName, { flexShrink: 1 }]} numberOfLines={1}>{p.name}</Text>
@@ -712,7 +711,7 @@ function ProjectsScreen() {
                       <Text style={styles.rwSectionLabel}>Projets partagés archivés</Text>
                       {archivedRwProjects.map((p) => (
                         <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
-                          <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
+                          <Text style={{ fontFamily: GF.body, fontSize: 26 }}>{p.emoji || '💸'}</Text>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.rwProjName} numberOfLines={1}>{p.name}</Text>
                             <Text style={styles.rwProjSub} numberOfLines={1}>{p.description || 'Dépenses partagées'}</Text>
@@ -753,11 +752,11 @@ function ProjectsScreen() {
             <Text style={styles.infoModalTitle}>À quoi servent les projets ?</Text>
             <Text style={styles.infoModalText}>
               Un projet, c'est un objectif d'argent (voiture, voyage, cours de piano…) que l'app suit pour toi. À la création, tu choisis ce qu'elle doit faire :
-              {'\n\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Mettre de côté</Text> : elle prépare des virements vers ton épargne ou tes investissements.
-              {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Conserver pour plus tard</Text> : l'argent ne bouge pas, il est juste « Réservé » sur ton compte.
-              {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Dépenser petit à petit</Text> : elle crée de vraies dépenses au rythme du projet.
-              {'\n\n'}Puis tu choisis le rythme : un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des échéances <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuelles</Text>.
-              {'\n\n'}Un <Text style={{ fontWeight: '700', color: COLORS.text }}>projet partagé</Text> permet de suivre des dépenses communes et de les équilibrer entre plusieurs personnes.
+              {'\n\n'}• <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>Mettre de côté</Text> : elle prépare des virements vers ton épargne ou tes investissements.
+              {'\n'}• <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>Conserver pour plus tard</Text> : l'argent ne bouge pas, il est juste « Réservé » sur ton compte.
+              {'\n'}• <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>Dépenser petit à petit</Text> : elle crée de vraies dépenses au rythme du projet.
+              {'\n\n'}Puis tu choisis le rythme : un montant <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>date cible</Text>, ou des échéances <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>ponctuelles</Text>.
+              {'\n\n'}Un <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>projet partagé</Text> permet de suivre des dépenses communes et de les équilibrer entre plusieurs personnes.
             </Text>
             <TouchableOpacity style={[styles.infoModalBtn, { backgroundColor: COLORS.primary }]} onPress={() => setShowInfo(false)} activeOpacity={0.85}>
               <Text style={styles.infoModalBtnText}>J'ai compris</Text>
@@ -808,7 +807,7 @@ function ProjectsScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               {RW_EMOJIS.map((e) => (
                 <TouchableOpacity key={e} style={[styles.rwEmojiPick, rwEmoji === e && { borderColor: COLORS.emerald, borderWidth: 2 }]} onPress={() => setRwEmoji(e)}>
-                  <Text style={{ fontSize: 22 }}>{e}</Text>
+                  <Text style={{ fontFamily: GF.body, fontSize: 22 }}>{e}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -825,7 +824,7 @@ function ProjectsScreen() {
               Tous les totaux du projet s'affichent dans cette devise. Une dépense payée depuis un
               compte dans une autre devise se saisit dans celle du compte, puis est convertie ici.
             </Text>
-            {!!rwErr &&<Text style={{ color: COLORS.danger, fontSize: 12.5, marginBottom: 10 }}>{rwErr}</Text>}
+            {!!rwErr &&<Text style={{ fontFamily: GF.body, color: COLORS.danger, fontSize: 12.5, marginBottom: 10 }}>{rwErr}</Text>}
             <TouchableOpacity style={[styles.rwCreateCta, (!rwName.trim() || rwBusy) && { opacity: 0.5 }]} onPress={onCreateRw} disabled={!rwName.trim() || rwBusy} activeOpacity={0.85}>
               {rwBusy ? <ActivityIndicator color={COLORS.onAccent} /> : <Text style={styles.rwCreateCtaText}>Créer le projet</Text>}
             </TouchableOpacity>
@@ -933,7 +932,7 @@ function ProjectsScreen() {
                         </View>
                       </ScrollView>
                     ) : (
-                      <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginTop: 6 }}>
+                      <Text style={{ fontFamily: GF.body, color: COLORS.textSecondary, fontSize: 12, marginTop: 6 }}>
                         Aucune transaction future trouvée.
                       </Text>
                     )}
@@ -1019,8 +1018,8 @@ function ProjectsScreen() {
               <Ionicons name="archive" size={18} color="#f59e0b" />{'  '}Archiver le projet
             </Text>
             <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
-              Les transactions passées sont <Text style={{ fontWeight: '700', color: COLORS.text }}>conservées</Text>.{'\n'}
-              {archiveFutureCount} versement{archiveFutureCount > 1 ? 's' : ''} futur{archiveFutureCount > 1 ? 's' : ''} sera{archiveFutureCount > 1 ? 'ont' : ''} <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimé{archiveFutureCount > 1 ? 's' : ''}</Text> (plus de versement après l'archivage).
+              Les transactions passées sont <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>conservées</Text>.{'\n'}
+              {archiveFutureCount} versement{archiveFutureCount > 1 ? 's' : ''} futur{archiveFutureCount > 1 ? 's' : ''} sera{archiveFutureCount > 1 ? 'ont' : ''} <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>supprimé{archiveFutureCount > 1 ? 's' : ''}</Text> (plus de versement après l'archivage).
             </Text>
             <View style={styles.confirmButtons}>
               <TouchableOpacity
@@ -1073,35 +1072,35 @@ function makeBaseStyles(c: any) {
     borderColor: c.primary + '44',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 14, fontWeight: '700', color: c.primary },
-  rwSectionLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 8 },
+  addBtnLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.primary },
+  rwSectionLabel: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 8 },
   // Échec de lecture des invitations : une absence de données ne doit pas ressembler à une erreur.
   rwInvError: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 11, marginBottom: 10 },
-  rwInvErrorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
+  rwInvErrorText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
   rwInvCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary + '55', borderRadius: 14, padding: 12, marginBottom: 8 },
   rwInvDecline: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.danger + '1A' },
   rwInvAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.primary },
   rwProjCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.blue + '44', borderRadius: 14, padding: 14, marginBottom: 8 },
-  rwProjName: { fontSize: 15, fontWeight: '700', color: c.text },
-  rwProjSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rwProjName: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  rwProjSub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
   rwAvatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
-  rwAvatarText: { fontSize: 9, fontWeight: '800', color: '#fff' },
+  rwAvatarText: { fontFamily: GF.bodyHeavy, fontSize: 9, fontWeight: 'normal', color: '#fff' },
   rwContribBar: { flexDirection: 'row', height: 5, borderRadius: 3, overflow: 'hidden', marginTop: 7, backgroundColor: c.cardBorder },
   rwModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
   rwChoiceCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 12 },
-  rwModalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+  rwModalTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
   rwChoiceOpt: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14 },
   rwChoiceIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rwChoiceTitle: { fontSize: 15, fontWeight: '800', color: c.text },
-  rwChoiceSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rwChoiceTitle: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+  rwChoiceSub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
   rwCreateCard: { width: '100%', maxWidth: 420, alignSelf: 'center', backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20 },
   rwCreateHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  rwLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
-  rwCurrencyHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, marginBottom: 10 },
+  rwLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6 },
+  rwCurrencyHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, marginBottom: 10 },
   rwInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 14, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   rwEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
   rwCreateCta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-  rwCreateCtaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+  rwCreateCtaText: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   archiveToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1113,8 +1112,8 @@ function makeBaseStyles(c: any) {
     borderColor: c.border,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  archiveToggleBtnLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-  archiveTitle: { fontSize: 14, fontWeight: '700', color: c.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  archiveToggleBtnLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
+  archiveTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   container: {
     flex: 1,
   },
@@ -1155,7 +1154,7 @@ function makeBaseStyles(c: any) {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
   },
-  modeBadgeText: { fontSize: 10, fontWeight: '700' },
+  modeBadgeText: { fontFamily: GF.bodyBold, fontSize: 10, fontWeight: 'normal' },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -1402,10 +1401,10 @@ function makeBaseStyles(c: any) {
   },
   infoModalCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 22, borderWidth: 1, borderColor: c.cardBorder, padding: 24, alignItems: 'center' },
   infoModalIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginBottom: 14 },
-  infoModalTitle: { fontSize: 19, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 10 },
-  infoModalText: { fontSize: 14, lineHeight: 21, color: c.textSecondary, textAlign: 'center', marginBottom: 20 },
+  infoModalTitle: { fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 10 },
+  infoModalText: { fontFamily: GF.body, fontSize: 14, lineHeight: 21, color: c.textSecondary, textAlign: 'center', marginBottom: 20 },
   infoModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28, width: '100%' },
-  infoModalBtnText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
+  infoModalBtnText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   archivedToggle: {
     flexDirection: 'row',
     alignItems: 'center',

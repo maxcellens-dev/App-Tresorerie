@@ -14,6 +14,7 @@ import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useAccountMembers, useSetAccountImpact } from '../../hooks/data/useSharedAccounts';
 import { effectiveImpactPct, autoEqualPct } from '../../lib/finance/sharedImpact';
 import type { Account } from '../../types/database';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function AccountImpactSection({ account }: { account: Account }) {
   const COLORS = useAppColors();
@@ -68,7 +69,7 @@ export default function AccountImpactSection({ account }: { account: Account }) 
         const eff = effectiveImpactPct(r.explicit, N);
         return (
           <View key={r.key} style={styles.row}>
-            <Text style={[styles.name, r.isMe && { fontWeight: '800', color: COLORS.text }]} numberOfLines={1}>{r.label}</Text>
+            <Text style={[styles.name, r.isMe && { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }]} numberOfLines={1}>{r.label}</Text>
             {editing === r.key ? (
               <View style={styles.editWrap}>
                 <TextInput
@@ -111,14 +112,14 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    title: { fontSize: 15, fontWeight: '800', color: c.text },
-    hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 10, lineHeight: 16 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+    hint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginBottom: 10, lineHeight: 16 },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7, gap: 10 },
-    name: { flex: 1, fontSize: 14, color: c.text },
+    name: { fontFamily: GF.body, flex: 1, fontSize: 14, color: c.text },
     pctBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
-    pctText: { fontSize: 13, fontWeight: '700', color: c.text },
+    pctText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
     editWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    input: { width: 56, borderWidth: 1, borderColor: c.text, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, fontSize: 14, color: c.text, textAlign: 'center' },
+    input: { fontFamily: GF.body, width: 56, borderWidth: 1, borderColor: c.text, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, fontSize: 14, color: c.text, textAlign: 'center' },
     okBtn: { padding: 4 },
   });
 }

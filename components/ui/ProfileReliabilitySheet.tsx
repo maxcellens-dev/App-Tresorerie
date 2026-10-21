@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { sheetWidth } from '../../lib/ui/appLayout';
 import type { ProfileReliability } from '../../lib/finance/profileReliability';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   reliability: ProfileReliability;
@@ -116,9 +117,9 @@ function makeBaseStyles(c: any) {
     },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     icon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-    title: { fontSize: 16.5, fontWeight: '800', letterSpacing: -0.2 },
-    subtitle: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
-    summary: { fontSize: 14, lineHeight: 20, color: c.text },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 16.5, fontWeight: 'normal', letterSpacing: -0.2 },
+    subtitle: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
+    summary: { fontFamily: GF.body, fontSize: 14, lineHeight: 20, color: c.text },
 
     // Hauteur bornée : au-delà de quatre manques, la fiche sortirait de l'écran sans qu'on puisse
     // la refermer.
@@ -127,11 +128,11 @@ function makeBaseStyles(c: any) {
       flexDirection: 'row', alignItems: 'flex-start', gap: 10,
       paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.cardBorder,
     },
-    gapLabel: { fontSize: 13.5, fontWeight: '600', color: c.text },
-    gapAction: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
+    gapLabel: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+    gapAction: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
 
-    footNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16.5, fontStyle: 'italic' },
+    footNote: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16.5, fontStyle: 'italic' },
     btn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 2 },
-    btnLabel: { fontSize: 15, fontWeight: '800' },
+    btnLabel: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal' },
   });
 }

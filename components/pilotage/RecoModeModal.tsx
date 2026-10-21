@@ -32,6 +32,7 @@ import { useFinancialProfile, useProfileAllocations } from '../../hooks/pilotage
 import { PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import { RECO_KEYS, RECO_KEY_LABEL, allocationTotal, appliedAllocation, readManualAllocation, resolveRecoMode, type Allocation, type RecoKey, type RecoMode } from '../../lib/finance/recoMode';
 import { useRecoAdjustments, type RecoAdjustmentKind } from '../../hooks/pilotage/useRecoAdjustments';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   visible: boolean;
@@ -378,8 +379,8 @@ function makeBaseStyles(c: any) {
     },
 
     header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    title: { flex: 1, fontSize: 17, fontWeight: '800', color: c.text },
-    lead: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    title: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 17, fontWeight: 'normal', color: c.text },
+    lead: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
 
     segment: { flexDirection: 'row', gap: 8 },
     segmentBtn: {
@@ -387,7 +388,7 @@ function makeBaseStyles(c: any) {
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999,
       paddingHorizontal: 10, paddingVertical: 9,
     },
-    segmentText: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
+    segmentText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, flexShrink: 1 },
 
     /* Le profil en cours : une ligne à lui, aux couleurs du palier. Assez discret pour ne pas
        disputer la vedette au choix lui-même, assez présent pour répondre à « lequel ? ». */
@@ -395,19 +396,19 @@ function makeBaseStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 8,
     },
-    profileEmoji: { fontSize: 16 },
-    profileLabel: { flex: 1, fontSize: 12.5, color: c.textSecondary },
-    profileName: { fontWeight: '800' },
+    profileEmoji: { fontFamily: GF.body, fontSize: 16 },
+    profileLabel: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.textSecondary },
+    profileName: { fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
 
     info: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,
       backgroundColor: c.teal + '12', borderRadius: 12, padding: 11,
     },
-    infoText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17.5 },
+    infoText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17.5 },
 
     rows: { gap: 2 },
     rowHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 4 },
-    rowHeadCell: { fontSize: 10.5, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    rowHeadCell: { fontFamily: GF.bodyBold, fontSize: 10.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     refCol: { width: 52, textAlign: 'center' },
     editCol: { width: 124, textAlign: 'center' },
 
@@ -421,9 +422,9 @@ function makeBaseStyles(c: any) {
     },
     rowLabelCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 },
     dot: { width: 8, height: 8, borderRadius: 4 },
-    rowLabel: { fontSize: 13.5, fontWeight: '600', color: c.text, flexShrink: 1 },
-    refValue: { fontSize: 12.5, color: c.textSecondary, fontWeight: '600' },
-    autoValue: { fontSize: 14.5, fontWeight: '800' },
+    rowLabel: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text, flexShrink: 1 },
+    refValue: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.textSecondary, fontWeight: 'normal' },
+    autoValue: { fontFamily: GF.bodyHeavy, fontSize: 14.5, fontWeight: 'normal' },
 
     stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
     stepBtn: {
@@ -437,8 +438,8 @@ function makeBaseStyles(c: any) {
     },
 
     totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    totalText: { fontSize: 12.5, fontWeight: '800' },
-    totalFix: { fontSize: 12, fontWeight: '700', color: c.emerald, textDecorationLine: 'underline' },
+    totalText: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal' },
+    totalFix: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.emerald, textDecorationLine: 'underline' },
 
     /* Bloc « pourquoi mes montants ne suivent pas ces % ». Teinte d'INFORMATION (teal), comme le
        bloc d'explication du mode juste au-dessus : rien n'est en défaut, rien n'est à corriger. */
@@ -447,20 +448,20 @@ function makeBaseStyles(c: any) {
       backgroundColor: c.teal + '12', borderRadius: 12, padding: 12,
     },
     exceptHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
-    exceptTitle: { flex: 1, fontSize: 12.5, fontWeight: '800', color: c.text, lineHeight: 17 },
+    exceptTitle: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 12.5, fontWeight: 'normal', color: c.text, lineHeight: 17 },
     exceptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
-    exceptBullet: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
-    exceptText: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
-    exceptFoot: { fontSize: 11, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic' },
-    b: { fontWeight: '800', color: c.text },
+    exceptBullet: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    exceptText: { fontFamily: GF.body, flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
+    exceptFoot: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic' },
+    b: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
 
     /* Les styles du bloc « pourquoi ça ne s'applique pas tel quel » ont été retirés avec lui :
        il n'y a plus d'étage qui réécrive ces pourcentages, donc plus rien à expliquer. */
 
     actions: { flexDirection: 'row', gap: 10, marginTop: 2 },
     cancel: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-    cancelText: { fontSize: 14.5, fontWeight: '700', color: c.textSecondary },
+    cancelText: { fontFamily: GF.bodyBold, fontSize: 14.5, fontWeight: 'normal', color: c.textSecondary },
     save: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
-    saveText: { fontSize: 14.5, fontWeight: '800', color: c.onAccent },
+    saveText: { fontFamily: GF.bodyHeavy, fontSize: 14.5, fontWeight: 'normal', color: c.onAccent },
   });
 }

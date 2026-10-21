@@ -37,6 +37,7 @@ import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthA
 import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../../lib/garden/theme';
 import { MAX_W, IS_WEB, pointer, transition } from '../../../lib/ui/webLayout';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -280,7 +281,7 @@ function SettingsScreen() {
                   {deductionOrder.map((type, i) => (
                     <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <View style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: GARDEN_RADII.pill, backgroundColor: CHOICE_LOOKS[type].bg }}>
-                        <GardenText variant="smallStrong" color={CHOICE_LOOKS[type].fg} style={{ fontSize: 12 }}>{CHOICE_LOOKS[type].meaning}</GardenText>
+                        <GardenText variant="smallStrong" color={CHOICE_LOOKS[type].fg} style={{ fontFamily: GF.body, fontSize: 12 }}>{CHOICE_LOOKS[type].meaning}</GardenText>
                       </View>
                       {i < deductionOrder.length - 1 ? <Ionicons name="chevron-forward" size={12} color={G.muted} /> : null}
                     </View>

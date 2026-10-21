@@ -69,7 +69,8 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
 
   if (part === 'roots') {
     const m = tree.roots.months;
-    const next = m < 1 ? 1 : m < 3 ? 3 : m < 6 ? 6 : null;
+    const [k1, k2, k3] = tree.roots.markMonths;
+    const next = m < k1 ? k1 : m < k2 ? k2 : m < k3 ? k3 : null;
     return (
       <GardenSheet visible onClose={onClose} title={TREE_PARTS.roots.name} subtitle={TREE_PARTS.roots.meaning}
         footer={<GardenButton label="Voir mon épargne" variant="secondary" onPress={() => go(menuHref('argent'))} />}>
@@ -82,7 +83,7 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
           </GardenCard>
         ) : (
           <GardenCard tint={GARDEN_COLORS.rootsBg}>
-            <GardenText variant="body">Tes racines dépassent les 6 mois{tree.roots.beyondSix ? ` de ${months(tree.roots.extraMonths)} mois` : ''}. Ce qui dépasse pourrait être placé : ce sont les graines qui dorment sous ton arbre.</GardenText>
+            <GardenText variant="body">Tes racines dépassent les {months(tree.roots.markMonths[2])} mois{tree.roots.beyondSix ? ` de ${months(tree.roots.extraMonths)} mois` : ''}. Ce qui dépasse pourrait être placé : ce sont les graines qui dorment sous ton arbre.</GardenText>
           </GardenCard>
         )}
       </GardenSheet>

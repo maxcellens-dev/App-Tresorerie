@@ -24,6 +24,7 @@ import LandingPage from '../../../../components/marketing/LandingPage';
 import WelcomeScreen from '../../../../components/marketing/WelcomeScreen';
 import LandingMediaEditor from '../../../../components/marketing/LandingMediaEditor';
 import type { LandingMedia, LandingPresentation } from '../../../../hooks/config/useLandingConfig';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 /**
  * RÉSEAUX PRÊTS À L'EMPLOI — un tap ajoute la ligne, il ne reste que l'URL à coller.
@@ -82,13 +83,13 @@ export default function AdminLanding() {
     return (
       <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Page d'accueil" onBack={goBack} />
-        <Text style={{ color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: '700' }}>Configuration non chargée</Text>
-        <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
+        <Text style={{ fontFamily: GF.bodyBold, color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: 'normal' }}>Configuration non chargée</Text>
+        <Text style={{ fontFamily: GF.body, color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
           La configuration actuelle n'a pas pu être lue. Le formulaire reste fermé : l'ouvrir vide
           ferait écraser les réglages en place au premier enregistrement.
         </Text>
         <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
-          <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+          <Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.onAccent, fontWeight: 'normal', fontSize: 14 }}>Réessayer</Text>
         </TouchableOpacity>
       </SafeAreaView></View>
     );
@@ -106,7 +107,6 @@ export default function AdminLanding() {
   const mediaEditor = (key: 'heroMedia' | 'productImage' | 'finalImage', label: string) => <LandingMediaEditor label={label} media={{ ...cfg.presentation[key], ...(key === 'heroMedia' ? { url: cfg.heroImage } : {}) }} colors={COLORS} uploading={uploading} onChange={patch => setMedia(key, patch)} onUpload={() => pickAndUpload(url => setMedia(key, { url }), 'image/png,image/jpeg,image/webp')} />;
   const presentationField = (key: keyof LandingPresentation, label: string) => <Field key={key} label={label} value={String(cfg.presentation[key])} onChange={v => setPresentation({ [key]: v })} styles={styles} c={COLORS} />;
   const setFeature = (i: number, patch: Partial<LandingFeature>) => set({ features: cfg.features.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
-  const setMobileFeature = (i: number, patch: Partial<LandingFeature>) => set({ mobileFeatures: cfg.mobileFeatures.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setStat = (i: number, patch: Partial<LandingStat>) => set({ stats: cfg.stats.map((s, idx) => idx === i ? { ...s, ...patch } : s) });
   const setNav = (i: number, patch: Partial<LandingLink>) => set({ navLinks: cfg.navLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
   const setFooter = (i: number, patch: Partial<LandingLink>) => set({ footerLinks: cfg.footerLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
@@ -532,31 +532,12 @@ export default function AdminLanding() {
           </>)}
 
           {tab === 'mobile' && (
-          /* ── Écran d'accueil MOBILE (application) — textes propres au mobile ── */
+          /* ── Écran d'accueil MOBILE (application) ── */
           <View style={styles.card}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.section}>Accueil mobile (application)</Text>
-              <TouchableOpacity onPress={() => set({ mobileFeatures: [...cfg.mobileFeatures, { icon: 'sparkles', title: 'Titre', text: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
-            </View>
-            <Text style={styles.hint}>Ces textes s'affichent sur l'écran d'accueil de l'app mobile, au style du Jardin : le logo et le nom, l'arbre en 3D avec Pépin, l'accroche, la carte d'action et la liste des fonctionnalités (icônes affichées en trait fin, aux couleurs de l'arbre dans l'ordre : arrosoir, racines, fruits, fleurs, cabane). Le badge/héros ci-dessus concernent la version web bureau.</Text>
-            <Field label="Accroche (sous le nom)" value={cfg.mobileTagline} onChange={(v) => set({ mobileTagline: v })} multiline styles={styles} c={COLORS} />
-            <Field label="Sous-accroche" value={cfg.mobileSubtag} onChange={(v) => set({ mobileSubtag: v })} styles={styles} c={COLORS} />
-            <Field label="Titre de la carte d'action" value={cfg.mobileCtaTitle} onChange={(v) => set({ mobileCtaTitle: v })} styles={styles} c={COLORS} />
-            <Field label="Texte de la carte d'action" value={cfg.mobileCtaText} onChange={(v) => set({ mobileCtaText: v })} multiline styles={styles} c={COLORS} />
+            <Text style={styles.section}>Accueil mobile (application)</Text>
+            <Text style={styles.hint}>L'accueil de l'app reprend les textes du Jardin de la vitrine web (slogan, arrosoir, les trois gestes) : une seule voix. Seuls les deux boutons se règlent ici ; la marque et les réseaux viennent des autres onglets.</Text>
             <Field label="Bouton principal" value={cfg.mobileCtaPrimaryLabel} onChange={(v) => set({ mobileCtaPrimaryLabel: v })} styles={styles} c={COLORS} />
             <Field label="Bouton secondaire" value={cfg.mobileCtaSecondaryLabel} onChange={(v) => set({ mobileCtaSecondaryLabel: v })} styles={styles} c={COLORS} />
-            <Text style={[styles.section, { fontSize: 13, marginTop: 8 }]}>Fonctionnalités mises en avant</Text>
-            {cfg.mobileFeatures.map((f, i) => (
-              <View key={i} style={styles.subCard}>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.cardTitle}>Fonctionnalité {i + 1}</Text>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la fonctionnalité mobile" onPress={() => set({ mobileFeatures: cfg.mobileFeatures.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
-                </View>
-                <Field label="Icône (Ionicons)" value={f.icon} onChange={(v) => setMobileFeature(i, { icon: v })} styles={styles} c={COLORS} />
-                <Field label="Titre" value={f.title} onChange={(v) => setMobileFeature(i, { title: v })} styles={styles} c={COLORS} />
-                <Field label="Texte" value={f.text} onChange={(v) => setMobileFeature(i, { text: v })} multiline styles={styles} c={COLORS} />
-              </View>
-            ))}
           </View>
           )}
 
@@ -603,37 +584,37 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    sub: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
+    sub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
     tabsRow: { flexDirection: 'row', flexShrink: 0, gap: 8, marginBottom: 12 },
     sectionNav: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 0, gap: 8, marginBottom: 12 },
     previewActions: { flexDirection: 'row', flexWrap: 'wrap', flexShrink: 0, gap: 8, marginBottom: 12 },
     tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     tabBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    tabBtnText: { fontSize: 13.5, fontWeight: '700', color: c.textSecondary },
+    tabBtnText: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.textSecondary },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     subCard: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginTop: 10 },
-    section: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },
-    cardTitle: { fontSize: 13, fontWeight: '700', color: c.text },
+    section: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text, marginBottom: 4 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     rowItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-    fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginTop: 8, marginBottom: 4 },
-    hint: { fontSize: 11, color: c.textSecondary, marginTop: 8, fontStyle: 'italic' },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal', marginTop: 8, marginBottom: 4 },
+    hint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 8, fontStyle: 'italic' },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 8 },
-    addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
+    addText: { fontFamily: GF.bodyBold, color: c.emerald, fontWeight: 'normal', fontSize: 13 },
     themeRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
     themeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
     themeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    themeBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    themeBtnText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     preview: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center' },
-    countTag: { fontSize: 11, fontWeight: '700', color: c.textSecondary, backgroundColor: c.bg, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8, overflow: 'hidden' },
-    itemSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+    countTag: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, backgroundColor: c.bg, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8, overflow: 'hidden' },
+    itemSub: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 1 },
     presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4 },
     presetChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10 },
-    presetTxt: { fontSize: 12, fontWeight: '600', color: c.text },
+    presetTxt: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
-    msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
+    saveLabel: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 15 },
+    msg: { textAlign: 'center', marginTop: 10, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   });
 }

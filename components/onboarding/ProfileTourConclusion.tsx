@@ -36,6 +36,7 @@ import { useProfileReliability } from '../../hooks/pilotage/useProfileReliabilit
 import type { FinancialProfileId } from '../../types/database';
 import { sheetWidth } from '../../lib/ui/appLayout';
 import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** Durée du dépouillement. Assez long pour être lu, assez court pour ne pas faire attendre. */
 const SCAN_MS = 1650;
@@ -307,29 +308,29 @@ function makeBaseStyles(c: any) {
       paddingHorizontal: 20, paddingTop: 22, paddingBottom: 16, gap: 12,
     },
     content: { alignItems: 'center', gap: 8 },
-    eyebrow: { fontSize: 11.5, fontWeight: '800', color: c.emerald, textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' },
+    eyebrow: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.emerald, textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' },
 
     /* Dépouillement : même carte, mais courte et centrée — on n'y fait rien, on regarde. */
     scanSheet: { alignItems: 'center', paddingVertical: 30, gap: 16 },
-    scanTitle: { fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -0.3 },
+    scanTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text, textAlign: 'center', letterSpacing: -0.3 },
     scanTrack: { width: '82%', height: 6, borderRadius: 3, backgroundColor: c.cardBorder, overflow: 'hidden' },
     scanFill: { height: 6, borderRadius: 3, backgroundColor: c.emerald },
-    scanLine: { fontSize: 13, color: c.textSecondary, textAlign: 'center', minHeight: 19 },
+    scanLine: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center', minHeight: 19 },
 
-    emoji: { fontSize: 40, marginTop: 2 },
-    title: { fontSize: 21, fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -0.4 },
-    desc: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
+    emoji: { fontFamily: GF.body, fontSize: 40, marginTop: 2 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 21, fontWeight: 'normal', color: c.text, textAlign: 'center', letterSpacing: -0.4 },
+    desc: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
 
     allocCard: {
       width: '100%', marginTop: 10, gap: 8,
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14,
     },
-    allocTitle: { fontSize: 13, fontWeight: '800', color: c.text, marginBottom: 2 },
+    allocTitle: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.text, marginBottom: 2 },
     allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    allocLabel: { width: 74, fontSize: 12.5, color: c.text },
+    allocLabel: { fontFamily: GF.body, width: 74, fontSize: 12.5, color: c.text },
     allocTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: c.cardBorder, overflow: 'hidden' },
     allocFill: { height: 6, borderRadius: 3 },
-    allocPct: { width: 40, fontSize: 12.5, fontWeight: '800', textAlign: 'right' },
+    allocPct: { fontFamily: GF.bodyHeavy, width: 40, fontSize: 12.5, fontWeight: 'normal', textAlign: 'right' },
 
     missingCard: {
       width: '100%', marginTop: 4, gap: 6,
@@ -337,8 +338,8 @@ function makeBaseStyles(c: any) {
       borderRadius: 16, padding: 13,
     },
     missingHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-    missingTitle: { fontSize: 13.5, fontWeight: '800', color: c.orange },
-    missingText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18.5 },
+    missingTitle: { fontFamily: GF.bodyHeavy, fontSize: 13.5, fontWeight: 'normal', color: c.orange },
+    missingText: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18.5 },
 
     // Fiabilité : une pastille de ton et son libellé, en tête de l'encadré des manques.
     relRow: {
@@ -346,19 +347,19 @@ function makeBaseStyles(c: any) {
       borderWidth: 1, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5,
     },
     relDot: { width: 8, height: 8, borderRadius: 4 },
-    relText: { fontSize: 12, fontWeight: '700', color: c.text },
+    relText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text },
 
     // Puces : une ligne = un manque. Alignées sur la marge du texte, jamais centrées.
     bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingLeft: 2 },
-    bulletDot: { fontSize: 13, lineHeight: 19, color: c.orange, fontWeight: '800' },
-    bulletText: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 19 },
+    bulletDot: { fontFamily: GF.bodyHeavy, fontSize: 13, lineHeight: 19, color: c.orange, fontWeight: 'normal' },
+    bulletText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 19 },
 
-    okText: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18.5, marginTop: 4 },
+    okText: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, textAlign: 'center', lineHeight: 18.5, marginTop: 4 },
 
     cta: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: c.emerald, borderRadius: 16, paddingVertical: 15,
     },
-    ctaText: { fontSize: 15.5, fontWeight: '800', color: c.onAccent },
+    ctaText: { fontFamily: GF.bodyHeavy, fontSize: 15.5, fontWeight: 'normal', color: c.onAccent },
   });
 }

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { fetchReachability } from '../../lib/platform/pushSend';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Tile {
   key: string;
@@ -198,34 +199,34 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, gap: 12, marginBottom: 14 },
     head: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-    title: { fontSize: 15, fontWeight: '800', color: c.text },
-    subtitle: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+    subtitle: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     refresh: { padding: 6 },
     tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     tile: { flexGrow: 1, flexBasis: 96, minWidth: 96, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' },
     tileActive: { borderColor: c.blue, backgroundColor: c.blue + '14' },
-    tileValue: { fontSize: 20, fontWeight: '800' },
-    tileLabel: { fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 2, fontWeight: '600' },
+    tileValue: { fontFamily: GF.bodyHeavy, fontSize: 20, fontWeight: 'normal' },
+    tileLabel: { fontFamily: GF.bodyBold, fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 2, fontWeight: 'normal' },
     listBox: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.bg, overflow: 'hidden' },
     listHead: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
-    listTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: c.text },
-    listCount: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
+    listTitle: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 13, fontWeight: 'normal', color: c.text },
+    listCount: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
     listRow: { paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
-    listName: { fontSize: 12.5, fontWeight: '700', color: c.text },
-    listEmpty: { fontSize: 12, color: c.textSecondary, padding: 12, fontStyle: 'italic' },
+    listName: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text },
+    listEmpty: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, padding: 12, fontStyle: 'italic' },
     verdict: { borderWidth: 1, borderRadius: 12, padding: 11, backgroundColor: c.bg },
-    verdictText: { fontSize: 12, color: c.textSecondary, lineHeight: 17, fontWeight: '600' },
+    verdictText: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, lineHeight: 17, fontWeight: 'normal' },
     keys: { gap: 5, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder, paddingTop: 10 },
     keyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    keyName: { flex: 1, fontSize: 12, fontWeight: '700', color: c.text },
-    keyVal: { fontSize: 12, fontWeight: '800' },
-    keyErr: { fontSize: 11.5, fontWeight: '700', color: c.danger },
+    keyName: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12, fontWeight: 'normal', color: c.text },
+    keyVal: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal' },
+    keyErr: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.danger },
     errBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 11 },
-    errText: { flex: 1, fontSize: 12, color: c.danger, lineHeight: 17 },
+    errText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.danger, lineHeight: 17 },
     legend: { gap: 4, paddingTop: 4 },
     legendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },
-    legendTitle: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
-    legendLine: { fontSize: 11, color: c.textSecondary, lineHeight: 16 },
-    mono: { fontWeight: '800', color: c.text },
+    legendTitle: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    legendLine: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 16 },
+    mono: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
   });
 }

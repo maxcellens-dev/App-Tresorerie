@@ -31,6 +31,7 @@ import { GARDEN_ICONS, accountIcon } from '../../lib/garden/icons';
 import { effectiveSharedMode } from '../../lib/finance/perimeter';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE, mixHex } from '../../lib/garden/theme';
 import { MONEY_VIEWS, TABS, TREE_PARTS } from '../../lib/garden/lexicon';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 type View2 = 'today' | 'tomorrow';
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
@@ -79,7 +80,7 @@ export default function ArgentScreen() {
       <Pressable onPress={() => go('/(tabs)/transactions')} accessibilityRole="button" accessibilityLabel="Toutes mes opérations"
         style={({ pressed, hovered }: any) => [{ width: 52, height: 52, borderRadius: GARDEN_RADII.md, alignItems: 'center', justifyContent: 'center', gap: 1, backgroundColor: pressed || hovered ? G.field : G.track }, pointer]}>
         <Ionicons name="receipt-outline" size={20} color={G.primary} />
-        <GardenText variant="small" color={G.primary} style={{ fontSize: 10, lineHeight: 12 }}>Opérations</GardenText>
+        <GardenText variant="small" color={G.primary} style={{ fontFamily: GF.body, fontSize: 10, lineHeight: 12 }}>Opérations</GardenText>
       </Pressable>
     </View>
   );

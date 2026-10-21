@@ -10,12 +10,16 @@ import { usePilotageCore } from './usePilotageCore';
 import { useCredits } from '../data/useCredits';
 import { useAllCreditEvents } from '../data/useCreditEvents';
 import { useGamification } from '../engagement/useGamification';
+import { useGamificationConfig } from '../engagement/useGamificationConfig';
+import { useFinancialProfile } from '../pilotage/useFinancialProfile';
 import { computeAmortization } from '../../lib/finance/amortization';
 import { computeInvestmentGains } from '../../lib/finance/investment';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { todayISO } from '../../lib/dateUtils';
 import { buildGardenInputs } from '../../lib/garden/gardenInputs';
 import { computeTreeState } from '../../lib/garden/treeState';
+import { mergeGardenRules } from '../../lib/garden/gardenRules';
+import { resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import { buildPicoChoices } from '../../lib/garden/picoChoices';
 
 export function useGardenModel() {
@@ -24,6 +28,11 @@ export function useGardenModel() {
   const creditsQuery = useCredits(userId);
   const { data: eventsByCredit = {} } = useAllCreditEvents(userId);
   const gamification = useGamification(userId);
+  /* La taille de l'arbre suit l'étape du profil financier ; les seuils du jardin sont ceux de l'admin. */
+  const { data: financialProfile } = useFinancialProfile(userId);
+  const { data: gamConfig } = useGamificationConfig();
+  const rules = useMemo(() => mergeGardenRules(gamConfig?.garden), [gamConfig?.garden]);
+  const profileId = financialProfile?.profile_id ? resolveProfileId(financialProfile.profile_id) : null;
 
   const credits = useMemo(() => {
     const today = todayISO();
@@ -53,7 +62,7 @@ export function useGardenModel() {
     streakWeeks: gamification.state?.streak ?? 0,
     credits,
   }), [p, vm.relykaAffiche, investmentGains, investmentCount, enjoyAmount, gamification.state?.streak, credits]);
-  const tree = useMemo(() => computeTreeState(inputs), [inputs]);
+  const tree = useMemo(() => computeTreeState({ ...inputs, profileId }, rules), [inputs, profileId, rules]);
 
   const accountNames = useMemo(() => {
     const list = core.accountsPerso as any[];
@@ -78,5 +87,5 @@ export function useGardenModel() {
     nextIncomeDate: vm.nextIncomeDate,
   } : null;
 
-  return { core, tree, inputs, choices, can, credits, gamification, investments };
+  return { core, tree, inputs, choices, can, credits, gamification, investments, rules, profileId };
 }

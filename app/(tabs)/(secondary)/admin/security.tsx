@@ -23,6 +23,7 @@ import { useClientErrors, useResolveClientError, useResolveAllClientErrors, useP
 import PasswordStrength from '../../../../components/auth/PasswordStrength';
 import { evaluatePassword } from '../../../../lib/auth/passwordPolicy';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 export default function AdminSecurity() {
   const COLORS = useAppColors();
@@ -314,41 +315,41 @@ function makeBaseStyles(c: any) {
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 100 },
-    subtitle: { fontSize: 12, color: c.textSecondary, marginBottom: 16, lineHeight: 16 },
+    subtitle: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 16, lineHeight: 16 },
     text: { color: c.text },
 
     card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 14 },
     cardDanger: { borderColor: c.danger },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-    cardTitle: { fontSize: 15, fontWeight: '800', color: c.text },
-    cardDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 12 },
+    cardTitle: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+    cardDesc: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 12 },
     dot: { width: 10, height: 10, borderRadius: 5 },
 
     bigBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 15, marginTop: 4 },
-    bigBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    bigBtnTxt: { fontFamily: GF.bodyHeavy, color: '#fff', fontSize: 15, fontWeight: 'normal' },
     secondaryBtn: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
-    secondaryTxt: { color: c.text, fontSize: 13, fontWeight: '700' },
+    secondaryTxt: { fontFamily: GF.bodyBold, color: c.text, fontSize: 13, fontWeight: 'normal' },
 
-    label: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 8 },
+    label: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6, marginTop: 8 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: c.text, marginBottom: 6, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     area: { minHeight: 70, textAlignVertical: 'top' },
-    hint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
+    hint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
 
     statRow: { flexDirection: 'row', gap: 24, marginBottom: 10 },
     stat: { alignItems: 'center' },
-    statNum: { fontSize: 22, fontWeight: '800', color: c.text },
-    statLbl: { fontSize: 11, color: c.textSecondary },
+    statNum: { fontFamily: GF.bodyHeavy, fontSize: 22, fontWeight: 'normal', color: c.text },
+    statLbl: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
     filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-    filterLbl: { fontSize: 13, color: c.text },
-    empty: { fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
+    filterLbl: { fontFamily: GF.body, fontSize: 13, color: c.text },
+    empty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
 
     errRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderTopWidth: 1, borderTopColor: c.cardBorder, paddingVertical: 11 },
     errHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' },
     kindPill: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
-    kindTxt: { fontSize: 10, fontWeight: '800' },
-    errMeta: { fontSize: 11, color: c.textSecondary },
-    errMsg: { fontSize: 13, color: c.text, lineHeight: 18 },
-    errRoute: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    kindTxt: { fontFamily: GF.bodyHeavy, fontSize: 10, fontWeight: 'normal' },
+    errMeta: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
+    errMsg: { fontFamily: GF.body, fontSize: 13, color: c.text, lineHeight: 18 },
+    errRoute: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
     errStack: { fontSize: 11, color: c.textSecondary, marginTop: 6, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
     resolveBtn: { padding: 2 },
   });

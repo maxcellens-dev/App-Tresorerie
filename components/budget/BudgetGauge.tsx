@@ -7,6 +7,7 @@
  */
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   spent: number;
@@ -43,7 +44,7 @@ export function BudgetAmounts({ spent, budget, symbol, suffix }: { spent: number
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
   return (
     <Text style={[styles.amounts, { color: C.textSecondary }]} numberOfLines={1}>
-      <Text style={{ color: over ? C.warning : C.text, fontWeight: '700' }}>{fmt(spent)}</Text>
+      <Text style={{ color: over ? C.warning : C.text, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>{fmt(spent)}</Text>
       {` / ${fmt(budget)} ${symbol}${suffix ? ` ${suffix}` : ''}`}
     </Text>
   );
@@ -54,5 +55,5 @@ const styles = StyleSheet.create({
   trackCompact: { height: 4, marginTop: 6 },
   fill: { height: '100%', borderRadius: 3 },
   overlay: { position: 'absolute', left: 0, top: 0 },
-  amounts: { fontSize: 12.5, fontVariant: ['tabular-nums'] },
+  amounts: { fontFamily: GF.body, fontSize: 12.5, fontVariant: ['tabular-nums'] },
 });

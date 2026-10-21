@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useInvertedColors } from '../../hooks/theme/useInvertedColors';
 import { readableOn } from '../../theme/palette';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** L'étape en cours, telle que le parcours la voit (cf. contexts/GuideContext). */
 export type WelcomeStep = 'accounts' | 'checking' | 'savings' | 'recurring';
@@ -131,7 +132,7 @@ export default function PilotageWelcome({ step, compact, firstName, onPress }: P
                   color={done ? COLORS.emerald : current ? accent : COLORS.textSecondary}
                 />
               </View>
-              <Text style={[styles.stepLabel, current && { color: COLORS.text, fontWeight: '700' }]}>{m.label}</Text>
+              <Text style={[styles.stepLabel, current && { color: COLORS.text, fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>{m.label}</Text>
             </View>
           );
         })}
@@ -159,9 +160,9 @@ function makeBaseStyles(c: any) {
     },
     circle: { width: 84, height: 84, borderRadius: 42, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 
-    hello: { fontSize: 19, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
-    title: { fontSize: 27, fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -0.7, lineHeight: 33 },
-    text: { fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 21, marginTop: 4 },
+    hello: { fontFamily: GF.bodyBold, fontSize: 19, fontWeight: 'normal', color: c.textSecondary, textAlign: 'center' },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 27, fontWeight: 'normal', color: c.text, textAlign: 'center', letterSpacing: -0.7, lineHeight: 33 },
+    text: { fontFamily: GF.body, fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 21, marginTop: 4 },
 
     steps: { width: '100%', gap: 9, marginTop: 22, marginBottom: 6 },
     step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -169,13 +170,13 @@ function makeBaseStyles(c: any) {
       width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
       alignItems: 'center', justifyContent: 'center',
     },
-    stepLabel: { flex: 1, fontSize: 13.5, color: c.textSecondary },
+    stepLabel: { fontFamily: GF.body, flex: 1, fontSize: 13.5, color: c.textSecondary },
 
     cta: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24, width: '100%', marginTop: 14,
     },
-    ctaLabel: { fontSize: 16, fontWeight: '800', color: c.bg },
+    ctaLabel: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.bg },
 
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -186,7 +187,7 @@ function makeBaseStyles(c: any) {
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
     },
     cardIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { fontSize: 14.5, fontWeight: '800', color: c.text },
-    cardText: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
+    cardTitle: { fontFamily: GF.bodyHeavy, fontSize: 14.5, fontWeight: 'normal', color: c.text },
+    cardText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
   });
 }

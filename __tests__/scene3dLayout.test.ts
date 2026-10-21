@@ -52,15 +52,17 @@ describe('scene3dLayout', () => {
     const full = all(layoutScene({ ...st, water: 1 }, opts)).find((l) => l.img === 'can_water')!;
     expect(half.showBottom!).toBeLessThan(full.showBottom!);
     // la cabane se construit en 5 étapes : l'échelle seule, plancher et garde-corps, ossature, toit, cabane habitée
-    const layersAt = (progress: number) => all(layoutScene({ ...st, cabin: { progress, count: 1, owned: false } }, opts));
+    // l'étape vient du moteur (seuils réglables) : on la fait calculer par computeTreeState
+    const cabinState = (progress: number) => computeTreeState({ ...inputs, credits: [{ id: 'c', kind: 'healthy', remaining: 1000 * (1 - progress) || 0.01, borrowed: 1000 }] }).cabin!;
+    const layersAt = (progress: number) => all(layoutScene({ ...st, cabin: cabinState(progress) }, opts));
     const cabinAt = (progress: number) => layersAt(progress).find((l) => l.key === 'cabin');
     expect(cabinAt(0)).toBeUndefined();
     expect(layersAt(0).some((l) => l.key === 'ladder')).toBe(true);
-    expect([0.3, 0.5, 0.7, 1].map((p) => cabinAt(p)!.img)).toEqual(['cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
-    expect([0.3, 0.5, 0.7, 1].every((p) => cabinAt(p)!.showBottom == null)).toBe(true);
+    expect([0.3, 0.5, 0.7, 0.99].map((p) => cabinAt(p)!.img)).toEqual(['cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
+    expect([0.3, 0.5, 0.7, 0.99].every((p) => cabinAt(p)!.showBottom == null)).toBe(true);
     // seule la cabane finie a sa fenêtre allumée
-    expect(layoutScene({ ...st, cabin: { progress: 1, count: 1, owned: false } }, opts).vector.windows).toHaveLength(1);
-    expect(layoutScene({ ...st, cabin: { progress: 0.75, count: 1, owned: false } }, opts).vector.windows).toHaveLength(0);
+    expect(layoutScene({ ...st, cabin: cabinState(0.99) }, opts).vector.windows).toHaveLength(1);
+    expect(layoutScene({ ...st, cabin: cabinState(0.75) }, opts).vector.windows).toHaveLength(0);
   });
 
   it('sans cabane, le grand arbre perd sa branche nue', () => {

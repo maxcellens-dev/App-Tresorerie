@@ -20,6 +20,7 @@ import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency'
 import { todayISO } from '../../../lib/dateUtils';
 import { supabase } from '../../../lib/platform/supabase';
 import { effectiveSharedMode } from '../../../lib/finance/perimeter';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
@@ -467,17 +468,17 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 20, lineHeight: 20 },
+    subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 20, lineHeight: 20 },
     notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 16 },
-    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+    noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
     errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 12, marginBottom: 14 },
-    errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 18 },
+    errorText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 18 },
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 18, gap: 14, marginBottom: 20 },
-    cardTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 2 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text, marginBottom: 2 },
     bullet: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-    bulletText: { flex: 1, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
+    bulletText: { fontFamily: GF.body, flex: 1, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
     exportBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14 },
-    exportText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
-    note: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 16, textAlign: 'center' },
+    exportText: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
+    note: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 16, textAlign: 'center' },
   });
 }

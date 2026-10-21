@@ -17,6 +17,7 @@ import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import SupportThreadModal from '../../../components/ui/SupportThreadModal';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 /** `?? ''` : une date manquante affichait « 1 janv. 1970 » plutôt que rien. */
@@ -37,19 +38,19 @@ function formatDate(iso: string | null | undefined) {
 const FAQ: { q: string; a: string }[] = [
   {
     q: 'Comment ajouter un compte ?',
-    a: 'Ouvre l’onglet « Comptes », puis touche « Compte » en haut pour en créer un nouveau.',
+    a: 'Ouvre « Mon argent », puis touche « Ajouter un compte » sous la liste. Tu peux aussi passer par le bouton « + ».',
   },
   {
-    q: 'À quoi correspond le montant du Pilotage ?',
-    a: 'Il part de ton solde courant et retire ce qui est déjà engagé : dépenses fixes à venir, budget variable, projets en cours, et ta marge de sécurité. Cette marge se règle depuis le Pilotage, sur la carte concernée.',
+    q: 'Qu’est-ce que mon Relyka (l’eau de l’arrosoir) ?',
+    a: 'C’est ce qu’il te reste vraiment ce mois-ci : ton solde courant, moins ce qui est déjà prévu (prélèvements à venir, dépenses du quotidien, projets) et ta réserve minimum. Touche la carte « Ton Relyka » sur le Jardin pour voir le détail du calcul ; la réserve minimum se règle dans « Mon parcours ».',
   },
   {
     q: 'Les opérations récurrentes sont-elles automatiques ?',
-    a: 'Oui. Une fois créée, une opération récurrente se reporte toute seule sur les mois suivants dans ta trésorerie et ta projection.',
+    a: 'Oui. Une fois créée, une opération récurrente se reporte toute seule sur les mois suivants : dans « Demain », dans ton plan de trésorerie et dans le calcul de ton Relyka.',
   },
   {
     q: 'Comment changer les couleurs de l’app ?',
-    a: 'Profil › Apparence : mode clair ou sombre, couleur d’accent, et les cosmétiques que tu as débloqués.',
+    a: 'Mon profil › Apparence : mode clair ou sombre, couleur d’accent, et ce que tu as débloqué dans la boutique (décors, tenues de Pépin, saisons).',
   },
 ];
 
@@ -302,45 +303,45 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 16 },
-  noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+  noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  counter: { fontSize: 11, fontWeight: '700', color: c.textSecondary, marginTop: 8 },
-  modalError: { fontSize: 12.5, fontWeight: '600', color: c.danger, marginTop: 10, lineHeight: 17 },
+  counter: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, marginTop: 8 },
+  modalError: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.danger, marginTop: 10, lineHeight: 17 },
   card: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 20, marginBottom: 16, gap: 4,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 8, textAlign: 'center' },
-  cardText: { fontSize: 14, color: c.textSecondary, lineHeight: 20, textAlign: 'center' },
+  cardTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, marginBottom: 8, textAlign: 'center' },
+  cardText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, lineHeight: 20, textAlign: 'center' },
   btn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: c.emerald, paddingVertical: 13, borderRadius: 12, marginTop: 14,
   },
-  btnText: { fontSize: 15, fontWeight: '700', color: c.onAccent },
+  btnText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   reqHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   archiveBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '44', backgroundColor: c.emerald + '14' },
-  archiveBtnText: { fontSize: 12, fontWeight: '700', color: c.emerald },
-  reqEmpty: { fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
+  archiveBtnText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.emerald },
+  reqEmpty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
   reqRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderColor: c.cardBorder },
   reqDot: { width: 8, height: 8, borderRadius: 4 },
-  reqSubject: { fontSize: 14, fontWeight: '600', color: c.text },
-  reqMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  reqSubject: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  reqMeta: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
   unreadBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  unreadText: { fontFamily: GF.bodyBold, color: '#fff', fontSize: 11, fontWeight: 'normal' },
   faqItem: { marginTop: 12, gap: 4 },
-  faqQ: { fontSize: 14, fontWeight: '600', color: c.text },
-  faqA: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
+  faqQ: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  faqA: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 18 },
   // Modal nouvelle demande
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalBox: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-  modalLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 8, marginBottom: 6 },
+  modalTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
+  modalLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginTop: 8, marginBottom: 6 },
   modalInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   modalTextarea: { minHeight: 110, textAlignVertical: 'top' },
   modalSend: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
-  modalSendText: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+  modalSendText: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
 });
 }

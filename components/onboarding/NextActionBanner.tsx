@@ -13,6 +13,7 @@ import { useAppState } from '../../hooks/engagement/useAppState';
 import { useAppLockPrompt } from '../../hooks/platform/useAppLockPrompt';
 import type { AppAction, AppActionType } from '../../lib/engagement/appStateEngine';
 import { openClosureModal } from '../closure/MonthlyClosure';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 // Dismiss de SESSION : réinitialisé au prochain lancement de l'app (module rechargé) → l'action
 // pertinente réapparaît. Ne pas persister (c'est voulu).
@@ -257,8 +258,8 @@ function makeBaseStyles(c: any) {
        que le rendu soit identique au pixel une fois la croix sortie du bouton. */
     main: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
     iconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-    title: { fontSize: 16, fontWeight: '800', color: c.text },
-    reason: { fontSize: 13, color: c.textSecondary, marginTop: 2, lineHeight: 18 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text },
+    reason: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginTop: 2, lineHeight: 18 },
     close: { padding: 4, marginLeft: 2 },
   });
 }

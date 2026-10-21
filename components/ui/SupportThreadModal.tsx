@@ -12,6 +12,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest, SUPPORT_MAX_BODY } from '../../hooks/admin/useSupport';
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
 import { sheetWidth } from '../../lib/ui/appLayout';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   visible: boolean;
@@ -195,23 +196,23 @@ function makeBaseStyles(c: any) {
     // remonte (KeyboardAvoidingView) ou que la barre de navigation existe (SafeAreaView bottom).
     sheet: { ...sheetWidth, flex: 1, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder },
     header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: c.cardBorder, gap: 8 },
-    title: { fontSize: 16, fontWeight: '800', color: c.text },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text },
     statusPill: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },
-    statusText: { fontSize: 11, fontWeight: '700' },
+    statusText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal' },
     statusBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-    statusBtnText: { fontSize: 12, fontWeight: '700', color: c.text },
+    statusBtnText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text },
     thread: { flex: 1 },
-    empty: { color: c.textSecondary, textAlign: 'center', marginTop: 24, fontSize: 14 },
+    empty: { fontFamily: GF.body, color: c.textSecondary, textAlign: 'center', marginTop: 24, fontSize: 14 },
     bubbleRow: { flexDirection: 'row' },
     bubbleRowMine: { justifyContent: 'flex-end' },
     bubbleRowOther: { justifyContent: 'flex-start' },
     bubble: { maxWidth: '82%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 3 },
     bubbleMine: { backgroundColor: c.emerald, borderBottomRightRadius: 4 },
     bubbleOther: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderBottomLeftRadius: 4 },
-    bubbleAuthor: { fontSize: 11, fontWeight: '700', color: c.emerald },
-    bubbleText: { fontSize: 14, color: c.text, lineHeight: 19 },
-    bubbleTime: { fontSize: 10, color: c.textSecondary, marginTop: 2, alignSelf: 'flex-end' },
-    error: { fontSize: 12.5, fontWeight: '600', color: c.danger, paddingHorizontal: 14, paddingTop: 10, lineHeight: 17 },
+    bubbleAuthor: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.emerald },
+    bubbleText: { fontFamily: GF.body, fontSize: 14, color: c.text, lineHeight: 19 },
+    bubbleTime: { fontFamily: GF.body, fontSize: 10, color: c.textSecondary, marginTop: 2, alignSelf: 'flex-end' },
+    error: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.danger, paddingHorizontal: 14, paddingTop: 10, lineHeight: 17 },
     inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 12, borderTopWidth: 1, borderColor: c.cardBorder },
     input: { flex: 1, maxHeight: 120, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, paddingHorizontal: 14, paddingVertical: Platform.OS === 'web' ? 10 : 8, fontSize: 15, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },

@@ -873,10 +873,10 @@ function ProjectionBody({ section: tab }: { section: 'treso' | 'invest' }) {
                 {/* Années passées (données réelles) */}
                 {pastInvestRows.map((r, i) => (
                   <View key={`past-${r.year}`} style={[styles.tr, { opacity: 0.6 }, i % 2 === 1 && styles.trAlt]}>
-                    <Text style={[styles.td, { width: 52, fontWeight: '700', color: COLORS.textSecondary }]}>{r.year}</Text>
+                    <Text style={[styles.td, { width: 52, fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.textSecondary }]}>{r.year}</Text>
                     <Text style={[styles.td, { width: 80, color: COLORS.textSecondary }]}>—</Text>
                     <Text style={[styles.td, { width: 88, color: COLORS.textSecondary }]}>—</Text>
-                    <Text style={[styles.td, { width: 88, color: COLORS.textSecondary, fontWeight: '600' }]}>{fmt(r.value)}</Text>
+                    <Text style={[styles.td, { width: 88, color: COLORS.textSecondary, fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>{fmt(r.value)}</Text>
                     <Text style={[styles.td, { width: 92, color: COLORS.textSecondary }]}>—</Text>
                     <Text style={[styles.td, { width: 92, color: COLORS.textSecondary }]}>—</Text>
                     <Text style={[styles.td, { width: 88, color: COLORS.textSecondary }]}>—</Text>
@@ -886,10 +886,10 @@ function ProjectionBody({ section: tab }: { section: 'treso' | 'invest' }) {
                 {/* Années projetées */}
                 {investRowsGlobal.map((r, i) => (
                   <View key={r.year} style={[styles.tr, (pastInvestRows.length + i) % 2 === 1 && styles.trAlt]}>
-                    <Text style={[styles.td, { width: 52, fontWeight: '700' }]}>{r.year}</Text>
+                    <Text style={[styles.td, { width: 52, fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>{r.year}</Text>
                     <Text style={[styles.td, { width: 80 }]}>{fmt(yearlyApportForRow(r.year))}</Text>
                     <Text style={[styles.td, { width: 88 }]}>{fmt(r.cumulativeContribution)}</Text>
-                    <Text style={[styles.td, { width: 88, color: INVEST_COLOR, fontWeight: '600' }]}>{fmt(r.value)}</Text>
+                    <Text style={[styles.td, { width: 88, color: INVEST_COLOR, fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>{fmt(r.value)}</Text>
                     <Text style={[styles.td, { width: 92 }]}>{fmt(r.valueAfterTax)}</Text>
                     {/* Ces trois colonnes peuvent être négatives (compte en moins-value) : le signe
                         vient du nombre, pas d'un « + » écrit en dur. Et la couleur suit le sens. */}
@@ -1041,7 +1041,7 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
       <View style={{ width: 14, height: dashed ? 0 : 10, borderRadius: 3, backgroundColor: dashed ? undefined : color,
         borderTopWidth: dashed ? 2 : 0, borderTopColor: color, borderStyle: 'dashed' }} />
-      <Text style={{ fontSize: 10.5, color: COLORS.textSecondary, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ fontFamily: GF.bodyBold, fontSize: 10.5, color: COLORS.textSecondary, fontWeight: 'normal' }}>{label}</Text>
     </View>
   );
 
@@ -1146,7 +1146,7 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
       </View>
 
       {crossIdx > 0 && (
-        <Text style={{ fontSize: 11.5, color: COLORS.orange, fontWeight: '600', marginTop: 4, paddingHorizontal: 4, lineHeight: 16 }}>
+        <Text style={{ fontFamily: GF.bodyBold, fontSize: 11.5, color: COLORS.orange, fontWeight: 'normal', marginTop: 4, paddingHorizontal: 4, lineHeight: 16 }}>
           ⚠️ Dans le scénario le plus bas, tu passes sous ta marge en {rows[crossIdx].label}.
         </Text>
       )}
@@ -1269,7 +1269,7 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
               accessibilityRole="button"
               accessibilityState={{ selected: !filterActive }}
             >
-              <Text style={[styles.tresoFilterChipText, !filterActive && { color: '#fff', fontWeight: '700' }]}>Tous</Text>
+              <Text style={[styles.tresoFilterChipText, !filterActive && { color: '#fff', fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>Tous</Text>
             </TouchableOpacity>
             {checkingAccounts.map((acc: any) => {
               const selected = selectedAccountIds.includes(acc.id);
@@ -1281,7 +1281,7 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
                 >
-                  <Text style={[styles.tresoFilterChipText, selected && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>{acc.name}</Text>
+                  <Text style={[styles.tresoFilterChipText, selected && { color: '#fff', fontFamily: GF.bodyBold, fontWeight: 'normal' }]} numberOfLines={1}>{acc.name}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -1393,8 +1393,8 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
               );
             })()}
             <View style={[styles.tresoMonthRow, { borderTopWidth: 0.5, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 6 }]}>
-              <Text style={[styles.tresoKey, { fontWeight: '700' }]}>Solde prévu</Text>
-              <Text style={[styles.tresoVal, { fontWeight: '800', color: r.balance >= 0 ? COLORS.text : COLORS.danger }]}>{fmt(r.balance)} {CURRENCY_SYMBOL}</Text>
+              <Text style={[styles.tresoKey, { fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>Solde prévu</Text>
+              <Text style={[styles.tresoVal, { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: r.balance >= 0 ? COLORS.text : COLORS.danger }]}>{fmt(r.balance)} {CURRENCY_SYMBOL}</Text>
             </View>
           </View>
         </View>
@@ -1478,19 +1478,19 @@ function makeBaseStyles(c: any) {
     scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
 
     saveWarnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14', borderRadius: 12, padding: 11, marginBottom: 14 },
-    saveWarnText: { flex: 1, fontSize: 12, color: c.orange, lineHeight: 17 },
+    saveWarnText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.orange, lineHeight: 17 },
 
-    sectionHint: { fontSize: 12, color: c.textSecondary, marginBottom: 14 },
-    chartTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 8 },
+    sectionHint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 14 },
+    chartTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text, marginBottom: 8 },
 
     kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
     kpiCard: {
       flex: 1, backgroundColor: c.card, borderRadius: 14, padding: 14,
       borderWidth: 1, borderColor: c.cardBorder, borderLeftWidth: 3, borderLeftColor: c.cardBorder, gap: 2,
     },
-    kpiLabel: { fontSize: 11, color: c.textSecondary, fontWeight: '600' },
-    kpiValue: { fontSize: 18, fontWeight: '800', color: c.text },
-    kpiSub: { fontSize: 10, color: c.textSecondary },
+    kpiLabel: { fontFamily: GF.bodyBold, fontSize: 11, color: c.textSecondary, fontWeight: 'normal' },
+    kpiValue: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
+    kpiSub: { fontFamily: GF.body, fontSize: 10, color: c.textSecondary },
 
     chartCard: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
@@ -1500,49 +1500,49 @@ function makeBaseStyles(c: any) {
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendLine: { width: 16, height: 3, borderRadius: 2 },
     legendDash: { width: 16, height: 0, borderTopWidth: 1.5, borderStyle: 'dashed' },
-    legendText: { fontSize: 11, color: c.textSecondary },
+    legendText: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
 
     controlsCard: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
       padding: 14, marginBottom: 14, gap: 10,
     },
-    controlsTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+    controlsTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
     controlsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     resetBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     accChipRow: { flexDirection: 'row', gap: 8, paddingVertical: 2, paddingHorizontal: 2 },
     accChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
-    accChipText: { fontSize: 12, color: c.text },
+    accChipText: { fontFamily: GF.body, fontSize: 12, color: c.text },
     valueBadge: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
       backgroundColor: c.bg, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
       borderWidth: 1, borderColor: c.cardBorder,
     },
-    valueBadgeLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
-    valueBadgeValue: { fontSize: 15, fontWeight: '800', color: c.investment },
-    miniHint: { fontSize: 10, color: c.textSecondary, lineHeight: 13 },
+    valueBadgeLabel: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal' },
+    valueBadgeValue: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.investment },
+    miniHint: { fontFamily: GF.body, fontSize: 10, color: c.textSecondary, lineHeight: 13 },
     fiscalNote: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 6,
       backgroundColor: c.bg, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: c.cardBorder,
     },
-    fiscalNoteText: { flex: 1, fontSize: 11, color: c.textSecondary, lineHeight: 15 },
+    fiscalNoteText: { fontFamily: GF.body, flex: 1, fontSize: 11, color: c.textSecondary, lineHeight: 15 },
 
     // État vide (aucun compte d'investissement) et avertissements de synchronisation.
     emptyCard: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12,
       backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 14,
     },
-    emptyTitle: { fontSize: 13, fontWeight: '700', color: c.text },
-    emptyText: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
-    emptyLink: { fontSize: 12, fontWeight: '700' },
+    emptyTitle: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
+    emptyText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    emptyLink: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
     warnCard: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12,
       backgroundColor: c.orange + '12', borderRadius: 12, borderWidth: 1, borderColor: c.orange + '55', padding: 12,
     },
-    warnText: { flex: 1, fontSize: 12, color: c.orange, lineHeight: 17 },
+    warnText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.orange, lineHeight: 17 },
 
     fieldRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
     field: { gap: 5, minWidth: 0 },
-    fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal' },
     fieldInputWrap: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12,
@@ -1553,33 +1553,33 @@ function makeBaseStyles(c: any) {
       ...(Platform.OS === 'web' ? { outlineStyle: 'none', width: 0 } as any : {}),
     },
     // Valeur affichée sans saisie possible, alignée sur `fieldInput` (même taille, même graisse).
-    fieldSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
+    fieldSuffix: { fontFamily: GF.bodyBold, color: c.textSecondary, fontSize: 14, fontWeight: 'normal' },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
-    chipText: { fontSize: 13, color: c.text },
+    chipText: { fontFamily: GF.body, fontSize: 13, color: c.text },
 
     tableToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4 },
-    tableToggleText: { fontSize: 14, fontWeight: '600', color: c.text },
+    tableToggleText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
     tableScroll: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 8, backgroundColor: c.card },
     tr: { flexDirection: 'row' },
     trHead: { borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     trAlt: { backgroundColor: c.bg },
-    th: { fontSize: 11, fontWeight: '700', color: c.textSecondary, paddingVertical: 10, paddingHorizontal: 8, textAlign: 'right' },
-    td: { fontSize: 12, color: c.text, paddingVertical: 9, paddingHorizontal: 8, textAlign: 'right' },
+    th: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, paddingVertical: 10, paddingHorizontal: 8, textAlign: 'right' },
+    td: { fontFamily: GF.body, fontSize: 12, color: c.text, paddingVertical: 9, paddingHorizontal: 8, textAlign: 'right' },
 
 
 
     tresoMonthCard: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 14, marginBottom: 10 },
     tresoMonthHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
     tresoCurrentDot: { width: 7, height: 7, borderRadius: 3.5 },
-    tresoMonthLabel: { fontSize: 14, fontWeight: '800', color: c.text, textTransform: 'capitalize' },
-    tresoStartBalance: { fontSize: 12, fontWeight: '600' },
+    tresoMonthLabel: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.text, textTransform: 'capitalize' },
+    tresoStartBalance: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
     tresoMonthBody: { gap: 3 },
     tresoMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 },
-    tresoKey: { fontSize: 13, color: c.textSecondary },
-    tresoVal: { fontSize: 14, fontWeight: '600' },
+    tresoKey: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
+    tresoVal: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
     tresoDetailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 8, marginBottom: 8 },
-    tresoDetailBtnText: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+    tresoDetailBtnText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', flexShrink: 1 },
     // ── Filtre par compte courant (onglet Trésorerie) ──
     tresoActionRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginBottom: 14 },
     tresoFilterBtn: {
@@ -1587,20 +1587,20 @@ function makeBaseStyles(c: any) {
       paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
     },
-    tresoFilterCount: { fontSize: 11.5, fontWeight: '800', color: '#fff', includeFontPadding: false },
+    tresoFilterCount: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: '#fff', includeFontPadding: false },
     tresoFilterPanel: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14 },
     tresoFilterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    tresoFilterTitle: { fontSize: 13, fontWeight: '800', color: c.text },
-    tresoFilterReset: { fontSize: 13, fontWeight: '600' },
+    tresoFilterTitle: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.text },
+    tresoFilterReset: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal' },
     // Les puces s'enroulent : un nom de compte long ne doit pas pousser les autres hors de l'écran.
     tresoFilterChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     tresoFilterChip: { maxWidth: '100%', height: 36, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    tresoFilterChipText: { fontSize: 13, color: c.text, fontWeight: '500', includeFontPadding: false },
-    tresoFilterNote: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 12 },
+    tresoFilterChipText: { fontFamily: GF.body, fontSize: 13, color: c.text, fontWeight: 'normal', includeFontPadding: false },
+    tresoFilterNote: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 12 },
     // En-tête du graphique : titre à gauche, bascule d'horizon à droite.
     chartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
     horizonPills: { flexDirection: 'row', gap: 2, padding: 2, borderRadius: 999, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder },
     horizonPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
-    horizonPillText: { fontSize: 11.5, fontWeight: '700' },
+    horizonPillText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal' },
   });
 }

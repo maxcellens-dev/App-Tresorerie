@@ -40,6 +40,7 @@ import { iconForCategory } from '../../../lib/ui/categoryIcons';
 import { supabase } from '../../../lib/platform/supabase';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 /** Clé du champ « nouvelle catégorie parente » (admin) — aucun id réel ne peut la valoir. */
@@ -426,7 +427,7 @@ function CategoriesScreen() {
           right={isAdmin ? (
             <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/admin/categories' as any)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="construct-outline" size={16} color={COLORS.blue} />
-              <Text style={{ color: COLORS.blue, fontWeight: '700', fontSize: 13 }}>Base (admin)</Text>
+              <Text style={{ fontFamily: GF.bodyBold, color: COLORS.blue, fontWeight: 'normal', fontSize: 13 }}>Base (admin)</Text>
             </TouchableOpacity>
           ) : undefined}
         />
@@ -599,7 +600,7 @@ function CategoriesScreen() {
                     <Text style={[styles.toggleLabel, editVariable && styles.toggleLabelActive]}>Variable</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>
+                <Text style={{ fontFamily: GF.body, fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>
                   Les sous-catégories suivront automatiquement.
                 </Text>
               </View>
@@ -656,12 +657,12 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 4, marginRight: 12 },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
+  pageTitle: { fontFamily: GF.bodyBold, fontSize: 22, fontWeight: 'normal', color: c.text },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
+  subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 24 },
   // Bandeau d'information / d'erreur, en tête de liste (mêmes valeurs que les autres écrans).
   notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 14 },
-  noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+  noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   hint: { color: c.textSecondary },
@@ -672,15 +673,15 @@ function makeBaseStyles(c: any) {
     alignItems: 'center',
     marginBottom: 24,
   },
-  seedBtnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+  seedBtnLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
   // ── Onglets Dépenses / Recettes (filtre global de la page) ──
   typeTabs: { flexDirection: 'row', gap: 6, padding: 4, marginBottom: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12 },
   typeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 9 },
   typeTabActive: { backgroundColor: c.emerald },
-  typeTabText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
-  typeTabTextActive: { color: c.onAccent, fontWeight: '800' },
+  typeTabText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary },
+  typeTabTextActive: { color: c.onAccent, fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
   // Styles du modal d'édition (renommer + choisir Fixe/Variable sur une catégorie de dépense).
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   toggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   toggleBtn: {
     flex: 1,
@@ -691,8 +692,8 @@ function makeBaseStyles(c: any) {
     alignItems: 'center',
   },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  toggleLabel: { fontSize: 14, color: c.textSecondary },
-  toggleLabelActive: { color: c.onAccent, fontWeight: '600' },
+  toggleLabel: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary },
+  toggleLabelActive: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   input: {
     backgroundColor: c.bg,
     borderWidth: 1,
@@ -705,7 +706,7 @@ function makeBaseStyles(c: any) {
     marginBottom: 16,
   },
   inlineError: { backgroundColor: c.danger + '1F', borderWidth: 1, borderColor: c.danger + '66', borderRadius: 8, padding: 10, marginBottom: 10 },
-  inlineErrorText: { fontSize: 13, color: c.danger, lineHeight: 18 },
+  inlineErrorText: { fontFamily: GF.body, fontSize: 13, color: c.danger, lineHeight: 18 },
   loader: { marginVertical: 24 },
   // Une carte = UNE catégorie parente et ses sous-catégories. C'est la carte qui porte la
   // hiérarchie ; les lignes enfants gardent le fond de la carte (aucun voile gris).
@@ -727,17 +728,17 @@ function makeBaseStyles(c: any) {
     borderBottomWidth: 1,
     borderBottomColor: c.cardBorder,
   },
-  groupTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: c.text },
-  groupEmpty: { paddingHorizontal: 14, paddingVertical: 14, fontSize: 12.5, fontStyle: 'italic', color: c.textSecondary },
+  groupTitle: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 15, fontWeight: 'normal', color: c.text },
+  groupEmpty: { fontFamily: GF.body, paddingHorizontal: 14, paddingVertical: 14, fontSize: 12.5, fontStyle: 'italic', color: c.textSecondary },
   // ── Création sur place ──
   addTrigger: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 11, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: c.cardBorder },
-  addTriggerText: { fontSize: 13.5, fontWeight: '700', color: c.emerald },
+  addTriggerText: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.emerald },
   addRow: { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: c.cardBorder, backgroundColor: c.emerald + '0A' },
   addInput: {
     flex: 1, fontSize: 14, color: c.text, paddingVertical: 6, marginRight: 4,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
   },
-  addRowError: { fontSize: 12, color: c.danger, paddingHorizontal: 14, paddingBottom: 10, lineHeight: 16 },
+  addRowError: { fontFamily: GF.body, fontSize: 12, color: c.danger, paddingHorizontal: 14, paddingBottom: 10, lineHeight: 16 },
   rootAddCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   rootAddTrigger: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: c.emerald + '80', marginTop: 4 },
   childRow: {
@@ -751,7 +752,7 @@ function makeBaseStyles(c: any) {
   },
   childRowLast: { borderBottomWidth: 0 },
   // Couleur de texte PLEINE : en secondaire, les sous-catégories passaient pour désactivées.
-  childName: { flex: 1, fontSize: 14, color: c.text },
+  childName: { fontFamily: GF.body, flex: 1, fontSize: 14, color: c.text },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   actionBtn: { padding: 6 },
   actionBtnDisabled: { opacity: 0.25 },
@@ -770,12 +771,12 @@ function makeBaseStyles(c: any) {
     borderColor: c.cardBorder,
     padding: 24,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 16 },
+  modalTitle: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', color: c.text, marginBottom: 16 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtn: { paddingVertical: 14, paddingHorizontal: 16 },
   modalBtnPrimary: { backgroundColor: c.emerald, borderRadius: 12 },
-  modalBtnLabel: { fontSize: 16, color: c.textSecondary },
-  modalBtnLabelPrimary: { color: c.onAccent, fontWeight: '600' },
+  modalBtnLabel: { fontFamily: GF.body, fontSize: 16, color: c.textSecondary },
+  modalBtnLabelPrimary: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
 });
 }
 

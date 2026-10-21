@@ -20,6 +20,7 @@ import Svg, { Rect, Line, G, Text as SvgText } from 'react-native-svg';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import type { BudgetMonthPoint } from '../../lib/finance/budgetEngine';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const fmtFull = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 const fmtK = (n: number) => (Math.abs(n) >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n)));
@@ -141,7 +142,7 @@ export default function BudgetBars({ data, width, selected, onSelect }: Props) {
                   est une erreur de lecture qui attend. On nomme donc ce qu'on montre. */}
               <View style={s.detailItem}>
                 <Text style={s.detailLabel}>{(selData.gap ?? 0) >= 0 ? 'Restant' : 'Dépassé'}</Text>
-                <Text style={[s.detailValue, { color: (selData.gap ?? 0) >= 0 ? C.success : C.warning, fontWeight: '800' }]}>
+                <Text style={[s.detailValue, { color: (selData.gap ?? 0) >= 0 ? C.success : C.warning, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>
                   {fmtFull(Math.abs(selData.gap ?? 0))}
                 </Text>
               </View>
@@ -166,16 +167,16 @@ function makeBaseStyles(c: any) {
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     dot: { width: 9, height: 9, borderRadius: 5 },
     dash: { width: 12, height: 2, borderRadius: 1 },
-    legendText: { fontSize: 11, color: c.textSecondary },
-    empty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 28 },
+    legendText: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
+    empty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 28 },
     detail: {
       marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder,
     },
-    detailMonth: { fontSize: 12, fontWeight: '700', color: c.text, textTransform: 'capitalize', marginBottom: 8 },
+    detailMonth: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text, textTransform: 'capitalize', marginBottom: 8 },
     detailVals: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
     detailItem: { flex: 1 },
-    detailLabel: { fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: '700', color: c.textSecondary, marginBottom: 3 },
-    detailValue: { fontSize: 13.5, fontWeight: '700', color: c.text, fontVariant: ['tabular-nums'] },
-    detailNone: { fontSize: 12, color: c.textSecondary },
+    detailLabel: { fontFamily: GF.bodyBold, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: 'normal', color: c.textSecondary, marginBottom: 3 },
+    detailValue: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text, fontVariant: ['tabular-nums'] },
+    detailNone: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
   });
 }

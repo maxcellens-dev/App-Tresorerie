@@ -20,6 +20,7 @@ import {
   useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate, makeTemplateId,
   type AdminEmailTemplate,
 } from '../../hooks/admin/useEmailTemplates';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   /** Recopie le modèle dans les champs Objet + Message de la campagne en cours. */
@@ -232,25 +233,25 @@ function makeBaseStyles(c: any) {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11,
     },
-    selectText: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text },
+    selectText: { fontFamily: GF.bodyBold, flex: 1, fontSize: 14, fontWeight: 'normal', color: c.text },
     applyBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.emerald,
       borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11,
     },
-    applyTxt: { fontSize: 13, fontWeight: '800', color: c.onAccent },
+    applyTxt: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.onAccent },
     list: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.card, overflow: 'hidden' },
     item: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
     itemPicked: { backgroundColor: c.emerald + '12' },
     itemHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    itemName: { fontSize: 13.5, fontWeight: '700', color: c.text, flexShrink: 1 },
-    itemHint: { fontSize: 11, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
+    itemName: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text, flexShrink: 1 },
+    itemHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
     customTag: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5, flexShrink: 0, backgroundColor: c.blue + '1A', borderWidth: 1, borderColor: c.blue + '44' },
-    customTagTxt: { fontSize: 9, fontWeight: '800', color: c.blue },
+    customTagTxt: { fontFamily: GF.bodyHeavy, fontSize: 9, fontWeight: 'normal', color: c.blue },
     editedTag: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5, flexShrink: 0, backgroundColor: c.orange + '1A', borderWidth: 1, borderColor: c.orange + '44' },
-    editedTagTxt: { fontSize: 9, fontWeight: '800', color: c.orange },
+    editedTagTxt: { fontFamily: GF.bodyHeavy, fontSize: 9, fontWeight: 'normal', color: c.orange },
     iconBtn: { padding: 5 },
     newBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
-    newTxt: { fontSize: 13, fontWeight: '800', color: c.emerald },
+    newTxt: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.emerald },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     // Plafond sur la FEUILLE elle-même (une View a `flexShrink: 0` : un parent plafonné ne la
@@ -262,12 +263,12 @@ function makeBaseStyles(c: any) {
     },
     sheetScroll: { flexGrow: 0, flexShrink: 1 },
     sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-    sheetTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-    label: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, marginTop: 12, marginBottom: 5 },
-    input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text },
-    textarea: { minHeight: 160, textAlignVertical: 'top', fontSize: 12.5, lineHeight: 18 },
-    noteBuiltin: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 10 },
+    sheetTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
+    label: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, marginTop: 12, marginBottom: 5 },
+    input: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text },
+    textarea: { fontFamily: GF.body, minHeight: 160, textAlignVertical: 'top', fontSize: 12.5, lineHeight: 18 },
+    noteBuiltin: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 10 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
-    saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    saveTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   });
 }

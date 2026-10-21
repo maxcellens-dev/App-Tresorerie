@@ -38,6 +38,7 @@ import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { todayISO } from '../../lib/dateUtils';
 import BudgetInlineBlock from '../budget/BudgetInlineBlock';
 import AdSlot from '../marketing/AdSlot';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /**
  * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
@@ -470,11 +471,11 @@ function makeBaseStyles(c: AppColors) {
       }),
     },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-    title: { flex: 1, fontSize: 15, fontWeight: '800', color: c.text },
+    title: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 15, fontWeight: 'normal', color: c.text },
     closeBtn: { padding: 2, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-    chipText: { fontSize: 12.5, fontWeight: '800' },
+    chipText: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal' },
 
     /* Ligne « Fin de mois » : une seule ligne, pas une carte — elle complète les pastilles sans
        rallonger la confirmation. */
@@ -483,16 +484,16 @@ function makeBaseStyles(c: AppColors) {
     },
     /* Ligne « Dépenses variables » : le chiffre qu'une dépense variable déplace RÉELLEMENT. */
     env: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10 },
-    envText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, lineHeight: 18 },
-    envValue: { fontSize: 14, fontWeight: '800' },
+    envText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, lineHeight: 18 },
+    envValue: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal' },
     envTrack: { height: 5, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8, overflow: 'hidden' },
     envFill: { height: '100%', borderRadius: 999 },
-    envHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 6 },
+    envHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 6 },
 
-    eomText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, lineHeight: 18 },
-    eomValue: { fontSize: 14, fontWeight: '800' },
-    eomDelta: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
-    hint: { fontSize: 10.5, color: c.textSecondary, marginTop: 14, textAlign: 'center' },
+    eomText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, lineHeight: 18 },
+    eomValue: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal' },
+    eomDelta: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary },
+    hint: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, marginTop: 14, textAlign: 'center' },
     grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8 },
   });
 }

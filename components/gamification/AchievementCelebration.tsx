@@ -20,6 +20,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { isAppReady, onAppReady } from '../../lib/platform/splashGate';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type BadgeDef } from '../../lib/engagement/gamification';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function AchievementCelebration() {
   const COLORS = useAppColors();
@@ -213,15 +214,15 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 28, zIndex: 5000, ...(Platform.OS === 'web' ? { position: 'fixed' as any } : {}) },
     card: { width: '100%', maxWidth: 340, backgroundColor: c.cardSolid ?? c.card, borderRadius: 24, borderWidth: 1, borderColor: UNLOCK_COLOR + '55', padding: 28, alignItems: 'center' },
-    congrats: { fontSize: 16, fontWeight: '800', color: UNLOCK_COLOR, marginBottom: 18 },
+    congrats: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: UNLOCK_COLOR, marginBottom: 18 },
     confettiLayer: { position: 'absolute', top: '38%', left: '50%', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
     iconWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     glow: { position: 'absolute', width: 96, height: 96, borderRadius: 48 },
     iconCircle: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-    title: { fontSize: 20, fontWeight: '900', color: c.text, textAlign: 'center' },
-    desc: { fontSize: 13, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 20, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+    desc: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
     reward: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, backgroundColor: c.blue + '1A', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
-    rewardText: { fontSize: 14, fontWeight: '800', color: c.text },
-    tapHint: { fontSize: 11.5, color: c.textSecondary, marginTop: 18 },
+    rewardText: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.text },
+    tapHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 18 },
   });
 }

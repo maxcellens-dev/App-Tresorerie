@@ -40,6 +40,7 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, shopFinalPrice, type ShopItem, type ShopCategory } from '../../../lib/engagement/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/platform/purchases';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 type ShopTab = 'app' | 'relyka';
 
@@ -501,7 +502,7 @@ function BoutiqueScreen() {
                   <View style={{ alignItems: 'center', marginTop: 30, gap: 10 }}>
                     <Text style={styles.empty}>La boutique n'a pas pu être chargée.</Text>
                     <TouchableOpacity onPress={() => cfgQuery.refetch()} activeOpacity={0.8}>
-                      <Text style={[styles.apparenceLinkText, { fontSize: 13 }]}>Réessayer</Text>
+                      <Text style={[styles.apparenceLinkText, { fontFamily: GF.body, fontSize: 13 }]}>Réessayer</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -564,7 +565,7 @@ function BoutiqueScreen() {
             <Text style={styles.modalTitle}>Confirmer l'achat</Text>
             <Text style={styles.modalText}>
               Acheter « {confirmItem?.label} » pour{' '}
-              <Text style={{ fontWeight: '800', color: COLORS.text }}>{formatCurrency(confirmItem?.price ?? 0, currencyName)}</Text> ?
+              <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }}>{formatCurrency(confirmItem?.price ?? 0, currencyName)}</Text> ?
             </Text>
             <Text style={styles.modalBalance}>Solde après achat : {formatCurrency(Math.max(0, gems - (confirmItem?.price ?? 0)), currencyName)}</Text>
             <View style={styles.modalBtns}>
@@ -641,87 +642,87 @@ function makeBaseStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
+    backText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     apparenceLink: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8, marginTop: 6 },
-    apparenceLinkText: { fontSize: 11.5, fontWeight: '700', color: c.emerald },
-    title: { fontSize: 26, fontWeight: '800', color: c.text },
+    apparenceLinkText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.emerald },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 26, fontWeight: 'normal', color: c.text },
     gemPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    gemText: { fontSize: 14, fontWeight: '800', color: c.text },
+    gemText: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.text },
     adminGemBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-    adminGemBtnText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
+    adminGemBtnText: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.onAccent },
     tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
-    tabText: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
+    tabText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary },
     tabTextActive: { color: c.emerald },
-    sectionIntro: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },
+    sectionIntro: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },
     catHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    gridStrike: { fontSize: 10.5, color: c.textSecondary, textDecorationLine: 'line-through' },
-    catHeader: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6 },
-    gemsNote: { fontSize: 11.5, color: c.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 15 },
+    gridStrike: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, textDecorationLine: 'line-through' },
+    catHeader: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6 },
+    gemsNote: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 15 },
     soonPill: { backgroundColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-    soonText: { fontSize: 11, fontWeight: '800', color: c.textSecondary },
+    soonText: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 60 },
     premiumBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 },
-    premiumText: { flex: 1, fontSize: 12.5, color: c.text, fontWeight: '600' },
+    premiumText: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, color: c.text, fontWeight: 'normal' },
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     cardFrozen: { opacity: 0.6, borderStyle: 'dashed', borderColor: c.yellow + '55' },
     // rayons : vignettes qui défilent sur le côté
     tile: { width: 132, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 10, alignItems: 'center', gap: 6 },
     tileActive: { borderColor: c.emerald, borderWidth: 2 },
     tileArt: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' },
-    tileLabel: { fontSize: 13, fontWeight: '700', color: c.text, textAlign: 'center', minHeight: 34 },
+    tileLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, textAlign: 'center', minHeight: 34 },
     // vitrine : la scène du jardin + la barre d'essai
     showcase: { borderRadius: 20, overflow: 'hidden', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
     showcaseBar: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
     frameTry: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 60, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)' },
     frameRing: { width: 132, height: 132, borderRadius: 66, borderWidth: 6, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: c.card },
     frameImg: { width: 120, height: 120, borderRadius: 60 },
-    frameInitial: { fontSize: 48, fontWeight: '800', color: c.text },
-    showcaseText: { flex: 1, fontSize: 13, color: c.textSecondary },
+    frameInitial: { fontFamily: GF.bodyHeavy, fontSize: 48, fontWeight: 'normal', color: c.text },
+    showcaseText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.textSecondary },
     dailyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 12, marginBottom: 12 },
     frozenLock: { position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.textSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
     premiumPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-    premiumPillText: { fontSize: 10.5, fontWeight: '800', color: c.yellow },
+    premiumPillText: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal', color: c.yellow },
     premiumDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', alignItems: 'center', justifyContent: 'center' },
     filterRow: { gap: 8, paddingVertical: 2, paddingRight: 8 },
     filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     filterChipActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
-    filterChipText: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    filterChipText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
     compactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
     compactCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 12, alignItems: 'center', gap: 8 },
     compactHalf: { flexBasis: '47%', flexGrow: 1 },
     compactThird: { flexBasis: '30%', flexGrow: 1 },
-    compactLabel: { fontSize: 12.5, fontWeight: '700', color: c.text, textAlign: 'center' },
-    ownedText: { fontSize: 11, fontWeight: '600', color: c.textSecondary, marginTop: -2 },
+    compactLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+    ownedText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, marginTop: -2 },
     countBadge: { position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-    countBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+    countBadgeText: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: '#fff' },
     itemIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     itemImg: { width: 28, height: 28, borderRadius: 6 },
     // images 3D (flammes, trophée) : plus grandes qu'un pictogramme, elles remplissent la pastille
     itemArt: { width: 38, height: 38, borderRadius: 8 },
-    itemLabel: { fontSize: 14, fontWeight: '700', color: c.text },
-    itemDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
+    itemLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    itemDesc: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
     buyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9, minWidth: 64, justifyContent: 'center' },
-    buyText: { fontSize: 13, fontWeight: '800' },
+    buyText: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal' },
     empty: { color: c.textSecondary, textAlign: 'center', marginTop: 30 },
     msgBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10,
     },
-    msg: { flex: 1, fontSize: 12.5, fontWeight: '600', lineHeight: 17 },
+    msg: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, fontWeight: 'normal', lineHeight: 17 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
     modalCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 20, padding: 24, alignItems: 'center' },
     modalIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-    modalTitle: { fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 8 },
-    modalText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
-    modalBalance: { fontSize: 12, color: c.textSecondary, marginTop: 8 },
+    modalTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text, marginBottom: 8 },
+    modalText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
+    modalBalance: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 8 },
     modalBtns: { flexDirection: 'row', gap: 10, marginTop: 20, width: '100%' },
     modalCancel: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13 },
-    modalCancelText: { fontSize: 14, fontWeight: '700', color: c.text },
+    modalCancelText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
     modalConfirm: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13 },
-    modalConfirmText: { fontSize: 14, fontWeight: '800', color: c.onAccent },
+    modalConfirmText: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.onAccent },
   });
 }

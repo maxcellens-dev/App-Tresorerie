@@ -41,6 +41,7 @@ import {
 } from '../../../../supabase/functions/_shared/emailTemplate';
 import { applyEmailVars, EMAIL_VAR_NAMES } from '../../../../supabase/functions/_shared/emailVars';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 const AUDIENCES: [EmailAudience, string][] = [
   ['all', 'Tous'], ['premium', 'Premium'], ['free', 'Gratuits'], ['group', 'Un groupe'],
@@ -394,20 +395,20 @@ function makeBaseStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     text: { color: c.text, padding: 20 },
-    label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6, marginTop: 12 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6, marginTop: 12 },
     /* Intertitre de SECTION — en capitales, comme dans l'écran Notifications. Il fallait un niveau
        au-dessus de `label` : sans lui, « Objet » et « Historique » avaient le même poids visuel,
        et rien ne séparait un champ de formulaire d'une partie entière de la page. */
-    sectionLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 22, marginBottom: 8 },
+    sectionLabel: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 22, marginBottom: 8 },
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 8 },
     /** Carte qui REGROUPE la rédaction : un envoi = un bloc, au lieu de champs flottants. */
     panel: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14 },
     varsBox: { marginTop: 10, padding: 11, borderRadius: 10, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, gap: 4 },
-    varsTitle: { fontSize: 10.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
-    varsText: { fontSize: 11, color: c.text, fontWeight: '700', lineHeight: 18 },
-    varsHint: { fontSize: 10.5, color: c.textSecondary, lineHeight: 15, fontStyle: 'italic' },
+    varsTitle: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    varsText: { fontFamily: GF.bodyBold, fontSize: 11, color: c.text, fontWeight: 'normal', lineHeight: 18 },
+    varsHint: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, lineHeight: 15, fontStyle: 'italic' },
     clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: c.danger + '55' },
-    clearTxt: { fontSize: 12, fontWeight: '700', color: c.danger },
+    clearTxt: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.danger },
     input: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
       paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 4,
@@ -425,7 +426,7 @@ function makeBaseStyles(c: any) {
       paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
     },
-    modeTagTxt: { fontSize: 10.5, fontWeight: '700', color: c.textSecondary },
+    modeTagTxt: { fontFamily: GF.bodyBold, fontSize: 10.5, fontWeight: 'normal', color: c.textSecondary },
 
     // (les styles de la grille de gabarits ont disparu avec elle : cf. EmailTemplatePicker)
 
@@ -434,44 +435,44 @@ function makeBaseStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10,
       paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '66', backgroundColor: c.emerald + '12',
     },
-    previewTxt: { fontSize: 13.5, fontWeight: '700', color: c.emerald },
+    previewTxt: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.emerald },
     pvOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', padding: 16, justifyContent: 'center' },
     pvSheet: {
       flex: 1, maxWidth: 700, width: '100%', alignSelf: 'center',
       backgroundColor: c.bg, borderRadius: 18, borderWidth: 1, borderColor: c.cardBorder, padding: 14, gap: 10,
     },
     pvHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    pvTitle: { fontSize: 17, fontWeight: '800', color: c.text },
-    pvNote: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
+    pvTitle: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text },
+    pvNote: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
     pvCode: { fontSize: 11, color: c.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-    pvFoot: { fontSize: 11, color: c.textSecondary, lineHeight: 16, textAlign: 'center' },
+    pvFoot: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 16, textAlign: 'center' },
     chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 6 },
     chip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipOn: { backgroundColor: c.emerald, borderColor: c.emerald },
-    chipTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    chipTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
     chipTxtOn: { color: c.onAccent },
     countBox: {
       flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10, padding: 12,
       borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '44', backgroundColor: c.emerald + '12',
     },
-    countText: { flex: 1, fontSize: 13.5, fontWeight: '700', color: c.text },
-    countSub: { fontSize: 11.5, fontWeight: '500', color: c.textSecondary },
+    countText: { fontFamily: GF.bodyBold, flex: 1, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+    countSub: { fontFamily: GF.body, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary },
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 16 },
-    switchLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
+    switchLabel: { fontFamily: GF.bodyBold, fontSize: 14, color: c.text, fontWeight: 'normal' },
     scheduleRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     actions: { marginTop: 18 },
     primaryBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15,
     },
-    primaryTxt: { fontSize: 15.5, fontWeight: '800', color: c.onAccent },
-    hint: { fontSize: 12.5, color: c.textSecondary, marginTop: 6 },
+    primaryTxt: { fontFamily: GF.bodyHeavy, fontSize: 15.5, fontWeight: 'normal', color: c.onAccent },
+    hint: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, marginTop: 6 },
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 13, marginTop: 8,
     },
-    cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
-    cardSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    cardSub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     // Campagne en pause : pas de corbeille (la supprimer perdrait le registre des envois déjà faits,
     // donc la garantie anti-doublon) — juste un sablier qui dit « ça continue tout seul ».
     pausedTag: { padding: 6 },

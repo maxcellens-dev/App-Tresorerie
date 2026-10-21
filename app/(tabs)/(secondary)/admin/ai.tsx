@@ -27,6 +27,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/platform/supabase';
 import { useUserSnapshot } from '../../../../hooks/data/useUserSnapshot';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 type Tab = 'settings' | 'models' | 'prompts' | 'tickets' | 'snapshot';
 
@@ -282,7 +283,7 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
           </View>
         </View>
       ))}
-      <TouchableOpacity style={s.addRow} onPress={add}><Ionicons name="add" size={18} color={c.emerald} /><Text style={{ color: c.emerald, fontWeight: '700' }}>Ajouter un modèle</Text></TouchableOpacity>
+      <TouchableOpacity style={s.addRow} onPress={add}><Ionicons name="add" size={18} color={c.emerald} /><Text style={{ color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Ajouter un modèle</Text></TouchableOpacity>
       <TouchableOpacity style={[s.saveBtn, !dirty && { opacity: 0.4 }]} disabled={!dirty || updateCfg.isPending} onPress={saveAll}><Text style={s.saveTxt}>Enregistrer les modèles</Text></TouchableOpacity>
     </>
   );
@@ -329,7 +330,7 @@ function QuestionsEditor({ c, s, cfg, updateCfg }: any) {
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la question rapide" onPress={() => setList((l) => l.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={22} color={c.danger} /></TouchableOpacity>
         </View>
       ))}
-      <TouchableOpacity style={s.addRow} onPress={() => setList((l) => [...l, ''])}><Ionicons name="add" size={18} color={c.emerald} /><Text style={{ color: c.emerald, fontWeight: '700' }}>Ajouter une question</Text></TouchableOpacity>
+      <TouchableOpacity style={s.addRow} onPress={() => setList((l) => [...l, ''])}><Ionicons name="add" size={18} color={c.emerald} /><Text style={{ color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Ajouter une question</Text></TouchableOpacity>
       <TouchableOpacity style={[s.saveBtn, !dirty && { opacity: 0.4 }]} disabled={!dirty || updateCfg.isPending} onPress={() => updateCfg.mutate({ predefined_questions: list.map((x) => x.trim()).filter(Boolean) })}>
         <Text style={s.saveTxt}>Enregistrer les questions</Text>
       </TouchableOpacity>
@@ -494,50 +495,50 @@ function makeBaseStyles(c: any) {
     tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
     tab: { flexGrow: 1, minWidth: 88, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     tabOn: { backgroundColor: c.emerald + '18', borderColor: c.emerald },
-    tabTxt: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
-    tabTxtOn: { color: c.emerald, fontWeight: '700' },
+    tabTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
+    tabTxtOn: { color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' },
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10 },
-    cardTitle: { fontSize: 14.5, fontWeight: '700', color: c.text },
-    cardDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
-    num: { width: 64, textAlign: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 8, color: c.text, fontSize: 15, fontWeight: '700' },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 14.5, fontWeight: 'normal', color: c.text },
+    cardDesc: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
+    num: { fontFamily: GF.bodyBold, width: 64, textAlign: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 8, color: c.text, fontSize: 15, fontWeight: 'normal' },
     switch: { width: 50, height: 30, borderRadius: 15, backgroundColor: c.cardBorder, padding: 3, justifyContent: 'center' },
     switchOn: { backgroundColor: c.emerald },
     knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' },
     knobOn: { alignSelf: 'flex-end' },
-    lbl: { fontSize: 13, fontWeight: '700', color: c.text, marginTop: 8, marginBottom: 6 },
-    hint: { fontSize: 12.5, color: c.textSecondary, lineHeight: 17, marginBottom: 12 },
-    input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 14, marginBottom: 10 },
-    area: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13.5, lineHeight: 19, minHeight: 80, textAlignVertical: 'top' },
+    lbl: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, marginTop: 8, marginBottom: 6 },
+    hint: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 17, marginBottom: 12 },
+    input: { fontFamily: GF.body, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 14, marginBottom: 10 },
+    area: { fontFamily: GF.body, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13.5, lineHeight: 19, minHeight: 80, textAlignVertical: 'top' },
     promptCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
-    keyTag: { fontSize: 11, fontWeight: '800', color: c.emerald, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
+    keyTag: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.emerald, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
-    saveTxt: { color: c.onAccent, fontWeight: '800', fontSize: 13.5 },
+    saveTxt: { fontFamily: GF.bodyHeavy, color: c.onAccent, fontWeight: 'normal', fontSize: 13.5 },
     addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
     miniBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    miniTxt: { color: '#fff', fontWeight: '700', fontSize: 12.5 },
+    miniTxt: { fontFamily: GF.bodyBold, color: '#fff', fontWeight: 'normal', fontSize: 12.5 },
     checkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: c.emerald, borderRadius: 10, paddingVertical: 11, marginBottom: 8 },
-    checkTxt: { color: c.emerald, fontWeight: '700', fontSize: 13.5 },
+    checkTxt: { fontFamily: GF.bodyBold, color: c.emerald, fontWeight: 'normal', fontSize: 13.5 },
     statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-    statusTxt: { fontSize: 10.5, fontWeight: '800' },
+    statusTxt: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal' },
     promptBox: { maxHeight: 220, marginTop: 8, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, padding: 10 },
     promptText: { color: c.text, fontSize: 11.5, lineHeight: 16, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
     // Carte ticket
     ticketCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     ticketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     ticketPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.emerald + '18', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 },
-    ticketPillTxt: { fontSize: 11.5, fontWeight: '800', color: c.emerald },
-    ticketDate: { fontSize: 11, color: c.textSecondary },
-    ticketField: { fontSize: 12, fontWeight: '700', color: c.text, marginBottom: 2 },
-    ticketQuote: { fontSize: 13, color: c.text, fontStyle: 'italic', marginBottom: 4, lineHeight: 18 },
-    ticketMeta: { fontSize: 11, color: c.textSecondary },
+    ticketPillTxt: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.emerald },
+    ticketDate: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
+    ticketField: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text, marginBottom: 2 },
+    ticketQuote: { fontFamily: GF.body, fontSize: 13, color: c.text, fontStyle: 'italic', marginBottom: 4, lineHeight: 18 },
+    ticketMeta: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
     ticketError: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: c.danger + '12', borderRadius: 8, padding: 8, marginTop: 8 },
-    ticketErrorTxt: { flex: 1, fontSize: 11, color: c.danger, lineHeight: 15 },
+    ticketErrorTxt: { fontFamily: GF.body, flex: 1, fontSize: 11, color: c.danger, lineHeight: 15 },
     ticketRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
     ticketDivider: { height: 1, backgroundColor: c.cardBorder, marginTop: 12 },
     ghostBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8 },
-    ghostTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    ghostTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
     primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, marginTop: 12 },
-    primaryTxt: { color: c.onAccent, fontWeight: '800', fontSize: 13.5 },
+    primaryTxt: { fontFamily: GF.bodyHeavy, color: c.onAccent, fontWeight: 'normal', fontSize: 13.5 },
     text: { color: c.text, padding: 20 },
   });
 }

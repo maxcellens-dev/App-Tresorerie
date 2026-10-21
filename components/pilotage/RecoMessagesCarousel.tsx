@@ -31,6 +31,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { semanticText } from '../../theme/palette';
 import RichAmounts from '../transaction/RichAmounts';
 import type { RecoMessage } from '../../lib/finance/recoMessages';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** Durée d'affichage d'un message avant de passer au suivant. */
 const ROTATE_MS = 5000;
@@ -152,9 +153,9 @@ function makeBaseStyles(c: any) {
     inner: { flex: 1, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 10, gap: 7 },
     head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     icon: { width: 20, height: 20, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-    label: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 1 },
+    label: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 1 },
     dots: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 'auto' },
     dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.cardBorder },
-    text: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    text: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
   });
 }

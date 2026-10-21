@@ -23,6 +23,7 @@ import {
   AD_PLACEMENTS, AD_LINK_TARGETS, AD_FORMATS,
   type AdBanner, type AdLinkTarget, type AdFormat,
 } from '../../../../hooks/config/useAdsConfig';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 // Emplacements regroupés par page (ordre stable) → sélection compacte.
 type Placement = (typeof AD_PLACEMENTS)[number];
@@ -203,13 +204,13 @@ export default function AdminAds() {
     return (
       <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Publicités" onBack={goBack} />
-        <Text style={{ color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: '700' }}>Configuration non chargée</Text>
-        <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
+        <Text style={{ fontFamily: GF.bodyBold, color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: 'normal' }}>Configuration non chargée</Text>
+        <Text style={{ fontFamily: GF.body, color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
           Les bannières actuelles n'ont pas pu être lues. Le formulaire reste fermé : l'ouvrir vide
           ferait écraser les bannières en place au premier enregistrement.
         </Text>
         <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
-          <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+          <Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.onAccent, fontWeight: 'normal', fontSize: 14 }}>Réessayer</Text>
         </TouchableOpacity>
       </SafeAreaView></View>
     );
@@ -617,31 +618,31 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    sub: { fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
+    sub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     cardHidden: { opacity: 0.55 },
     globalToggle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: c.emerald, padding: 3, justifyContent: 'center' },
     switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', alignSelf: 'flex-end' },
-    hiddenTag: { fontSize: 10, fontWeight: '800', color: c.danger, textTransform: 'uppercase', letterSpacing: 0.5, borderWidth: 1, borderColor: c.danger, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    hiddenTag: { fontFamily: GF.bodyHeavy, fontSize: 10, fontWeight: 'normal', color: c.danger, textTransform: 'uppercase', letterSpacing: 0.5, borderWidth: 1, borderColor: c.danger, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-    cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
-    opacityValue: { fontSize: 14, fontWeight: '800', color: c.emerald },
-    label: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginTop: 8, marginBottom: 4 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    opacityValue: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.emerald },
+    label: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal', marginTop: 8, marginBottom: 4 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     placementToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
-    placementSummary: { fontSize: 12.5, color: c.text, fontWeight: '600', marginTop: 2 },
+    placementSummary: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.text, fontWeight: 'normal', marginTop: 2 },
     placementGroup: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
-    placementGroupLabel: { width: 78, fontSize: 11, color: c.textSecondary, fontWeight: '700', paddingTop: 7 },
+    placementGroupLabel: { fontFamily: GF.bodyBold, width: 78, fontSize: 11, color: c.textSecondary, fontWeight: 'normal', paddingTop: 7 },
     placementRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     placementChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-    placementChipText: { fontSize: 11, color: c.text, fontWeight: '600' },
+    placementChipText: { fontFamily: GF.bodyBold, fontSize: 11, color: c.text, fontWeight: 'normal' },
     linkTypeRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     linkTypeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 8 },
-    linkTypeText: { fontSize: 12, color: c.text, fontWeight: '700' },
-    formatLine: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 4 },
-    formatBold: { fontWeight: '800', color: c.text },
+    linkTypeText: { fontFamily: GF.bodyBold, fontSize: 12, color: c.text, fontWeight: 'normal' },
+    formatLine: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 4 },
+    formatBold: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
     /* Carte « Formats » : une ligne par format, avec la pastille du nom à gauche et, en dessous,
        les emplacements que ce format couvre — la liste est engendrée, elle ne peut plus mentir. */
     formatRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 },
@@ -650,15 +651,15 @@ function makeBaseStyles(c: any) {
       borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14',
       borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, overflow: 'hidden',
     },
-    formatWhere: { fontSize: 11, color: c.textSecondary, opacity: 0.85, lineHeight: 16, marginTop: 3 },
+    formatWhere: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, opacity: 0.85, lineHeight: 16, marginTop: 3 },
     /* Rappel du format ATTENDU, dans l'éditeur, juste au-dessus du champ image. */
     formatNeeds: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
     formatNeedChip: {
       flexDirection: 'row', alignItems: 'baseline', gap: 6,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
     },
-    formatNeedLabel: { fontSize: 11, fontWeight: '800', color: c.text },
-    formatNeedIdeal: { fontSize: 10.5, color: c.textSecondary },
+    formatNeedLabel: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.text },
+    formatNeedIdeal: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary },
 
     /* ── Liste maître / détail ──────────────────────────────────────────────────────────────── */
     searchBox: {
@@ -670,8 +671,8 @@ function makeBaseStyles(c: any) {
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
     filterChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
     filterChipOn: { borderColor: c.emerald, backgroundColor: c.emerald + '1F' },
-    filterChipText: { fontSize: 11.5, fontWeight: '600', color: c.textSecondary },
-    filterChipTextOn: { color: c.emerald, fontWeight: '800' },
+    filterChipText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary },
+    filterChipTextOn: { color: c.emerald, fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
     row: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
@@ -683,7 +684,7 @@ function makeBaseStyles(c: any) {
     thumb: { width: 46, height: 34, borderRadius: 6, backgroundColor: c.bg },
     thumbEmpty: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    rowTitle: { flexShrink: 1, fontSize: 13.5, fontWeight: '700', color: c.text },
+    rowTitle: { fontFamily: GF.bodyBold, flexShrink: 1, fontSize: 13.5, fontWeight: 'normal', color: c.text },
     /* `flexShrink: 0` : la pastille de format ne se comprime jamais — c'est le TITRE qui se tronque
        (il est le seul à porter `flexShrink: 1`). */
     rowFormat: {
@@ -692,28 +693,28 @@ function makeBaseStyles(c: any) {
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 5,
       paddingHorizontal: 5, paddingVertical: 1.5, overflow: 'hidden',
     },
-    rowSub: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
+    rowSub: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 2 },
     /* Avertissement non bloquant (format mixte) : orange, pas rouge — rien n'est cassé. */
     warn: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8,
       borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14',
       borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
     },
-    warnText: { flex: 1, fontSize: 11.5, color: c.text, lineHeight: 16 },
-    emptyList: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', paddingVertical: 22 },
-    emptyDetail: { fontSize: 12.5, color: c.textSecondary, textAlign: 'center', paddingVertical: 28, lineHeight: 18 },
+    warnText: { fontFamily: GF.body, flex: 1, fontSize: 11.5, color: c.text, lineHeight: 16 },
+    emptyList: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, textAlign: 'center', paddingVertical: 22 },
+    emptyDetail: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, textAlign: 'center', paddingVertical: 28, lineHeight: 18 },
     /* Bureau : deux colonnes. La liste garde une largeur FIXE — sinon elle s'étire avec la fenêtre
        et l'éditeur, lui, se retrouve à l'étroit. */
     split: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
     listPane: { width: 330 },
     detailPane: { flex: 1, minWidth: 0 },
     backToList: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, marginBottom: 2, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    backToListText: { fontSize: 13, fontWeight: '700', color: c.emerald },
-    hintInline: { fontSize: 11, color: c.textSecondary, marginTop: 6, fontStyle: 'italic' },
+    backToListText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.emerald },
+    hintInline: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 6, fontStyle: 'italic' },
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginBottom: 8 },
-    addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
+    addText: { fontFamily: GF.bodyBold, color: c.emerald, fontWeight: 'normal', fontSize: 13 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
-    msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
+    saveLabel: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 15 },
+    msg: { textAlign: 'center', marginTop: 10, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   });
 }

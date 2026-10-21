@@ -35,6 +35,7 @@ import { PROFILE_INFO } from '../../lib/finance/financialProfileEngine';
 import { monthKey, type PulseSignalId } from '../../lib/pulse/pulseEngine';
 import PulseSignalCard from './PulseSignalCard';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /**
  * Ouverture manuelle (fin de clôture mensuelle, aperçu admin).
@@ -417,8 +418,8 @@ function MonthlyRing({ stats, COLORS }: { stats: PulseData['monthlyStats']; COLO
         ))}
       </Svg>
       <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-        <Text style={{ fontSize: 19, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 }}>{eurFmt(total)}</Text>
-        <Text style={{ fontSize: 9, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 12, maxWidth: 78 }}>
+        <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', color: COLORS.text, letterSpacing: -0.5 }}>{eurFmt(total)}</Text>
+        <Text style={{ fontFamily: GF.body, fontSize: 9, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 12, maxWidth: 78 }}>
           non dépensés{'\n'}sur le mois
         </Text>
       </View>
@@ -449,16 +450,16 @@ function makeBaseStyles(c: AppColors) {
     grabber: { alignSelf: 'center', width: 38, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginBottom: 12 },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     titleRow: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-    title: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: -0.3 },
-    period: { flexShrink: 0, fontSize: 12, color: c.textSecondary, textTransform: 'capitalize' },
+    title: { fontFamily: GF.bodyHeavy, flexShrink: 1, fontSize: 18, fontWeight: 'normal', color: c.text, letterSpacing: -0.3 },
+    period: { fontFamily: GF.body, flexShrink: 0, fontSize: 12, color: c.textSecondary, textTransform: 'capitalize' },
     closeBtn: { padding: 4 },
     summary: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       marginTop: 12, marginBottom: 4, paddingVertical: 9, paddingHorizontal: 12,
       backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
     },
-    profile: { flex: 1, fontSize: 12.5, fontWeight: '700', color: c.text },
-    estimated: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
+    profile: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, fontWeight: 'normal', color: c.text },
+    estimated: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
     list: { flexGrow: 0, marginTop: 12 },
 
     // ── Carte de récapitulatif (anneau + repères du mois) ──
@@ -472,12 +473,12 @@ function makeBaseStyles(c: AppColors) {
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11,
     },
-    leadStatLabel: { fontSize: 12.5, fontWeight: '700', color: c.text },
-    leadStatSub: { fontSize: 11, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
+    leadStatLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text },
+    leadStatSub: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
     legend: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
     legendDot: { width: 8, height: 8, borderRadius: 999 },
-    legendTxt: { fontSize: 11, fontWeight: '600', color: c.text, marginRight: 6 },
+    legendTxt: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.text, marginRight: 6 },
     // Période du bilan : posée AU-DESSUS des trois montants, pas accrochée à leur suite.
-    legendPeriod: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'capitalize', marginTop: 10 },
+    legendPeriod: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'capitalize', marginTop: 10 },
   });
 }

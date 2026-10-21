@@ -61,6 +61,7 @@ import CalendarWithPicker from '../../../components/transaction/CalendarWithPick
 import { sheetWidth } from '../../../lib/ui/appLayout';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 export default function BalanceUpdateScreen() {
   const COLORS = useAppColors();
@@ -381,7 +382,7 @@ export default function BalanceUpdateScreen() {
                   ce qui a été dépensé au quotidien. */}
               {onlyWealth ? (
                 <Text style={styles.summaryText}>
-                  • L’écart est enregistré comme un <Text style={{ fontWeight: '700', color: COLORS.emerald }}>mouvement</Text> : un virement entrant s’il monte le solde, une reprise s’il le baisse.{'\n'}
+                  • L’écart est enregistré comme un <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.emerald }}>mouvement</Text> : un virement entrant s’il monte le solde, une reprise s’il le baisse.{'\n'}
                   • Il compte dans ton épargne du mois (Pilotage, Reporting, patrimoine).{'\n'}
                   • Ton plan de trésorerie et ton budget du quotidien ne bougent pas : cet argent n’est pas passé par ton compte courant.
                 </Text>
@@ -393,7 +394,7 @@ export default function BalanceUpdateScreen() {
                   • Tes recommandations du mois sont mises à jour.{'\n'}
                   {/* « au lieu d'être affichés en fourchette » a été retiré : « fourchette » décrit la
                       mécanique d'affichage, pas ce que l'utilisateur y gagne. */}
-                  • Tes montants repassent en <Text style={{ fontWeight: '700', color: COLORS.emerald }}>« à jour »</Text> : plus d’estimation, un Relyka au chiffre près.
+                  • Tes montants repassent en <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.emerald }}>« à jour »</Text> : plus d’estimation, un Relyka au chiffre près.
                   {'  '}<InfoDot term="confiance" size={13} />
                 </Text>
               )}
@@ -461,14 +462,14 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     content: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
-    lede: { fontSize: 14.5, color: c.textSecondary, lineHeight: 21 },
+    lede: { fontFamily: GF.body, fontSize: 14.5, color: c.textSecondary, lineHeight: 21 },
 
     // Date du relevé (obligatoire)
     dateCard: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 16, padding: 14, gap: 8,
     },
-    dateLabel: { fontSize: 12.5, fontWeight: '700', color: c.text },
+    dateLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text },
     dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     dateInput: {
       flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
@@ -480,41 +481,41 @@ function makeBaseStyles(c: any) {
       width: 46, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
     },
-    dateHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
+    dateHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },
     calSheet: { ...sheetWidth, backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 10 },
 
 
     empty: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 18 },
-    emptyText: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
+    emptyText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, lineHeight: 20 },
 
     card: {
       backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.cardBorder,
       padding: 15, gap: 9,
     },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    cardName: { flex: 1, fontSize: 15.5, fontWeight: '700', color: c.text },
+    cardName: { fontFamily: GF.bodyBold, flex: 1, fontSize: 15.5, fontWeight: 'normal', color: c.text },
     badge: {
       fontSize: 10, fontWeight: '800', color: c.blue, textTransform: 'uppercase', letterSpacing: 0.5,
       backgroundColor: c.blue + '1A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
     },
-    known: { fontSize: 12.5, color: c.textSecondary },
+    known: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary },
     inputRow: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       backgroundColor: c.bg, borderWidth: 1.5, borderColor: c.blue, borderRadius: 14,
       paddingHorizontal: 14, paddingVertical: 11,
     },
-    input: { flex: 1, fontSize: 24, fontWeight: '800', color: c.text, padding: 0 },
-    unit: { fontSize: 16, fontWeight: '700', color: c.textSecondary },
+    input: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 24, fontWeight: 'normal', color: c.text, padding: 0 },
+    unit: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.textSecondary },
     gapBox: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
-    gapText: { fontSize: 12.5, lineHeight: 18, fontWeight: '600' },
+    gapText: { fontFamily: GF.bodyBold, fontSize: 12.5, lineHeight: 18, fontWeight: 'normal' },
 
     summary: {
       backgroundColor: c.emerald + '12', borderRadius: 16, borderWidth: 1, borderColor: c.emerald + '33',
       padding: 15, gap: 6,
     },
-    summaryTitle: { fontSize: 13.5, fontWeight: '800', color: c.emerald },
-    summaryText: { fontSize: 13, color: c.textSecondary, lineHeight: 20 },
+    summaryTitle: { fontFamily: GF.bodyHeavy, fontSize: 13.5, fontWeight: 'normal', color: c.emerald },
+    summaryText: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 20 },
 
     footer: {
       paddingHorizontal: 16, paddingTop: 10, paddingBottom: Platform.OS === 'web' ? 18 : 10,
@@ -524,7 +525,7 @@ function makeBaseStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9,
       backgroundColor: c.emerald, borderRadius: 16, paddingVertical: 16,
     },
-    ctaLabel: { fontSize: 16, fontWeight: '800', color: c.onAccent },
-    foot: { fontSize: 12, color: c.textSecondary, textAlign: 'center' },
+    ctaLabel: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
+    foot: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, textAlign: 'center' },
   });
 }

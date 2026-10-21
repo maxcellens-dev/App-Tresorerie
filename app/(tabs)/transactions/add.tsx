@@ -47,6 +47,7 @@ import { useResetPreSaving } from '../../../hooks/data/usePreSavings';
 import { useReleaseReservedByProject } from '../../../hooks/data/useTransactions';
 import { safeInternalRoute } from '../../../lib/ui/navHistory';
 import type { PreSavingType } from '../../../types/database';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -981,9 +982,9 @@ function AddTransactionScreen() {
             <Pressable style={styles.calendarContainer} onPress={() => {}}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => setShowCalendar(false)}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+                  <Text style={{ fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: COLORS.emerald }}>Fermer</Text>
                 </TouchableOpacity>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
+                <Text style={{ fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: COLORS.text }}>
                   {showCalendar === 'end' ? 'Date de fin' : 'Sélectionner une date'}
                 </Text>
                 <View style={{ width: 50 }} />
@@ -1029,28 +1030,28 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
+  title: { fontFamily: GF.bodyBold, fontSize: 22, fontWeight: 'normal', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
   /* Sélecteur de type : `components/ui/SegmentedControl` — même composant que tous les autres
      choix « une option parmi peu » de l'app. */
   // (Le fil d'étapes est un composant partagé : components/ui/StepRail.)
-  stepTitle: { fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 },
+  stepTitle: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 20 },
   prevLink: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 14 },
-  prevLinkText: { fontSize: 14, fontWeight: '700', color: c.emerald },
+  prevLinkText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.emerald },
   typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
   typeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  typeBtnLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+  typeBtnLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary },
   typeBtnLabelActive: { color: c.onAccent },
   refundToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 16 },
-  refundLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-  refundHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  refundLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  refundHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 1 },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  toggleLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
+  toggleLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.textSecondary },
   toggleLabelActive: { color: c.onAccent },
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
     borderWidth: 1,
@@ -1070,12 +1071,12 @@ function makeBaseStyles(c: any) {
   // Retrait d'un compte d'investissement : la décomposition capital / plus-value, avant validation.
   withdrawCard: { backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '55', borderRadius: 12, padding: 14, marginBottom: 20 },
   withdrawHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  withdrawTitle: { fontSize: 14, fontWeight: '800', color: c.text },
-  withdrawText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
-  withdrawStrong: { fontWeight: '700', color: c.text },
+  withdrawTitle: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.text },
+  withdrawText: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
+  withdrawStrong: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.text },
   withdrawRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  withdrawLabel: { fontSize: 13, color: c.textSecondary },
-  withdrawVal: { fontSize: 15, fontWeight: '800', color: c.text },
+  withdrawLabel: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
+  withdrawVal: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1087,11 +1088,11 @@ function makeBaseStyles(c: any) {
     padding: 12,
     marginBottom: 20,
   },
-  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
-  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 16 },
+  errorBannerText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
+  hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 16 },
   text: { color: c.text, marginBottom: 16 },
   btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
-  btnLabel: { color: c.text, fontWeight: '600' },
+  btnLabel: { color: c.text, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   recurringSection: { marginTop: 8, marginBottom: 16 },
   recurringToggle: {
     flexDirection: 'row',
@@ -1105,8 +1106,8 @@ function makeBaseStyles(c: any) {
     marginBottom: 12,
   },
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  recurringLabel: { fontSize: 15, color: c.textSecondary },
-  recurringLabelActive: { color: c.onAccent, fontWeight: '600' },
+  recurringLabel: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary },
+  recurringLabelActive: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   // Consigne du guide : carte aux couleurs INVERSÉES (cf. useInvertedColors), comme les autres
   // messages de démarrage — elle doit trancher sur le formulaire, pas s'y fondre.
   recurringGuideHint: {
@@ -1114,7 +1115,7 @@ function makeBaseStyles(c: any) {
     backgroundColor: c.guideBg, borderWidth: 1, borderColor: c.guideBorder,
     borderRadius: 14, paddingHorizontal: 13, paddingVertical: 11, marginTop: 2, marginBottom: 12,
   },
-  recurringGuideHintText: { flex: 1, fontSize: 13, color: c.guideText, lineHeight: 19, fontWeight: '600' },
+  recurringGuideHintText: { fontFamily: GF.bodyBold, flex: 1, fontSize: 13, color: c.guideText, lineHeight: 19, fontWeight: 'normal' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   /* Périodicité : les quatre choix tiennent sur UNE ligne (`flex: 1` chacun), quel que soit
      l'écran. Style distinct des chips de comptes, qui eux défilent horizontalement et gardent
@@ -1124,9 +1125,9 @@ function makeBaseStyles(c: any) {
     flex: 1, paddingHorizontal: 4, paddingVertical: 9, borderRadius: 14,
     borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
   },
-  periodChipText: { fontSize: 12.5, fontWeight: '600', color: c.text },
+  periodChipText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text },
   projectSection: { marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '44', backgroundColor: c.blue + '0D', gap: 8 },
-  projectHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+  projectHint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
   /* Les boutons eux-mêmes viennent de `components/ui/AppButton` : leurs styles vivaient ici, avec
      des couleurs écrites en dur (#475569 / #94a3b8) qui ne suivaient ni le thème clair ni l'accent
      choisi — « Brouillon » restait gris ardoise à côté d'un « Enregistrer » vert. */

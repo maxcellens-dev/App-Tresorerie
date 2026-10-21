@@ -13,6 +13,7 @@ import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../../hooks/data/useFiscalEnvelopes';
 import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();
@@ -115,7 +116,7 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16, lineHeight: 18 },
+    subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 16, lineHeight: 18 },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 100 },
     card: {
@@ -123,21 +124,21 @@ function makeBaseStyles(c: any) {
       padding: 16, marginBottom: 12, gap: 12,
     },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    envLabel: { fontSize: 15, fontWeight: '700', color: c.text },
-    envCode: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
+    envLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+    envCode: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
     editRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
     inputWrap: {
       flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12,
     },
-    input: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', paddingVertical: 10 },
-    suffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
-    noteLabel: { fontSize: 11, color: c.textSecondary, fontWeight: '600' },
+    input: { fontFamily: GF.bodyBold, flex: 1, color: c.text, fontSize: 16, fontWeight: 'normal', paddingVertical: 10 },
+    suffix: { fontFamily: GF.bodyBold, color: c.textSecondary, fontSize: 14, fontWeight: 'normal' },
+    noteLabel: { fontFamily: GF.bodyBold, fontSize: 11, color: c.textSecondary, fontWeight: 'normal' },
     noteInput: {
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
       paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, minHeight: 64,
     },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-    saveBtnText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
+    saveBtnText: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 14 },
   });
 }

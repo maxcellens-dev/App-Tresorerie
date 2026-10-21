@@ -38,6 +38,7 @@ import CategoryDonut from '../charts/CategoryDonut';
 import { iconForCategory } from '../../lib/ui/categoryIcons';
 import { useAlignedTabsTop } from '../../lib/ui/tabsAlign';
 import BudgetGauge, { BudgetAmounts } from './BudgetGauge';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 type Tab = 'categories' | 'history';
 /** Fenêtre de lecture : le mois affiché, ou l'année en cours. */
@@ -519,8 +520,8 @@ function makeBaseStyles(c: any) {
       borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 10,
     },
     monthLabelWrap: { flex: 1, alignItems: 'center' },
-    monthLabel: { fontSize: 14, fontWeight: '700', color: c.text, textTransform: 'capitalize' },
-    monthHint: { fontSize: 9.5, color: c.textSecondary, marginTop: 1 },
+    monthLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text, textTransform: 'capitalize' },
+    monthHint: { fontFamily: GF.body, fontSize: 9.5, color: c.textSecondary, marginTop: 1 },
     /* HAUTEUR FIXE, et c'est le point important : la bascule mois/an n'existe que dans l'onglet
        « Catégories ». Sans hauteur imposée, la rangée se réglait sur son plus grand enfant — donc
        elle rétrécissait de quelques pixels en passant sur « Historique », et les onglets juste
@@ -542,23 +543,23 @@ function makeBaseStyles(c: any) {
       borderColor: c.primary + '44',
       ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
     },
-    editBtnLabel: { fontSize: 14, fontWeight: '700', color: c.primary },
+    editBtnLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.primary },
     card: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 14, padding: 16, marginBottom: 10,
     },
-    kicker: { fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontWeight: '700', color: c.textSecondary, marginBottom: 4 },
+    kicker: { fontFamily: GF.bodyBold, fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase', fontWeight: 'normal', color: c.textSecondary, marginBottom: 4 },
     /* `alignItems: flex-start` : la colonne de texte commence EN HAUT de l'anneau. Centrée, elle
        débordait sous lui dès la deuxième ligne — et c'est précisément la place qu'on cherche à ne
        pas perdre. */
     heroRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 8 },
     heroText: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    big: { fontSize: 23, fontWeight: '800', color: c.text, letterSpacing: -0.5, textAlign: 'right' },
-    bigSub: { fontSize: 13.5, fontWeight: '600', color: c.textSecondary },
-    sub: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginTop: 8 },
+    big: { fontFamily: GF.bodyHeavy, fontSize: 23, fontWeight: 'normal', color: c.text, letterSpacing: -0.5, textAlign: 'right' },
+    bigSub: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.textSecondary },
+    sub: { fontFamily: GF.body, fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginTop: 8 },
     // Variante ALIGNÉE À DROITE : elle n'appartient qu'à la colonne de l'anneau. `sub` sert aussi
     // aux états vides et à l'historique, où un texte fuyant à droite n'aurait aucun sens.
-    heroSub: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 4, textAlign: 'right' },
+    heroSub: { fontFamily: GF.body, fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 4, textAlign: 'right' },
     row: {},
     // Une parente s'éloigne de la précédente ; son enfant lui reste collé — le groupe se lit d'un bloc.
     rowGap: { marginTop: 18 },
@@ -572,19 +573,19 @@ function makeBaseStyles(c: any) {
       marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10,
     },
     rowHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-    rowName: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, fontSize: 14, fontWeight: '700', color: c.text },
-    rowNameChild: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
-    rowAmounts: { fontSize: 12.5, color: c.textSecondary },
-    rowNote: { fontSize: 11.5, color: c.textSecondary, marginTop: 5 },
-    rowNoteChild: { fontSize: 10.5, marginTop: 4 },
+    rowName: { fontFamily: GF.bodyBold, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, fontSize: 14, fontWeight: 'normal', color: c.text },
+    rowNameChild: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
+    rowAmounts: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary },
+    rowNote: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 5 },
+    rowNoteChild: { fontFamily: GF.body, fontSize: 10.5, marginTop: 4 },
     catLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 16 },
-    catLinkText: { fontSize: 13, fontWeight: '700', color: c.primary },
+    catLinkText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.primary },
     emptyWrap: { paddingTop: 40, paddingBottom: 120, alignItems: 'center' },
     emptyIcon: {
       width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.primary + '1A', marginBottom: 16,
     },
-    emptyTitle: { fontSize: 18, fontWeight: '800', color: c.text, marginBottom: 8 },
-    emptyText: { fontSize: 13.5, lineHeight: 20, color: c.textSecondary, textAlign: 'center', maxWidth: 320 },
+    emptyTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text, marginBottom: 8 },
+    emptyText: { fontFamily: GF.body, fontSize: 13.5, lineHeight: 20, color: c.textSecondary, textAlign: 'center', maxWidth: 320 },
   });
 }

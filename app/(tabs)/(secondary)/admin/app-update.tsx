@@ -14,6 +14,7 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 
 export default function AdminAppUpdate() {
@@ -105,7 +106,7 @@ export default function AdminAppUpdate() {
               <Text style={styles.cardTitle}>Mise à jour de l'app</Text>
               <Text style={styles.cardDesc}>
                 Affiche un bandeau « mise à jour disponible » (natif) quand la version publiée est supérieure à celle installée.
-                Version installée sur cet appareil : <Text style={{ fontWeight: '800', color: COLORS.text }}>{installedVersion}</Text>
+                Version installée sur cet appareil : <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }}>{installedVersion}</Text>
                 {RUNNING_NEWER_BUNDLE ? <Text> (contenu à jour en {BUNDLE_VERSION} par OTA)</Text> : null}
                 {!NATIVE_VERSION_KNOWN ? <Text> — version du bundle, ce binaire ne sait pas dire la sienne</Text> : null}.
               </Text>
@@ -183,15 +184,15 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
-    cardTitle: { fontSize: 15, fontWeight: '700', color: c.text },
-    cardDesc: { fontSize: 12, color: c.textSecondary, marginTop: 3, lineHeight: 16 },
+    subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 16 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+    cardDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 3, lineHeight: 16 },
     text: { color: c.text, padding: 20 },
     updateCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
-    inputLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary, marginTop: 12, marginBottom: 5 },
+    inputLabel: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, marginTop: 12, marginBottom: 5 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
-    saveBtnText: { color: c.onAccent, fontWeight: '800', fontSize: 14 },
-    updateHint: { fontSize: 11, color: c.textSecondary, marginTop: 10, lineHeight: 15, fontStyle: 'italic' },
+    saveBtnText: { fontFamily: GF.bodyHeavy, color: c.onAccent, fontWeight: 'normal', fontSize: 14 },
+    updateHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 10, lineHeight: 15, fontStyle: 'italic' },
   });
 }

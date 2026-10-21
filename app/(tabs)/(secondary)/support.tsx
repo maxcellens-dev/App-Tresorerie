@@ -25,6 +25,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useUserUnreadCount } from '../../../hooks/admin/useUnreadBadges';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 // Fiche Play par défaut, quand l'admin n'a pas saisi de lien « Noter » (cf. parametres.tsx,
 // UpdateBanner.tsx — même paquet).
@@ -64,14 +65,14 @@ export default function SupportScreen() {
       title: 'Besoin d\'aide',
       items: [
         { icon: 'headset-outline', label: 'Assistance', color: COLORS.emerald, onPress: () => router.push('/(tabs)/(secondary)/assistance'), badge: assistanceUnread },
-        { icon: 'bulb-outline', label: 'Boîte à idées', color: '#f59e0b', onPress: () => router.push('/(tabs)/(secondary)/ideas') },
+        { icon: 'bulb-outline', label: 'Boîte à idées', color: COLORS.amber, onPress: () => router.push('/(tabs)/(secondary)/ideas') },
       ],
     },
     {
       title: 'Informations légales',
       items: [
-        { icon: 'shield-checkmark-outline', label: 'Confidentialité', color: '#60a5fa', onPress: () => router.push('/confidentialite') },
-        { icon: 'document-text-outline', label: 'Mentions légales', color: '#a78bfa', onPress: () => router.push('/legal') },
+        { icon: 'shield-checkmark-outline', label: 'Confidentialité', color: COLORS.blue, onPress: () => router.push('/confidentialite') },
+        { icon: 'document-text-outline', label: 'Mentions légales', color: COLORS.violet, onPress: () => router.push('/legal') },
       ],
     },
   ];
@@ -79,7 +80,7 @@ export default function SupportScreen() {
   // « À propos » — liens externes, administrés. Un lien non renseigné = pas de ligne (et donc pas
   // de section du tout si les deux manquent).
   const aboutItems: Item[] = [
-    ...(rateUrl ? [{ icon: 'star-outline', label: "Noter l'application", color: '#f59e0b', external: true, onPress: () => openExternal(rateUrl) }] : []),
+    ...(rateUrl ? [{ icon: 'star-outline', label: "Noter l'application", color: COLORS.amber, external: true, onPress: () => openExternal(rateUrl) }] : []),
     ...(instagramUrl ? [{ icon: 'logo-instagram', label: 'Nous suivre sur Instagram', color: '#e1306c', external: true, onPress: () => openExternal(instagramUrl) }] : []),
   ];
   if (aboutItems.length > 0) sections.push({ title: 'À propos', items: aboutItems });
@@ -111,7 +112,7 @@ export default function SupportScreen() {
                     accessibilityHint={it.external ? 'Ouvre un site extérieur à l’application' : undefined}
                   >
                     <Ionicons name={it.icon as any} size={20} color={it.color} />
-                    <Text style={[styles.rowLabel, it.italic && { fontStyle: 'italic', fontSize: 13, color: COLORS.textSecondary }]}>{it.label}</Text>
+                    <Text style={[styles.rowLabel, it.italic && { fontFamily: GF.body, fontStyle: 'italic', fontSize: 13, color: COLORS.textSecondary }]}>{it.label}</Text>
                     {!!it.badge && it.badge > 0 && (
                       <View style={styles.unreadBadge}>
                         <Text style={styles.unreadBadgeText}>{it.badge > 99 ? '99+' : it.badge}</Text>
@@ -145,11 +146,11 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    sectionTitle: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden', marginBottom: 20 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-    rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
-    unreadBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-    unreadBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+    rowLabel: { fontFamily: GF.body, flex: 1, fontSize: 15, fontWeight: 'normal', color: c.text },
+    unreadBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+    unreadBadgeText: { fontFamily: GF.bodyHeavy, fontSize: 10, fontWeight: 'normal', color: '#fff' },
   });
 }

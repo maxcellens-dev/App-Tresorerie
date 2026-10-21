@@ -19,6 +19,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/data/useProfile';
 import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorderBaseCategories, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/data/useBaseCategories';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 export default function AdminCategoriesScreen() {
   const COLORS = useAppColors();
@@ -79,7 +80,7 @@ export default function AdminCategoriesScreen() {
       {editingId === c.id ? (
         <TextInput style={styles.editInput} value={editName} onChangeText={setEditName} autoFocus onSubmitEditing={() => saveName(c)} />
       ) : (
-        <Text style={[styles.name, !isChild && { fontWeight: '700' }]} numberOfLines={1}>{c.name}{!c.is_active ? ' (archivée)' : ''}</Text>
+        <Text style={[styles.name, !isChild && { fontFamily: GF.bodyBold, fontWeight: 'normal' }]} numberOfLines={1}>{c.name}{!c.is_active ? ' (archivée)' : ''}</Text>
       )}
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter la catégorie" onPress={() => move(c, -1)}><Ionicons name="chevron-up" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre la catégorie" onPress={() => move(c, 1)}><Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
@@ -155,16 +156,16 @@ function makeBaseStyles(c: any) {
     typeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
     typeChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     typeChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
-    typeText: { fontSize: 13.5, fontWeight: '700', color: c.textSecondary },
+    typeText: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.textSecondary },
     scroll: { flex: 1 },
     group: { marginBottom: 14, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 8, backgroundColor: c.card },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-    name: { flex: 1, fontSize: 14, color: c.text },
-    editInput: { flex: 1, borderWidth: 1, borderColor: c.blue, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, fontSize: 14, color: c.text },
+    name: { fontFamily: GF.body, flex: 1, fontSize: 14, color: c.text },
+    editInput: { fontFamily: GF.body, flex: 1, borderWidth: 1, borderColor: c.blue, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, fontSize: 14, color: c.text },
     addChild: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 26, paddingVertical: 4 },
-    addChildText: { color: c.blue, fontSize: 12.5, fontWeight: '600' },
+    addChildText: { fontFamily: GF.bodyBold, color: c.blue, fontSize: 12.5, fontWeight: 'normal' },
     addParent: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 20 },
     applyBtn: { position: 'absolute', left: 20, right: 20, bottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, paddingVertical: 15, borderRadius: 12 },
-    applyLabel: { color: c.onAccent, fontSize: 15, fontWeight: '800' },
+    applyLabel: { fontFamily: GF.bodyHeavy, color: c.onAccent, fontSize: 15, fontWeight: 'normal' },
   });
 }

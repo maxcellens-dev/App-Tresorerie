@@ -31,6 +31,7 @@ import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, readableO
 import { shouldResetCustomAccent } from '../../../theme/accentRules';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/theme/useStyleConfig';
 import ColorPickerModal from '../../../components/ui/ColorPickerModal';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 export default withDeferredMount(AppearanceScreen);
 function AppearanceScreen() {
@@ -601,42 +602,42 @@ function makeBaseStyles(c: any) {
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 22 },
     // Bandeau d'information / d'erreur, en tête de page.
     notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 14 },
-    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+    noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
     disabled: { opacity: 0.45 },
     shelfLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
     // Titres de RAYON, hors des cartes : ils découpent la page comme la boutique découpe la sienne.
-    sectionTitle: { fontSize: 17, fontWeight: "800", color: c.text, marginTop: 4 },
-    sectionIntro: { fontSize: 12.5, color: c.textSecondary, lineHeight: 17, marginTop: 3, marginBottom: 10 },
+    sectionTitle: { fontFamily: GF.body, fontSize: 17, fontWeight: "800", color: c.text, marginTop: 4 },
+    sectionIntro: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 17, marginTop: 3, marginBottom: 10 },
     block: { gap: 10 },
-    label: { fontSize: 15, fontWeight: '500', color: c.text },
+    label: { fontFamily: GF.body, fontSize: 15, fontWeight: 'normal', color: c.text },
     segmentRow: { flexDirection: 'row', gap: 8 },
     segment: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
     segmentActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    segmentLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+    segmentLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary },
     // `onAccent` (et non `bg`) : la couleur d'accent est libre, le libellé doit rester lisible
     // dessus quelle que soit la teinte choisie — y compris un jaune vif en mode clair.
     segmentLabelActive: { color: c.onAccent },
     presetRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
     presetDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     presetDotActive: { borderWidth: 2, borderColor: c.text },
-    hint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginTop: -2 },
+    hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 16, marginTop: -2 },
     customRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
     customPreview: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     pickerBtn: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
-    hexInput: { width: 110, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, color: c.text, backgroundColor: c.bg, fontSize: 14, letterSpacing: 1 },
+    hexInput: { fontFamily: GF.body, width: 110, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, color: c.text, backgroundColor: c.bg, fontSize: 14, letterSpacing: 1 },
     applyBtn: { paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12, backgroundColor: c.emerald },
-    applyBtnText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
+    applyBtnText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.onAccent },
     lockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     premiumBadge: { width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(245,179,1,0.16)', alignItems: 'center', justifyContent: 'center' },
     unlockBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, marginTop: 4 },
-    unlockBtnText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
-    cosmeticGroupTitle: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },
+    unlockBtnText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.onAccent },
+    cosmeticGroupTitle: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },
     cosmeticRow: { flexDirection: 'row', gap: 10, marginTop: 6, paddingRight: 6 },
     cosmeticCard: { width: 104, height: 96, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 7 },
     cosmeticCardIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     cosmeticCardImage: { width: 26, height: 26 },
     cosmeticCardArt: { width: 34, height: 34 },
-    cosmeticCardLabel: { fontSize: 11, fontWeight: '700', color: c.text, textAlign: 'center' },
+    cosmeticCardLabel: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.text, textAlign: 'center' },
     cosmeticCheck: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
   });
 }

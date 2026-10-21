@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { reportError } from '../../lib/platform/errorReporting';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface State { hasError: boolean; message: string }
 
@@ -44,9 +45,9 @@ export default class GlobalErrorBoundary extends React.Component<{ children: Rea
 // Palette neutre indépendante du thème (l'erreur peut survenir avant le montage du ThemeProvider).
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#0D2E2A' },
-  emoji: { fontSize: 44, marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '800', color: '#F4EFE6', textAlign: 'center', marginBottom: 10 },
-  sub: { fontSize: 14, color: '#C7D2CE', textAlign: 'center', lineHeight: 21, marginBottom: 24 },
+  emoji: { fontFamily: GF.body, fontSize: 44, marginBottom: 12 },
+  title: { fontFamily: GF.bodyHeavy, fontSize: 20, fontWeight: 'normal', color: '#F4EFE6', textAlign: 'center', marginBottom: 10 },
+  sub: { fontFamily: GF.body, fontSize: 14, color: '#C7D2CE', textAlign: 'center', lineHeight: 21, marginBottom: 24 },
   btn: { backgroundColor: '#1FA97E', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 28 },
-  btnTxt: { fontSize: 15, fontWeight: '700', color: '#062019' },
+  btnTxt: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: '#062019' },
 });

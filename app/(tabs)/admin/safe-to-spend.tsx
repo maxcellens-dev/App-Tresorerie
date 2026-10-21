@@ -11,6 +11,7 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 const STEP_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#22d3ee', '#fb7185', '#34d399'];
@@ -94,7 +95,7 @@ export default function SafeToSpendAdmin() {
             <Text style={styles.formulaLine}>− Enveloppe variable restante</Text>
             <Text style={styles.formulaLine}>− Marge de sécurité (montant fixe €)</Text>
             <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
-            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Ton Relyka (borné à 0)</Text>
+            <Text style={[styles.formulaLine, { color: '#34d399', fontFamily: GF.bodyBold, fontWeight: 'normal' }]}>= Ton Relyka (borné à 0)</Text>
           </View>
 
           {/* Le piège classique : deux chiffres justes qui ont l'air de se contredire. */}
@@ -159,8 +160,8 @@ function makeBaseStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 },
+  subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  sectionTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, marginBottom: 12 },
 
   /* Formula card */
   formulaCard: {
@@ -195,7 +196,7 @@ function makeBaseStyles(c: any) {
     marginBottom: 10,
     gap: 6,
   },
-  stepLabel: { fontSize: 13, fontWeight: '700' },
+  stepLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal' },
   stepFormula: {
     fontSize: 11,
     color: c.text,
@@ -205,7 +206,7 @@ function makeBaseStyles(c: any) {
     padding: 8,
     overflow: 'hidden',
   },
-  stepExplanation: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
+  stepExplanation: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   /* Variables */
   varRow: {
@@ -216,8 +217,8 @@ function makeBaseStyles(c: any) {
     borderBottomWidth: 1,
     borderBottomColor: c.cardBorder,
   },
-  varName: { fontSize: 12, fontWeight: '600', color: '#60a5fa' },
-  varSource: { fontSize: 11, color: c.textSecondary, flex: 1, textAlign: 'right' },
+  varName: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: '#60a5fa' },
+  varSource: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, flex: 1, textAlign: 'right' },
 
   /* Link */
   linkCard: {
@@ -228,8 +229,8 @@ function makeBaseStyles(c: any) {
     padding: 16,
     gap: 12,
   },
-  linkText: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
+  linkText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  linkBtnText: { fontSize: 13, color: '#60a5fa', fontWeight: '600' },
+  linkBtnText: { fontFamily: GF.bodyBold, fontSize: 13, color: '#60a5fa', fontWeight: 'normal' },
 });
 }

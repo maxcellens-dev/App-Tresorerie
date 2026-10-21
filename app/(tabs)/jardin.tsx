@@ -45,6 +45,7 @@ import { pointer } from '../../lib/ui/webLayout';
 import { WORDS } from '../../lib/garden/lexicon';
 import { computeNextStep } from '../../lib/garden/nextStep';
 import { GARDEN_ICONS } from '../../lib/garden/icons';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 const months = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
@@ -264,7 +265,7 @@ export default function JardinScreen() {
         footer={<GardenButton label="Enregistrer" onPress={saveKeep} loading={setMonthlyReservation.isPending} />}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm }}>
           <TextInput value={keepDraft} onChangeText={(v) => setKeepDraft(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={GARDEN_COLORS.muted} accessibilityLabel="Montant à conserver"
-            style={{ flex: 1, minHeight: 56, borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: GARDEN_COLORS.line, backgroundColor: GARDEN_COLORS.card, paddingHorizontal: 16, fontSize: 22, color: GARDEN_COLORS.ink }} />
+            style={{ fontFamily: GF.body, flex: 1, minHeight: 56, borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: GARDEN_COLORS.line, backgroundColor: GARDEN_COLORS.card, paddingHorizontal: 16, fontSize: 22, color: GARDEN_COLORS.ink }} />
           <GardenText variant="bodyStrong">{CURRENCY_SYMBOL}</GardenText>
         </View>
         <GardenText variant="body" color={GARDEN_COLORS.inkSoft}>C'est le TOTAL que tu gardes de côté sur ton compte ce mois-ci : il est retiré de ton Relyka mais ne bouge pas. Baisse-le pour en libérer une partie, mets 0 pour tout libérer. Il repart à zéro le mois prochain.</GardenText>

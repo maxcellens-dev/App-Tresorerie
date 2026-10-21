@@ -18,6 +18,7 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useMarkSuggestionsRead } from '../../../../hooks/admin/useUnreadBadges';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 
 interface Suggestion {
@@ -262,8 +263,8 @@ function makeBaseStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
 
   // Roadmap (idées en cours de dev)
-  sectionLabel: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 4 },
-  sectionHint: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
+  sectionLabel: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', color: c.text, marginBottom: 4 },
+  sectionHint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
   roadmapCard: {
     backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
     padding: 14, marginBottom: 28, gap: 10,
@@ -277,12 +278,12 @@ function makeBaseStyles(c: any) {
     width: 44, height: 44, borderRadius: 10, backgroundColor: c.emerald,
     alignItems: 'center', justifyContent: 'center',
   },
-  roadmapEmpty: { fontSize: 13, color: c.textSecondary, fontStyle: 'italic', paddingVertical: 6 },
+  roadmapEmpty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, fontStyle: 'italic', paddingVertical: 6 },
   roadmapRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder,
   },
-  roadmapText: { flex: 1, fontSize: 14, color: c.text },
+  roadmapText: { fontFamily: GF.body, flex: 1, fontSize: 14, color: c.text },
 
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
@@ -290,25 +291,25 @@ function makeBaseStyles(c: any) {
   chipActive: { ...chipStyles(c).chipActive },
   chipText: { ...chipStyles(c).label },
   chipTextActive: { ...chipStyles(c).labelActive },
-  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: c.textSecondary },
+  title: { fontFamily: GF.bodyBold, fontSize: 24, fontWeight: 'normal', color: c.text, marginBottom: 4 },
+  subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
   deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  deleteAllText: { fontSize: 12, fontWeight: '600', color: c.red },
+  deleteAllText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.red },
   emptyCard: { alignItems: 'center', marginTop: 60, gap: 12 },
-  emptyText: { fontSize: 14, color: c.textSecondary },
+  emptyText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary },
   card: {
     backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
     padding: 16, marginBottom: 12,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   userBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  userName: { fontSize: 13, fontWeight: '600', color: c.emerald },
+  userName: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.emerald },
   statusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  statusPillText: { fontSize: 11, fontWeight: '700' },
-  dateText: { fontSize: 11, color: c.textSecondary, marginBottom: 10 },
-  contentText: { fontSize: 14, color: c.text, lineHeight: 20, marginBottom: 12 },
+  statusPillText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal' },
+  dateText: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginBottom: 10 },
+  contentText: { fontFamily: GF.body, fontSize: 14, color: c.text, lineHeight: 20, marginBottom: 12 },
   cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16, borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 10 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionBtnText: { fontSize: 12, fontWeight: '600' },
+  actionBtnText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
 });
 }

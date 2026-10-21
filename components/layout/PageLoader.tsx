@@ -21,6 +21,7 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenGradient from './ScreenGradient';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function PageLoader({ label }: {
   /** Phrase courte sous le cercle. Omise, le cercle parle tout seul. */
@@ -48,6 +49,6 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingBottom: 60 },
-    label: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
+    label: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   });
 }

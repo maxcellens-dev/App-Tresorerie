@@ -19,6 +19,7 @@ import {
   describeEmailRecurrence,
   type EmailSchedule, type EmailAudience, type EmailRecurrence,
 } from '../../hooks/admin/useEmailCampaigns';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const AUDIENCES: [EmailAudience, string][] = [
   ['all', 'Tous'], ['premium', 'Premium'], ['free', 'Gratuits'], ['group', 'Un groupe'],
@@ -254,13 +255,13 @@ function makeStyles(c: any) {
 function makeBaseStyles(c: any) {
   return StyleSheet.create({
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 26, marginBottom: 8 },
-    sectionLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    sectionLabel: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.emerald, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-    addBtnTxt: { color: c.onAccent, fontWeight: '800', fontSize: 12.5 },
-    hint: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 8 },
+    addBtnTxt: { fontFamily: GF.bodyHeavy, color: c.onAccent, fontWeight: 'normal', fontSize: 12.5 },
+    hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 8 },
     card: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 8 },
-    cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
-    cardSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    cardSub: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     iconBtn: { padding: 5 },
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -273,19 +274,19 @@ function makeBaseStyles(c: any) {
     },
     sheetScroll: { flexGrow: 0, flexShrink: 1 },
     sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-    sheetTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-    label: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
-    input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text },
-    textarea: { minHeight: 130, textAlignVertical: 'top', fontSize: 12.5, lineHeight: 18 },
+    sheetTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
+    label: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
+    input: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text },
+    textarea: { fontFamily: GF.body, minHeight: 130, textAlignVertical: 'top', fontSize: 12.5, lineHeight: 18 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
     chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipSmall: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipOn: { backgroundColor: c.emerald, borderColor: c.emerald },
-    chipTxt: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
-    chipTxtOn: { color: c.onAccent, fontWeight: '800' },
-    note: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 14 },
+    chipTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
+    chipTxtOn: { color: c.onAccent, fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
+    note: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 14 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
-    saveTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    saveTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   });
 }

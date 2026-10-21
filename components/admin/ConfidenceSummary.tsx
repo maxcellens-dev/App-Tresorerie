@@ -13,6 +13,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import type { RelykaConfidence } from '../../hooks/pilotage/useReliability';
 import { CURRENCY_SYMBOL, floorToTen } from '../../lib/finance/currency';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
 const pct = (n: number) => `${Math.round(n * 100)} %`;
@@ -53,7 +54,7 @@ export default function ConfidenceSummary({ conf }: { conf: RelykaConfidence }) 
       {rows.map(([k, v]) => (
         <View key={k} style={s.row}>
           <Text style={s.key}>{k}</Text>
-          <Text style={[s.val, k === 'Niveau' && { color: tone, fontWeight: '800' }]}>{v}</Text>
+          <Text style={[s.val, k === 'Niveau' && { color: tone, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>{v}</Text>
         </View>
       ))}
     </View>
@@ -72,7 +73,7 @@ function makeBaseStyles(c: any) {
       marginBottom: 8, gap: 3, backgroundColor: c.card,
     },
     row: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-    key: { fontSize: 11.5, fontWeight: '700', width: 132, color: c.textSecondary },
-    val: { fontSize: 11.5, flex: 1, color: c.text },
+    key: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', width: 132, color: c.textSecondary },
+    val: { fontFamily: GF.body, fontSize: 11.5, flex: 1, color: c.text },
   });
 }

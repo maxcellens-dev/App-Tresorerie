@@ -44,8 +44,9 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
     };
   }
 
-  if (m < 6) {
-    const target = m < 1 ? 1 : m < 3 ? 3 : 6;
+  const [mk1, mk2, mk3] = tree.roots.markMonths;
+  if (m < mk3) {
+    const target = m < mk1 ? mk1 : m < mk2 ? mk2 : mk3;
     return {
       kind: 'roots', part: 'roots',
       title: rootsGoal(target),
@@ -57,12 +58,12 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
   }
 
   if (tree.investments === 0) {
-    const extra = ref > 0 ? (m - 6) * ref : 0;
+    const extra = ref > 0 ? (m - mk3) * ref : 0;
     return {
       kind: 'firstFruit', part: 'fruits',
       title: 'Plante ton premier fruit : ouvre un placement',
       text: extra >= 50
-        ? `Tes racines tiennent ${fmtMonths(m)} mois, c'est solide. Les ${fmtEur(extra)} au-delà de 6 mois peuvent commencer à travailler dans un placement.`
+        ? `Tes racines tiennent ${fmtMonths(m)} mois, c'est solide. Les ${fmtEur(extra)} au-delà de ${fmtMonths(mk3)} mois peuvent commencer à travailler dans un placement.`
         : `Tes racines tiennent ${fmtMonths(m)} mois, c'est solide. La suite de ton argent peut commencer à travailler dans un placement.`,
     };
   }

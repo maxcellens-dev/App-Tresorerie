@@ -26,6 +26,7 @@ import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 /** Le nom du compte s'affiche chez les AUTRES membres d'un compte partagé : il lui faut une borne. */
 const ACCOUNT_NAME_MAX = 40;
@@ -372,9 +373,9 @@ export default function AddAccountScreen() {
           <Pressable style={styles.calendarContainer} onPress={() => {}}>
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => setShowCalendar(false)}>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+                <Text style={{ fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: COLORS.emerald }}>Fermer</Text>
               </TouchableOpacity>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Date du solde</Text>
+              <Text style={{ fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: COLORS.text }}>Date du solde</Text>
               <View style={{ width: 50 }} />
             </View>
             <CalendarWithPicker
@@ -404,7 +405,7 @@ function makeStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
+  title: { fontFamily: GF.bodyBold, fontSize: 22, fontWeight: 'normal', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
   errorBanner: {
@@ -418,8 +419,8 @@ function makeStyles(c: any) {
     padding: 12,
     marginBottom: 20,
   },
-  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  errorBannerText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
     borderWidth: 1,
@@ -433,23 +434,23 @@ function makeStyles(c: any) {
   },
   inputError: { borderColor: c.danger },
   modeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 11, marginTop: 8, backgroundColor: c.card },
-  modeTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
-  modeDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
+  modeTitle: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+  modeDesc: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
   jointToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 18 },
   jointToggleActive: { borderColor: c.emerald, backgroundColor: c.emerald + '12' },
-  jointToggleLabel: { fontSize: 14.5, fontWeight: '700', color: c.text },
-  jointToggleHint: { fontSize: 11.5, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
+  jointToggleLabel: { fontFamily: GF.bodyBold, fontSize: 14.5, fontWeight: 'normal', color: c.text },
+  jointToggleHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
   jointCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
   jointCheckOn: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
+  hintSmall: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
   chip: { ...chipStyles(c).chip },
   chipActive: { ...chipStyles(c).chipActive },
   chipText: { ...chipStyles(c).label },
   chipTextActive: { ...chipStyles(c).labelActive },
   defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, marginBottom: 8 },
-  defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-  defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
+  defaultLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  defaultHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
   initDateNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -462,10 +463,10 @@ function makeStyles(c: any) {
     marginTop: 4,
     marginBottom: 24,
   },
-  initDateNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+  initDateNoteText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
   text: { color: c.text, marginBottom: 16 },
   btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
-  btnLabel: { color: c.text, fontWeight: '600' },
+  btnLabel: { color: c.text, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   // Bouton : `components/ui/AppButton`.
   calendarBtn: {
     backgroundColor: c.card,

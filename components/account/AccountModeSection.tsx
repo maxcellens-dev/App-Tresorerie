@@ -15,6 +15,7 @@ import { useAllTransactions } from '../../hooks/data/useTransactions';
 import { type SharedMode } from '../../lib/finance/perimeter';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import type { Account } from '../../types/database';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const OPTIONS: { mode: SharedMode; icon: string; title: string; desc: string }[] = [
   {
@@ -171,26 +172,26 @@ function makeStyles(c: any) {
 function makeBaseStyles(c: any) {
   return StyleSheet.create({
     section: { marginTop: 18 },
-    title: { fontSize: 15, fontWeight: '800', color: c.text },
-    subtitle: { fontSize: 12, color: c.textSecondary, marginTop: 3, marginBottom: 10, lineHeight: 17 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+    subtitle: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 3, marginBottom: 10, lineHeight: 17 },
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 12, marginBottom: 8,
       backgroundColor: c.card,
     },
     iconWrap: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
-    cardDesc: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
-    hint: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', marginTop: 2 },
+    cardTitle: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+    cardDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    hint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', marginTop: 2 },
     /* Aperçu avant validation du changement de mode */
     previewBox: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '44', padding: 12, marginTop: 4, gap: 6 },
-    previewTitle: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
-    previewLine: { fontSize: 12.5, color: c.text, lineHeight: 18 },
-    previewStrong: { fontWeight: '800', color: c.text },
+    previewTitle: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    previewLine: { fontFamily: GF.body, fontSize: 12.5, color: c.text, lineHeight: 18 },
+    previewStrong: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
     previewBtns: { flexDirection: 'row', gap: 10, marginTop: 6 },
     previewCancel: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
-    previewCancelText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    previewCancelText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     previewOk: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: c.emerald },
-    previewOkText: { fontSize: 13, fontWeight: '800', color: c.onAccent },
+    previewOkText: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.onAccent },
   });
 }

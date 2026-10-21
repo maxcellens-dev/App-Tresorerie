@@ -13,6 +13,7 @@ import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import type { PulseSignal } from '../../lib/pulse/pulseEngine';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   signal: PulseSignal;
@@ -95,11 +96,11 @@ function makeBaseStyles(c: AppColors) {
       padding: 16,
       marginBottom: 10,
     },
-    label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 8 },
-    headline: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2, lineHeight: 22 },
-    detail: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 6 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
+    headline: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text, letterSpacing: -0.2, lineHeight: 22 },
+    detail: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 6 },
     track: { height: 6, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 12, overflow: 'hidden' },
     fill: { height: 6, borderRadius: 999 },
-    amount: { fontSize: 11.5, color: c.textSecondary, marginTop: 10, fontWeight: '600' },
+    amount: { fontFamily: GF.bodyBold, fontSize: 11.5, color: c.textSecondary, marginTop: 10, fontWeight: 'normal' },
   });
 }

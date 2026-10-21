@@ -20,6 +20,7 @@ import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useSeoConfig, useSaveSeoConfig } from '../../../../hooks/config/useSeo';
 import { SEO_DEFAULTS, resolveSeoConfig, seoTitleFor, seoDescriptionFor, type SeoConfig } from '../../../../lib/platform/seo';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 type TextField = { kind: 'text'; path: string; label: string; placeholder?: string; multiline?: boolean; help?: string };
 type SwitchField = { kind: 'switch'; path: string; label: string; help?: string };
@@ -191,12 +192,12 @@ export default function AdminSeoCenter() {
               l'enregistrement remplacerait les vrais réglages par les défauts. */}
           {readFailed && (
             <View style={{ borderWidth: 1, borderColor: COLORS.danger + '55', backgroundColor: COLORS.danger + '12', borderRadius: 12, padding: 12, marginTop: 8, gap: 8 }}>
-              <Text style={{ color: COLORS.danger, fontSize: 12.5, lineHeight: 18 }}>
+              <Text style={{ fontFamily: GF.body, color: COLORS.danger, fontSize: 12.5, lineHeight: 18 }}>
                 La configuration en place n'a pas pu être lue : ce que tu vois ci-dessus sont les
                 valeurs par défaut, pas les tiennes. L'enregistrement est bloqué pour ne pas les écraser.
               </Text>
               <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 }}>
-                <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 13 }}>Réessayer</Text>
+                <Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.onAccent, fontWeight: 'normal', fontSize: 13 }}>Réessayer</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -225,26 +226,26 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19, marginBottom: 12 },
+    p: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19, marginBottom: 12 },
     previewCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14, marginBottom: 16 },
-    previewTag: { fontSize: 10.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-    previewUrl: { fontSize: 12, color: c.textSecondary },
-    previewTitle: { fontSize: 17, fontWeight: '600', color: c.mode === 'light' ? '#1a0dab' : '#8ab4f8', marginTop: 2 },
-    previewDesc: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 3 },
+    previewTag: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    previewUrl: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
+    previewTitle: { fontFamily: GF.bodyBold, fontSize: 17, fontWeight: 'normal', color: c.mode === 'light' ? '#1a0dab' : '#8ab4f8', marginTop: 2 },
+    previewDesc: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 3 },
     section: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 10, overflow: 'hidden', backgroundColor: c.card },
     sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 13 },
-    sectionTitle: { flex: 1, fontSize: 14.5, fontWeight: '800', color: c.text },
+    sectionTitle: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 14.5, fontWeight: 'normal', color: c.text },
     sectionBody: { paddingHorizontal: 14, paddingBottom: 12, gap: 10 },
     fieldGroup: { gap: 6 },
-    label: { fontSize: 13, fontWeight: '600', color: c.text },
-    help: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
+    help: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     inputMultiline: { minHeight: 64, textAlignVertical: 'top' },
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, marginTop: 14 },
     saveBtnDisabled: { opacity: 0.5 },
-    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
-    savedTxt: { fontSize: 12.5, color: c.emerald, fontWeight: '600', textAlign: 'center', marginTop: 8 },
-    errorTxt: { fontSize: 12.5, color: c.red, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+    saveBtnTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
+    savedTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.emerald, fontWeight: 'normal', textAlign: 'center', marginTop: 8 },
+    errorTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.red, fontWeight: 'normal', textAlign: 'center', marginTop: 8 },
   });
 }

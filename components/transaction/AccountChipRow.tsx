@@ -19,6 +19,7 @@ import { accountColor } from '../../theme/colors';
 import { currencySymbolFor } from '../../lib/finance/currency';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { chipStyles, chipTone, DISABLED_OPACITY } from '../../lib/ui/controls';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export interface ChipAccount {
   id: string;
@@ -103,7 +104,7 @@ function makeStyles(c: any) {
       paddingHorizontal: 14,
       marginRight: 8,
     },
-    name: { fontSize: 14, lineHeight: 18, textAlign: 'center' },
-    balance: { fontSize: 11, lineHeight: 14, color: c.textSecondary, marginTop: 2 },
+    name: { fontFamily: GF.body, fontSize: 14, lineHeight: 18, textAlign: 'center' },
+    balance: { fontFamily: GF.body, fontSize: 11, lineHeight: 14, color: c.textSecondary, marginTop: 2 },
   });
 }

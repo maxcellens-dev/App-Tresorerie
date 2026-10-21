@@ -7,6 +7,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CATEGORY_ICON_GLOSSARY, iconForCategory } from '../../lib/ui/categoryIcons';
 import { isMovementsCategory } from '../../lib/ui/defaultCategories';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** Normalise pour une recherche insensible à la casse et aux accents. */
 function norm(s: string): string {
@@ -294,14 +295,14 @@ function makeStyles(c: any) {
 function makeBaseStyles(c: any) {
   return StyleSheet.create({
   block: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   selectedChip: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderWidth: 1, borderColor: c.emerald, borderRadius: 12,
     backgroundColor: c.emerald + '14', paddingHorizontal: 14, paddingVertical: 12,
   },
-  selectedText: { fontSize: 15, fontWeight: '700', color: c.text },
-  selectedParent: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
+  selectedText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  selectedParent: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 1 },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
@@ -316,20 +317,20 @@ function makeBaseStyles(c: any) {
   createOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   createBox: { width: '100%', maxWidth: 440, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 18, gap: 6 },
   createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  createTitle: { fontSize: 17, fontWeight: '800', color: c.text },
-  createLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 8, marginBottom: 6 },
+  createTitle: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text },
+  createLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginTop: 8, marginBottom: 6 },
   parentChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   parentChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: c.card },
-  parentChipText: { fontSize: 13, fontWeight: '600', color: c.text },
+  parentChipText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
   createInput: {
     backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: Platform.OS === 'web' ? 11 : 10, fontSize: 15, color: c.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
   },
   iconCell: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' },
-  createErrorText: { fontSize: 12, color: c.danger, marginTop: 6 },
+  createErrorText: { fontFamily: GF.body, fontSize: 12, color: c.danger, marginTop: 6 },
   createSubmit: { marginTop: 14, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-  createSubmitText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+  createSubmitText: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   searchInput: {
     flex: 1, fontSize: 15, color: c.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
@@ -340,12 +341,12 @@ function makeBaseStyles(c: any) {
   list: { maxHeight: 240 },
   listContent: { paddingVertical: 4, paddingBottom: 12 },
   section: { marginTop: 8 },
-  sectionHeader: { fontSize: 12, fontWeight: '700', color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 6 },
+  sectionHeader: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 6 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12 },
   rowChild: { paddingLeft: 24 },
   rowActive: { backgroundColor: c.emerald + '26' },
-  rowText: { fontSize: 15, color: c.text },
-  rowTextActive: { color: c.emerald, fontWeight: '600' },
-  hint: { fontSize: 13, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 8 },
+  rowText: { fontFamily: GF.body, fontSize: 15, color: c.text },
+  rowTextActive: { color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  hint: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 8 },
   });
 }

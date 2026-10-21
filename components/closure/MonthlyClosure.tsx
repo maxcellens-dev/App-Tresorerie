@@ -51,6 +51,7 @@ import AppButton from '../ui/AppButton';
 import SegmentedControl from '../ui/SegmentedControl';
 import StepRail from '../ui/StepRail';
 import { sanitizeAmountInput, sanitizeSignedAmountInput } from '../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   /**
@@ -1239,8 +1240,8 @@ function makeBaseStyles(c: any) {
       width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.yellow + '26', borderWidth: 1, borderColor: c.yellow + '66',
     },
-    bannerTitle: { fontSize: 14, fontWeight: '800', color: c.text },
-    bannerText: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
+    bannerTitle: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.text },
+    bannerText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 1 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     // paddingBottom réduit : c'est le SafeAreaView du pied qui ajoute désormais la hauteur réelle de
     // la barre système. Cumuler les deux repoussait le bouton hors de l'écran sur les petits mobiles.
@@ -1254,12 +1255,12 @@ function makeBaseStyles(c: any) {
        ça, la ScrollView web garde sa hauteur de contenu et chasse le bouton hors du cadre. */
     scroll: { flexGrow: 0, flexShrink: 1 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-    title: { fontSize: 19, fontWeight: '800', color: c.text },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', color: c.text },
 
     /* ── Le parcours ────────────────────────────────────────────────────────────────────────────
        Une seule question par étape, annoncée par un titre : c'est lui qui remplace les trois
        encadrés d'explication que l'écran empilait avant de poser quoi que ce soit. */
-    stepHeading: { fontSize: 16.5, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 12 },
+    stepHeading: { fontFamily: GF.bodyHeavy, fontSize: 16.5, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 12 },
 
     // Étape 1 — le mois concerné, mis en avant comme le sujet de la conversation.
     hero: {
@@ -1271,10 +1272,10 @@ function makeBaseStyles(c: any) {
       width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.emerald + '22', borderWidth: 1, borderColor: c.emerald + '44',
     },
-    heroKicker: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-    heroMonth: { fontSize: 21, fontWeight: '800', color: c.emerald, textTransform: 'capitalize', marginTop: 1 },
-    heroText: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginTop: 10 },
-    sectionLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 8 },
+    heroKicker: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+    heroMonth: { fontFamily: GF.bodyHeavy, fontSize: 21, fontWeight: 'normal', color: c.emerald, textTransform: 'capitalize', marginTop: 1 },
+    heroText: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 19, marginTop: 10 },
+    sectionLabel: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 18, marginBottom: 8 },
 
     /* Le choix du mode : trois CARTES, une phrase chacune. C'étaient trois segments de deux mots
        qu'il fallait essayer pour comprendre ce qu'ils changeaient. */
@@ -1288,88 +1289,88 @@ function makeBaseStyles(c: any) {
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     },
     modeIconOn: { backgroundColor: c.emerald, borderColor: c.emerald },
-    modeTitle: { fontSize: 14.5, fontWeight: '800', color: c.text },
-    modeSub: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
+    modeTitle: { fontFamily: GF.bodyHeavy, fontSize: 14.5, fontWeight: 'normal', color: c.text },
+    modeSub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 2 },
     // « Rien à vérifier » : un état, pas un choix — il ne prend donc pas la forme d'une carte cliquable.
     infoCard: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16,
       backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '33',
       borderRadius: 14, padding: 13,
     },
-    infoText: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    infoText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
     // Pied : « Précédent » ne prend que sa largeur, l'action principale occupe le reste.
     footerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
     balanceList: { marginTop: 8, gap: 6 },
     balanceBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 14 },
-    balanceLabel: { fontSize: 13, color: c.textSecondary, flex: 1, marginRight: 8 },
-    balanceValue: { fontSize: 17, fontWeight: '800', color: c.text },
+    balanceLabel: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, flex: 1, marginRight: 8 },
+    balanceValue: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text },
     acctInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-    acctName: { fontSize: 13, fontWeight: '600', color: c.text, width: 110 },
+    acctName: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, width: 110 },
     // Comptes joints : ce qu'un autre participant a déjà fait — dit, jamais escamoté.
     jointNote: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 4, marginBottom: 4,
       backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '3A',
       borderRadius: 12, padding: 11,
     },
-    jointNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    jointNoteText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
     // « Tu as déjà vérifié ce compte plus tard » : ce qui explique un solde qui ne bouge pas.
     laterNote: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12,
       backgroundColor: c.blue + '12', borderWidth: 1, borderColor: c.blue + '3A',
       borderRadius: 12, padding: 11,
     },
-    laterNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    laterNoteText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
     /* (Le récapitulatif « 1. la date  2. le montant  3. la répartition » a disparu : le fil
        d'étapes le dit mieux, en haut de la feuille, et pour les trois modes.) */
-    stepLabel: { fontSize: 13, fontWeight: '800', color: c.text, marginTop: 16, marginBottom: 6 },
+    stepLabel: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.text, marginTop: 16, marginBottom: 6 },
     /* Étape de répartition sans écart à répartir : visible, mais inactive. */
     splitPending: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,
       padding: 12, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed',
       borderColor: c.cardBorder, backgroundColor: c.card, marginBottom: 10,
     },
-    splitPendingText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    splitPendingText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
     // Mode « je ne sais pas » : répartition de l'écart entre le mois clôturé et le mois en cours.
     splitBox: {
       marginTop: 4, marginBottom: 10, gap: 8, padding: 12,
       borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
     },
-    splitTitle: { fontSize: 12.5, color: c.text, fontWeight: '700', lineHeight: 18 },
+    splitTitle: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.text, fontWeight: 'normal', lineHeight: 18 },
     splitSteps: { flexDirection: 'row', gap: 6 },
     splitStep: {
       flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 10,
       borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
     },
     splitStepOn: { borderColor: c.emerald, backgroundColor: c.emerald + '20' },
-    splitStepText: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary },
+    splitStepText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary },
     splitStepTextOn: { color: c.emerald },
     splitResult: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
-    splitResultItem: { fontSize: 12, color: c.textSecondary },
-    splitResultVal: { fontWeight: '800', color: c.text },
-    splitHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
+    splitResultItem: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
+    splitResultVal: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
+    splitHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
     /* (Les segments maison ont laissé la place à `components/ui/SegmentedControl` pour le choix
        « mois par mois / tout d'un coup », et à des cartes pour le choix du mode.) */
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-    hint: { fontSize: 12, color: c.textSecondary, marginTop: 10, lineHeight: 17 },
+    hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 10, lineHeight: 17 },
     previewBox: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '44', padding: 12, marginTop: 14, gap: 8 },
-    previewTitle: { fontSize: 12.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    previewTitle: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     previewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-    previewMonth: { fontSize: 13.5, fontWeight: '800', color: c.text, textTransform: 'capitalize', minWidth: 74 },
-    previewValue: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+    previewMonth: { fontFamily: GF.bodyHeavy, fontSize: 13.5, fontWeight: 'normal', color: c.text, textTransform: 'capitalize', minWidth: 74 },
+    previewValue: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', flexShrink: 1 },
     previewBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.emerald + '18', borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-    previewBadgeText: { fontSize: 10, fontWeight: '800', color: c.emerald },
+    previewBadgeText: { fontFamily: GF.bodyHeavy, fontSize: 10, fontWeight: 'normal', color: c.emerald },
     lockNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderRadius: 10, padding: 10, marginTop: 16 },
-    lockNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
+    lockNoteText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
     errorBox: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10,
       borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12',
       borderRadius: 12, padding: 11,
     },
-    errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
-    confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
+    errorText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
+    confirmHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
     // (Les boutons du pied sont des `AppButton` — un seul bouton dans toute l'app.)
   });
 }

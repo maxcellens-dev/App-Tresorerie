@@ -23,6 +23,7 @@ import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { useBudgetContext } from '../../hooks/data/useBudgetData';
 import { periodLabel, resolveBudgetFor } from '../../lib/finance/budgetEngine';
 import BudgetGauge from './BudgetGauge';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   categoryId: string | null | undefined;
@@ -161,15 +162,15 @@ function makeBaseStyles(c: any) {
     // Dans la carte de confirmation, le bloc est déjà sur une surface : il se pose dessus.
     wrapRecap: { marginBottom: 0, marginTop: 10, backgroundColor: c.bg },
     head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-    kicker: { fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', fontWeight: '700', color: c.textSecondary },
-    period: { fontSize: 10, color: c.textSecondary, textTransform: 'capitalize' },
-    name: { fontSize: 12.5, fontWeight: '600', color: c.text, marginTop: 5 },
-    value: { fontSize: 15, fontWeight: '800', color: c.text, marginTop: 2, fontVariant: ['tabular-nums'] },
-    valueSub: { fontSize: 11.5, fontWeight: '500', color: c.textSecondary },
+    kicker: { fontFamily: GF.bodyBold, fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', fontWeight: 'normal', color: c.textSecondary },
+    period: { fontFamily: GF.body, fontSize: 10, color: c.textSecondary, textTransform: 'capitalize' },
+    name: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text, marginTop: 5 },
+    value: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text, marginTop: 2, fontVariant: ['tabular-nums'] },
+    valueSub: { fontFamily: GF.body, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary },
     recapRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
-    recapNote: { fontSize: 11.5, fontWeight: '700', flexShrink: 0 },
+    recapNote: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', flexShrink: 0 },
     foot: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7 },
-    note: { flex: 1, fontSize: 11, lineHeight: 15 },
-    noteStrong: { fontWeight: '700', color: c.text },
+    note: { fontFamily: GF.body, flex: 1, fontSize: 11, lineHeight: 15 },
+    noteStrong: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.text },
   });
 }

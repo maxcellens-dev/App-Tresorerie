@@ -19,6 +19,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { accountColor } from '../../theme/colors';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { chipStyles, chipTone, DISABLED_OPACITY } from '../../lib/ui/controls';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export interface TypeOption {
   value: string;
@@ -91,6 +92,6 @@ function makeStyles(c: any) {
     // qu'il reste quelque chose à droite.
     content: { paddingRight: 12, gap: 8 },
     chip: { ...base.chip, paddingVertical: 10, paddingHorizontal: 15 },
-    label: { fontSize: 13.5 },
+    label: { fontFamily: GF.body, fontSize: 13.5 },
   });
 }

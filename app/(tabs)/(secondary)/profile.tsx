@@ -24,6 +24,7 @@ import { pageColumn } from '../../../lib/ui/webLayout';
 import { useCosmetics } from '../../../hooks/theme/useCosmetics';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 /** Le nom s'affiche chez les AUTRES (comptes partagés, projets, crédits) : il faut une borne. */
 const NAME_MAX = 60;
@@ -481,11 +482,11 @@ function ProfileScreen() {
               </View>
               <Text style={styles.modalTitle}>Supprimer définitivement</Text>
               <Text style={styles.modalText}>
-                Toutes tes données seront <Text style={{ fontWeight: '700', color: COLORS.danger }}>définitivement supprimées</Text> et ne pourront pas être récupérées.
+                Toutes tes données seront <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.danger }}>définitivement supprimées</Text> et ne pourront pas être récupérées.
               </Text>
               {/* Tutoiement : « saisissez » était le dernier vouvoiement de l'écran. */}
               <Text style={styles.modalText}>
-                Pour confirmer, saisis <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimer</Text> ci-dessous.
+                Pour confirmer, saisis <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>supprimer</Text> ci-dessous.
               </Text>
               {/* On rappelle QUEL compte part : la modale ne le disait pas, et c'est la seule
                   action de l'app qu'on ne peut pas annuler. */}
@@ -539,18 +540,18 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 18 },
-  noticeText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
-  saveMsg: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 10, lineHeight: 18 },
-  modalAccount: { fontSize: 13, fontWeight: '700', color: c.text, textAlign: 'center' },
+  noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 17, color: c.textSecondary },
+  saveMsg: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', textAlign: 'center', marginBottom: 10, lineHeight: 18 },
+  modalAccount: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, textAlign: 'center' },
   idChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  idChipLabel: { fontSize: 10, fontWeight: '800', color: c.textSecondary, letterSpacing: 0.5 },
-  idChipCode: { fontSize: 12, fontWeight: '700', color: c.text, letterSpacing: 0.5 },
+  idChipLabel: { fontFamily: GF.bodyHeavy, fontSize: 10, fontWeight: 'normal', color: c.textSecondary, letterSpacing: 0.5 },
+  idChipCode: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text, letterSpacing: 0.5 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
   avatarFrame: { borderWidth: 3, borderRadius: 54, padding: 3 },
   titleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10, borderWidth: 1, borderColor: '#f59e0b66', backgroundColor: '#f59e0b1A', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  titleBadgeText: { fontSize: 12, fontWeight: '800', color: '#f59e0b' },
+  titleBadgeText: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: '#f59e0b' },
   avatar: { width: 96, height: 96, borderRadius: 48 },
   avatarPlaceholder: {
     width: 96,
@@ -584,9 +585,9 @@ function makeBaseStyles(c: any) {
     borderRadius: 12,
   },
   avatarBtnDisabled: { opacity: 0.6 },
-  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: c.onAccent },
-  avatarBtnLabelDanger: { fontSize: 14, fontWeight: '600', color: c.danger },
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  avatarBtnLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.onAccent },
+  avatarBtnLabelDanger: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.danger },
+  label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
     borderWidth: 1,
@@ -599,32 +600,32 @@ function makeBaseStyles(c: any) {
     marginBottom: 16,
   },
   inputReadOnly: { opacity: 0.8 },
-  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 20 },
+  hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 20 },
   submitBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+  submitLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
   linksCard: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden', marginTop: 4 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-  linkLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
+  linkLabel: { fontFamily: GF.body, flex: 1, fontSize: 15, fontWeight: 'normal', color: c.text },
   passwordBtn: { backgroundColor: c.cardBorder, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   text: { color: c.text },
   loginActions: { marginTop: 16, gap: 12 },
   signOutBtn: { backgroundColor: c.mode === 'light' ? c.cardSolid : '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
-  signOutLabel: { fontSize: 16, fontWeight: '600', color: c.text },
+  signOutLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text },
 
   // Zone de danger
   dangerZone: {
     marginTop: 32, padding: 16, borderRadius: 12,
     borderWidth: 1, borderColor: c.danger + '40', backgroundColor: c.danger + '0d',
   },
-  dangerTitle: { fontSize: 15, fontWeight: '700', color: c.danger, marginBottom: 8 },
-  dangerText: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 14 },
+  dangerTitle: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.danger, marginBottom: 8 },
+  dangerText: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 14 },
   deleteAccountBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 13, borderRadius: 10,
     borderWidth: 1, borderColor: c.danger,
   },
-  deleteAccountLabel: { fontSize: 15, fontWeight: '700', color: c.danger },
+  deleteAccountLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.danger },
 
   // Modale de confirmation
   modalOverlay: {
@@ -641,8 +642,8 @@ function makeBaseStyles(c: any) {
     backgroundColor: c.danger + '22', alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  modalTitle: { fontSize: 19, fontWeight: '800', color: c.text, textAlign: 'center' },
-  modalText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
+  modalTitle: { fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+  modalText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
   modalInput: {
     width: '100%', backgroundColor: c.bg, borderWidth: 1, borderColor: c.danger + '60',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
@@ -653,13 +654,13 @@ function makeBaseStyles(c: any) {
     flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center',
     backgroundColor: c.cardBorder,
   },
-  modalCancelLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+  modalCancelLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
   modalDeleteBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center',
     backgroundColor: c.danger,
   },
   modalDeleteBtnDisabled: { opacity: 0.45 },
-  modalDeleteLabel: { fontSize: 15, fontWeight: '700', color: '#ffffff' },
+  modalDeleteLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: '#ffffff' },
 });
 }
 

@@ -180,7 +180,7 @@ export default function EditTransactionMonthModal({
             {currentOverrideAmount !== undefined && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Montant actuel:</Text>
-                <Text style={[styles.infoValue, { color: '#f59e0b' }]}>
+                <Text style={[styles.infoValue, { color: COLORS.amber }]}>
                   {currentOverrideAmount.toFixed(2)} {symbol}
                 </Text>
               </View>

@@ -37,6 +37,7 @@ import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { checkNewEmail, normalizeEmail, canChangeEmail, EMAIL_MAX_LENGTH } from '../../../lib/auth/emailPolicy';
 import { describeAuthError } from '../../../lib/auth/authErrors';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 export default function ChangeEmailScreen() {
   const COLORS = useAppColors();
@@ -231,24 +232,24 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    sub: { fontSize: 13, color: c.textSecondary, marginBottom: 22, lineHeight: 19 },
+    sub: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 22, lineHeight: 19 },
     currentCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14, marginBottom: 18 },
-    currentLabel: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
-    currentValue: { fontSize: 15, fontWeight: '600', color: c.text, marginTop: 4 },
+    currentLabel: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+    currentValue: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text, marginTop: 4 },
     notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14 },
-    noticeText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    noticeText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 18, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-    hint: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: -8, marginBottom: 16 },
-    error: { fontSize: 13, fontWeight: '600', color: c.danger, marginBottom: 14, lineHeight: 18 },
+    hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: -8, marginBottom: 16 },
+    error: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.danger, marginBottom: 14, lineHeight: 18 },
     btn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 2 },
-    btnLabel: { fontSize: 16, fontWeight: '700', color: c.onAccent },
+    btnLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.onAccent },
     sentCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.emerald + '40', borderRadius: 16, padding: 20, alignItems: 'center', gap: 10 },
-    sentTitle: { fontSize: 17, fontWeight: '800', color: c.text },
-    sentText: { fontSize: 13.5, color: c.textSecondary, textAlign: 'center', lineHeight: 19 },
-    sentEmail: { fontWeight: '700', color: c.text },
-    strong: { fontWeight: '700', color: c.text },
+    sentTitle: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text },
+    sentText: { fontFamily: GF.body, fontSize: 13.5, color: c.textSecondary, textAlign: 'center', lineHeight: 19 },
+    sentEmail: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.text },
+    strong: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.text },
     secondaryBtn: { paddingVertical: 14, paddingHorizontal: 16, marginTop: 4 },
-    secondaryLabel: { fontSize: 13.5, fontWeight: '700', color: c.accentText },
+    secondaryLabel: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.accentText },
   });
 }

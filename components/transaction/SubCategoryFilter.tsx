@@ -17,6 +17,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { iconForCategory } from '../../lib/ui/categoryIcons';
 import { isProjectSpendTx } from '../../lib/finance/projectTx';
 import type { AppColors } from '../../theme/palette';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /** Normalise pour une recherche insensible à la casse et aux accents. */
 export function normSearch(s: string): string {
@@ -171,18 +172,18 @@ function makeBaseStyles(c: AppColors) {
     panel: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12, marginBottom: 12 },
     head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
     headActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-    title: { fontSize: 15, fontWeight: '800', color: c.text },
-    reset: { fontSize: 13, fontWeight: '600', color: c.emerald },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+    reset: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.emerald },
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, height: 40, marginBottom: 8 },
     searchInput: { flex: 1, fontSize: 13.5, color: c.text, paddingVertical: 0, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}) },
     list: { maxHeight: 220, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10 },
-    kind: { fontSize: 11, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
-    parent: { fontSize: 12, fontWeight: '700', color: c.text, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+    kind: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
+    parent: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12 },
     rowChild: { paddingLeft: 20 },
     rowActive: { backgroundColor: c.emerald + '1A' },
-    text: { flex: 1, fontSize: 13.5, color: c.text },
-    textActive: { color: c.emerald, fontWeight: '700' },
-    empty: { fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
+    text: { fontFamily: GF.body, flex: 1, fontSize: 13.5, color: c.text },
+    textActive: { color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+    empty: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
   });
 }

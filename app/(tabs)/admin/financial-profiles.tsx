@@ -34,6 +34,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSavingsConfig, useSaveSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/config/useSavingsConfig';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 type Tab = 'simulate' | 'messages' | 'matrix' | 'alloc' | 'global';
@@ -993,7 +994,7 @@ function GlobalSection({ userId }: { userId: string }) {
           194 avait déjà corrigé une fois. Les vrais leviers sont dans l'onglet « Matrice ». */}
       <Text style={styles.matrixInfo}>
         Les seuils qui gouvernent réellement le classement (matelas, patrimoine, viabilité,
-        découvert chronique) se règlent dans l’onglet <Text style={{ fontWeight: '800' }}>Matrice</Text>,
+        découvert chronique) se règlent dans l’onglet <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal' }}>Matrice</Text>,
         transition par transition. Le profil n’est plus gelé et le taux d’épargne ne le décide plus :
         les réglages correspondants ont été retirés plutôt que laissés sans effet.
       </Text>
@@ -1109,7 +1110,7 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
+  subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 16 },
 
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: {
@@ -1118,7 +1119,7 @@ function makeBaseStyles(c: any) {
     alignItems: 'center',
   },
   tabActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  tabText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  tabText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
   tabTextActive: { color: c.onAccent },
 
   scroll: { flex: 1 },
@@ -1132,22 +1133,22 @@ function makeBaseStyles(c: any) {
   },
   msgHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dirBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  dirBadgeText: { fontSize: 11, fontWeight: '700' },
-  msgTransition: { flex: 1, fontSize: 13, fontWeight: '600', color: c.text },
+  dirBadgeText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal' },
+  msgTransition: { fontFamily: GF.bodyBold, flex: 1, fontSize: 13, fontWeight: 'normal', color: c.text },
   msgPreview: { gap: 4 },
-  msgTitle: { fontSize: 13, fontWeight: '600', color: c.text, lineHeight: 18 },
-  msgBody: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
+  msgTitle: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, lineHeight: 18 },
+  msgBody: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
 
   // Matrice
-  matrixInfo: { fontSize: 12, color: c.textSecondary, marginBottom: 4 },
+  matrixInfo: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 4 },
   matrixCard: {
     backgroundColor: c.card, borderRadius: 14, borderWidth: 1,
     borderColor: c.cardBorder, padding: 14, gap: 10,
   },
   matrixHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  matrixLabel: { fontSize: 13, fontWeight: '600', color: c.text, flex: 1 },
+  matrixLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, flex: 1 },
   matrixSummary: { gap: 4 },
-  matrixSummaryText: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+  matrixSummaryText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
   // Répartition : aperçu compact des quatre postes, une pastille par décision.
   allocPreview: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1157,25 +1158,25 @@ function makeBaseStyles(c: any) {
     borderWidth: 1, borderColor: c.cardBorder,
   },
   allocDot: { width: 7, height: 7, borderRadius: 4 },
-  allocChipLabel: { fontSize: 11.5, color: c.textSecondary },
-  allocChipPct: { fontSize: 12.5, fontWeight: '800' },
+  allocChipLabel: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary },
+  allocChipPct: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal' },
 
   // Distribution : une barre par palier, à l'échelle du palier le plus peuplé.
   distRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 },
-  distLabel: { width: 58, fontSize: 12, color: c.text },
+  distLabel: { fontFamily: GF.body, width: 58, fontSize: 12, color: c.text },
   distTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: c.cardBorder, overflow: 'hidden' },
   distFill: { height: 8, borderRadius: 4 },
-  distValue: { width: 78, fontSize: 11.5, color: c.textSecondary, textAlign: 'right' },
+  distValue: { fontFamily: GF.body, width: 78, fontSize: 11.5, color: c.textSecondary, textAlign: 'right' },
   matrixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  matrixRowLabel: { flex: 1, fontSize: 13, color: c.text },
+  matrixRowLabel: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.text },
   matrixInput: {
     width: 72, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
     color: c.text, textAlign: 'center',
   },
   bufferRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bufferLabel: { fontSize: 12, color: c.textSecondary },
-  bufferValue: { fontSize: 12, fontWeight: '700', color: c.emerald },
+  bufferLabel: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
+  bufferValue: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.emerald },
 
   // Paramètres globaux
   globalRow: {
@@ -1183,7 +1184,7 @@ function makeBaseStyles(c: any) {
     borderColor: c.cardBorder, padding: 14,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
   },
-  globalLabel: { flex: 1, fontSize: 13, color: c.text },
+  globalLabel: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.text },
   globalInput: {
     width: 72, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
@@ -1196,9 +1197,9 @@ function makeBaseStyles(c: any) {
     borderColor: c.cardBorder, padding: 14, gap: 10,
   },
   simCurrentRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  simEmoji: { fontSize: 30 },
-  simName: { fontSize: 16, fontWeight: '800' },
-  simTier: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  simEmoji: { fontFamily: GF.body, fontSize: 30 },
+  simName: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal' },
+  simTier: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
   simChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   simChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1206,16 +1207,16 @@ function makeBaseStyles(c: any) {
     paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.bg,
   },
   simChipDisabled: { opacity: 0.5 },
-  simChipEmoji: { fontSize: 15 },
-  simChipText: { fontSize: 13, fontWeight: '700', color: c.text },
+  simChipEmoji: { fontFamily: GF.body, fontSize: 15 },
+  simChipText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
   simDirBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  simDirText: { fontSize: 12.5, fontWeight: '700' },
+  simDirText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal' },
   simExcBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderColor: '#f59e0b55', borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#f59e0b12',
   },
-  simExcText: { fontSize: 13, fontWeight: '600', color: c.text },
+  simExcText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
   simMaintainBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderColor: '#60a5fa55', borderRadius: 10,
@@ -1224,7 +1225,7 @@ function makeBaseStyles(c: any) {
 
   // Formulaire commun
   editForm: { gap: 10 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+  fieldLabel: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary },
   input: {
     backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
@@ -1235,6 +1236,6 @@ function makeBaseStyles(c: any) {
     backgroundColor: c.emerald, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  saveBtnText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
+  saveBtnText: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 14 },
 });
 }

@@ -27,6 +27,7 @@ import { sheetWidth } from '../../lib/ui/appLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
 import { FINANCIAL_PROFILE_IDS, PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   term: GlossaryTerm;
@@ -74,7 +75,7 @@ export default function InfoDot({ term, size = 15, color, style, insidePressable
           style,
         ]}
       >
-        <Text style={{ fontSize: size * 0.66, lineHeight: size, fontWeight: '800', color: tint }}>?</Text>
+        <Text style={{ fontFamily: GF.bodyHeavy, fontSize: size * 0.66, lineHeight: size, fontWeight: 'normal', color: tint }}>?</Text>
       </TouchableOpacity>
 
       {open && <GlossarySheet term={term} onClose={() => setOpen(false)} />}
@@ -298,7 +299,7 @@ function ProfileScale({
           >
             <Text style={styles.scaleEmoji}>{info.emoji}</Text>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.scaleName, isCurrent && { color: tint, fontWeight: '800' }]}>
+              <Text style={[styles.scaleName, isCurrent && { color: tint, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>
                 {info.name}{isCurrent ? ' — toi' : ''}
               </Text>
               {isCurrent && <Text style={styles.scaleDesc}>{info.description}</Text>}
@@ -333,25 +334,25 @@ function makeBaseStyles(c: any) {
     },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     icon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-    title: { flex: 1, fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
+    title: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 17, fontWeight: 'normal', letterSpacing: -0.2 },
     /* LE CORPS DÉFILANT — tout ce qui n'est ni l'en-tête ni le bouton. `gap` reprend celui que la
        carte appliquait à ces enfants avant qu'ils ne descendent d'un cran. */
     body: { gap: 12, paddingBottom: 2 },
     bodyFade: { position: 'absolute', left: 0, right: 0, height: 22 },
-    text: { fontSize: 14.5, lineHeight: 21, color: c.text },
-    hint: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
+    text: { fontFamily: GF.body, fontSize: 14.5, lineHeight: 21, color: c.text },
+    hint: { fontFamily: GF.body, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
     btn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
-    btnLabel: { fontSize: 15, fontWeight: '700' },
+    btnLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal' },
     // Échelle des profils (fiche « Ton profil financier » uniquement).
     scale: { gap: 8 },
-    scaleTitle: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    scaleTitle: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     scaleRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       paddingVertical: 7, paddingHorizontal: 9,
       borderRadius: 11, borderWidth: 1, borderColor: 'transparent', marginBottom: 3,
     },
-    scaleEmoji: { fontSize: 15, width: 20, textAlign: 'center' },
-    scaleName: { fontSize: 13.5, color: c.text },
-    scaleDesc: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 2 },
+    scaleEmoji: { fontFamily: GF.body, fontSize: 15, width: 20, textAlign: 'center' },
+    scaleName: { fontFamily: GF.body, fontSize: 13.5, color: c.text },
+    scaleDesc: { fontFamily: GF.body, fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 2 },
   });
 }

@@ -63,6 +63,7 @@ import { monthlyOccurrenceCount } from '../../lib/finance/recurrence';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { sanitizeAmountInput } from '../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 
 type AllocationType = 'monthly' | 'date' | 'ponctuel';
@@ -812,7 +813,7 @@ export default function AddProjectModal() {
                   <View style={[styles.modeBanner, { borderColor: COLORS.primary + '40', backgroundColor: COLORS.primary + '0E' }]}>
                     <Ionicons name={M.icon as any} size={16} color={COLORS.primary} />
                     <Text style={styles.modeBannerText}>
-                      <Text style={{ fontWeight: '800', color: COLORS.text }}>{M.title}</Text>
+                      <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }}>{M.title}</Text>
                       {' — '}{M.recap}
                     </Text>
                     {isEdit ? (
@@ -939,7 +940,7 @@ export default function AddProjectModal() {
                       keyboardType="decimal-pad"
                       editable={!isPending}
                     />
-                    <Text style={[styles.label, { color: COLORS.textSecondary, fontSize: 12, marginTop: 6, fontWeight: '400' }]}>
+                    <Text style={[styles.label, { fontFamily: GF.body, color: COLORS.textSecondary, fontSize: 12, marginTop: 6, fontWeight: 'normal' }]}>
                       {monthlyAllocEdited
                         ? 'Tu fixes toi-même le montant mensuel.'
                         : `Calculé automatiquement (${isSpend ? 'budget' : 'objectif'} étalé sur ${DEFAULT_PROJECT_MONTHS} mois) — modifiable.`}
@@ -958,9 +959,9 @@ export default function AddProjectModal() {
                         <View style={[styles.infoBox, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40', marginTop: 8 }]}>
                           <Text style={styles.infoIcon}>🎯</Text>
                           <Text style={[styles.infoText, { color: COLORS.textSecondary }]}>
-                            À <Text style={{ fontWeight: '800', color: COLORS.text }}>{Math.round(monthly).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}/mois</Text>,
+                            À <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }}>{Math.round(monthly).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}/mois</Text>,
                             {isSpend ? ' le budget sera consommé en ' : ' objectif atteint en '}
-                            <Text style={{ fontWeight: '800', color: COLORS.text }}>{etaLabel}</Text> ({monthsN} mois).
+                            <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }}>{etaLabel}</Text> ({monthsN} mois).
                           </Text>
                         </View>
                       );
@@ -991,7 +992,7 @@ export default function AddProjectModal() {
                           onPress={() => setShowCalendar('target')}
                           disabled={isPending}
                         >
-                          <Text style={{ fontSize: 20, color: COLORS.primary }}>📅</Text>
+                          <Text style={{ fontFamily: GF.body, fontSize: 20, color: COLORS.primary }}>📅</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1026,7 +1027,7 @@ export default function AddProjectModal() {
                         maxLength={2}
                         editable={!isPending}
                       />
-                      <Text style={{ color: COLORS.textSecondary, fontSize: 13, paddingHorizontal: 4 }}>du mois</Text>
+                      <Text style={{ fontFamily: GF.body, color: COLORS.textSecondary, fontSize: 13, paddingHorizontal: 4 }}>du mois</Text>
                     </View>
                     <Text style={[styles.label, { color: COLORS.text, marginTop: 12 }]}>{M.entriesLabel}</Text>
                     <View style={[styles.ponctuelContainer, { backgroundColor: COLORS.background, borderColor: COLORS.border }]}>
@@ -1128,7 +1129,7 @@ export default function AddProjectModal() {
                         onPress={() => setShowCalendar('payment')}
                         disabled={isPending}
                       >
-                        <Text style={{ fontSize: 20, color: COLORS.primary }}>📅</Text>
+                        <Text style={{ fontFamily: GF.body, fontSize: 20, color: COLORS.primary }}>📅</Text>
                       </TouchableOpacity>
                     </View>
                     {isEdit && isSpend && (
@@ -1148,18 +1149,18 @@ export default function AddProjectModal() {
                     <Text style={[styles.infoText, { color: COLORS.textSecondary }]}>
                       {isSpend ? (
                         <>
-                          Chaque échéance deviendra une <Text style={{ fontWeight: '700', color: COLORS.text }}>dépense réelle</Text> sur ce compte, à sa date.
+                          Chaque échéance deviendra une <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>dépense réelle</Text> sur ce compte, à sa date.
                           Tu pourras la modifier ou la supprimer une par une dans l’onglet Transactions, ou tout revoir d’un coup en rouvrant ce projet.
                         </>
                       ) : isReserve ? (
                         <>
-                          Chaque échéance sera <Text style={{ fontWeight: '700', color: COLORS.text }}>mise de côté sur ce compte</Text> (tag « Réservé »).
+                          Chaque échéance sera <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>mise de côté sur ce compte</Text> (tag « Réservé »).
                           Aucun virement n’est fait : l’argent ne bouge pas, il sort seulement de ton budget disponible.
                         </>
                       ) : (
                         <>
-                          Chaque versement sera préparé comme un <Text style={{ fontWeight: '700', color: COLORS.text }}>virement en brouillon</Text> à sa date.
-                          Tu pourras ensuite <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou ajuster chaque versement un par un</Text> dans l’onglet Transactions.
+                          Chaque versement sera préparé comme un <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>virement en brouillon</Text> à sa date.
+                          Tu pourras ensuite <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>valider ou ajuster chaque versement un par un</Text> dans l’onglet Transactions.
                         </>
                       )}
                     </Text>
@@ -1403,8 +1404,8 @@ function makeBaseStyles(c: any) {
     borderWidth: 1,
     borderColor: c.cardBorder,
   },
-  confirmTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  confirmMessage: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  confirmTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', marginBottom: 12 },
+  confirmMessage: { fontFamily: GF.body, fontSize: 14, lineHeight: 20, marginBottom: 20 },
   confirmButtonGroup: { gap: 10 },
   confirmButton: {
     paddingVertical: 12,
@@ -1413,87 +1414,87 @@ function makeBaseStyles(c: any) {
     borderWidth: 1,
     alignItems: 'center',
   },
-  confirmButtonText: { fontSize: 14, fontWeight: '600' },
+  confirmButtonText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
   container: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, maxHeight: '90%', borderTopWidth: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: '600' },
-  closeButton: { fontSize: 24, fontWeight: '300' },
+  title: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal' },
+  closeButton: { fontFamily: GF.body, fontSize: 24, fontWeight: 'normal' },
   root: { flex: 1, backgroundColor: c.background },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   pageBody: { flex: 1 },
   form: { flex: 1, marginBottom: 12 },
   field: { marginBottom: 12 },
-  fieldHint: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 6 },
+  fieldHint: { fontFamily: GF.body, fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 6 },
   // Onglets de la modification : `components/ui/SegmentedControl`, rendus hors défilement.
   stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, gap: 0 },
   stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background, borderWidth: 1, borderColor: c.border },
   stepDotActive: { backgroundColor: c.primary, borderColor: c.primary },
-  stepDotText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+  stepDotText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
   stepDotTextActive: { color: c.onAccent },
   stepLine: { width: 28, height: 2, backgroundColor: c.border, marginHorizontal: 4 },
   stepLineActive: { backgroundColor: c.primary },
-  stepTitle: { fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center', marginBottom: 14 },
+  stepTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 14 },
   // Étape 1 — choix du mode
-  modeIntro: { fontSize: 13, lineHeight: 18, color: c.textSecondary, textAlign: 'center', marginBottom: 14 },
+  modeIntro: { fontFamily: GF.body, fontSize: 13, lineHeight: 18, color: c.textSecondary, textAlign: 'center', marginBottom: 14 },
   modeCard: { borderWidth: 1, borderColor: c.border, borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: c.background },
   modeCardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   modeIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  modeTitle: { fontSize: 15, fontWeight: '800', color: c.text },
-  modePitch: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-  modeWhat: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginTop: 10 },
+  modeTitle: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+  modePitch: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  modeWhat: { fontFamily: GF.body, fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginTop: 10 },
   // Rappel du mode (étapes suivantes / édition)
   modeBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 10 },
-  modeBannerText: { flex: 1, fontSize: 11.5, lineHeight: 16, color: c.textSecondary },
-  modeChange: { fontSize: 12, fontWeight: '700' },
-  modeLockedHint: { fontSize: 11, lineHeight: 15, color: c.textSecondary, marginBottom: 12, fontStyle: 'italic' },
-  label: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
-  textarea: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, textAlignVertical: 'top' },
+  modeBannerText: { fontFamily: GF.body, flex: 1, fontSize: 11.5, lineHeight: 16, color: c.textSecondary },
+  modeChange: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
+  modeLockedHint: { fontFamily: GF.body, fontSize: 11, lineHeight: 15, color: c.textSecondary, marginBottom: 12, fontStyle: 'italic' },
+  label: { fontFamily: GF.body, fontSize: 14, fontWeight: 'normal', marginBottom: 8 },
+  input: { fontFamily: GF.body, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+  textarea: { fontFamily: GF.body, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, textAlignVertical: 'top' },
   toggleGroup: { flexDirection: 'row', gap: 6 },
   toggleButton: { flex: 1, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-  toggleText: { fontSize: 12, fontWeight: '500' },
-  calculatedAmount: { fontSize: 18, fontWeight: '700', marginTop: 8 },
+  toggleText: { fontFamily: GF.body, fontSize: 12, fontWeight: 'normal' },
+  calculatedAmount: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', marginTop: 8 },
   dateInputContainer: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dateTextInput: { flex: 1 },
   calendarButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
-  pickerText: { fontSize: 14 },
+  pickerText: { fontFamily: GF.body, fontSize: 14 },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginBottom: 12 },
-  pickerHeaderText: { fontSize: 14, fontWeight: '500', width: 50 },
-  pickerHeaderTitle: { fontSize: 16, fontWeight: '600', flex: 1, textAlign: 'center' },
+  pickerHeaderText: { fontFamily: GF.body, fontSize: 14, fontWeight: 'normal', width: 50 },
+  pickerHeaderTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', flex: 1, textAlign: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   accountOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 14, borderBottomWidth: 1 },
   accountContent: { flex: 1 },
-  accountName: { fontSize: 14, marginBottom: 4 },
-  accountType: { fontSize: 12 },
-  checkmark: { fontSize: 18, fontWeight: '600', marginLeft: 12 },
+  accountName: { fontFamily: GF.body, fontSize: 14, marginBottom: 4 },
+  accountType: { fontFamily: GF.body, fontSize: 12 },
+  checkmark: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', marginLeft: 12 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
   button: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cancelButton: { borderWidth: 1 },
-  buttonText: { fontSize: 14, fontWeight: '600' },
-  submitButtonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  buttonText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
+  submitButtonText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: '#fff' },
   calendarContainer: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, maxHeight: '90%', borderTopWidth: 1 },
   calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginBottom: 16 },
-  calendarHeaderText: { fontSize: 14, fontWeight: '500', width: 50 },
-  calendarTitle: { fontSize: 16, fontWeight: '600', flex: 1, textAlign: 'center' },
+  calendarHeaderText: { fontFamily: GF.body, fontSize: 14, fontWeight: 'normal', width: 50 },
+  calendarTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', flex: 1, textAlign: 'center' },
   calendarWrapper: { height: 420, justifyContent: 'flex-start' },
   calendar: { overflow: 'hidden' },
   // Info box
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 12 },
-  infoIcon: { fontSize: 14, marginTop: 1 },
-  infoText: { flex: 1, fontSize: 12, lineHeight: 17 },
+  infoIcon: { fontFamily: GF.body, fontSize: 14, marginTop: 1 },
+  infoText: { fontFamily: GF.body, flex: 1, fontSize: 12, lineHeight: 17 },
   errorBanner: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 12 },
-  errorBannerText: { fontSize: 13, color: c.danger, lineHeight: 18 },
+  errorBannerText: { fontFamily: GF.body, fontSize: 13, color: c.danger, lineHeight: 18 },
   // Ponctuel
   ponctuelContainer: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   ponctuelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
   ponctuelToggle: { padding: 2 },
   ponctuelDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: c.cardBorder, justifyContent: 'center', alignItems: 'center' },
   ponctuelDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
-  ponctuelLabel: { flex: 1, fontSize: 13 },
-  ponctuelInput: { width: 90, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, fontSize: 13, textAlign: 'right' },
-  ponctuelDash: { width: 90, textAlign: 'right', fontSize: 13, color: c.cardBorder },
+  ponctuelLabel: { fontFamily: GF.body, flex: 1, fontSize: 13 },
+  ponctuelInput: { fontFamily: GF.body, width: 90, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, fontSize: 13, textAlign: 'right' },
+  ponctuelDash: { fontFamily: GF.body, width: 90, textAlign: 'right', fontSize: 13, color: c.cardBorder },
   ponctuelTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1 },
-  ponctuelTotalLabel: { fontSize: 13, fontWeight: '600' },
-  ponctuelTotalAmount: { fontSize: 14, fontWeight: '700' },
+  ponctuelTotalLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal' },
+  ponctuelTotalAmount: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
 });
 }

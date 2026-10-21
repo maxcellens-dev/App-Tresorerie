@@ -103,6 +103,12 @@ const board = async (items, cols, file) => {
 await board([0.1, 0.3, 0.5, 0.7, 0.9].map((p) => [S({ cabin: { progress: p, count: 1, owned: false } }), { decor: ['mushrooms'] }]).concat([[S({ cabin: { progress: 1, count: 1, owned: true }, fruits: 6, harvest: 'big', maturity: 'golden' }), {}]]), 6, 'render_cabin.png');
 await board([0.1, 0.5].map((p) => [S({ growth: 0.3, cabin: { progress: p, count: 1, owned: false } }), {}]), 2, 'render_cabin_small.png');
 await render(base, { moment: 'day', decor: [], hotspots: true }, 'render_hotspots.png');
+// gros plan de Pépin (ombres de contact sous les pattes)
+{
+  const im = await render(base, { moment: 'day', decor: [] }), X = 630, Y = 560, CW = 260, CH = 140, crop = blank(CW, CH);
+  for (let y = 0; y < CH; y++) crop.data.set(im.data.subarray(((Y + y) * im.w + X) * 4, ((Y + y) * im.w + X + CW) * 4), y * CW * 4);
+  await save(await resize(crop, CW * 3, CH * 3), path.join(outDir, 'render_pepin.png'));
+}
 await board(['day', 'dusk', 'night'].map((moment) => [base, { moment }]), 3, 'render_moments.png');
 await board(['spring', 'summer', 'autumn', 'winter'].map((season) => [base, { season }]), 4, 'render_seasons.png');
 const growths = [0.16, 0.24, 0.3, 0.45, 0.6, 0.75, 0.95];

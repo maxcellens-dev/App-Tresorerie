@@ -693,7 +693,7 @@ function AccountDetailScreen() {
                 {apportActuel != null ? apportActuel.toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL : '—'}
               </Text>
             </View>
-            <Text style={styles.apportHint}>L'apport actuel (repris dans la Projection) est calculé automatiquement : apport de création + apports/virements entrants − part de capital retirée au prorata lors des retraits.</Text>
+            <Text style={styles.apportHint}>L'apport actuel (repris dans « Mes placements ») est calculé automatiquement : apport de création + apports/virements entrants − part de capital retirée au prorata lors des retraits.</Text>
           </View>
         )}
         </>)}
@@ -724,7 +724,7 @@ function AccountDetailScreen() {
             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: categoryFilterId ? COLORS.emerald : COLORS.cardBorder, backgroundColor: categoryFilterId ? COLORS.emerald : 'transparent' }}
           >
             <Ionicons name="filter" size={18} color={categoryFilterId ? COLORS.onAccent : COLORS.textSecondary} />
-            {categoryFilterId ? <Text style={{ fontSize: 11.5, fontWeight: '800', color: COLORS.onAccent }}>1</Text> : null}
+            {categoryFilterId ? <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: COLORS.onAccent }}>1</Text> : null}
           </TouchableOpacity>
         </View>
         {showCatFilter && (
@@ -739,7 +739,7 @@ function AccountDetailScreen() {
         {categoryFilterId && !showCatFilter && (
           <TouchableOpacity onPress={() => setCategoryFilterId(null)} accessibilityRole="button" accessibilityLabel="Retirer le filtre"
             style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, backgroundColor: COLORS.emerald + '1A', marginBottom: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.emerald }}>{categories.find((c: any) => c.id === categoryFilterId)?.name ?? 'Sous-catégorie'}</Text>
+            <Text style={{ fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: COLORS.emerald }}>{categories.find((c: any) => c.id === categoryFilterId)?.name ?? 'Sous-catégorie'}</Text>
             <Ionicons name="close" size={14} color={COLORS.emerald} />
           </TouchableOpacity>
         )}
@@ -902,7 +902,7 @@ function AccountDetailScreen() {
                 }}
               >
                 <Ionicons name="person-circle-outline" size={22} color={COLORS.blue} />
-                <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: COLORS.text }}>{m.display_name}</Text>
+                <Text style={{ fontFamily: GF.bodyBold, flex: 1, fontSize: 15, fontWeight: 'normal', color: COLORS.text }}>{m.display_name}</Text>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             ))}
@@ -1104,13 +1104,13 @@ function makeBaseStyles(c: any) {
   chartFrame: { width: '100%', alignItems: 'center', overflow: 'hidden' },
   // Montant et type sur UNE ligne : plus de libellé au-dessus ni de type en dessous.
   balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  balanceAmount: { flex: 1, minWidth: 0, fontSize: 27, fontWeight: '800', color: c.text, letterSpacing: -0.5 },
+  balanceAmount: { fontFamily: GF.bodyHeavy, flex: 1, minWidth: 0, fontSize: 27, fontWeight: 'normal', color: c.text, letterSpacing: -0.5 },
   typePill: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
     borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.cardSolid,
   },
-  typePillText: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
-  chartCaption: { fontSize: 10.5, color: c.textSecondary, marginTop: 2, textAlign: 'center' },
+  typePillText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
+  chartCaption: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, marginTop: 2, textAlign: 'center' },
 
   // ── Actions du compte : colonnes de largeur ÉGALE (rond dégradé + libellé), posées À NU entre la
   //    carte du solde et celle de la courbe. Les cellules restent égales — une rangée de pilules de
@@ -1131,24 +1131,24 @@ function makeBaseStyles(c: any) {
     shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 5, shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  actionLabel: { fontSize: 11, fontWeight: '700', color: c.text, textAlign: 'center', lineHeight: 13.5 },
+  actionLabel: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.text, textAlign: 'center', lineHeight: 13.5 },
   setupBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.blue + '14', borderWidth: 1, borderColor: c.blue + '55', borderRadius: 14, padding: 14, marginBottom: 24, marginTop: -8 },
-  setupBannerTitle: { fontSize: 14, fontWeight: '700', color: c.text },
-  setupBannerText: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+  setupBannerTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  setupBannerText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
   apportCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 24 },
   apportRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  apportLabel: { fontSize: 13, color: c.textSecondary },
-  apportValueRO: { fontSize: 15, fontWeight: '700', color: c.text },
+  apportLabel: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
+  apportValueRO: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
   apportEditRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   apportInput: { minWidth: 90, textAlign: 'right', fontSize: 15, fontWeight: '700', color: c.text, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-  apportCur: { fontSize: 14, color: c.textSecondary },
+  apportCur: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary },
   // Valeur en lecture seule (participant non propriétaire) : même poids visuel que le champ éditable.
-  apportValue: { fontSize: 15, fontWeight: '700', color: c.text },
+  apportValue: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
   apportSave: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
-  apportHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 2 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
-  monthTitle: { fontSize: 16, fontWeight: '800', color: c.text },
-  monthTotals: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
+  apportHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 2 },
+  sectionTitle: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.textSecondary, marginBottom: 12 },
+  monthTitle: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text },
+  monthTotals: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 1 },
 
   // Bascule « À venir ce mois » : discrète quand elle dort, pleine quand elle filtre.
   upcomingBtn: {
@@ -1157,8 +1157,8 @@ function makeBaseStyles(c: any) {
     paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12,
   },
   upcomingBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  upcomingLabel: { flex: 1, fontSize: 13.5, fontWeight: '700', color: c.text },
-  upcomingAmount: { fontSize: 13.5, fontWeight: '800', color: c.textSecondary },
+  upcomingLabel: { fontFamily: GF.bodyBold, flex: 1, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+  upcomingAmount: { fontFamily: GF.bodyHeavy, fontSize: 13.5, fontWeight: 'normal', color: c.textSecondary },
   loader: { marginVertical: 20 },
   emptyCard: {
     backgroundColor: c.card,
@@ -1169,7 +1169,7 @@ function makeBaseStyles(c: any) {
     alignItems: 'center',
     marginBottom: 16,
   },
-  emptyText: { fontSize: 14, color: c.textSecondary, marginTop: 12 },
+  emptyText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginTop: 12 },
   listCard: {
     backgroundColor: c.card,
     borderRadius: 12,
@@ -1189,22 +1189,22 @@ function makeBaseStyles(c: any) {
   },
   transferRowLast: { borderBottomWidth: 0 },
   transferLeft: { flex: 1 },
-  transferDate: { fontSize: 13, color: c.textSecondary, marginBottom: 2 },
-  transferLabel: { fontSize: 15, fontWeight: '600', color: c.text },
-  regulTarget: { fontSize: 12, color: c.emerald, fontWeight: '600', marginTop: 1 },
-  transferAmount: { fontSize: 15, fontWeight: '700' },
+  transferDate: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 2 },
+  transferLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  regulTarget: { fontFamily: GF.bodyBold, fontSize: 12, color: c.emerald, fontWeight: 'normal', marginTop: 1 },
+  transferAmount: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal' },
   transferAmountIn: { color: c.green },
   transferAmountOut: { color: c.text },
   // Pied de l'historique : période affichée + « Charger 3 mois de plus ».
   historyFooter: { alignItems: 'center', gap: 10, marginTop: -4, marginBottom: 16 },
-  historyRange: { fontSize: 12, color: c.textSecondary, textAlign: 'center' },
+  historyRange: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, textAlign: 'center' },
   loadMoreBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 10, paddingHorizontal: 18,
     borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
-  loadMoreText: { fontSize: 14, fontWeight: '600', color: c.emerald },
+  loadMoreText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.emerald },
   text: { color: c.text },
 });
 }
@@ -1218,8 +1218,8 @@ function makeModalStyles(c: any) {
       width: '100%', maxWidth: 380, backgroundColor: c.cardSolid,
       borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 24,
     },
-    title: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 20, textAlign: 'center' },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
+    title: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', color: c.text, marginBottom: 20, textAlign: 'center' },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6 },
   });
 }
 
@@ -1228,17 +1228,17 @@ function makeTxDetailStyles(c: any) {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
     sheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
     handle: { width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
-    amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? c.green : c.text, textAlign: 'center' as const, marginBottom: 4 }),
-    labelText: { fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },
+    amount: (isIn: boolean) => ({ fontFamily: GF.bodyBold, fontSize: 32, fontWeight: 'normal' as const, color: isIn ? c.green : c.text, textAlign: 'center' as const, marginBottom: 4 }),
+    labelText: { fontFamily: GF.body, fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },
     divider: { height: 1, backgroundColor: c.cardBorder, marginBottom: 16 },
     row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-    rowKey: { fontSize: 14, color: c.textSecondary },
-    rowValue: { fontSize: 14, color: c.text, fontWeight: '500' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
+    rowKey: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary },
+    rowValue: { fontFamily: GF.body, fontSize: 14, color: c.text, fontWeight: 'normal' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
     closeBtn: { flex: 1, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
-    closeBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.text },
+    closeBtnText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal' as const, color: c.text },
     btnRow: { flexDirection: 'row' as const, gap: 10, marginTop: 24 },
     editBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: c.green + '44' },
-    editBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.green },
+    editBtnText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal' as const, color: c.green },
   };
 }
 

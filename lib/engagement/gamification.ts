@@ -271,6 +271,8 @@ export interface GamificationConfig {
   premium_discount_pct: number; // remise globale boutique pour les abonnés Premium
   /** Affiche l'onglet « Relyka » (services) dans la boutique. Si false : seul l'onglet App, sans barre d'onglets. */
   relyka_tab_enabled: boolean;
+  /** Règles du jardin (seuils d'apparition), cf. lib/garden/gardenRules — lues via mergeGardenRules. */
+  garden?: Partial<import('../garden/gardenRules').GardenRules>;
 }
 
 export const DEFAULT_GAMIFICATION: GamificationConfig = {
@@ -420,6 +422,7 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
     relyka_tab_enabled: stored.relyka_tab_enabled ?? DEFAULT_GAMIFICATION.relyka_tab_enabled,
     badges: mergeBadges(stored.badges),
     shop: mergeShop(stored.shop),
+    garden: stored.garden,
   };
 }
 

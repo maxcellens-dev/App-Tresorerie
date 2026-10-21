@@ -37,6 +37,7 @@ import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { TABS, WORDS } from '../../lib/garden/lexicon';
 import { pointer } from '../../lib/ui/webLayout';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 type Tab = 'mine' | 'shared';
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
@@ -210,10 +211,10 @@ export default function ProjetsScreen() {
         </View>
         <GardenText variant="label">Nom du projet</GardenText>
         <TextInput value={rwName} onChangeText={setRwName} placeholder="Ex. Week-end à Lyon" placeholderTextColor={G.muted} accessibilityLabel="Nom du projet"
-          style={{ minHeight: 48, borderRadius: GARDEN_RADII.sm, borderWidth: 1, borderColor: G.line, backgroundColor: G.card, paddingHorizontal: 14, fontSize: 16, color: G.ink }} />
+          style={{ fontFamily: GF.body, minHeight: 48, borderRadius: GARDEN_RADII.sm, borderWidth: 1, borderColor: G.line, backgroundColor: G.card, paddingHorizontal: 14, fontSize: 16, color: G.ink }} />
         <GardenText variant="label">Description (facultatif)</GardenText>
         <TextInput value={rwDesc} onChangeText={setRwDesc} placeholder="Quelques mots…" placeholderTextColor={G.muted} accessibilityLabel="Description du projet"
-          style={{ minHeight: 48, borderRadius: GARDEN_RADII.sm, borderWidth: 1, borderColor: G.line, backgroundColor: G.card, paddingHorizontal: 14, fontSize: 16, color: G.ink }} />
+          style={{ fontFamily: GF.body, minHeight: 48, borderRadius: GARDEN_RADII.sm, borderWidth: 1, borderColor: G.line, backgroundColor: G.card, paddingHorizontal: 14, fontSize: 16, color: G.ink }} />
         <GardenText variant="label">Devise du projet</GardenText>
         <CurrencyPicker value={rwCurrency} onChange={setRwCurrency} />
         <GardenText variant="small" color={G.inkSoft}>Tous les totaux du projet s'affichent dans cette devise. Elle ne pourra plus changer ensuite.</GardenText>

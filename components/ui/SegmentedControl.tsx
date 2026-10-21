@@ -14,6 +14,7 @@ import { StyleSheet, Text, TouchableOpacity, View, type StyleProp, type ViewStyl
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { segmentStyles } from '../../lib/ui/controls';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -73,9 +74,9 @@ export default function SegmentedControl<T extends string>({ options, value, onC
 
 const styles = StyleSheet.create({
   badge: { minWidth: 15, height: 15, borderRadius: 8, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 9, fontWeight: '800' },
+  badgeText: { fontFamily: GF.bodyHeavy, fontSize: 9, fontWeight: 'normal' },
   // Version resserrée : mêmes couleurs et même géométrie, à l'échelle près.
   barSm: { padding: 3, borderRadius: 10, gap: 3 },
   itemSm: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 7, gap: 4 },
-  labelSm: { fontSize: 11 },
+  labelSm: { fontFamily: GF.body, fontSize: 11 },
 });

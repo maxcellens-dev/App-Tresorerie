@@ -11,9 +11,11 @@
  *   qui penche. On aide à faire pousser, on ne fait pas peur. Un mois serré se lit dans l'arrosoir
  *   (moins d'eau), rien d'autre.
  * - Chaque élément dessiné correspond à une donnée réelle et nommable :
- *     taille de l'arbre ← épargne de secours + placements ;
- *     racines           ← mois de dépenses couverts par l'épargne de secours (traits 1, 3, 6 mois,
- *                         puis une nappe au-delà de 6 mois : de l'argent qui pourrait être placé) ;
+ *     taille de l'arbre ← l'étape du profil financier (P1 → P9, cf. lib/garden/gardenRules) ;
+ *                         étape pas encore connue : épargne de secours + placements ;
+ *     racines           ← mois de dépenses couverts par l'épargne de secours (trois traits, 1, 3 et
+ *                         6 mois par défaut, puis une nappe au-delà : de l'argent qui pourrait être placé) ;
+ * Tous les seuils viennent des RÈGLES (lib/garden/gardenRules, réglables en admin).
  *     fruits            ← la VALEUR des placements, en mois de dépenses (0 à 6 fruits, puis un
  *                         panier de récolte) ; leur couleur ← la PLUS-VALUE : jeunes sans gain,
  *                         mûrs en gain, dorés quand le gain est important — jamais de branches nues.
@@ -25,6 +27,11 @@
  *     ronces            ← un crédit cher (renouvelable, découvert) ;
  *     anneaux           ← la série (ne recule jamais).
  */
+import type { FinancialProfileId } from '../../types/database';
+import { DEFAULT_GARDEN_RULES, type GardenRules } from './gardenRules';
+
+/** Fruits sur l'arbre à chaque seuil de `fruitSteps`. */
+const FRUIT_COUNTS = [1, 2, 3, 4, 6];
 
 export interface GardenCredit {
   id: string;
@@ -60,6 +67,8 @@ export interface GardenInputs {
   /** Série en semaines (anneaux). */
   streakWeeks: number;
   credits: GardenCredit[];
+  /** Étape du profil financier : elle décide de la taille de l'arbre (P0 / inconnue → calculée). */
+  profileId?: FinancialProfileId | null;
 }
 
 /**
@@ -73,6 +82,8 @@ export interface GardenCabin {
   count: number;
   /** Tous ces crédits sont remboursés : la cabane est à toi. */
   owned: boolean;
+  /** Étape dessinée : 1 l'échelle, 2 plancher et garde-corps, 3 ossature, 4 toit, 5 cabane habitée. */
+  stage: 1 | 2 | 3 | 4 | 5;
 }
 
 export interface TreeState {
@@ -85,9 +96,11 @@ export interface TreeState {
     months: number;
     /** Profondeur dessinée, 0 → 1 (1 = trait des 6 mois). */
     depth: number;
-    /** Traits franchis. */
+    /** Traits franchis (le 1ᵉʳ, le 2ᵉ, le 3ᵉ — 1, 3 et 6 mois par défaut). */
     marks: { one: boolean; three: boolean; six: boolean };
-    /** Au-delà de 6 mois : la nappe, et combien de mois en plus. */
+    /** Les mois des trois traits (règles). */
+    markMonths: [number, number, number];
+    /** Au-delà du dernier trait : la nappe, et combien de mois en plus. */
     beyondSix: boolean;
     extraMonths: number;
   };
@@ -116,29 +129,19 @@ export interface TreeState {
 const clamp01 = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 const pos = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0);
 
-/** Placements équivalant à 24 mois de dépenses = branches au maximum (grand arbre). */
-const BRANCHES_FULL_MONTHS = 24;
-/** Crédit cher équivalant à 3 mois de dépenses = ronces au plus dense. */
-const BRAMBLES_FULL_MONTHS = 3;
-/** Valeur des placements (en mois de dépenses) à partir de laquelle on a 1, 2, 3, 4 puis 6 fruits. */
-const FRUIT_STEPS: [number, number][] = [[0, 1], [1, 2], [3, 3], [6, 4], [12, 6]];
-/** Panier de récolte : petit puis grand (en mois de dépenses placés). */
-const HARVEST_SMALL_MONTHS = 12;
-const HARVEST_BIG_MONTHS = 36;
-/** Fruits dorés : une plus-value d'au moins 12 mois de dépenses… */
-const GOLDEN_GAIN_MONTHS = 12;
-/** …ou des placements qui ont DOUBLÉ (gain ≥ versements), dès 3 mois de dépenses de gain. */
-const GOLDEN_DOUBLED_MIN_MONTHS = 3;
 /** Référence mensuelle de repli quand les dépenses sont encore inconnues (€). */
 const FALLBACK_REFERENCE = 2000;
 
-export function computeTreeState(i: GardenInputs): TreeState {
+export function computeTreeState(i: GardenInputs, R: GardenRules = DEFAULT_GARDEN_RULES): TreeState {
   const ref = pos(i.monthlyReference);
   const months = pos(i.securityMonths ?? 0);
   const invested = pos(i.investedValue);
 
-  const branches = ref > 0 ? clamp01(Math.sqrt(invested / (ref * BRANCHES_FULL_MONTHS))) : invested > 0 ? 0.2 : 0;
-  const growth = clamp01(0.16 + 0.34 * Math.min(months / 3, 1) + 0.5 * branches);
+  const branches = ref > 0 ? clamp01(Math.sqrt(invested / (ref * R.branchesFullMonths))) : invested > 0 ? 0.2 : 0;
+  /* Taille : l'étape du profil quand elle est connue (même échelle que « Mon parcours ») ; sinon,
+     l'épargne de secours et les placements. */
+  const byProfile = i.profileId && i.profileId !== 'P0' ? R.growthByProfile[i.profileId] : undefined;
+  const growth = clamp01(byProfile ?? (0.16 + 0.34 * Math.min(months / R.growthSavingsMonths, 1) + 0.5 * branches));
   const stage: TreeState['stage'] = growth < 0.27 ? 'sprout' : growth < 0.55 ? 'young' : branches < 0.15 ? 'tree' : growth < 0.85 ? 'fruiting' : 'grand';
 
   const gains = pos(i.investedValue - i.investedContributed);
@@ -147,15 +150,15 @@ export function computeTreeState(i: GardenInputs): TreeState {
   // pèse pas pareil selon le train de vie).
   const unit = ref > 0 ? ref : FALLBACK_REFERENCE;
   const valueMonths = invested / unit, gainMonths = gains / unit;
-  const fruits = invested > 0 ? FRUIT_STEPS.reduce((n, [m, k]) => (valueMonths >= m ? k : n), 0) : 0;
-  const harvest: TreeState['harvest'] = valueMonths >= HARVEST_BIG_MONTHS ? 'big' : valueMonths >= HARVEST_SMALL_MONTHS ? 'small' : 'none';
+  const fruits = invested > 0 ? R.fruitSteps.reduce((n, m, k) => (valueMonths >= m ? FRUIT_COUNTS[k] : n), 0) : 0;
+  const harvest: TreeState['harvest'] = valueMonths >= R.harvestBigMonths ? 'big' : valueMonths >= R.harvestSmallMonths ? 'small' : 'none';
   const contributed = pos(i.investedContributed);
-  const golden = gainMonths >= GOLDEN_GAIN_MONTHS || (contributed > 0 && gains >= contributed && gainMonths >= GOLDEN_DOUBLED_MIN_MONTHS);
+  const golden = gainMonths >= R.goldenGainMonths || (contributed > 0 && gains >= contributed && gainMonths >= R.goldenDoubledMinMonths);
   const maturity: TreeState['maturity'] = gains <= 0 ? 'young' : golden ? 'golden' : 'ripe';
   const ripe = maturity !== 'young';
 
   const enjoy = pos(i.enjoyThisMonth);
-  const flowers = enjoy > 0 ? Math.min(5, Math.max(1, Math.round(ref > 0 ? (enjoy / (ref * 0.2)) * 5 : 1))) : 0;
+  const flowers = enjoy > 0 ? Math.min(5, Math.max(1, Math.round(ref > 0 ? (enjoy / (ref * R.flowersFullPct / 100)) * 5 : 1))) : 0;
 
   /* L'arrosoir montre l'eau LIBRE : la part des comptes courants qui reste à utiliser ce mois-ci (le
      Relyka), pas le solde entier — sinon il était toujours plein. Tout prévu → arrosoir vide, sans
@@ -178,22 +181,27 @@ export function computeTreeState(i: GardenInputs): TreeState {
     remainingSum += rem;
     borrowedSum += Math.max(rem, pos(c.borrowed ?? 0) > 0 ? pos(c.borrowed ?? 0) : rem * 2);
   }
+  const cabinOf = (progress: number, count: number, owned: boolean): GardenCabin => ({
+    progress, count, owned,
+    stage: (1 + R.cabinSteps.filter((pct) => progress * 100 >= pct).length) as GardenCabin['stage'],
+  });
   const cabin: GardenCabin | null = healthy.length
-    ? { progress: borrowedSum > 0 ? clamp01(1 - remainingSum / borrowedSum) : 0.5, count: healthy.length, owned: false }
-    : repaid.length ? { progress: 1, count: repaid.length, owned: true } : null;
+    ? cabinOf(borrowedSum > 0 ? clamp01(1 - remainingSum / borrowedSum) : 0.5, healthy.length, false)
+    : repaid.length ? cabinOf(1, repaid.length, true) : null;
 
   const expensive = i.credits.filter((c) => c.kind === 'expensive').reduce((s, c) => s + pos(c.remaining), 0);
-  const brambles = expensive > 0 ? (ref > 0 ? Math.max(0.25, clamp01(expensive / (ref * BRAMBLES_FULL_MONTHS))) : 0.5) : 0;
+  const brambles = expensive > 0 ? (ref > 0 ? Math.max(R.bramblesMinPct / 100, clamp01(expensive / (ref * R.bramblesFullMonths))) : 0.5) : 0;
 
   return {
     growth,
     stage,
     roots: {
       months,
-      depth: clamp01(months / 6),
-      marks: { one: months >= 1, three: months >= 3, six: months >= 6 },
-      beyondSix: months > 6,
-      extraMonths: months > 6 ? months - 6 : 0,
+      depth: clamp01(months / R.rootsMarks[2]),
+      marks: { one: months >= R.rootsMarks[0], three: months >= R.rootsMarks[1], six: months >= R.rootsMarks[2] },
+      markMonths: R.rootsMarks,
+      beyondSix: months > R.rootsMarks[2],
+      extraMonths: months > R.rootsMarks[2] ? months - R.rootsMarks[2] : 0,
     },
     branches,
     fruits,

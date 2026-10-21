@@ -43,6 +43,7 @@ import TreasuryDraftModal from '../../components/tresorerie/TreasuryDraftModal';
 import { useReadOnlyGuard } from '../../hooks/platform/useReadOnlyGuard';
 import { useSubmitLock } from '../../hooks/platform/useSubmitLock';
 import { parseAmountInput } from '../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 
 /* Bornes de navigation dans le temps.
@@ -1641,13 +1642,13 @@ function TreasuryPlanBody() {
               {mouvInfo === 'epargne' ? 'un compte d’épargne' : 'un compte d’investissement'}.
             </Text>
             <Text style={styles.mouvInfoText}>
-              <Text style={{ fontWeight: '700' }}>Cet argent n’est pas dépensé : il change de poche.</Text>{' '}
+              <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Cet argent n’est pas dépensé : il change de poche.</Text>{' '}
               Mais il quitte bien ton compte courant — il est donc retranché du solde, comme n’importe
               quelle sortie, et compté dans le total DÉPENSES. C’est ce qui fait que ton solde prévu
               tombe juste.
             </Text>
             <Text style={styles.mouvInfoText}>
-              Un montant <Text style={{ fontWeight: '700' }}>négatif</Text> = le mouvement inverse :
+              Un montant <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>négatif</Text> = le mouvement inverse :
               de l’argent revenu {mouvInfo === 'epargne' ? 'de l’épargne' : 'de l’investissement'} vers
               ton compte courant.
             </Text>
@@ -1784,12 +1785,12 @@ function makeStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  backText: { fontSize: 14, fontWeight: '600', color: c.text },
-  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  backText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+  title: { fontFamily: GF.bodyBold, fontSize: 24, fontWeight: 'normal', color: c.text, marginBottom: 8 },
   // (plus de `subtitle` : la phrase d'explication vit désormais dans la fiche « Comment lire »)
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   helpBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
-  helpBtnText: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+  helpBtnText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary },
   helpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
   /* Carte centrée. Le plafond de hauteur est porté par la carte ELLE-MÊME : une View a
      `flexShrink: 0`, donc un parent plafonné ne la rétrécirait pas — elle déborderait de l'écran
@@ -1801,18 +1802,18 @@ function makeStyles(c: any) {
   },
   helpScroll: { flexGrow: 0, flexShrink: 1 },
   helpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  helpTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-  helpText: { fontSize: 14, color: c.textSecondary, lineHeight: 21, marginBottom: 12 },
-  helpStrong: { fontWeight: '800', color: c.text },
-  helpSection: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 2 },
+  helpTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
+  helpText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, lineHeight: 21, marginBottom: 12 },
+  helpStrong: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
+  helpSection: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 2 },
   simpleToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
-  simpleToggleText: { fontSize: 12, fontWeight: '700', color: c.emerald },
+  simpleToggleText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.emerald },
   controls: { marginBottom: 12 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   navArrow: { padding: 5 },
   navLabel: { flex: 1, alignItems: 'center' },
-  navLabelText: { fontSize: 15, fontWeight: '700', color: c.text },
-  navLabelHint: { fontSize: 11, color: c.emerald, marginTop: 2 },
+  navLabelText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  navLabelHint: { fontFamily: GF.body, fontSize: 11, color: c.emerald, marginTop: 2 },
   hint: { color: c.textSecondary },
   scrollOuter: { flex: 1 },
   scrollOuterContent: { paddingBottom: 8 },
@@ -1938,15 +1939,15 @@ function makeStyles(c: any) {
     backgroundColor: c.currentMonth,
     borderRadius: 10,
   },
-  headerLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
-  headerLabelCurrent: { color: c.emerald, fontWeight: '700' },
-  cellLabelText: { fontSize: 14, color: c.text, fontWeight: '500' },
-  cellLabelChild: { fontSize: 13, color: c.textSecondary },
-  cellLabelParentCategory: { fontWeight: '600', color: c.text },
-  cellLabelSectionRecettes: { fontSize: 12, fontWeight: '800', color: c.emerald, letterSpacing: 1 },
-  cellLabelSectionDepenses: { fontSize: 12, fontWeight: '800', color: c.danger, letterSpacing: 1 },
-  cellLabelSectionMouvements: { fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 1 },
-  cellLabelMouvement: { fontSize: 13, color: '#94a3b8' },
+  headerLabel: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary },
+  headerLabelCurrent: { color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  cellLabelText: { fontFamily: GF.body, fontSize: 14, color: c.text, fontWeight: 'normal' },
+  cellLabelChild: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
+  cellLabelParentCategory: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.text },
+  cellLabelSectionRecettes: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.emerald, letterSpacing: 1 },
+  cellLabelSectionDepenses: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.danger, letterSpacing: 1 },
+  cellLabelSectionMouvements: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, letterSpacing: 1 },
+  cellLabelMouvement: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
   /* Ligne de virement : libellé + « ! » sur une même rangée. `flexShrink` sur le texte pour que le
      point d'exclamation reste visible même sur un libellé long dans une colonne étroite. */
   /* ⚠️ `justifyContent` est explicitement remis à `flex-start`. La cellule porte déjà
@@ -1956,16 +1957,16 @@ function makeStyles(c: any) {
   cellLabelWithInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 5 },
   cellLabelMouvementItalic: { fontStyle: 'italic', flexShrink: 1 },
   cellLabelInfoBtn: { paddingVertical: 2 },
-  cellLabelRegul: { fontSize: 13, color: '#64748b', fontStyle: 'italic' },
-  cellLabelProject: { fontSize: 13, color: '#60a5fa', fontStyle: 'italic' },
-  cellLabelBalance: { fontWeight: '700', color: c.balance },
-  cellLabelTotalRecettes: { fontSize: 12, fontWeight: '800', color: c.emerald, letterSpacing: 0.8 },
-  cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: c.danger, letterSpacing: 0.8 },
-  cellNumText: { fontSize: 13, color: c.text },
-  cellNumTextParentCategory: { fontWeight: '700' },
-  cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
-  cellNumPositive: { color: c.green, fontWeight: '600' },
-  cellNumNegative: { color: c.danger, fontWeight: '600' },
+  cellLabelRegul: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, fontStyle: 'italic' },
+  cellLabelProject: { fontFamily: GF.body, fontSize: 13, color: c.blue, fontStyle: 'italic' },
+  cellLabelBalance: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.balance },
+  cellLabelTotalRecettes: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.emerald, letterSpacing: 0.8 },
+  cellLabelTotalDepenses: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.danger, letterSpacing: 0.8 },
+  cellNumText: { fontFamily: GF.body, fontSize: 13, color: c.text },
+  cellNumTextParentCategory: { fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  cellNumTextSectionTotal: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal' },
+  cellNumPositive: { color: c.green, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  cellNumNegative: { color: c.danger, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   cellNumSectionMouvements: { color: '#8E949A' },
   cellNumDraft: { color: '#FF9500', fontStyle: 'italic' },
   cellNumForecast: { color: '#8E949A', fontStyle: 'italic' },
@@ -1974,9 +1975,9 @@ function makeStyles(c: any) {
   legendInSheet: { flexDirection: 'column', gap: 12, paddingHorizontal: 0, borderTopWidth: 0 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, color: c.textSecondary },
-  legendSampleOrange: { fontSize: 11, fontStyle: 'italic', color: '#f97316', fontWeight: '600' },
-  legendSampleGrey: { fontSize: 11, fontStyle: 'italic', color: '#64748b', fontWeight: '500' },
+  legendText: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
+  legendSampleOrange: { fontFamily: GF.bodyBold, fontSize: 11, fontStyle: 'italic', color: c.amber, fontWeight: 'normal' },
+  legendSampleGrey: { fontFamily: GF.body, fontSize: 11, fontStyle: 'italic', color: c.textSecondary, fontWeight: 'normal' },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -1997,7 +1998,7 @@ function makeStyles(c: any) {
     padding: 18,
     gap: 10,
   },
-  mouvInfoText: { fontSize: 13.5, color: c.text, lineHeight: 20 },
+  mouvInfoText: { fontFamily: GF.body, fontSize: 13.5, color: c.text, lineHeight: 20 },
   menuContainer: {
     backgroundColor: c.cardSolid,
     borderRadius: 12,

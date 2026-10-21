@@ -29,6 +29,7 @@ import { useTransactions } from '../../../hooks/data/useTransactions';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { buildBadgeMetrics } from '../../../lib/engagement/badgeMetrics';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/engagement/gamification';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 /**
  * Icône d'un succès : image téléversée en admin, sinon l'image 3D de sa famille (lib/engagement/
@@ -399,40 +400,40 @@ function makeBaseStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 26, fontWeight: '800', color: c.text, marginBottom: 12 },
+    backText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 26, fontWeight: 'normal', color: c.text, marginBottom: 12 },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 60 },
     summary: { flexDirection: 'row', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, paddingVertical: 16, marginBottom: 18 },
     summaryItem: { flex: 1, alignItems: 'center', gap: 3 },
     summaryDivider: { width: 1, backgroundColor: c.cardBorder, marginVertical: 4 },
-    summaryEmoji: { fontSize: 22 },
-    summaryValue: { fontSize: 20, fontWeight: '800', color: c.text },
-    summaryLabel: { fontSize: 10, color: c.textSecondary, textAlign: 'center', paddingHorizontal: 4 },
+    summaryEmoji: { fontFamily: GF.body, fontSize: 22 },
+    summaryValue: { fontFamily: GF.bodyHeavy, fontSize: 20, fontWeight: 'normal', color: c.text },
+    summaryLabel: { fontFamily: GF.body, fontSize: 10, color: c.textSecondary, textAlign: 'center', paddingHorizontal: 4 },
     summaryLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     // Bandeau d'explication (chargement impossible, consultation admin, catalogue vide).
     notice: { alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 20, marginTop: 24 },
-    noticeTitle: { fontSize: 15, fontWeight: '800', color: c.text, textAlign: 'center' },
-    noticeText: { fontSize: 13, color: c.textSecondary, textAlign: 'center', lineHeight: 19 },
+    noticeTitle: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+    noticeText: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center', lineHeight: 19 },
     noticeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
-    noticeBtnText: { fontSize: 13, fontWeight: '700', color: c.emerald },
+    noticeBtnText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.emerald },
     actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 12 },
-    actionText: { fontSize: 13, fontWeight: '700', color: c.text },
-    groupTitle: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
+    actionText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
+    groupTitle: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start', marginBottom: 16 },
     card: { width: '31%', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 10, alignItems: 'center', gap: 3 },
     badgeIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginBottom: 3 },
     badgeImg: { width: 34, height: 34, borderRadius: 8 },
     lockOverlay: { position: 'absolute', bottom: -2, right: -2, backgroundColor: c.card, borderRadius: 10, padding: 3, borderWidth: 1, borderColor: c.cardBorder },
-    badgeLabel: { fontSize: 12, fontWeight: '700', color: c.text, textAlign: 'center' },
-    badgeDesc: { fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 15 },
+    badgeLabel: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+    badgeDesc: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 15 },
     rewardPill: { position: 'absolute', top: -8, right: -6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
     progressWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'stretch', marginTop: 6 },
     progressTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: c.cardBorder, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 3 },
-    progressText: { fontSize: 9.5, fontWeight: '800', color: c.textSecondary },
-    rewardText: { fontSize: 10.5, fontWeight: '800' },
+    progressText: { fontFamily: GF.bodyHeavy, fontSize: 9.5, fontWeight: 'normal', color: c.textSecondary },
+    rewardText: { fontFamily: GF.bodyHeavy, fontSize: 10.5, fontWeight: 'normal' },
     // ── Modal « succès en grand » ──
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
     // `maxHeight` + ScrollView interne : la fiche ne peut plus dépasser de l'écran.
@@ -442,11 +443,11 @@ function makeBaseStyles(c: any) {
     modalIcon: { width: 110, height: 110, borderRadius: 55, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
     modalIconImg: { width: 72, height: 72, borderRadius: 16 },
     modalLockOverlay: { position: 'absolute', bottom: 2, right: 2, backgroundColor: c.cardSolid ?? c.card, borderRadius: 14, padding: 5, borderWidth: 1, borderColor: c.cardBorder },
-    modalLabel: { fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 8 },
-    modalDesc: { fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+    modalLabel: { fontFamily: GF.bodyHeavy, fontSize: 22, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 8 },
+    modalDesc: { fontFamily: GF.body, fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
     modalReward: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, marginBottom: 12 },
-    modalRewardText: { fontSize: 14, fontWeight: '800' },
+    modalRewardText: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal' },
     modalStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-    modalStatusText: { fontSize: 12.5, fontWeight: '700' },
+    modalStatusText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal' },
   });
 }

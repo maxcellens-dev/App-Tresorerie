@@ -31,6 +31,7 @@ import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAware
 import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
 import ReliabilitySimulator from '../../../../components/admin/ReliabilitySimulator';
 import BannersGallery from '../../../../components/admin/BannersGallery';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 type TabKey = 'settings' | 'simulator' | 'banners' | 'help';
 const TABS: { key: TabKey; label: string; icon: string }[] = [
@@ -251,7 +252,7 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
+    p: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
     /* Onglets : trois zones tactiles de largeur égale. `flexShrink` sur le libellé (plus
        `numberOfLines`) évite que « Comment ça marche » ne pousse les deux autres hors de l'écran
        sur un téléphone étroit. */
@@ -262,28 +263,28 @@ function makeBaseStyles(c: any) {
       borderRadius: 10, paddingVertical: 9, paddingHorizontal: 6,
     },
     tabOn: { borderColor: c.emerald, backgroundColor: c.emerald + '1A' },
-    tabTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
+    tabTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, flexShrink: 1 },
     tabTxtOn: { color: c.emerald },
     calcCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginTop: 10 },
-    calcTitle: { fontSize: 12.5, fontWeight: '800', color: c.text, marginBottom: 6 },
-    calcLine: { fontSize: 12.5, color: c.text, lineHeight: 18, marginTop: 4 },
-    calcSub: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 2 },
-    calcCase: { fontSize: 12.5, fontWeight: '800', color: c.emerald, marginTop: 10 },
-    section: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 22, marginBottom: 8 },
+    calcTitle: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal', color: c.text, marginBottom: 6 },
+    calcLine: { fontFamily: GF.body, fontSize: 12.5, color: c.text, lineHeight: 18, marginTop: 4 },
+    calcSub: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', lineHeight: 16, marginTop: 2 },
+    calcCase: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal', color: c.emerald, marginTop: 10 },
+    section: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 22, marginBottom: 8 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
-    label: { fontSize: 14, fontWeight: '600', color: c.text },
-    help: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    label: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    help: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
     input: { width: 90, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'right', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 12, marginTop: 16 },
     saveBtnDisabled: { opacity: 0.5 },
-    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
-    savedTxt: { fontSize: 12.5, color: c.emerald, fontWeight: '600', textAlign: 'center', marginTop: 8 },
-    errorTxt: { fontSize: 12.5, color: c.red, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+    saveBtnTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
+    savedTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.emerald, fontWeight: 'normal', textAlign: 'center', marginTop: 8 },
+    errorTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.red, fontWeight: 'normal', textAlign: 'center', marginTop: 8 },
     notifCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10 },
     notifHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    notifTitle: { fontSize: 14.5, fontWeight: '800', color: c.text, flex: 1, marginRight: 10 },
+    notifTitle: { fontFamily: GF.bodyHeavy, fontSize: 14.5, fontWeight: 'normal', color: c.text, flex: 1, marginRight: 10 },
     notifId: { fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: c.emerald, marginTop: 2 },
-    notifBody: { fontSize: 12.5, color: c.text, fontStyle: 'italic', marginTop: 6 },
-    notifMeta: { fontSize: 11.5, color: c.textSecondary, marginTop: 4 },
+    notifBody: { fontFamily: GF.body, fontSize: 12.5, color: c.text, fontStyle: 'italic', marginTop: 6 },
+    notifMeta: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 4 },
   });
 }

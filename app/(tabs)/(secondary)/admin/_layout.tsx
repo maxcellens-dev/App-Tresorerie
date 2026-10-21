@@ -27,6 +27,7 @@ import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import PageLoader from '../../../../components/layout/PageLoader';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 export default function AdminLayout() {
   const COLORS = useAppColors();
@@ -94,5 +95,5 @@ export default function AdminLayout() {
 const styles = (c: any) => StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  text: { color: c.text, fontSize: 15, marginTop: 12 },
+  text: { fontFamily: GF.body, color: c.text, fontSize: 15, marginTop: 12 },
 });

@@ -21,6 +21,7 @@ import {
   useAccountMembers, useInviteToAccount, useSetMemberRole, useRemoveMember, useRenameMember,
 } from '../../hooks/data/useSharedAccounts';
 import type { Account } from '../../types/database';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function AccountShareSection({ account }: { account: Account }) {
   const COLORS = useAppColors();
@@ -192,23 +193,23 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { marginTop: 8, marginBottom: 20, borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 18 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    title: { fontSize: 16, fontWeight: '800', color: c.text },
-    empty: { fontSize: 12.5, color: c.textSecondary, marginBottom: 8 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text },
+    empty: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, marginBottom: 8 },
     memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     avatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-    memberName: { fontSize: 14, fontWeight: '600', color: c.text },
-    memberSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
+    memberName: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    memberSub: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
     roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: c.text + '33', backgroundColor: c.text + '0D' },
-    roleBadgeText: { fontSize: 11.5, fontWeight: '700', color: c.text },
+    roleBadgeText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.text },
     iconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     removeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.danger + '55' },
     inviteBox: { marginTop: 14, gap: 8 },
-    inviteLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
-    input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 14 },
+    inviteLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
+    input: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 14 },
     roleRow: { flexDirection: 'row', gap: 8 },
     /* Rôle et bouton d'invitation : `SegmentedControl` + `AppButton`. Le bouton était en `c.text`
        sur `c.bg` — une troisième couleur de bouton, propre à cet écran, qui ne suivait pas
        l'accent. */
-    disabledNote: { fontSize: 12, color: c.textSecondary, fontStyle: 'italic', marginTop: 10 },
+    disabledNote: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, fontStyle: 'italic', marginTop: 10 },
   });
 }

@@ -34,6 +34,7 @@ import { sanitizeAmountInput, sanitizeRateInput } from '../../../lib/ui/amountIn
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'immobilier', label: 'Immobilier', icon: 'home-outline' },
@@ -441,7 +442,7 @@ function CreditAddScreen() {
 
           <Text style={styles.label}>Date de 1ʳᵉ échéance</Text>
           <TouchableOpacity style={[styles.input, styles.dateBtn]} onPress={() => setShowCal(true)} activeOpacity={0.7}>
-            <Text style={{ color: COLORS.text, fontSize: 15 }}>{formatDateFrench(startDate)}</Text>
+            <Text style={{ fontFamily: GF.body, color: COLORS.text, fontSize: 15 }}>{formatDateFrench(startDate)}</Text>
             <Ionicons name="calendar-outline" size={18} color={COLORS.blue} />
           </TouchableOpacity>
 
@@ -678,7 +679,7 @@ function CreditAddScreen() {
                   <View style={[styles.overrideWarn, { borderColor: COLORS.blue + '88', backgroundColor: COLORS.blue + '12' }]}>
                     <Ionicons name="calculator-outline" size={16} color={COLORS.blue} />
                     <Text style={styles.overrideWarnText}>
-                      Intérêts intercalaires {numOr0(fees.interim_interest) > 0 ? 'saisis' : 'estimés'} : <Text style={{ fontWeight: '800' }}>{fmt(amort.deferralInterest)}</Text> sur {deferN} mois
+                      Intérêts intercalaires {numOr0(fees.interim_interest) > 0 ? 'saisis' : 'estimés'} : <Text style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal' }}>{fmt(amort.deferralInterest)}</Text> sur {deferN} mois
                       ({deferralType === 'partial' ? 'payés pendant le différé' : deferralIntMode === 'deferred' ? 'remboursés en premier par les mensualités' : 'ajoutés au capital'}).
                       Le tableau ({deferN} + {parseInt(duration, 10) || 0} échéances) est recalculé automatiquement ; chaque échéance reste ajustable à la main.
                     </Text>
@@ -703,7 +704,7 @@ function CreditAddScreen() {
               {/* Date de 1ʳᵉ échéance d'assurance (peut différer du remboursement). */}
               <Text style={styles.label}>1ʳᵉ échéance d'assurance</Text>
               <TouchableOpacity style={[styles.input, styles.dateBtn]} onPress={() => setShowInsCal(true)} activeOpacity={0.7}>
-                <Text style={{ color: insDate ? COLORS.text : COLORS.textSecondary, fontSize: 15 }}>
+                <Text style={{ fontFamily: GF.body, color: insDate ? COLORS.text : COLORS.textSecondary, fontSize: 15 }}>
                   {insDate ? formatDateFrench(insDate) : `Même que le remboursement (${formatDateFrench(startDate)})`}
                 </Text>
                 <Ionicons name="calendar-outline" size={18} color={COLORS.blue} />
@@ -824,8 +825,8 @@ function CreditAddScreen() {
         <View style={styles.calOverlay}>
           <View style={styles.calCard}>
             <View style={styles.calHead}>
-              <TouchableOpacity onPress={() => setShowCal(false)}><Text style={{ color: COLORS.emerald, fontWeight: '600' }}>Fermer</Text></TouchableOpacity>
-              <Text style={{ fontWeight: '700', color: COLORS.text }}>Date de 1ʳᵉ échéance</Text>
+              <TouchableOpacity onPress={() => setShowCal(false)}><Text style={{ color: COLORS.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Fermer</Text></TouchableOpacity>
+              <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>Date de 1ʳᵉ échéance</Text>
               <View style={{ width: 50 }} />
             </View>
             <CalendarWithPicker
@@ -844,9 +845,9 @@ function CreditAddScreen() {
         <View style={styles.calOverlay}>
           <View style={styles.calCard}>
             <View style={styles.calHead}>
-              <TouchableOpacity onPress={() => { setInsDate(''); setShowInsCal(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Réinit.</Text></TouchableOpacity>
-              <Text style={{ fontWeight: '700', color: COLORS.text }}>1ʳᵉ échéance d'assurance</Text>
-              <TouchableOpacity onPress={() => setShowInsCal(false)}><Text style={{ color: COLORS.emerald, fontWeight: '600' }}>Fermer</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { setInsDate(''); setShowInsCal(false); }}><Text style={{ color: COLORS.textSecondary, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Réinit.</Text></TouchableOpacity>
+              <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal', color: COLORS.text }}>1ʳᵉ échéance d'assurance</Text>
+              <TouchableOpacity onPress={() => setShowInsCal(false)}><Text style={{ color: COLORS.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Fermer</Text></TouchableOpacity>
             </View>
             <CalendarWithPicker
               current={insDate || startDate}
@@ -873,58 +874,58 @@ function makeBaseStyles(c: any) {
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     scroll: { flex: 1 },
     errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '44', borderRadius: 12, padding: 12, marginBottom: 12 },
-    errorText: { color: c.danger, fontSize: 13, flex: 1 },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 12 },
-    input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text },
+    errorText: { fontFamily: GF.body, color: c.danger, fontSize: 13, flex: 1 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6, marginTop: 12 },
+    input: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text },
     dateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     row2: { flexDirection: 'row', gap: 12 },
     typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     typeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
     typeChipActive: { borderColor: c.blue, backgroundColor: c.blue + '12' },
-    typeLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    typeLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     acctChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
     acctChipActive: { borderColor: c.blue, backgroundColor: c.blue + '12' },
-    acctChipText: { fontSize: 13, fontWeight: '600', color: c.text },
+    acctChipText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
     section: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.cardBorder },
-    sectionTitle: { flex: 1, fontSize: 14.5, fontWeight: '700', color: c.text },
+    sectionTitle: { fontFamily: GF.bodyBold, flex: 1, fontSize: 14.5, fontWeight: 'normal', color: c.text },
     feeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    feeLabel: { flex: 1, fontSize: 13.5, color: c.text },
-    feeSubHint: { fontSize: 10.5, color: c.textSecondary, marginTop: 1 },
-    feeGroup: { fontSize: 12, fontWeight: '800', color: c.text, marginTop: 8 },
-    feeGroupHint: { fontSize: 11, fontWeight: '500', color: c.textSecondary },
+    feeLabel: { fontFamily: GF.body, flex: 1, fontSize: 13.5, color: c.text },
+    feeSubHint: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, marginTop: 1 },
+    feeGroup: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.text, marginTop: 8 },
+    feeGroupHint: { fontFamily: GF.body, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
     modeChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     modeChipActive: { borderColor: c.blue, backgroundColor: c.blue + '12' },
-    modeText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    modeText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     segRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
-    segFrom: { fontSize: 12.5, color: c.textSecondary },
-    segYear: { width: 46, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 6, fontSize: 13.5, color: c.text, textAlign: 'center' },
-    segPay: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
+    segFrom: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary },
+    segYear: { fontFamily: GF.body, width: 46, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 6, fontSize: 13.5, color: c.text, textAlign: 'center' },
+    segPay: { fontFamily: GF.body, flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
     segAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-    segAddText: { color: c.blue, fontWeight: '700', fontSize: 13 },
+    segAddText: { fontFamily: GF.bodyBold, color: c.blue, fontWeight: 'normal', fontSize: 13 },
     calcRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
-    calcLabel: { fontSize: 12.5, color: c.textSecondary, flex: 1 },
-    calcValue: { fontSize: 15, fontWeight: '800', color: c.text },
+    calcLabel: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, flex: 1 },
+    calcValue: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
     forceLink: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, alignSelf: 'flex-start' },
-    forceLinkText: { color: c.blue, fontWeight: '700', fontSize: 13 },
+    forceLinkText: { fontFamily: GF.bodyBold, color: c.blue, fontWeight: 'normal', fontSize: 13 },
     overrideWarn: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 4, marginBottom: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
-    overrideWarnText: { flex: 1, fontSize: 12, color: c.text, lineHeight: 16 },
-    feeInput: { width: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: c.text, textAlign: 'right' },
-    hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
+    overrideWarnText: { fontFamily: GF.body, flex: 1, fontSize: 12, color: c.text, lineHeight: 16 },
+    feeInput: { fontFamily: GF.body, width: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: c.text, textAlign: 'right' },
+    hint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
     yRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
-    yHead: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
-    yYear: { fontSize: 13, fontWeight: '700', color: c.text },
-    yInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
+    yHead: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
+    yYear: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
+    yInput: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
     simRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 16 },
-    simLabel: { fontSize: 14.5, fontWeight: '700', color: c.text },
-    simHint: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
+    simLabel: { fontFamily: GF.bodyBold, fontSize: 14.5, fontWeight: 'normal', color: c.text },
+    simHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
     check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
     preview: { marginTop: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, gap: 8 },
-    previewTitle: { fontSize: 14, fontWeight: '800', color: c.text },
+    previewTitle: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal', color: c.text },
     previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    previewK: { fontSize: 13, color: c.textSecondary, flex: 1 },
-    previewV: { fontSize: 14, fontWeight: '700', color: c.text },
+    previewK: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, flex: 1 },
+    previewV: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 22 },
-    saveLabel: { color: c.onAccent, fontSize: 15, fontWeight: '800' },
+    saveLabel: { fontFamily: GF.bodyHeavy, color: c.onAccent, fontSize: 15, fontWeight: 'normal' },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 18 },
     calCard: { backgroundColor: c.cardSolid ?? c.card, borderRadius: 18, padding: 12 },
     calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, paddingBottom: 8 },

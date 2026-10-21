@@ -18,6 +18,7 @@ import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useUsageLimitsConfig, useSaveUsageLimitsConfig } from '../../../../hooks/config/useUsageLimits';
 import { USAGE_LIMIT_FIELDS, USAGE_LIMIT_DEFAULTS, type UsageLimitsConfig, type UsageTierLimits } from '../../../../lib/finance/usageLimits';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 type Tier = 'free' | 'premium';
 
@@ -104,12 +105,12 @@ export default function AdminUsageLimits() {
               l'enregistrement remplacerait les vrais réglages par les défauts. */}
           {readFailed && (
             <View style={{ borderWidth: 1, borderColor: COLORS.danger + '55', backgroundColor: COLORS.danger + '12', borderRadius: 12, padding: 12, marginTop: 8, gap: 8 }}>
-              <Text style={{ color: COLORS.danger, fontSize: 12.5, lineHeight: 18 }}>
+              <Text style={{ fontFamily: GF.body, color: COLORS.danger, fontSize: 12.5, lineHeight: 18 }}>
                 La configuration en place n'a pas pu être lue : ce que tu vois ci-dessus sont les
                 valeurs par défaut, pas les tiennes. L'enregistrement est bloqué pour ne pas les écraser.
               </Text>
               <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 }}>
-                <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 13 }}>Réessayer</Text>
+                <Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.onAccent, fontWeight: 'normal', fontSize: 13 }}>Réessayer</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -138,17 +139,17 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19, marginBottom: 12 },
+    p: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19, marginBottom: 12 },
     headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 4 },
-    colLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center' },
+    colLabel: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center' },
     colNum: { width: 84 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
-    fieldLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'right', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 12, marginTop: 18 },
     saveBtnDisabled: { opacity: 0.5 },
-    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: c.onAccent },
-    savedTxt: { fontSize: 12.5, color: c.emerald, fontWeight: '600', textAlign: 'center', marginTop: 8 },
-    errorTxt: { fontSize: 12.5, color: c.red, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+    saveBtnTxt: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
+    savedTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.emerald, fontWeight: 'normal', textAlign: 'center', marginTop: 8 },
+    errorTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.red, fontWeight: 'normal', textAlign: 'center', marginTop: 8 },
   });
 }

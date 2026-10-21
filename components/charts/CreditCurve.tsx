@@ -10,6 +10,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Svg, { Rect, Line, Polyline, Text as SvgText } from 'react-native-svg';
 import type { AmortRow } from '../../lib/finance/amortization';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   schedule: AmortRow[];
@@ -154,6 +155,6 @@ function Dot({ c, line }: { c: string; line?: boolean }) {
 
 const st = StyleSheet.create({
   legend: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' },
-  legendT: { fontSize: 11, fontWeight: '600', marginRight: 10 },
-  caption: { fontSize: 10.5, marginTop: 6 },
+  legendT: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', marginRight: 10 },
+  caption: { fontFamily: GF.body, fontSize: 10.5, marginTop: 6 },
 });

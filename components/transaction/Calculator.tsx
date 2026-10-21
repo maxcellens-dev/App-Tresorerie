@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useCalculator } from '../../contexts/CalculatorContext';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const WIDTH = 260;
 
@@ -261,7 +262,7 @@ function makeBaseStyles(c: any) {
       borderBottomColor: c.cardBorder,
     },
     titleLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    titleText: { color: c.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+    titleText: { fontFamily: GF.bodyBold, color: c.textSecondary, fontSize: 12, fontWeight: 'normal', letterSpacing: 0.2 },
     closeBtn: { padding: 2 },
     screen: {
       paddingHorizontal: 16,
@@ -270,8 +271,8 @@ function makeBaseStyles(c: any) {
       minHeight: 64,
       justifyContent: 'flex-end',
     },
-    memo: { color: c.textSecondary, fontSize: 13, textAlign: 'right', minHeight: 16 },
-    display: { color: c.text, fontSize: 34, fontWeight: '700', textAlign: 'right', letterSpacing: -0.5 },
+    memo: { fontFamily: GF.body, color: c.textSecondary, fontSize: 13, textAlign: 'right', minHeight: 16 },
+    display: { fontFamily: GF.bodyBold, color: c.text, fontSize: 34, fontWeight: 'normal', textAlign: 'right', letterSpacing: -0.5 },
     pad: { paddingHorizontal: 8, gap: 7 },
     row: { flexDirection: 'row', gap: 7 },
     btn: {
@@ -280,6 +281,6 @@ function makeBaseStyles(c: any) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    btnText: { fontSize: 20, fontWeight: '600' },
+    btnText: { fontFamily: GF.bodyBold, fontSize: 20, fontWeight: 'normal' },
   });
 }

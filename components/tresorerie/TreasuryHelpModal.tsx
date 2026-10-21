@@ -14,6 +14,7 @@ import React, { useMemo } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { AppColors } from '../../theme/palette';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   visible: boolean;
@@ -81,9 +82,9 @@ function makeBaseStyles(c: AppColors) {
     },
     helpScroll: { flexGrow: 0, flexShrink: 1 },
     helpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    helpTitle: { fontSize: 18, fontWeight: '800', color: c.text },
-    helpText: { fontSize: 14, color: c.textSecondary, lineHeight: 21, marginBottom: 12 },
-    helpStrong: { fontWeight: '800', color: c.text },
-    helpSection: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 2 },
+    helpTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text },
+    helpText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, lineHeight: 21, marginBottom: 12 },
+    helpStrong: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
+    helpSection: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 2 },
   });
 }

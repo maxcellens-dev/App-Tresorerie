@@ -40,6 +40,7 @@ import {
 } from '../../../../hooks/engagement/useRelykaWorld';
 import { Alert } from 'react-native';
 import { sanitizeAmountInput } from '../../../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 const EMOJIS = ['🧾', '🍽️', '🛒', '🚕', '🏨', '🎟️', '⛽', '🍺', '🎁', '✈️'];
 
@@ -319,7 +320,7 @@ export default function AddRwExpense() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               {EMOJIS.map((e) => (
                 <TouchableOpacity key={e} style={[styles.emojiPick, emoji === e && styles.emojiPickActive]} onPress={() => setEmoji(e)}>
-                  <Text style={{ fontSize: 22 }}>{e}</Text>
+                  <Text style={{ fontFamily: GF.body, fontSize: 22 }}>{e}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -350,7 +351,7 @@ export default function AddRwExpense() {
 
             <Text style={styles.label}>Date</Text>
             <TouchableOpacity style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]} onPress={() => setShowCal(true)} activeOpacity={0.7}>
-              <Text style={{ color: COLORS.text, fontSize: 15 }}>{formatDateFrench(date)}</Text>
+              <Text style={{ fontFamily: GF.body, color: COLORS.text, fontSize: 15 }}>{formatDateFrench(date)}</Text>
               <Ionicons name="calendar-outline" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
 
@@ -587,9 +588,9 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6, marginTop: 8 },
-    hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 8, marginTop: -2, lineHeight: 16 },
-    currencyNote: { fontSize: 11.5, color: c.blue, marginBottom: 10, marginTop: -4, lineHeight: 16 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6, marginTop: 8 },
+    hint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginBottom: 8, marginTop: -2, lineHeight: 16 },
+    currencyNote: { fontFamily: GF.body, fontSize: 11.5, color: c.blue, marginBottom: 10, marginTop: -4, lineHeight: 16 },
     currencyBlock: {
       fontSize: 11.5, color: c.danger, lineHeight: 16, marginBottom: 10, marginTop: -4,
       borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12',
@@ -607,29 +608,29 @@ function makeBaseStyles(c: any) {
     // En-tête de section : le libellé à gauche, la bascule de mode à droite.
     sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, marginBottom: 8 },
     modeToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
-    modeToggleText: { fontSize: 11.5, fontWeight: '800', color: c.emerald },
+    modeToggleText: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.emerald },
 
     partRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 8 },
     partTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    partName: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text },
-    partShare: { fontSize: 13, fontWeight: '700', color: c.text },
+    partName: { fontFamily: GF.bodyBold, flex: 1, fontSize: 14, fontWeight: 'normal', color: c.text },
+    partShare: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
     shareInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 
     splitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 8 },
-    splitName: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text },
+    splitName: { fontFamily: GF.bodyBold, flex: 1, fontSize: 14, fontWeight: 'normal', color: c.text },
     splitInput: { minWidth: 84, textAlign: 'right', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, color: c.text, fontSize: 14, fontWeight: '700', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-    splitUnit: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    splitUnit: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
 
     tallyBox: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, marginTop: 2, marginBottom: 4, backgroundColor: c.card },
-    tallyText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
-    tallyStrong: { fontWeight: '800', color: c.text },
+    tallyText: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+    tallyStrong: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: c.text },
     tallyBtn: { alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 13, borderRadius: 999, backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '55' },
-    tallyBtnText: { fontSize: 12, fontWeight: '800', color: c.emerald },
+    tallyBtnText: { fontFamily: GF.bodyHeavy, fontSize: 12, fontWeight: 'normal', color: c.emerald },
 
     cta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
-    ctaText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    ctaText: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
     deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 10, borderRadius: 12, backgroundColor: c.danger + '14' },
-    deleteBtnText: { fontSize: 14, fontWeight: '700', color: c.danger },
+    deleteBtnText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.danger },
     calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },
     calCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 18, borderWidth: 1, borderColor: c.cardBorder, padding: 10 },
   });

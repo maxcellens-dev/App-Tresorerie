@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const MONTH_NAMES = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -224,8 +225,8 @@ const pickerStyles = StyleSheet.create({
   },
   navBtn: { padding: 8 },
   navTitleBtn: { flex: 1, alignItems: 'center' },
-  navTitle: { fontSize: 18, fontWeight: '700' },
-  navArrow: { fontSize: 28, fontWeight: '300', lineHeight: 30 },
+  navTitle: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal' },
+  navArrow: { fontFamily: GF.body, fontSize: 28, fontWeight: 'normal', lineHeight: 30 },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -242,10 +243,10 @@ const pickerStyles = StyleSheet.create({
   cellToday: {
     borderWidth: 1,
   },
-  cellText: { fontSize: 14, fontWeight: '500' },
+  cellText: { fontFamily: GF.body, fontSize: 14, fontWeight: 'normal' },
   cancel: { alignItems: 'center', marginTop: 16, padding: 8 },
-  cancelText: { fontSize: 14 },
+  cancelText: { fontFamily: GF.body, fontSize: 14 },
   headerBtn: { alignItems: 'center', paddingVertical: 4 },
-  headerText: { fontSize: 16, fontWeight: '700' },
-  headerHint: { fontSize: 10, marginTop: 2 },
+  headerText: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal' },
+  headerHint: { fontFamily: GF.body, fontSize: 10, marginTop: 2 },
 });

@@ -19,6 +19,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useSubmitLock } from '../../../hooks/platform/useSubmitLock';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 /** Une suggestion est une idée, pas un dossier : au-delà, c'est une demande d'assistance. */
 const IDEA_MAX = 2000;
@@ -203,33 +204,33 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   card: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 20, marginBottom: 16,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12, textAlign: 'center' },
+  cardTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, marginBottom: 12, textAlign: 'center' },
   input: {
     backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
     paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, color: c.text, minHeight: 120, marginBottom: 16,
   },
   btn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  btnText: { fontSize: 14, fontWeight: '700', color: c.onAccent },
+  btnText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.onAccent },
   successCard: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.emerald + '40',
     padding: 24, marginBottom: 16, alignItems: 'center', gap: 12,
   },
-  successTitle: { fontSize: 18, fontWeight: '700', color: c.text },
-  successText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
+  successTitle: { fontFamily: GF.bodyBold, fontSize: 18, fontWeight: 'normal', color: c.text },
+  successText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
   suggHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   archiveBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '44', backgroundColor: c.emerald + '14' },
-  archiveBtnText: { fontSize: 12, fontWeight: '700', color: c.emerald },
-  suggEmpty: { fontSize: 13, color: c.textSecondary, paddingVertical: 12, textAlign: 'center' },
+  archiveBtnText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.emerald },
+  suggEmpty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, paddingVertical: 12, textAlign: 'center' },
   treatedBadge: { backgroundColor: c.emerald + '22', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  treatedText: { fontSize: 10, fontWeight: '700', color: c.emerald },
+  treatedText: { fontFamily: GF.bodyBold, fontSize: 10, fontWeight: 'normal', color: c.emerald },
   ideaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-  ideaText: { flex: 1, fontSize: 13, color: c.text },
-  ideaDate: { fontSize: 11, color: c.textSecondary },
-  counter: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textAlign: 'right', marginTop: -10, marginBottom: 10 },
+  ideaText: { fontFamily: GF.body, flex: 1, fontSize: 13, color: c.text },
+  ideaDate: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
+  counter: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textAlign: 'right', marginTop: -10, marginBottom: 10 },
 });
 }

@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 /* Dimensions MAXIMALES du sélecteur. La largeur réelle est calculée à partir de l'écran (cf.
    `svW` plus bas) : figées, ces valeurs faisaient déborder le carré et la barre de teinte hors de
@@ -213,7 +214,7 @@ function makeBaseStyles(c: any) {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24, paddingBottom: 90 },
     card: { width: '100%', maxWidth: CARD_MAX, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: CARD_PAD, gap: 14 },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    title: { fontSize: 16, fontWeight: '800', color: c.text },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text },
     pickerRow: { flexDirection: 'row', gap: GAP, alignSelf: 'center' },
     svBox: { borderRadius: 10 },
     svThumb: { position: 'absolute', width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff', backgroundColor: 'transparent', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 2 },
@@ -225,11 +226,11 @@ function makeBaseStyles(c: any) {
     // Chaque canal = un encadré compact [label | valeur] : le label vit DANS l'encadré (pas de
     // label flottant qui se fait recouvrir quand la place manque).
     rgbField: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10 },
-    rgbLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, marginRight: 6 },
+    rgbLabel: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginRight: 6 },
     rgbInput: { flex: 1, minWidth: 0, paddingVertical: 9, color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hexInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 15, fontWeight: '700', letterSpacing: 1, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     // `onAccent` : lisible même quand l'accent courant est une teinte claire (cf. AppColors).
-    confirmText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    confirmText: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   });
 }

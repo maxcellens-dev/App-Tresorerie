@@ -23,6 +23,7 @@ import { supabase } from '../../../../lib/platform/supabase';
 import { sheetWidth } from '../../../../lib/ui/appLayout';
 import type { Conseil } from '../../../../hooks/pilotage/useConseils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 export default function AdminConseils() {
   const COLORS = useAppColors();
@@ -104,7 +105,7 @@ export default function AdminConseils() {
           <View style={{ flex: 1 }} />
           <TouchableOpacity style={styles.addBtn} onPress={() => openNew(filter === 'contextuel' ? 'contextuel' : 'general')}>
             <Ionicons name="add" size={18} color={COLORS.emerald} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.emerald }}>Ajouter</Text>
+            <Text style={{ fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: COLORS.emerald }}>Ajouter</Text>
           </TouchableOpacity>
         </View>
 
@@ -147,7 +148,7 @@ export default function AdminConseils() {
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setEditing(null)}><Ionicons name="close" size={22} color={COLORS.text} /></TouchableOpacity>
             </View>
             {editing?.critere_key && (
-              <Text style={styles.critereInfo}>Critère : <Text style={{ fontWeight: '700' }}>{editing.critere_key}</Text></Text>
+              <Text style={styles.critereInfo}>Critère : <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>{editing.critere_key}</Text></Text>
             )}
             <Text style={styles.inputLabel}>Message (utilisez {'{variable}'} pour les valeurs dynamiques)</Text>
             <TextInput
@@ -187,32 +188,32 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    subtitle: { fontSize: 12.5, color: c.textSecondary, marginBottom: 14, lineHeight: 17 },
+    subtitle: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, marginBottom: 14, lineHeight: 17 },
     speedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
-    speedLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: c.text },
-    speedInput: { width: 56, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 6, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'center' },
-    speedUnit: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
+    speedLabel: { fontFamily: GF.bodyBold, flex: 1, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+    speedInput: { fontFamily: GF.bodyBold, width: 56, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 6, fontSize: 15, fontWeight: 'normal', color: c.text, textAlign: 'center' },
+    speedUnit: { fontFamily: GF.bodyBold, fontSize: 13, color: c.textSecondary, fontWeight: 'normal' },
     filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
     filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
-    filterText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
+    filterText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '66' },
     card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 14, marginBottom: 10 },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
     badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-    badgeText: { fontSize: 11, fontWeight: '700' },
+    badgeText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal' },
     critereKey: { fontSize: 11, color: c.textSecondary, fontFamily: 'monospace' },
-    msgText: { fontSize: 12.5, color: c.text, lineHeight: 18, marginBottom: 8 },
+    msgText: { fontFamily: GF.body, fontSize: 12.5, color: c.text, lineHeight: 18, marginBottom: 8 },
     editBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' },
-    editBtnText: { fontSize: 12, color: c.textSecondary },
+    editBtnText: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
     modalSheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: c.text },
-    critereInfo: { fontSize: 12.5, color: c.textSecondary, marginBottom: 10 },
-    inputLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
-    textArea: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, fontSize: 13, color: c.text, minHeight: 120, marginBottom: 14 },
+    modalTitle: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text },
+    critereInfo: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, marginBottom: 10 },
+    inputLabel: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6 },
+    textArea: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, fontSize: 13, color: c.text, minHeight: 120, marginBottom: 14 },
     activeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
     saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-    saveBtnText: { fontSize: 15, fontWeight: '800', color: c.onAccent },
+    saveBtnText: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.onAccent },
   });
 }

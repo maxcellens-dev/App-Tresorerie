@@ -25,6 +25,7 @@ import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { sanitizeAmountInput } from '../../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 
 const RECO_ICONS: Record<RecoType, string> = {
@@ -308,9 +309,9 @@ export default function RecommendationsAdmin() {
               profil dans ses recommandations. Les deux ont été retirés. */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>D'où viennent les pourcentages</Text>
           <View style={styles.rulesCard}>
-            <Text style={styles.ruleItem}>• Du <Text style={{ fontWeight: '700' }}>profil financier</Text> (P0–P9), réglable dans « Profils financiers » — ou des pourcentages que l'utilisateur a posés lui-même (mode manuel).</Text>
-            <Text style={styles.ruleItem}>• <Text style={{ fontWeight: '700' }}>Rien ne les réécrit ensuite.</Text> Ce que l'utilisateur voit sur son écran de profil est ce qui s'applique.</Text>
-            <Text style={styles.ruleItem}>• Seuls les <Text style={{ fontWeight: '700' }}>MONTANTS</Text> peuvent s'en écarter, via les garde-fous ci-dessous. L'écran de répartition explique alors à l'utilisateur lequel s'applique.</Text>
+            <Text style={styles.ruleItem}>• Du <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>profil financier</Text> (P0–P9), réglable dans « Profils financiers » — ou des pourcentages que l'utilisateur a posés lui-même (mode manuel).</Text>
+            <Text style={styles.ruleItem}>• <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Rien ne les réécrit ensuite.</Text> Ce que l'utilisateur voit sur son écran de profil est ce qui s'applique.</Text>
+            <Text style={styles.ruleItem}>• Seuls les <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>MONTANTS</Text> peuvent s'en écarter, via les garde-fous ci-dessous. L'écran de répartition explique alors à l'utilisateur lequel s'applique.</Text>
           </View>
 
           {/* ── Garde-fous (sur les montants, après la répartition) ── */}
@@ -331,7 +332,7 @@ export default function RecommendationsAdmin() {
           {/* ── Règles ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Règles</Text>
           <View style={styles.rulesCard}>
-            <Text style={styles.ruleItem}>• Budget de référence = <Text style={{ fontWeight: '700' }}>Ton Relyka</Text> (cf. « Formule du Relyka »), diminué de ce qui est DÉJÀ alloué (virements exécutés ou prévus, cumuls, réservations)</Text>
+            <Text style={styles.ruleItem}>• Budget de référence = <Text style={{ fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Ton Relyka</Text> (cf. « Formule du Relyka »), diminué de ce qui est DÉJÀ alloué (virements exécutés ou prévus, cumuls, réservations)</Text>
             <Text style={styles.ruleItem}>• La somme des recommandations affichées = exactement le Relyka</Text>
             <Text style={styles.ruleItem}>• Une part &lt; 5 % → masquée et redistribuée</Text>
             <Text style={styles.ruleItem}>• Un poste sous son seuil d'affichage (onglet « Seuils ») est reversé aux autres</Text>
@@ -361,32 +362,32 @@ function makeBaseStyles(c: any) {
     flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg,
     borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, minWidth: 90,
   },
-  seuilInput: { flex: 1, color: c.text, fontSize: 15, fontWeight: '700', paddingVertical: 9 },
-  seuilSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
+  seuilInput: { fontFamily: GF.bodyBold, flex: 1, color: c.text, fontSize: 15, fontWeight: 'normal', paddingVertical: 9 },
+  seuilSuffix: { fontFamily: GF.bodyBold, color: c.textSecondary, fontSize: 14, fontWeight: 'normal' },
   seuilSaveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
-  seuilSaveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
+  seuilSaveLabel: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 14 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 16, lineHeight: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 },
+  subtitle: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, marginBottom: 16, lineHeight: 20 },
+  sectionTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, marginBottom: 12 },
 
   /* Onglets */
   tabBar: { flexDirection: 'row', gap: 6, marginBottom: 20, flexWrap: 'wrap' },
   tabBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
   tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '1A' },
-  tabLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+  tabLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
   tabLabelActive: { color: c.emerald },
 
   /* Ordre de déduction */
   orderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  orderRank: { fontSize: 13, fontWeight: '800', color: c.textSecondary, width: 16 },
-  orderTypeLabel: { fontSize: 14, fontWeight: '700', flex: 1 },
+  orderRank: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, width: 16 },
+  orderTypeLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', flex: 1 },
   orderArrows: { flexDirection: 'row', gap: 6 },
   orderArrowBtn: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
   orderArrowDisabled: { opacity: 0.4 },
   modeChips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   modeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
-  modeChipLabel: { fontSize: 12.5, fontWeight: '700' },
+  modeChipLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal' },
 
   typeCard: {
     backgroundColor: c.card,
@@ -398,8 +399,8 @@ function makeBaseStyles(c: any) {
     marginBottom: 10,
   },
   typeHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  typeTitle: { fontSize: 14, fontWeight: '700' },
-  typeDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
+  typeTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
+  typeDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   tierCard: {
     backgroundColor: c.card,
@@ -410,21 +411,21 @@ function makeBaseStyles(c: any) {
     marginBottom: 10,
     gap: 8,
   },
-  tierName: { fontSize: 14, fontWeight: '700', flex: 1 },
+  tierName: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', flex: 1 },
   allocRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   allocItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   allocDot: { width: 8, height: 8, borderRadius: 4 },
-  allocText: { fontSize: 11, color: c.textSecondary, fontWeight: '600' },
+  allocText: { fontFamily: GF.bodyBold, fontSize: 11, color: c.textSecondary, fontWeight: 'normal' },
 
   inputGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   inputItem: { width: '46%' },
   inputLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  inputLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  inputLabel: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal' },
   inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 10 },
-  input: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', paddingVertical: 8 },
-  inputSuffix: { color: c.textSecondary, fontSize: 14 },
+  input: { fontFamily: GF.bodyBold, flex: 1, color: c.text, fontSize: 16, fontWeight: 'normal', paddingVertical: 8 },
+  inputSuffix: { fontFamily: GF.body, color: c.textSecondary, fontSize: 14 },
 
-  modNote: { fontSize: 12, color: c.textSecondary, marginBottom: 10, fontStyle: 'italic' },
+  modNote: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 10, fontStyle: 'italic' },
   modCard: {
     backgroundColor: c.card,
     borderRadius: 12,
@@ -436,8 +437,8 @@ function makeBaseStyles(c: any) {
     gap: 10,
     alignItems: 'flex-start',
   },
-  modName: { fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 4 },
-  modDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
+  modName: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text, marginBottom: 4 },
+  modDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   rulesCard: {
     backgroundColor: c.card,
@@ -447,6 +448,6 @@ function makeBaseStyles(c: any) {
     padding: 14,
     gap: 6,
   },
-  ruleItem: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
+  ruleItem: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 });
 }

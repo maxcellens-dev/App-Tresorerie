@@ -15,6 +15,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAppLockdown } from '../../hooks/platform/useSecurity';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function SecurityGate() {
   const COLORS = useAppColors();
@@ -77,8 +78,8 @@ function makeBaseStyles(c: any) {
       width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 22,
     },
-    title: { fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 12 },
-    message: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 22, fontWeight: 'normal', color: c.text, textAlign: 'center', marginBottom: 12 },
+    message: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
     // Bandeau AU-DESSUS de la barre d'onglets (jamais par-dessus l'en-tête ni le menu du bas) → l'admin
     // garde l'accès au menu profil (déconnexion) ET aux onglets. `bottom` réglé au runtime (72 + inset).
     adminBanner: {
@@ -86,6 +87,6 @@ function makeBaseStyles(c: any) {
       backgroundColor: c.danger, paddingVertical: 10, paddingHorizontal: 16,
       flexDirection: 'row', alignItems: 'center', gap: 8,
     },
-    adminTxt: { color: '#fff', fontSize: 12.5, fontWeight: '700', flex: 1 },
+    adminTxt: { fontFamily: GF.bodyBold, color: '#fff', fontSize: 12.5, fontWeight: 'normal', flex: 1 },
   });
 }

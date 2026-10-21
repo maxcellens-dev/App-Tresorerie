@@ -14,6 +14,7 @@ import React, { useMemo } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { AppColors } from '../../theme/palette';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   visible: boolean;
@@ -85,13 +86,13 @@ function makeBaseStyles(c: AppColors) {
       paddingHorizontal: 16, paddingVertical: 12,
       borderBottomWidth: 1, borderBottomColor: c.cardBorder,
     },
-    menuTitle: { fontSize: 16, fontWeight: '600', color: c.text },
-    menuSubtitle: { fontSize: 12, color: '#f59e0b', marginTop: 2 },
+    menuTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text },
+    menuSubtitle: { fontFamily: GF.body, fontSize: 12, color: c.amber, marginTop: 2 },
     menuOption: {
       flexDirection: 'row', alignItems: 'center',
       paddingHorizontal: 16, paddingVertical: 14,
       borderBottomWidth: 1, borderBottomColor: 'rgba(148, 163, 184, 0.1)', gap: 12,
     },
-    menuOptionText: { fontSize: 14, fontWeight: '500', color: c.text },
+    menuOptionText: { fontFamily: GF.body, fontSize: 14, fontWeight: 'normal', color: c.text },
   });
 }

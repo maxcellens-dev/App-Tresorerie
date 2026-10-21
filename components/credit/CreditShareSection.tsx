@@ -21,6 +21,7 @@ import { useCreditMembers, useInviteToCredit, useSetCreditMemberRole, useRemoveC
 import { useUpdateCredit } from '../../hooks/data/useCredits';
 import AppButton from '../ui/AppButton';
 import type { Credit } from '../../types/database';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 export default function CreditShareSection({ credit }: { credit: Credit }) {
   const COLORS = useAppColors();
@@ -147,26 +148,26 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     wrap: { marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    title: { fontSize: 15, fontWeight: '800', color: c.text },
-    hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 10, lineHeight: 16 },
-    blockLabel: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+    hint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginBottom: 10, lineHeight: 16 },
+    blockLabel: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
     natureRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     natureChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
     natureChipActive: { borderColor: c.emerald, backgroundColor: c.emerald + '18' },
-    natureChipText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    natureChipText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     natureChipTextActive: { color: c.emerald },
     memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
     avatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-    memberName: { fontSize: 14, fontWeight: '600', color: c.text },
-    memberSub: { fontSize: 11, color: c.textSecondary },
+    memberName: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    memberSub: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
     roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: c.text + '33', backgroundColor: c.text + '0D' },
-    roleBadgeText: { fontSize: 11.5, fontWeight: '700', color: c.text },
+    roleBadgeText: { fontFamily: GF.bodyBold, fontSize: 11.5, fontWeight: 'normal', color: c.text },
     removeBtn: { padding: 4 },
-    input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text, marginTop: 8 },
+    input: { fontFamily: GF.body, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text, marginTop: 8 },
     roleRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     roleChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     roleChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
-    roleChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    roleChipTextActive: { color: c.text, fontWeight: '700' },
+    roleChipText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
+    roleChipTextActive: { color: c.text, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   });
 }

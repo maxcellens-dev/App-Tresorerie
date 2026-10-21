@@ -5,7 +5,6 @@ import PageLoader from '../../../components/layout/PageLoader';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList, TextInput } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { useDeferredMount } from '../../../hooks/platform/useDeferredMount';
-import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
 import AdSlot from '../../../components/marketing/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/engagement/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,9 +23,6 @@ import { useAllAccounts } from '../../../hooks/data/useAccounts';
 import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/data/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails } from '../../../types/database';
-import GuideModal from '../../../components/guide/GuideModal';
-import { useGuide } from '../../../contexts/GuideContext';
-import { useIsFocused } from 'expo-router';
 import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import RecurringTransactionsModal from '../../../components/transaction/RecurringTransactionsModal';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
@@ -47,6 +43,7 @@ import { iconForTransaction, iconForCategory } from '../../../lib/ui/categoryIco
 import { isProjectSpendTx } from '../../../lib/finance/projectTx';
 import { useRwLinkedTransactionIds } from '../../../hooks/engagement/useRelykaWorld';
 import { useReadOnlyGuard } from '../../../hooks/platform/useReadOnlyGuard';
+import { GARDEN_FONTS as GF } from '../../../lib/garden/fontFamilies';
 
 // Les 3 boutons « Virement / Dépense / Recette » en haut de l'écran font doublon avec le bouton de
 // saisie rapide (« + »), désormais présent ici aussi. On les masque, mais on garde le code : passer
@@ -145,29 +142,6 @@ function TransactionsListBody() {
   const [catQuery, setCatQuery] = useState('');
   const [showRecurring, setShowRecurring] = useState(false);
 
-  /* ── Guide utilisateur (démarrage) ────────────────────────────────────────────────────────────
-     Étape 2 : les récurrences. Ce sont elles qui rendent le Relyka juste — sans elles, l'app ne sait
-     ni ce qui rentre ni ce qui part, et le chiffre ne vaut rien. Le modal reste donc tant qu'aucune
-     récurrence n'existe (l'utilisateur peut naviguer ailleurs, il le retrouvera en revenant). */
-  const guide = useGuide();
-  const txFocused = useIsFocused();
-  /* Le modal « Étape 2 » ne doit pas rester derrière l'écran de saisie ni derrière les dialogues
-     qu'il ouvre : dès que l'utilisateur part créer sa récurrence, on le referme. Il ne revient
-     qu'AU RETOUR sur cette page, et seulement si rien n'a été enregistré (l'étape serait alors
-     franchie et le modal n'existerait plus).
-     ⚠️ DÉLAI DE GRÂCE au retour. L'enregistrement se termine en arrière-plan (retour immédiat à la
-     liste) : pendant ces quelques centaines de millisecondes, la récurrente n'existe pas encore
-     côté données, et le guide en concluait « toujours rien » — le modal réapparaissait sous le nez
-     de l'utilisateur qui venait juste d'enregistrer. Sur un téléphone, plus lent, ça se voyait
-     franchement. On laisse donc l'écriture aboutir avant de reposer la question. Si elle a
-     réellement échoué, le modal revient après ce délai : rien n'est perdu, c'est juste différé. */
-  const RECUR_SAVE_GRACE_MS = 2500;
-  const [recurAttempt, setRecurAttempt] = useState(false);
-  useEffect(() => {
-    if (!txFocused || !recurAttempt) return;
-    const t = setTimeout(() => setRecurAttempt(false), RECUR_SAVE_GRACE_MS);
-    return () => clearTimeout(t);
-  }, [txFocused, recurAttempt]);
 
 
   // Consultation admin : cet écran ne doit rien écrire sur le compte visité (useReadOnlyGuard).
@@ -888,7 +862,6 @@ function TransactionsListBody() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <OnboardingHintBanner />
       {/* Bureau : toute la page (filtres + liste) tient dans une colonne de lecture centrée —
           une liste de transactions étalée sur 1600 px devient illisible (l'œil perd la ligne). */}
       {/* Colonne de page PARTAGÉE (`pageColumn`), et non une copie locale : celle qui vivait ici
@@ -1226,31 +1199,6 @@ function TransactionsListBody() {
         userId={user?.id}
       />
 
-      {/* ── GUIDE : créer une première récurrence (reste tant que ce n'est pas fait) ──
-          Monté APRÈS la liste des récurrentes pour que la révélation ci-dessous passe par-dessus. */}
-      <GuideModal
-        visible={guide.is('tx_recurring') && txFocused && !showRecurring && !recurAttempt}
-        icon="repeat"
-        iconColor={COLORS.orange}
-        eyebrow="Étape 2 · Opérations récurrentes"
-        step={{ index: 2, total: 4 }}
-        title="Enregistre une dépense ou une recette récurrente"
-        text="Ton salaire, ton loyer, tes abonnements : saisis-les une seule fois en cochant « Récurrent ». C'est ce qui permet à Relyka d'anticiper ton mois."
-        choices={[
-          {
-            icon: 'arrow-up', color: COLORS.green,
-            title: 'Ma rentrée d\'argent',
-            text: 'Salaire, pension, revenus d\'activité.',
-            onPress: () => { setRecurAttempt(true); router.push('/(tabs)/transactions/add?type=income&recurring=1' as any); },
-          },
-          {
-            icon: 'arrow-down', color: COLORS.danger,
-            title: 'Une charge fixe',
-            text: 'Loyer, énergie, téléphone, abonnements.',
-            onPress: () => { setRecurAttempt(true); router.push('/(tabs)/transactions/add?type=expense&recurring=1' as any); },
-          },
-        ]}
-      />
 
     </View>
   );
@@ -1266,9 +1214,9 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  backText: { fontSize: 14, fontWeight: '600', color: c.text },
+  backText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
   header: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 24, fontWeight: '700', color: c.text },
+  title: { fontFamily: GF.bodyBold, fontSize: 24, fontWeight: 'normal', color: c.text },
   addBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -1281,15 +1229,15 @@ function makeBaseStyles(c: any) {
     borderRadius: 14,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 13, fontWeight: '600', color: c.text },
+  addBtnLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
   clearFilter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingVertical: 8 },
-  clearFilterText: { fontSize: 14, color: c.emerald, fontWeight: '600' },
+  clearFilterText: { fontFamily: GF.bodyBold, fontSize: 14, color: c.emerald, fontWeight: 'normal' },
   activeFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   /* Pastille de filtre ACTIF. Le vert était écrit en dur (rgba(52,211,153,…)) : elle restait donc
      émeraude même quand l'utilisateur avait choisi un accent violet ou ambre, et gardait un rayon
      de 20 quand toutes les autres pastilles de l'app en ont un de 10. */
   filterChip: { ...chipStyles(c).chip, ...chipStyles(c).chipActive, gap: 5, paddingVertical: 6, paddingHorizontal: 11 },
-  filterChipText: { fontSize: 13, color: c.primary, fontWeight: '700' },
+  filterChipText: { fontFamily: GF.bodyBold, fontSize: 13, color: c.primary, fontWeight: 'normal' },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
@@ -1331,19 +1279,19 @@ function makeBaseStyles(c: any) {
   rowLabelDraftProject: { fontStyle: 'italic', color: c.blue },
   draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: c.orange + '22', borderWidth: 1, borderColor: c.orange },
   draftBadgeProject: { backgroundColor: c.blue + '22', borderColor: c.blue },
-  draftBadgeText: { fontSize: 10, fontWeight: '700', color: c.orange },
+  draftBadgeText: { fontFamily: GF.bodyBold, fontSize: 10, fontWeight: 'normal', color: c.orange },
   draftBadgeTextProject: { color: c.blue },
   rowRightDraft: { alignItems: 'flex-end' },
   rowDraftColumn: { flexDirection: 'column', alignItems: 'stretch', gap: 7 },
   draftTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   draftActionRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   draftActionValidate: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, borderRadius: 8, backgroundColor: c.green + '18', borderWidth: 1, borderColor: c.green + '44' },
-  draftActionValidateText: { fontSize: 12, fontWeight: '700', color: c.green },
+  draftActionValidateText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.green },
   draftActionConserve: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, borderRadius: 8, backgroundColor: c.blue + '18', borderWidth: 1, borderColor: c.blue + '44' },
-  draftActionConserveText: { fontSize: 12, fontWeight: '700', color: c.blue },
+  draftActionConserveText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.blue },
   draftActionDelete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, paddingHorizontal: 14, borderRadius: 8, backgroundColor: c.danger + '18', borderWidth: 1, borderColor: c.danger + '44' },
   reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: c.blue + '22', borderWidth: 1, borderColor: c.blue },
-  reservedBadgeText: { fontSize: 10, fontWeight: '700', color: c.blue },
+  reservedBadgeText: { fontFamily: GF.bodyBold, fontSize: 10, fontWeight: 'normal', color: c.blue },
   rowAccent: {
     position: 'absolute' as const,
     left: 0,
@@ -1363,12 +1311,12 @@ function makeBaseStyles(c: any) {
     backgroundColor: c.teal,
     marginRight: 6,
   },
-  rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flexShrink: 1 },
+  rowLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text, flexShrink: 1 },
   /* Transaction de PROJET (personnel ou partagé) : le libellé passe en bleu — même signalétique que
      l'onglet Transactions d'une page de compte, où une écriture « Projets » est déjà écrite ainsi. */
   rowLabelProject: { color: c.blue },
-  rowMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-  rowAmount: { fontSize: 15, fontWeight: '700', color: c.green },
+  rowMeta: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rowAmount: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.green },
   rowAmountNeg: { color: c.text },
   reservationBadge: {
     backgroundColor: c.teal + '18',
@@ -1386,9 +1334,9 @@ function makeBaseStyles(c: any) {
   empty: { padding: 24, color: c.textSecondary, textAlign: 'center' },
   // Zone tactile élargie sans hauteur ajoutée : le padding déborde sur celui de l'en-tête.
   futureToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  futureToggleText: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  futureToggleText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   futureCard: { marginBottom: 8 },
-  hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
+  hint: { fontFamily: GF.body, marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   periodNav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1420,7 +1368,7 @@ function makeBaseStyles(c: any) {
     backgroundColor: c.emerald,
     borderColor: c.emerald,
   },
-  filterCountText: { fontSize: 11.5, fontWeight: '800', color: c.onAccent, includeFontPadding: false },
+  filterCountText: { fontFamily: GF.bodyHeavy, fontSize: 11.5, fontWeight: 'normal', color: c.onAccent, includeFontPadding: false },
   // ── Panneau « Filtres » (déplié sur place, sous la ligne de période) ──
   filterPanel: {
     backgroundColor: c.card,
@@ -1430,9 +1378,9 @@ function makeBaseStyles(c: any) {
   },
   filterPanelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   filterPanelHeadActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  filterPanelTitle: { fontSize: 15, fontWeight: '800', color: c.text },
-  filterResetText: { fontSize: 13, fontWeight: '600', color: c.emerald },
-  filterSectionTitle: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  filterPanelTitle: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text },
+  filterResetText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.emerald },
+  filterSectionTitle: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   // Les puces de comptes s'enroulent (plutôt qu'un défilement horizontal) : dans une feuille, on
   // voit ainsi d'un coup d'œil tous les comptes sélectionnés.
   filterChipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
@@ -1448,14 +1396,14 @@ function makeBaseStyles(c: any) {
   // Hauteur plafonnée + défilement interne : le panneau pousse la liste des transactions vers le
   // bas, il ne doit jamais la chasser entièrement de l'écran.
   filterCatList: { maxHeight: 220, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10 },
-  filterCatKind: { fontSize: 11, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
-  filterCatParent: { fontSize: 12, fontWeight: '700', color: c.text, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  filterCatKind: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
+  filterCatParent: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.text, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   filterCatRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12 },
   filterCatRowChild: { paddingLeft: 20 },
   filterCatRowActive: { backgroundColor: c.emerald + '1A' },
-  filterCatText: { flex: 1, fontSize: 13.5, color: c.text },
-  filterCatTextActive: { color: c.emerald, fontWeight: '700' },
-  filterEmptyText: { fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
+  filterCatText: { fontFamily: GF.body, flex: 1, fontSize: 13.5, color: c.text },
+  filterCatTextActive: { color: c.emerald, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  filterEmptyText: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
   /* Pastilles de compte du panneau de filtres : géométrie et états COMMUNS (lib/ui/controls).
      Elles étaient des gélules de rayon 20 avec un aplat émeraude en dur, à côté de pastilles de
      rayon 10 ailleurs dans la même app — et elles restaient vertes quel que soit l'accent choisi. */
@@ -1495,21 +1443,21 @@ function makeBaseStyles(c: any) {
   detailOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
   detailSheet: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
   detailHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, marginBottom: 14 },
-  detailAmount: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
-  detailLabelText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },
+  detailAmount: { fontFamily: GF.bodyHeavy, fontSize: 26, fontWeight: 'normal', textAlign: 'center' },
+  detailLabelText: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },
   detailDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 14 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
-  detailKey: { fontSize: 13.5, color: c.textSecondary },
-  detailVal: { fontSize: 13.5, fontWeight: '600', color: c.text, flexShrink: 1, textAlign: 'right', marginLeft: 12 },
-  detailReadOnly: { fontSize: 12, color: c.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
+  detailKey: { fontFamily: GF.body, fontSize: 13.5, color: c.textSecondary },
+  detailVal: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.text, flexShrink: 1, textAlign: 'right', marginLeft: 12 },
+  detailReadOnly: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
   detailCloseBtn: { marginTop: 14, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
-  detailCloseText: { fontSize: 15, fontWeight: '700', color: c.text },
-  confirmTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
-  confirmMessage: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
+  detailCloseText: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+  confirmTitle: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text, marginBottom: 10 },
+  confirmMessage: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
   confirmBtns: { flexDirection: 'row', gap: 10 },
   confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
-  confirmCancelText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+  confirmCancelText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.textSecondary },
   confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  confirmOkText: { fontSize: 14, fontWeight: '700' },
+  confirmOkText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
 });
 }

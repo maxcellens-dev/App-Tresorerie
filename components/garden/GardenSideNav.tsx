@@ -39,6 +39,7 @@ const GROUPS: { title: string; items: { key: string; label: string; icon: string
   ] },
   { title: 'Ton jardin', items: [
     { key: 'parcours', label: WORDS.myJourney, icon: 'leaf-outline', route: '/(tabs)/(secondary)/parcours' },
+    { key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting' },
     { key: 'succes', label: WORDS.successes, icon: 'ribbon-outline', route: '/(tabs)/(secondary)/succes' },
     { key: 'boutique', label: WORDS.shop, icon: 'bag-handle-outline', route: '/(tabs)/(secondary)/boutique' },
   ] },

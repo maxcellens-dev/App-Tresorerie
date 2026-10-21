@@ -44,6 +44,7 @@ import { isMovementsCategory } from '../../lib/ui/defaultCategories';
 import { useBudgetContext } from '../../hooks/data/useBudgetData';
 import { useSetBudgets, type SetBudgetInput } from '../../hooks/data/useBudgets';
 import { effectiveBudget, monthKeyOf, yearKeyOf, type BudgetPeriod } from '../../lib/finance/budgetEngine';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 type Level = 'parent' | 'sub';
 
@@ -340,7 +341,7 @@ export default function BudgetEditScreen() {
                     return (
                       <View key={r.id} style={[s.row, i > 0 && s.rowSep]}>
                         <View style={s.rowName}>
-                          <Text style={[s.name, on && { color: C.text, fontWeight: '700' }]} numberOfLines={1}>
+                          <Text style={[s.name, on && { color: C.text, fontFamily: GF.bodyBold, fontWeight: 'normal' }]} numberOfLines={1}>
                             {r.name}
                           </Text>
                           <Text style={s.sub} numberOfLines={1}>
@@ -387,7 +388,7 @@ export default function BudgetEditScreen() {
                                   accessibilityRole="radio"
                                   accessibilityState={{ selected: d.period === p }}
                                 >
-                                  <Text style={[s.cadenceText, d.period === p && { color: C.primary, fontWeight: '800' }]}>
+                                  <Text style={[s.cadenceText, d.period === p && { color: C.primary, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>
                                     {p === 'month' ? 'mois' : 'an'}
                                   </Text>
                                 </TouchableOpacity>
@@ -453,15 +454,15 @@ function makeBaseStyles(c: any) {
     root: { flex: 1 },
     safe: { flex: 1, paddingHorizontal: 16 },
     content: { paddingTop: 4 },
-    month: { fontSize: 15, fontWeight: '800', color: c.text, textTransform: 'capitalize', marginBottom: 4 },
-    lede: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginBottom: 14 },
+    month: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.text, textTransform: 'capitalize', marginBottom: 4 },
+    lede: { fontFamily: GF.body, fontSize: 12.5, lineHeight: 18, color: c.textSecondary, marginBottom: 14 },
     loading: { paddingVertical: 60, alignItems: 'center' },
     errorBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12,
       backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '55',
       borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
     },
-    errorText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.danger },
+    errorText: { fontFamily: GF.body, flex: 1, fontSize: 12.5, lineHeight: 18, color: c.danger },
     sectionTitle: {
       fontSize: 10.5, letterSpacing: 0.8, textTransform: 'uppercase', fontWeight: '700',
       color: c.textSecondary, marginTop: 16, marginBottom: 7, paddingHorizontal: 2,
@@ -479,8 +480,8 @@ function makeBaseStyles(c: any) {
     /* `flexShrink: 1` explicite ET `minWidth: 0` : sans le second, une colonne flexible refuse de
        descendre sous la largeur de son contenu et pousse ses voisines hors du cadre. */
     rowName: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    name: { fontSize: 13.5, fontWeight: '600', color: c.textSecondary },
-    sub: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
+    name: { fontFamily: GF.bodyBold, fontSize: 13.5, fontWeight: 'normal', color: c.textSecondary },
+    sub: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 2 },
     // Colonne de droite, largeur FIXE : le champ et sa cadence l'un sous l'autre.
     fieldCol: { width: 96, flexGrow: 0, flexShrink: 0 },
     inputWrap: {
@@ -496,20 +497,20 @@ function makeBaseStyles(c: any) {
       // apparaît à l'intérieur du nôtre.
       ...(Platform.OS === 'web' ? { outlineStyle: 'none', borderWidth: 0, backgroundColor: 'transparent' } as any : {}),
     },
-    symbol: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+    symbol: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary },
     cadence: {
       flexDirection: 'row', borderRadius: 9, padding: 2, marginTop: 5,
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     },
     cadenceBtn: { flex: 1, alignItems: 'center', paddingVertical: 5, borderRadius: 7 },
-    cadenceText: { fontSize: 10.5, fontWeight: '600', color: c.textSecondary },
-    empty: { fontSize: 13, lineHeight: 19, color: c.textSecondary, paddingVertical: 24, textAlign: 'center' },
+    cadenceText: { fontFamily: GF.bodyBold, fontSize: 10.5, fontWeight: 'normal', color: c.textSecondary },
+    empty: { fontFamily: GF.body, fontSize: 13, lineHeight: 19, color: c.textSecondary, paddingVertical: 24, textAlign: 'center' },
     catLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 18 },
-    catLinkText: { fontSize: 13, fontWeight: '700', color: c.primary },
+    catLinkText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.primary },
     bar: {
       paddingTop: 10, paddingBottom: 14,
       borderTopWidth: 1, borderTopColor: c.cardBorder, backgroundColor: c.bg,
     },
-    barSummary: { fontSize: 12, color: c.textSecondary, marginBottom: 8, textAlign: 'center' },
+    barSummary: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 8, textAlign: 'center' },
   });
 }

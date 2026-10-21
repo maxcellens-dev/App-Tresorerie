@@ -18,6 +18,7 @@ import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import type { AppColors } from '../../theme/palette';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { sanitizeAmountInput } from '../../lib/ui/amountInput';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   visible: boolean;
@@ -158,9 +159,9 @@ function makeBaseStyles(c: AppColors) {
       borderBottomWidth: 1,
       borderBottomColor: c.cardBorder,
     },
-    title: { fontSize: 16, fontWeight: '600', color: c.text },
-    sub: { fontSize: 12, color: '#f59e0b', marginTop: 2 },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+    title: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: c.text },
+    sub: { fontFamily: GF.body, fontSize: 12, color: c.amber, marginTop: 2 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
     input: {
       backgroundColor: c.bg,
       borderWidth: 1,
@@ -180,9 +181,9 @@ function makeBaseStyles(c: AppColors) {
       borderColor: c.cardBorder,
       marginRight: 8,
     },
-    accountChipActive: { backgroundColor: '#f59e0b22', borderColor: '#f59e0b' },
-    accountChipText: { fontSize: 13, color: c.text },
-    accountChipTextActive: { color: '#f59e0b', fontWeight: '600' },
+    accountChipActive: { backgroundColor: c.amber + '22', borderColor: c.amber },
+    accountChipText: { fontFamily: GF.body, fontSize: 13, color: c.text },
+    accountChipTextActive: { color: c.amber, fontFamily: GF.bodyBold, fontWeight: 'normal' },
     submitBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -190,9 +191,9 @@ function makeBaseStyles(c: AppColors) {
       paddingVertical: 14,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: '#f59e0b',
-      backgroundColor: '#f59e0b11',
+      borderColor: c.amber,
+      backgroundColor: c.amber + '11',
     },
-    submitLabel: { fontSize: 15, fontWeight: '700', color: '#f59e0b' },
+    submitLabel: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.amber },
   });
 }

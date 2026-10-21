@@ -15,6 +15,7 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useLegalContent, useSaveLegalContent } from '../../../../hooks/config/useLegalContent';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 export default function AdminLegal() {
   const COLORS = useAppColors();
@@ -43,13 +44,13 @@ export default function AdminLegal() {
     return (
       <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Pages légales" onBack={goBack} />
-        <Text style={{ color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: '700' }}>Contenu non chargé</Text>
-        <Text style={{ color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
+        <Text style={{ fontFamily: GF.bodyBold, color: COLORS.text, marginTop: 24, fontSize: 15, fontWeight: 'normal' }}>Contenu non chargé</Text>
+        <Text style={{ fontFamily: GF.body, color: COLORS.textSecondary, marginTop: 8, fontSize: 13.5, lineHeight: 19 }}>
           Les textes actuels n'ont pas pu être lus. Le formulaire reste fermé : l'ouvrir vide ferait
           écraser les textes publiés au premier enregistrement.
         </Text>
         <TouchableOpacity onPress={() => refetch()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
-          <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+          <Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.onAccent, fontWeight: 'normal', fontSize: 14 }}>Réessayer</Text>
         </TouchableOpacity>
       </SafeAreaView></View>
     );
@@ -115,15 +116,15 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    sub: { fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
-    label: { fontSize: 13, color: c.textSecondary, fontWeight: '700', marginTop: 12, marginBottom: 6 },
+    sub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, color: c.textSecondary, fontWeight: 'normal', marginTop: 12, marginBottom: 6 },
     area: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
       paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, minHeight: 180,
       ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
     },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
-    saveLabel: { color: c.onAccent, fontWeight: '700', fontSize: 15 },
-    msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
+    saveLabel: { fontFamily: GF.bodyBold, color: c.onAccent, fontWeight: 'normal', fontSize: 15 },
+    msg: { textAlign: 'center', marginTop: 10, fontFamily: GF.bodyBold, fontWeight: 'normal' },
   });
 }

@@ -27,6 +27,7 @@ import { supabase } from '../../../../lib/platform/supabase';
 import { sheetWidth } from '../../../../lib/ui/appLayout';
 import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, useRepairMissingProfiles, type InactiveUser } from '../../../../hooks/admin/useInactiveUsers';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 type Tab = 'users' | 'groups' | 'inactive';
 
@@ -476,51 +477,51 @@ function makeBaseStyles(c: any) {
     tabs: { flexDirection: 'row', gap: 6, marginBottom: 14 },
     tab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', backgroundColor: c.card },
     tabOn: { backgroundColor: c.emerald, borderColor: c.emerald },
-    tabTxt: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    tabTxt: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     tabTxtOn: { color: c.onAccent },
 
     searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
     searchInput: { flex: 1, color: c.text, fontSize: 14, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-    hint: { color: c.textSecondary, textAlign: 'center', marginTop: 24, fontSize: 13 },
-    subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 14, lineHeight: 18 },
+    hint: { fontFamily: GF.body, color: c.textSecondary, textAlign: 'center', marginTop: 24, fontSize: 13 },
+    subtitle: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginBottom: 14, lineHeight: 18 },
 
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10 },
-    name: { fontSize: 14, fontWeight: '700', color: c.text },
-    email: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-    since: { fontSize: 11, color: c.textSecondary, marginTop: 3 },
-    premiumTag: { fontSize: 11, color: c.yellow, fontWeight: '700', marginTop: 3 },
+    name: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    email: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    since: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 3 },
+    premiumTag: { fontFamily: GF.bodyBold, fontSize: 11, color: c.yellow, fontWeight: 'normal', marginTop: 3 },
     actionsCol: { gap: 6, alignItems: 'stretch' },
     toggleBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
-    toggleText: { fontSize: 12, fontWeight: '700' },
+    toggleText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
 
     // Groupes
     groupCard: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 16 },
-    fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 6 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 8, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     createBtn: { width: 48, borderRadius: 10, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
-    empty: { fontSize: 13, color: c.textSecondary, fontStyle: 'italic', marginBottom: 8 },
+    empty: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, fontStyle: 'italic', marginBottom: 8 },
     groupRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 14, marginBottom: 10 },
     groupIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    groupName: { fontSize: 15, fontWeight: '700', color: c.text },
-    groupMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    groupName: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text },
+    groupMeta: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     modalSheet: { ...sheetWidth, backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, maxHeight: '88%', borderWidth: 1, borderColor: c.cardBorder },
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    modalTitle: { fontSize: 18, fontWeight: '800', color: c.text, flex: 1 },
+    modalTitle: { fontFamily: GF.bodyHeavy, fontSize: 18, fontWeight: 'normal', color: c.text, flex: 1 },
     userRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-    userName: { fontSize: 14, fontWeight: '600', color: c.text },
-    userEmail: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
+    userName: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    userEmail: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 1 },
 
     // Inactifs
     chipRow: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipOn: { backgroundColor: c.danger, borderColor: c.danger },
-    chipTxt: { fontSize: 13, fontWeight: '700', color: c.text },
+    chipTxt: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
     chipTxtOn: { color: '#fff' },
     selRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    selCount: { fontSize: 12.5, color: c.textSecondary, fontWeight: '600' },
-    selAll: { fontSize: 12.5, color: c.emerald, fontWeight: '700' },
+    selCount: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.textSecondary, fontWeight: 'normal' },
+    selAll: { fontFamily: GF.bodyBold, fontSize: 12.5, color: c.emerald, fontWeight: 'normal' },
     deleteBtn: { position: 'absolute', left: 0, right: 0, bottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.danger, borderRadius: 12, paddingVertical: 15 },
-    deleteTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    deleteTxt: { fontFamily: GF.bodyHeavy, color: '#fff', fontSize: 15, fontWeight: 'normal' },
   });
 }

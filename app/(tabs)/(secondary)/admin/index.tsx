@@ -17,6 +17,7 @@ import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useAdminUnreadBreakdown } from '../../../../hooks/admin/useUnreadBadges';
 import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { readableOn } from '../../../../theme/palette';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 
 export default function AdminHub() {
@@ -187,11 +188,11 @@ function makeBaseStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  subtitle: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
+  subtitle: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginBottom: 14 },
   searchInput: { flex: 1, fontSize: 14, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-  noResult: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 20 },
-  categoryTitle: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
+  noResult: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 20 },
+  categoryTitle: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   itemBtn: {
     flexDirection: 'row',
@@ -209,9 +210,9 @@ function makeBaseStyles(c: any) {
   },
   iconBox: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  itemTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 2 },
-  itemDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 15 },
+  badgeTxt: { fontFamily: GF.bodyHeavy, color: '#fff', fontSize: 11, fontWeight: 'normal' },
+  itemTitle: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text, marginBottom: 2 },
+  itemDesc: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 15 },
   text: { color: c.text },
 });
 }

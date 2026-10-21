@@ -30,6 +30,7 @@ import { sanitizeAmountInput } from '../../lib/ui/amountInput';
 import RelykaPreview from './RelykaPreview';
 import ConfidenceSummary from './ConfidenceSummary';
 import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const PATTERNS: { key: SpendPattern; label: string }[] = [
   { key: 'even', label: 'Un peu chaque jour' },
@@ -301,18 +302,18 @@ function makeStyles(c: any) {
 
 function makeBaseStyles(c: any) {
   return StyleSheet.create({
-    p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
-    section: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 20, marginBottom: 6 },
+    p: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
+    section: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 20, marginBottom: 6 },
     field: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
-    fieldLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-    fieldHint: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    fieldLabel: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal', color: c.text },
+    fieldHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     input: { width: 96, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'right', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     switch: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: c.card },
-    switchTxt: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    switchTxt: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
     chipsRow: { marginTop: 8, marginBottom: 4 },
     chip: { borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     chipOn: { borderColor: c.emerald, backgroundColor: c.emerald + '1A' },
-    chipTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    chipTxt: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
     chipTxtOn: { color: c.emerald },
   });
 }

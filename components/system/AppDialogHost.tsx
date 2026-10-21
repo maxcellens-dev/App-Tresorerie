@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton } from '../../lib/ui/appDialog';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 // Reroute global de Alert.alert dès le chargement du module (tous les appels existants en profitent).
 (Alert as any).alert = alertCompat;
@@ -136,22 +137,22 @@ function makeBaseStyles(c: any) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
     box: { width: '100%', maxWidth: 420, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 6 },
-    title: { fontSize: 17, fontWeight: '800', color: c.text },
-    message: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginTop: 2 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text },
+    message: { fontFamily: GF.body, fontSize: 14, color: c.textSecondary, lineHeight: 20, marginTop: 2 },
     inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14 },
-    input: { flex: 1, fontSize: 16, color: c.text, paddingVertical: 12 },
-    inputSuffix: { fontSize: 15, fontWeight: '700', color: c.textSecondary },
+    input: { fontFamily: GF.body, flex: 1, fontSize: 16, color: c.text, paddingVertical: 12 },
+    inputSuffix: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.textSecondary },
     options: { gap: 10, marginTop: 14 },
     option: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 12, gap: 6 },
     optionHead: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     optionIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    optionLabel: { flex: 1, fontSize: 14.5, fontWeight: '800', color: c.text },
-    optionHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    optionLabel: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 14.5, fontWeight: 'normal', color: c.text },
+    optionHint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
     optionResult: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 2 },
-    optionResultValue: { fontSize: 17, fontWeight: '800' },
-    optionResultHint: { fontSize: 11.5, color: c.textSecondary },
+    optionResultValue: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal' },
+    optionResultHint: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 16 },
     btn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
-    btnText: { fontSize: 14, fontWeight: '700' },
+    btnText: { fontFamily: GF.bodyBold, fontSize: 14, fontWeight: 'normal' },
   });
 }

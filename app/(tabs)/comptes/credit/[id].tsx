@@ -30,6 +30,7 @@ import { sanitizeAmountInput, sanitizeRateInput, parseAmountInput } from '../../
 import { useSubmitLock } from '../../../../hooks/platform/useSubmitLock';
 import { useReadOnlyGuard } from '../../../../hooks/platform/useReadOnlyGuard';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
@@ -239,7 +240,7 @@ export default function CreditDetailScreen() {
           right={canWrite ? (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/comptes/credit-add?id=${credit.id}` as any)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="pencil" size={16} color={COLORS.blue} />
-              <Text style={{ color: COLORS.blue, fontWeight: '700', fontSize: 14 }}>Modifier</Text>
+              <Text style={{ fontFamily: GF.bodyBold, color: COLORS.blue, fontWeight: 'normal', fontSize: 14 }}>Modifier</Text>
             </TouchableOpacity>
           ) : undefined}
         />
@@ -301,7 +302,7 @@ export default function CreditDetailScreen() {
             {cExtraFees > 0 ? <Row k="Frais à part" v={fmt(cExtraFees)} /> : null}
             {(credit.personal_contribution ?? 0) > 0 ? <Row k="Apport personnel" v={fmt(credit.personal_contribution!)} /> : null}
             <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 4 }}>
-              <View style={styles.infoRow}><Text style={[styles.infoK, { fontWeight: '800', color: COLORS.text }]}>Coût total</Text><Text style={[styles.infoV, { color: COLORS.danger, fontWeight: '800' }]}>{fmt(cCoutTotal)}</Text></View>
+              <View style={styles.infoRow}><Text style={[styles.infoK, { fontFamily: GF.bodyHeavy, fontWeight: 'normal', color: COLORS.text }]}>Coût total</Text><Text style={[styles.infoV, { color: COLORS.danger, fontFamily: GF.bodyHeavy, fontWeight: 'normal' }]}>{fmt(cCoutTotal)}</Text></View>
             </View>
           </View>
 
@@ -343,7 +344,7 @@ export default function CreditDetailScreen() {
           <View style={styles.evtHead}>
             <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
             {editTable ? (
-              <TouchableOpacity onPress={() => { setEditRowPeriod(null); setEditTable(false); }}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Terminé</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => { setEditRowPeriod(null); setEditTable(false); }}><Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.emerald, fontWeight: 'normal', fontSize: 13 }}>Terminé</Text></TouchableOpacity>
             ) : (canWrite && (
               <TouchableOpacity style={styles.evtAdd} onPress={() => { setEditRowPeriod(null); setEditTable(true); }}>
                 <Ionicons name="create-outline" size={16} color={COLORS.blue} /><Text style={styles.evtAddText}>Modifier</Text>
@@ -456,8 +457,8 @@ export default function CreditDetailScreen() {
             <Text style={styles.mLabel}>Date (jj-mm-aaaa)</Text>
             <TextInput style={styles.mInput} value={formatDateFrench(evtDate)} onChangeText={(v) => { const m = v.match(/^(\d{2})-(\d{2})-(\d{4})$/); if (m) setEvtDate(`${m[3]}-${m[2]}-${m[1]}`); }} placeholder="jj-mm-aaaa" placeholderTextColor={COLORS.textSecondary} />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <TouchableOpacity style={[styles.mBtn, { borderWidth: 1, borderColor: COLORS.cardBorder }]} onPress={() => setShowEvt(false)}><Text style={{ color: COLORS.text, fontWeight: '600' }}>Annuler</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.mBtn, { backgroundColor: COLORS.emerald }]} onPress={saveEvent}><Text style={{ color: COLORS.bg, fontWeight: '700' }}>Ajouter</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.mBtn, { borderWidth: 1, borderColor: COLORS.cardBorder }]} onPress={() => setShowEvt(false)}><Text style={{ color: COLORS.text, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Annuler</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.mBtn, { backgroundColor: COLORS.emerald }]} onPress={saveEvent}><Text style={{ color: COLORS.bg, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Ajouter</Text></TouchableOpacity>
             </View>
           </View>
         </KeyboardAwareOverlay>
@@ -526,12 +527,12 @@ function RowEditModal({ visible, period, schedule, overrides, hasNext, onSave, o
           {field('Capital', cap, setCap, row.principalPart)}
           {field('Restant dû', rd, setRd, row.crdAfter)}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-            <TouchableOpacity style={[styles.mBtn, { borderWidth: 1, borderColor: c.cardBorder }]} onPress={onClose} disabled={busy}><Text style={{ color: c.text, fontWeight: '600' }}>Fermer</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.mBtn, { backgroundColor: c.emerald }]} onPress={() => submit(false)} disabled={busy}><Text style={{ color: c.bg, fontWeight: '700' }}>Enregistrer</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.mBtn, { borderWidth: 1, borderColor: c.cardBorder }]} onPress={onClose} disabled={busy}><Text style={{ color: c.text, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Fermer</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.mBtn, { backgroundColor: c.emerald }]} onPress={() => submit(false)} disabled={busy}><Text style={{ color: c.bg, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Enregistrer</Text></TouchableOpacity>
           </View>
           {hasNext && (
             <TouchableOpacity style={[styles.mBtn, { backgroundColor: c.blue, marginTop: 10 }]} onPress={() => submit(true)} disabled={busy}>
-              <Text style={{ color: c.bg, fontWeight: '700' }}>Enregistrer + ligne suivante ›</Text>
+              <Text style={{ color: c.bg, fontFamily: GF.bodyBold, fontWeight: 'normal' }}>Enregistrer + ligne suivante ›</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -552,34 +553,34 @@ function makeBaseStyles(c: any) {
     scroll: { flex: 1 },
     empty: { textAlign: 'center', color: c.textSecondary, marginTop: 40 },
     card: { padding: 16, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, marginTop: 12 },
-    crdLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
-    crdValue: { fontSize: 30, fontWeight: '800', color: c.text, marginTop: 2 },
-    crdSub: { fontSize: 12, color: c.textSecondary, marginTop: 4 },
+    crdLabel: { fontFamily: GF.bodyBold, fontSize: 13, color: c.textSecondary, fontWeight: 'normal' },
+    crdValue: { fontFamily: GF.bodyHeavy, fontSize: 30, fontWeight: 'normal', color: c.text, marginTop: 2 },
+    crdSub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 4 },
     statRow: { flexDirection: 'row', marginTop: 14, gap: 10 },
     stat: { flex: 1 },
-    statK: { fontSize: 11, color: c.textSecondary },
-    statV: { fontSize: 15, fontWeight: '700', color: c.text, marginTop: 2 },
+    statK: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary },
+    statV: { fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: c.text, marginTop: 2 },
     repaidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.cardBorder },
-    repaidLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-    repaidValue: { fontSize: 15, fontWeight: '800', color: c.emerald },
+    repaidLabel: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary },
+    repaidValue: { fontFamily: GF.bodyHeavy, fontSize: 15, fontWeight: 'normal', color: c.emerald },
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-    infoK: { fontSize: 13, color: c.textSecondary },
-    infoV: { fontSize: 13, fontWeight: '600', color: c.text },
-    sectionTitle: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginTop: 18, marginBottom: 2, paddingHorizontal: 4 },
+    infoK: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary },
+    infoV: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.text },
+    sectionTitle: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginTop: 18, marginBottom: 2, paddingHorizontal: 4 },
     evtHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, paddingHorizontal: 4 },
     evtAdd: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-    evtAddText: { color: c.blue, fontWeight: '700', fontSize: 13 },
-    evtEmpty: { fontSize: 12.5, color: c.textSecondary },
+    evtAddText: { fontFamily: GF.bodyBold, color: c.blue, fontWeight: 'normal', fontSize: 13 },
+    evtEmpty: { fontFamily: GF.body, fontSize: 12.5, color: c.textSecondary },
     evtRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-    evtLabel: { flex: 1, fontSize: 12.5, color: c.text },
+    evtLabel: { fontFamily: GF.body, flex: 1, fontSize: 12.5, color: c.text },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 22 },
     modalCard: { backgroundColor: c.cardSolid ?? c.card, borderRadius: 18, padding: 18 },
-    modalTitle: { fontSize: 17, fontWeight: '800', color: c.text, marginBottom: 12 },
+    modalTitle: { fontFamily: GF.bodyHeavy, fontSize: 17, fontWeight: 'normal', color: c.text, marginBottom: 12 },
     kindChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     kindChipActive: { borderColor: c.blue, backgroundColor: c.blue + '12' },
-    kindText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
-    mLabel: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, marginBottom: 5, marginTop: 8 },
-    mInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: c.text },
+    kindText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary },
+    mLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, marginBottom: 5, marginTop: 8 },
+    mInput: { fontFamily: GF.body, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: c.text },
     mBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
     tRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
     tRowNext: { backgroundColor: c.blue + '1A', borderRadius: 6 },
@@ -587,17 +588,17 @@ function makeBaseStyles(c: any) {
     // Échéance ciblée depuis une transaction (`?period=`) : repère franc, distinct du bleu de la
     // prochaine échéance et du vert d'une ligne déjà corrigée.
     tRowFocused: { backgroundColor: c.orange + '22', borderRadius: 6, borderWidth: 1, borderColor: c.orange + '88' },
-    tNextText: { color: c.blue, fontWeight: '800' },
+    tNextText: { color: c.blue, fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
     tHead: { borderBottomWidth: 1 },
-    tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 12.5 },
-    tcDate: { width: 64, fontSize: 12.5, color: c.text },
-    tc: { flex: 1, textAlign: 'right', fontSize: 12.5, color: c.text, paddingLeft: 6 },
-    tNote: { fontSize: 10.5, color: c.textSecondary, marginTop: 8, lineHeight: 14 },
-    tDisclaimer: { fontSize: 11, fontStyle: 'italic', color: c.textSecondary, lineHeight: 15, marginTop: 6, marginBottom: 8, paddingHorizontal: 4 },
-    tInput: { flex: 1, marginLeft: 2, borderWidth: 1, borderColor: c.blue + '66', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 4, fontSize: 10, color: c.text, textAlign: 'right' },
+    tHeadText: { fontFamily: GF.bodyBold, fontWeight: 'normal', color: c.textSecondary, fontSize: 12.5 },
+    tcDate: { fontFamily: GF.body, width: 64, fontSize: 12.5, color: c.text },
+    tc: { fontFamily: GF.body, flex: 1, textAlign: 'right', fontSize: 12.5, color: c.text, paddingLeft: 6 },
+    tNote: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, marginTop: 8, lineHeight: 14 },
+    tDisclaimer: { fontFamily: GF.body, fontSize: 11, fontStyle: 'italic', color: c.textSecondary, lineHeight: 15, marginTop: 6, marginBottom: 8, paddingHorizontal: 4 },
+    tInput: { fontFamily: GF.body, flex: 1, marginLeft: 2, borderWidth: 1, borderColor: c.blue + '66', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 4, fontSize: 10, color: c.text, textAlign: 'right' },
     toggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 18, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '55' },
-    toggleLabel: { color: c.blue, fontWeight: '700', fontSize: 13 },
+    toggleLabel: { fontFamily: GF.bodyBold, color: c.blue, fontWeight: 'normal', fontSize: 13 },
     delBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: c.danger + '55' },
-    delLabel: { color: c.danger, fontWeight: '700', fontSize: 14 },
+    delLabel: { fontFamily: GF.bodyBold, color: c.danger, fontWeight: 'normal', fontSize: 14 },
   });
 }

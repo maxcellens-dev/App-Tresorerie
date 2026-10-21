@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFeatureFlags } from '../../hooks/config/useFeatureFlags';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { APP_VERSION, NATIVE_VERSION_KNOWN, isNewerVersion, shouldOfferStoreUpdate } from '../../lib/platform/appVersion';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 const DISMISS_KEY = 'update_dismissed_version';
@@ -177,10 +178,10 @@ function makeBaseStyles(c: any) {
       shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
     },
     iconWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: c.emerald + '22', alignItems: 'center', justifyContent: 'center' },
-    title: { fontSize: 13.5, fontWeight: '800', color: c.text },
-    text: { fontSize: 11.5, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
+    title: { fontFamily: GF.bodyHeavy, fontSize: 13.5, fontWeight: 'normal', color: c.text },
+    text: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
     updateBtn: { backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
-    updateText: { fontSize: 12.5, fontWeight: '800', color: c.onAccent },
+    updateText: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal', color: c.onAccent },
     close: { padding: 2 },
   });
 }

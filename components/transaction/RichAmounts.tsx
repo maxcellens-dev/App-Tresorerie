@@ -12,6 +12,7 @@
  */
 import { Text, type StyleProp, type TextStyle } from 'react-native';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const CURRENCY_RE = CURRENCY_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const AMOUNT_RE = new RegExp(`(~?\\d[\\d\\s\\u00a0\\u202f.,]*\\s?${CURRENCY_RE})`, 'g');
@@ -21,7 +22,7 @@ export default function RichAmounts({ text, style }: { text: string; style?: Sty
   const parts = text.split(AMOUNT_RE);
   return (
     <Text style={style}>
-      {parts.map((p, i) => (i % 2 === 1 ? <Text key={i} style={{ fontWeight: '800' }}>{p}</Text> : p))}
+      {parts.map((p, i) => (i % 2 === 1 ? <Text key={i} style={{ fontFamily: GF.bodyHeavy, fontWeight: 'normal' }}>{p}</Text> : p))}
     </Text>
   );
 }

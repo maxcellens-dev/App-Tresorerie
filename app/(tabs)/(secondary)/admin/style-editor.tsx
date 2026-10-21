@@ -21,6 +21,7 @@ import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
 import ColorPickerModal from '../../../../components/ui/ColorPickerModal';
 import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/platform/webFonts';
 import { ensureNativeFonts, useNativeFontsVersion } from '../../../../lib/platform/nativeFonts';
+import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
 
 
 const FONTS = [
@@ -435,7 +436,7 @@ export default function StyleEditor() {
             défaut ferait effacer les couleurs, presets et polices en place au premier enregistrement.
           </Text>
           <TouchableOpacity onPress={() => refetchStyle()} accessibilityRole="button" style={{ marginTop: 18, alignSelf: 'flex-start', backgroundColor: COLORS.emerald, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 11 }}>
-            <Text style={{ color: COLORS.onAccent, fontWeight: '800', fontSize: 14 }}>Réessayer</Text>
+            <Text style={{ fontFamily: GF.bodyHeavy, color: COLORS.onAccent, fontWeight: 'normal', fontSize: 14 }}>Réessayer</Text>
           </TouchableOpacity>
         </SafeAreaView>
       </View>
@@ -488,7 +489,7 @@ export default function StyleEditor() {
             <View style={[styles.previewHeaderBar, { backgroundColor: previewHeaderBg }]}>
               <Text style={{ color: previewColors.text, fontWeight: '800', fontSize: 13, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>Relyka</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ color: previewMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)', fontSize: 10, fontWeight: '600' }}>Entête</Text>
+                <Text style={{ fontFamily: GF.bodyBold, color: previewMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)', fontSize: 10, fontWeight: 'normal' }}>Entête</Text>
                 <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: previewColors.emerald }} />
               </View>
             </View>
@@ -629,7 +630,7 @@ export default function StyleEditor() {
 
                   {/* Créateur de preset d'accent */}
                   <View style={[styles.accentItem, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>+ Nouveau preset d'accent</Text>
+                    <Text style={{ fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: COLORS.textSecondary }}>+ Nouveau preset d'accent</Text>
                     <TextInput style={[styles.hexInput, { textAlign: 'left', paddingLeft: 10 }]} value={newLabel} onChangeText={setNewLabel}
                       placeholder="Nom (ex. Turquoise)" placeholderTextColor={COLORS.textSecondary} />
                     <View style={styles.row2g}>
@@ -648,7 +649,7 @@ export default function StyleEditor() {
                         setNewLabel(''); setNewDark('#FFFFFF'); setNewLight('#000000');
                       }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>+ Ajouter ce preset</Text>
+                      <Text style={{ fontFamily: GF.bodyBold, color: '#fff', fontWeight: 'normal', fontSize: 14 }}>+ Ajouter ce preset</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -781,7 +782,7 @@ export default function StyleEditor() {
                       : ['#F4EFE6', '#FDF6EC', '#F0EBE3', '#EAE5DC']
                     ).map(hex => (
                       <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex }, aBg.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
-                        <Text style={{ color: activeMode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '600' }}>{hex.slice(1)}</Text>
+                        <Text style={{ fontFamily: GF.bodyBold, color: activeMode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: 'normal' }}>{hex.slice(1)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -790,7 +791,7 @@ export default function StyleEditor() {
                     <View style={styles.alphaRow}>
                       {['#F7F8FA', '#F2F3F5', '#EAECEF', '#FFFFFF'].map(hex => (
                         <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex, borderWidth: 1, borderColor: hex === '#FFFFFF' ? COLORS.cardBorder : 'transparent' }, aBg.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
-                          <Text style={{ color: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '600' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
+                          <Text style={{ fontFamily: GF.bodyBold, color: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: 'normal' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -850,7 +851,7 @@ export default function StyleEditor() {
                     : ['#FFFFFF', '#FBFAF7', '#F2F3F5', '#EAECEF']
                   ).map(hex => (
                     <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex, borderWidth: 1, borderColor: hex === '#FFFFFF' ? COLORS.cardBorder : 'transparent' }, aCard.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setCard(hex)}>
-                      <Text style={{ color: hex === '#FFFFFF' || hex === '#FBFAF7' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '600' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
+                      <Text style={{ fontFamily: GF.bodyBold, color: hex === '#FFFFFF' || hex === '#FBFAF7' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: 'normal' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -868,7 +869,7 @@ export default function StyleEditor() {
                     const bg = `rgba(255,255,255,${pct / 100})`;
                     return (
                       <TouchableOpacity key={pct} style={[styles.alphaSample, { backgroundColor: bg, borderWidth: 1, borderColor: COLORS.cardBorder }, Math.abs(Number(aAlpha || 0) - pct) < 2 && { borderColor: COLORS.emerald }]} onPress={() => setAlpha(String(pct))}>
-                        <Text style={{ color: activeMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: 10, fontWeight: '600' }}>{pct}%</Text>
+                        <Text style={{ fontFamily: GF.bodyBold, color: activeMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: 10, fontWeight: 'normal' }}>{pct}%</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -882,7 +883,7 @@ export default function StyleEditor() {
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                   <Text style={[styles.inputLabel, { marginBottom: 0, flex: 1 }]}>Surplus d'accent</Text>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text, minWidth: 40, textAlign: 'right' }}>{aHeaderAlpha} %</Text>
+                  <Text style={{ fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: COLORS.text, minWidth: 40, textAlign: 'right' }}>{aHeaderAlpha} %</Text>
                 </View>
                 {Platform.OS === 'web' ? (
                   // Slider HTML natif — fluidité maximale
@@ -1004,7 +1005,7 @@ function Section({ label, icon, COLORS, children }: { label: string; icon: strin
     <View style={{ marginBottom: 26 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <Ionicons name={icon as any} size={15} color={COLORS.emerald} />
-        <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Text>
+        <Text style={{ fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</Text>
       </View>
       {children}
     </View>
@@ -1017,7 +1018,7 @@ function ModeBtn({ label, icon, active, accent, COLORS, onPress }: { label: stri
       style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: active ? accent : COLORS.cardBorder, backgroundColor: active ? accent + '20' : COLORS.card }}
       onPress={onPress} activeOpacity={0.8}>
       <Ionicons name={icon as any} size={16} color={active ? accent : COLORS.textSecondary} />
-      <Text style={{ fontSize: 13, fontWeight: '600', color: active ? accent : COLORS.textSecondary }}>{label}</Text>
+      <Text style={{ fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: active ? accent : COLORS.textSecondary }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -1042,34 +1043,34 @@ function makeBaseStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
-  headerSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  headerSub: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginTop: 2 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 100 },
 
   preview: { borderRadius: 20, overflow: 'hidden', height: 170, padding: 14, marginBottom: 20, justifyContent: 'space-between', borderWidth: 1, borderColor: c.cardBorder },
   previewHeaderBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: -14, marginTop: -14, paddingHorizontal: 14, paddingVertical: 10 },
   previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  previewLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  previewLabel: { fontFamily: GF.bodyBold, fontSize: 10, fontWeight: 'normal', letterSpacing: 0.8 },
   previewModeSwitcher: { flexDirection: 'row', gap: 4 },
   previewModeBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   previewCards: { flexDirection: 'row', gap: 8 },
   previewCard: { flex: 1, borderRadius: 10, padding: 8, gap: 3, borderWidth: 1, borderLeftWidth: 3 },
-  previewCardLabel: { fontSize: 9 },
-  previewCardAmount: { fontSize: 13, fontWeight: '700' },
+  previewCardLabel: { fontFamily: GF.body, fontSize: 9 },
+  previewCardAmount: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal' },
 
   tabBar: { flexDirection: 'row', gap: 8, marginBottom: 22 },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5, borderColor: c.cardBorder, backgroundColor: c.card },
-  tabBtnText: { fontSize: 11, fontWeight: '700' },
+  tabBtnText: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal' },
 
   row2: { flexDirection: 'row', gap: 10 },
   row2g: { flexDirection: 'row', gap: 8, alignItems: 'center' },
 
-  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 17 },
-  packHeader: { fontSize: 13, fontWeight: '800', color: c.text, marginTop: 14, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
-  fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginBottom: 6 },
+  hint: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 17 },
+  packHeader: { fontFamily: GF.bodyHeavy, fontSize: 13, fontWeight: 'normal', color: c.text, marginTop: 14, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldLabel: { fontFamily: GF.bodyBold, fontSize: 12, color: c.textSecondary, fontWeight: 'normal', marginBottom: 6 },
   textInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, borderStyle: 'dashed' as any },
-  uploadBtnText: { fontSize: 13, fontWeight: '700' },
+  uploadBtnText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal' },
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
   dropdownList: { marginTop: 4, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10 },
   dropdownRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
@@ -1077,18 +1078,18 @@ function makeBaseStyles(c: any) {
   accentItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 },
   moveCol: { width: 20, alignItems: 'center', justifyContent: 'center', marginRight: -2 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  accentLabel: { flex: 1, fontSize: 14, color: c.text, fontWeight: '500' },
+  accentLabel: { fontFamily: GF.body, flex: 1, fontSize: 14, color: c.text, fontWeight: 'normal' },
   hexInput: { width: 96, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 8, color: c.text, fontSize: 13, fontWeight: '600', textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
 
   modeTabs: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   modeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
-  modeTabText: { fontSize: 12, fontWeight: '600' },
+  modeTabText: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal' },
 
   inputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
-  inputLabel: { fontSize: 13, color: c.textSecondary, flex: 1 },
+  inputLabel: { fontFamily: GF.body, fontSize: 13, color: c.textSecondary, flex: 1 },
   pctWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pctInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: c.text, fontSize: 18, fontWeight: '700', width: 72, textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-  pctUnit: { fontSize: 16, color: c.textSecondary, fontWeight: '600' },
+  pctUnit: { fontFamily: GF.bodyBold, fontSize: 16, color: c.textSecondary, fontWeight: 'normal' },
 
   gradBar: { height: 40, borderRadius: 10, marginTop: 14, borderWidth: 1, borderColor: c.cardBorder },
   alphaRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
@@ -1097,13 +1098,13 @@ function makeBaseStyles(c: any) {
   fontPreviewBox: { marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
   fontGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   fontBtn: { width: '30%', borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', gap: 4, position: 'relative' },
-  fontSample: { fontSize: 22, fontWeight: '700', color: c.text },
-  fontLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '600', textAlign: 'center' },
+  fontSample: { fontFamily: GF.bodyBold, fontSize: 22, fontWeight: 'normal', color: c.text },
+  fontLabel: { fontFamily: GF.bodyBold, fontSize: 10, color: c.textSecondary, fontWeight: 'normal', textAlign: 'center' },
   fontCheck: { position: 'absolute', top: 5, right: 5, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 12, paddingVertical: 16, marginTop: 8, marginBottom: 16 },
-  saveBtnLabel: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  footnote: { fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 16 },
+  saveBtnLabel: { fontFamily: GF.bodyBold, fontSize: 16, fontWeight: 'normal', color: '#fff' },
+  footnote: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 16 },
   body: { color: c.text, padding: 20 },
 });
 }

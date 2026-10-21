@@ -143,7 +143,7 @@ describe('computeTreeState — règles générales', () => {
   });
 
   it('un crédit sain soldé laisse une cabane terminée, qui est à toi', () => {
-    expect(computeTreeState(person({ credits: [{ id: 'a', kind: 'healthy', remaining: 0, borrowed: 8000 }] })).cabin).toEqual({ progress: 1, count: 1, owned: true });
+    expect(computeTreeState(person({ credits: [{ id: 'a', kind: 'healthy', remaining: 0, borrowed: 8000 }] })).cabin).toEqual({ progress: 1, count: 1, owned: true, stage: 5 });
     // un crédit en cours passe devant : la cabane se construit (pas encore à toi)
     expect(computeTreeState(person({ credits: [{ id: 'a', kind: 'healthy', remaining: 0, borrowed: 8000 }, { id: 'b', kind: 'healthy', remaining: 4000, borrowed: 8000 }] })).cabin?.owned).toBe(false);
   });
