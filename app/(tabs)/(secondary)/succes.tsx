@@ -2,7 +2,7 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
-import { shopArt } from '../../../lib/engagement/shopArt';
+import { successArt } from '../../../lib/engagement/successArt';
 import { SCENE3D_IMG } from '../../../lib/garden/scene3dAssets';
 import NutIcon from '../../../components/gamification/NutIcon';
 import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
@@ -31,22 +31,20 @@ import { buildBadgeMetrics } from '../../../lib/engagement/badgeMetrics';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/engagement/gamification';
 
 /**
- * Icône d'un succès : image téléversée en admin, ou pictogramme Ionicons.
+ * Icône d'un succès : image téléversée en admin, sinon l'image 3D de sa famille (lib/engagement/
+ * successArt) — plus de pictogrammes : tout est dans l'ambiance du Jardin.
  *
  * Une URL cassée (image supprimée du bucket, adresse mal saisie) laissait un carré vide, sans rien
- * pour comprendre de quel trophée il s'agissait. On retombe alors sur le pictogramme par défaut.
+ * pour comprendre de quel trophée il s'agissait. On retombe alors sur l'image 3D.
  */
-function BadgeIcon({ icon, size, tint, imgStyle }: { icon: string; size: number; tint: string; imgStyle: any }) {
+function BadgeIcon({ def, size, imgStyle }: { def: BadgeDef; size: number; imgStyle: any }) {
+  const icon = def.icon;
   const [broken, setBroken] = useState(false);
   useEffect(() => { setBroken(false); }, [icon]);
   if (isImageIcon(icon) && !broken) {
     return <Image source={{ uri: icon }} style={imgStyle} onError={() => setBroken(true)} />;
   }
-  // flamme et trophée : les images 3D du Jardin (comme en boutique), à la taille du pictogramme
-  const art = shopArt(null, icon || 'trophy');
-  if (art) return <Image source={art} style={{ width: size * 1.35, height: size * 1.35 }} resizeMode="contain" />;
-  const name = isImageIcon(icon) || !icon ? 'trophy' : icon;
-  return <Ionicons name={name as any} size={size} color={tint} />;
+  return <Image source={successArt(def)} style={{ width: size * 1.5, height: size * 1.5 }} resizeMode="contain" />;
 }
 
 export default withDeferredMount(SuccesScreen);
@@ -154,7 +152,7 @@ function SuccesScreen() {
         }
       >
         <View style={[styles.badgeIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.5 }]}>
-          <BadgeIcon icon={def.icon} size={26} tint={tint} imgStyle={styles.badgeImg} />
+          <BadgeIcon def={def} size={26} imgStyle={styles.badgeImg} />
           {!unlocked && (
             <View style={styles.lockOverlay}>
               <Ionicons name="lock-closed" size={12} color={COLORS.textSecondary} />
@@ -337,7 +335,7 @@ function SuccesScreen() {
                   bounces={false}
                 >
                   <View style={[styles.modalIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.6 }]}>
-                    <BadgeIcon icon={selected.icon} size={64} tint={tint} imgStyle={styles.modalIconImg} />
+                    <BadgeIcon def={selected} size={64} imgStyle={styles.modalIconImg} />
                     {!unlocked && (
                       <View style={styles.modalLockOverlay}>
                         <Ionicons name="lock-closed" size={18} color={COLORS.textSecondary} />

@@ -373,6 +373,13 @@ M.shop = {};
     const f = path.join(root, `store-assets/play-iap/nuts_${n}.png`);
     if (fs.existsSync(f)) await emit(`iap_nuts_${n}`, await load(f), 160);
   }
+  // succès : une image 3D par famille (souche, cadran solaire, pot, panneau) + l'arrosoir rempli
+  for (const k of ['succ_rings', 'succ_sundial', 'succ_pot', 'succ_sign']) if (OFF[k]) await emit(k, await cut(k), 160);
+  {
+    const empty = await cut('can_empty'), full = await cut('can_full');
+    const can = clone(empty); over(can, await resize(full, empty.w), 0, empty.h - Math.round(full.h * empty.w / full.w));
+    await emit('succ_can', can, 160);
+  }
   const tr = await cut('trophy');
   M.shop.trophy = await emit('shop_trophy', tr, 160);
   const fl = await cut('flame');

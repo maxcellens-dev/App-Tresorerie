@@ -1,7 +1,17 @@
 import GardenItemIcon, { isGardenIcon } from '../../../components/gamification/GardenItemIcon';
 import { shopArt } from '../../../lib/engagement/shopArt';
+import { applyTry, previewKind } from '../../../lib/engagement/shopPreview';
+import { pepinLayers } from '../../../lib/garden/scene3dLayout';
+import { SCENE3D_IMG } from '../../../lib/garden/scene3dAssets';
+import GardenScene from '../../../components/garden/GardenScene';
+import GardenSheet from '../../../components/garden/GardenSheet';
+import { HERO } from '../../../components/marketing/GardenLandingPage';
+import { useGardenCosmetics } from '../../../hooks/garden/useGardenCosmetics';
+import { useGardenModel } from '../../../hooks/garden/useGardenModel';
 /**
- * Boutique — dépense les relyks gagnés (couleurs, cosmétiques, titres, thèmes, bons hors-app).
+ * Boutique — dépense les noisettes gagnées. En haut le cadeau du jour, puis la VITRINE (ton jardin,
+ * où l'on essaie un article avant de l'acheter), puis un RAYON par famille qui défile sur le côté.
+ * Les recharges s'ouvrent depuis le solde.
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
 import NutIcon from '../../../components/gamification/NutIcon';
@@ -68,13 +78,16 @@ function BoutiqueScreen() {
   const submit = useSubmitLock();
   const { focus } = useLocalSearchParams<{ focus?: string }>();
   const [tab, setTab] = useState<ShopTab>('app');
-  // focus=gems (depuis « mes Relyks ») → pré-sélectionne « Recharger en relyks ».
-  const [catFilter, setCatFilter] = useState<ShopCategory | 'all'>(focus === 'gems' ? 'gems' : 'all');
+  /* Les recharges ne sont plus un rayon : elles s'ouvrent depuis le solde (feuille). focus=gems
+     (lien « Recharger » des Succès) l'ouvre directement. */
+  const [gemsOpen, setGemsOpen] = useState(focus === 'gems');
   const [confirmItem, setConfirmItem] = useState<{ key: string; label: string; price: number } | null>(null);
-  // « Recharger en relyks » est le dernier filtre (tout à droite) : quand on l'active (clic sur les
-  // relyks depuis la boutique ou la page Succès), on défile la barre de filtres jusqu'au bout pour
-  // le rendre visible.
-  const filterScrollRef = useRef<ScrollView>(null);
+  /* ESSAYER AVANT D'ACHETER : l'article du Jardin touché s'affiche sur la scène, par-dessus ce qui
+     est déjà équipé (lib/engagement/shopPreview). Ton vrai arbre quand il est prêt, sinon l'arbre
+     d'exemple de la vitrine. */
+  const [tryKey, setTryKey] = useState<string | null>(null);
+  const gardenLook = useGardenCosmetics();
+  const garden = useGardenModel();
 
   const gems = state?.gems ?? 0;
   const discountPct = config?.premium_discount_pct ?? 0;
@@ -121,15 +134,22 @@ function BoutiqueScreen() {
   const shopByCategory = SHOP_CATEGORY_ORDER
     .map((cat) => ({ cat, items: sellableShop.filter((s) => (s.category ?? 'apparence') === cat) }))
     .filter((g) => g.items.length > 0);
-  const visibleGroups = catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter);
-
-  // Défile la barre de filtres jusqu'à « Recharger en relyks » (dernier, tout à droite) dès qu'il
-  // est sélectionné et que la liste est rendue (dépend de la longueur, donc rejoue après le chargement).
-  useEffect(() => {
-    if (catFilter !== 'gems' || activeTab !== 'app' || shopByCategory.length <= 1) return;
-    const t = setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 250);
-    return () => clearTimeout(t);
-  }, [catFilter, activeTab, shopByCategory.length]);
+  /* RAYONS : une ligne qui défile sur le côté par rayon, au lieu d'une longue liste filtrée. Les
+     petits rayons du profil (apparence, cadres, titres) sont réunis ; le cadeau du jour et les
+     recharges ont leur propre place (en tête / depuis le solde). */
+  const SHELVES: { key: string; title: string; cats: ShopCategory[] }[] = [
+    { key: 'jardin', title: SHOP_CATEGORY_LABELS.jardin, cats: ['jardin'] },
+    { key: 'garde_robe', title: SHOP_CATEGORY_LABELS.garde_robe, cats: ['garde_robe'] },
+    { key: 'saisons', title: SHOP_CATEGORY_LABELS.saisons, cats: ['saisons'] },
+    { key: 'profil', title: 'Ton profil', cats: ['apparence', 'cosmetiques', 'titres'] },
+    { key: 'premium', title: SHOP_CATEGORY_LABELS.premium, cats: ['premium'] },
+  ];
+  const shelves = SHELVES
+    .map((s) => ({ ...s, items: sellableShop.filter((i) => s.cats.includes((i.category ?? 'apparence') as ShopCategory)) }))
+    .filter((s) => s.items.length > 0);
+  const dailyItem = sellableShop.find((s) => s.type === 'daily_gems');
+  const gemsItems = sellableShop.filter((s) => s.category === 'gems');
+  const tried = tryKey ? sellableShop.find((s) => s.key === tryKey) : undefined;
 
   /* Le message d'issue s'efface tout seul. Il restait affiché indéfiniment : on lisait encore
      « Impossible : relyks insuffisants » plusieurs achats plus tard, sans savoir à quoi il se
@@ -198,6 +218,28 @@ function BoutiqueScreen() {
       setBusyKey(null);
       submit.release();
     }
+  };
+
+  /** Image d'un article : le vrai objet 3D du Jardin (décor), Pépin qui porte le vêtement, l'arbre
+   *  dans sa saison ; sinon l'image 3D de la boutique (flammes, trophée, noisettes) ou l'icône. */
+  const itemArt = (item: ShopItem, size: number) => {
+    const def = COSMETIC_DEFS[item.key], kind = previewKind(item.key);
+    if (kind === 'decor') return <Image source={(SCENE3D_IMG as any)[`decor_${def.value}`]} style={{ width: size, height: size }} resizeMode="contain" />;
+    if (kind === 'season') return <Image source={(SCENE3D_IMG as any)[`tree_adult_${def.value}`]} style={{ width: size, height: size }} resizeMode="contain" />;
+    if (kind === 'outfit') {
+      const layers = pepinLayers('happy', applyTry({}, item.key).outfit);
+      return (
+        <View style={{ width: size, height: size }}>
+          {layers.map((l) => <Image key={l} source={SCENE3D_IMG[l]} style={{ position: 'absolute', width: size, height: size }} resizeMode="contain" />)}
+        </View>
+      );
+    }
+    const art = shopArt(item.key, item.icon);
+    if (art) return <Image source={art} style={{ width: size, height: size, borderRadius: 10 }} resizeMode="contain" />;
+    if (isGardenIcon(item.icon)) return <GardenItemIcon icon={item.icon!} size={size * 0.7} />;
+    if (isImageIcon(item.icon)) return <Image source={{ uri: item.icon! }} style={{ width: size * 0.7, height: size * 0.7, borderRadius: 8 }} />;
+    const tint = COSMETIC_DEFS[item.key] && /^#[0-9A-Fa-f]{6}$/.test(COSMETIC_DEFS[item.key].value) ? COSMETIC_DEFS[item.key].value : COLORS.blue;
+    return <Ionicons name={(item.icon || 'pricetag') as any} size={size * 0.45} color={tint} />;
   };
 
   // Bouton d'achat selon le type d'article (cadeau du jour / pack gemmes / achat en gemmes).
@@ -296,7 +338,7 @@ function BoutiqueScreen() {
             {/* Toucher son solde → accès direct à « Recharger en relyks ». */}
             <TouchableOpacity
               style={styles.gemPill}
-              onPress={() => { setTab('app'); setCatFilter('gems'); }}
+              onPress={() => setGemsOpen(true)}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Recharger en noisettes"
@@ -373,117 +415,79 @@ function BoutiqueScreen() {
                 )
               )}
 
-              {/* Filtres par catégorie — navigation compacte (évite une page à rallonge).
-                  « Premium » est placé en 3ᵉ raccourci (après « Tout »), uniquement ici. */}
-              {shopByCategory.length > 1 && (
-                <ScrollView ref={filterScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
-                  {(() => {
-                    /* Ordre voulu : Tout · Premium · Relyks · le reste.
-                       « Gratuit » n'a pas de pastille : c'est déjà la première section de la page,
-                       un raccourci vers ce qu'on a sous les yeux n'apporte rien. */
-                    const present = (c: ShopCategory) => shopByCategory.some((g) => g.cat === c);
-                    const head: ShopCategory[] = (['premium', 'gems'] as ShopCategory[]).filter(present);
-                    const rest = shopByCategory
-                      .map((g) => g.cat)
-                      .filter((c) => c !== 'gratuit' && !head.includes(c));
-                    return [
-                      { cat: 'all' as const, label: 'Tout', icon: 'apps-outline' },
-                      ...[...head, ...rest].map((c) => ({
-                        cat: c,
-                        // « Recharger en relyks » est le titre de SECTION ; sur une pastille, il déborde.
-                        label: c === 'premium' ? 'Premium' : c === 'gems' ? 'Noisettes' : SHOP_CATEGORY_LABELS[c as ShopCategory],
-                        icon: SHOP_CATEGORY_ICONS[c as ShopCategory],
-                      })),
-                    ];
-                  })().map((f) => {
-                    const active = catFilter === f.cat;
-                    return (
-                      <TouchableOpacity key={f.cat} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setCatFilter(f.cat as any)} activeOpacity={0.85}>
-                        {f.cat === 'gems' ? <NutIcon size={14} mono={active ? COLORS.emerald : COLORS.textSecondary} /> : <Ionicons name={f.icon as any} size={13} color={active ? COLORS.emerald : COLORS.textSecondary} />}
-                        <Text style={[styles.filterChipText, active && { color: COLORS.emerald }]} numberOfLines={1}>{f.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              )}
-
-              {visibleGroups.map(({ cat, items }) => {
-                const compact = cat === 'gems';
-                return (
-                  <View key={cat}>
-                    <View style={styles.catHeaderRow}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={styles.catHeader}>{SHOP_CATEGORY_LABELS[cat as ShopCategory]}</Text>
-                        {/* Badge « Premium » au niveau de la section (le mot entier ici, juste l'étoile sur les produits) */}
-                        {cat === 'premium' && (
-                          <View style={[styles.premiumPill, { marginBottom: 8, marginTop: 6 }]}>
-                            <Ionicons name="star" size={10} color={COLORS.yellow} />
-                            <Text style={styles.premiumPillText}>Premium</Text>
-                          </View>
-                        )}
-                      </View>
-                      {/* Lien « Consulter mes achats » → Apparence, où tout ce qui s'achète s'équipe (couleurs,
-                          cadres, décor du jardin, garde-robe de Pépin, saisons). Sur TOUS les rayons sauf la
-                          recharge de noisettes (rien à équiper) : la liste blanche d'avant oubliait chaque
-                          nouveau rayon du Jardin. */}
-                      {cat !== 'gems' && (
-                        <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence?origin=/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.7}>
-                          <Ionicons name="color-palette-outline" size={13} color={COLORS.emerald} />
-                          <Text style={styles.apparenceLinkText}>Consulter mes achats</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    {compact ? (
-                      <View style={styles.compactGrid}>
-                        {items.map((item) => {
-                          const accentColor = item.type === 'gems_iap' ? COLORS.yellow : COLORS.blue;
-                          return (
-                            <View key={item.key} style={[styles.compactCard, cat === 'gems' ? styles.compactThird : styles.compactHalf]}>
-                              <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
-                                {shopArt(item.key, item.icon) ? <Image source={shopArt(item.key, item.icon)!} style={styles.itemArt} resizeMode="contain" /> : isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={34} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={20} color={accentColor} />}
-                              </View>
-                              <Text style={styles.compactLabel} numberOfLines={2}>{itemLabel(item)}</Text>
-                              {renderBuyButton(item)}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    ) : (
-                      items.map((item) => {
-                        const frozen = !!item.premiumOnly && !isPremium; // exclusif Premium, non débloqué
-                        // Cosmétiques (cadres/flammes) : teinte = leur vraie couleur → style cohérent (ex. flamme bleue ≈ flamme dorée).
-                        const cosmeticColor = COSMETIC_DEFS[item.key] && /^#[0-9A-Fa-f]{6}$/.test(COSMETIC_DEFS[item.key].value) ? COSMETIC_DEFS[item.key].value : null;
-                        const accentColor = cosmeticColor ?? (item.premiumOnly ? COLORS.yellow : COLORS.blue);
-                        return (
-                          <View key={item.key} style={[styles.card, frozen && styles.cardFrozen]}>
-                            <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
-                              {shopArt(item.key, item.icon) ? <Image source={shopArt(item.key, item.icon)!} style={styles.itemArt} resizeMode="contain" /> : isGardenIcon(item.icon) ? <GardenItemIcon icon={item.icon!} size={38} /> : isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
-                              {frozen && <View style={styles.frozenLock}><Ionicons name="lock-closed" size={11} color="#fff" /></View>}
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <Text style={styles.itemLabel}>
-                                  {itemLabel(item)}
-                                </Text>
-                                {item.premiumOnly && (
-                                  <View style={styles.premiumDot}>
-                                    <Ionicons name="star" size={10} color={COLORS.yellow} />
-                                  </View>
-                                )}
-                              </View>
-                              {!!itemDesc(item) && <Text style={styles.itemDesc}>{itemDesc(item)}</Text>}
-                            </View>
-                            {renderBuyButton(item)}
-                          </View>
-                        );
-                      })
-                    )}
-                    {cat === 'gems' && !PURCHASES_SUPPORTED && (
-                      <Text style={styles.gemsNote}>Les achats de noisettes se font depuis l'application mobile Relyka.</Text>
-                    )}
+              {/* Le cadeau du jour : en tête, seulement s'il existe (on le voit sans chercher). */}
+              {dailyItem ? (
+                <View style={styles.dailyCard}>
+                  <NutIcon size={34} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemLabel}>{dailyItem.label}</Text>
+                    <Text style={styles.itemDesc}>{itemDesc(dailyItem)}</Text>
                   </View>
-                );
-              })}
+                  {renderBuyButton(dailyItem)}
+                </View>
+              ) : null}
+
+              {/* VITRINE : ton jardin, avec l'article essayé. Toucher un article du Jardin l'y pose. */}
+              <View style={styles.showcase}>
+                <GardenScene
+                  state={garden.core.ready ? garden.tree : HERO}
+                  options={{ ...applyTry(gardenLook, tryKey), mood: tried ? 'joy' : undefined, marks: false, label: tried ? `Essai : ${tried.label}` : 'Ton jardin' }}
+                />
+                <View style={styles.showcaseBar}>
+                  <Text style={styles.showcaseText} numberOfLines={2}>
+                    {tried ? `Essai : ${itemLabel(tried)}` : 'Touche un décor, un vêtement de Pépin ou une saison pour l’essayer ici.'}
+                  </Text>
+                  {tried ? (
+                    <>
+                      {renderBuyButton(tried)}
+                      <TouchableOpacity onPress={() => setTryKey(null)} hitSlop={8} accessibilityLabel="Retirer l'essai">
+                        <Ionicons name="close-circle" size={22} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence?origin=/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.7}>
+                      <Ionicons name="color-palette-outline" size={13} color={COLORS.emerald} />
+                      <Text style={styles.apparenceLinkText}>Mes achats</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* RAYONS : une ligne qui défile sur le côté par rayon. */}
+              {shelves.map((shelf) => (
+                <View key={shelf.key} style={{ marginBottom: 14 }}>
+                  <View style={[styles.catHeaderRow, { marginBottom: 6 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={styles.catHeader}>{shelf.title}</Text>
+                      {shelf.key === 'premium' ? (
+                        <View style={[styles.premiumPill, { marginBottom: 8, marginTop: 6 }]}>
+                          <Ionicons name="star" size={10} color={COLORS.yellow} />
+                          <Text style={styles.premiumPillText}>Premium</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
+                    {shelf.items.map((item) => {
+                      const tryable = !!previewKind(item.key);
+                      const isTried = tryKey === item.key;
+                      const frozen = !!item.premiumOnly && !isPremium;
+                      return (
+                        <TouchableOpacity key={item.key}
+                          style={[styles.tile, isTried && styles.tileActive, frozen && styles.cardFrozen]}
+                          onPress={() => (tryable ? setTryKey(isTried ? null : item.key) : undefined)}
+                          activeOpacity={tryable ? 0.85 : 1}
+                          accessibilityRole={tryable ? 'button' : undefined}
+                          accessibilityLabel={tryable ? `${itemLabel(item)} : l'essayer dans ton jardin` : itemLabel(item)}>
+                          <View style={styles.tileArt}>{itemArt(item, 70)}</View>
+                          <Text style={styles.tileLabel} numberOfLines={2}>{itemLabel(item)}</Text>
+                          {renderBuyButton(item)}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ))}
               {/* « Vide » ne se dit QUE lorsqu'on sait qu'elle l'est. Sans config chargée, la page
                   annonçait « La boutique est vide pour le moment » pendant tout le chargement — et
                   aussi quand la lecture échouait, ce qui est un mensonge doublé d'une impasse. */}
@@ -500,17 +504,6 @@ function BoutiqueScreen() {
                 )
               ) : shopByCategory.length === 0 ? (
                 <Text style={styles.empty}>La boutique est vide pour le moment.</Text>
-              ) : visibleGroups.length === 0 ? (
-                /* Filtre qui ne correspond à rien — on y arrive sans le vouloir : la page peut
-                   s'ouvrir directement sur « Recharger en relyks » (lien depuis les Succès) alors
-                   que l'administration a retiré cette catégorie. Sans issue, c'était une page
-                   blanche : la barre de filtres, elle, ne s'affiche qu'à partir de deux catégories. */
-                <View style={{ alignItems: 'center', marginTop: 30, gap: 10 }}>
-                  <Text style={styles.empty}>Aucun article dans cette catégorie.</Text>
-                  <TouchableOpacity onPress={() => setCatFilter('all')} activeOpacity={0.8}>
-                    <Text style={[styles.apparenceLinkText, { fontSize: 13 }]}>Voir toute la boutique</Text>
-                  </TouchableOpacity>
-                </View>
               ) : null}
             </>
             )
@@ -537,6 +530,21 @@ function BoutiqueScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Recharger en noisettes : ouvert depuis le solde (les packs ne sont plus un rayon). */}
+      <GardenSheet visible={gemsOpen && !gamificationOff} onClose={() => setGemsOpen(false)} title={SHOP_CATEGORY_LABELS.gems} subtitle={`ton solde : ${isReady ? formatCurrency(gems, currencyName) : '…'}`}>
+        {msg ? <Text style={[styles.msg, { color: msg.tone === 'ok' ? COLORS.emerald : COLORS.danger }]}>{msg.text}</Text> : null}
+        <View style={styles.compactGrid}>
+          {gemsItems.map((item) => (
+            <View key={item.key} style={[styles.compactCard, styles.compactThird]}>
+              <View style={styles.tileArt}>{itemArt(item, 64)}</View>
+              <Text style={styles.compactLabel} numberOfLines={2}>{itemLabel(item)}</Text>
+              {renderBuyButton(item)}
+            </View>
+          ))}
+        </View>
+        {!PURCHASES_SUPPORTED ? <Text style={styles.gemsNote}>Les achats de noisettes se font depuis l'application mobile Relyka.</Text> : null}
+      </GardenSheet>
 
       {/* Confirmation d'achat (évite les dépenses accidentelles en un clic) */}
       {/* `statusBarTranslucent` : sans lui, le voile s'arrête sous la barre de statut sur Android —
@@ -599,6 +607,12 @@ function makeStyles(c: any) {
     filterChipActive: { ...base.filterChipActive, backgroundColor: GL.branchesBg, borderColor: GL.primary },
     filterChipText: { ...base.filterChipText, ...gFont('bodyBold') },
     compactCard: { ...base.compactCard, ...gCard, borderRadius: 20 },
+    tile: { ...base.tile, ...gCard, borderRadius: 20 },
+    tileActive: { ...base.tileActive, borderColor: GL.primary },
+    tileLabel: { ...base.tileLabel, ...gFont('bodyBold'), color: GL.ink },
+    showcase: { ...base.showcase, ...gCard, borderRadius: 22 },
+    showcaseText: { ...base.showcaseText, ...gFont('body'), color: GL.inkSoft },
+    dailyCard: { ...base.dailyCard, ...gCard, borderRadius: 20, backgroundColor: GL.pico },
     compactLabel: { ...base.compactLabel, ...gFont('bodyBold'), color: GL.ink },
     ownedText: { ...base.ownedText, ...gFont('bodyHeavy') },
     itemLabel: { ...base.itemLabel, ...gFont('bodyBold'), color: GL.ink },
@@ -650,6 +664,16 @@ function makeBaseStyles(c: any) {
     premiumText: { flex: 1, fontSize: 12.5, color: c.text, fontWeight: '600' },
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     cardFrozen: { opacity: 0.6, borderStyle: 'dashed', borderColor: c.yellow + '55' },
+    // rayons : vignettes qui défilent sur le côté
+    tile: { width: 132, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 10, alignItems: 'center', gap: 6 },
+    tileActive: { borderColor: c.emerald, borderWidth: 2 },
+    tileArt: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' },
+    tileLabel: { fontSize: 13, fontWeight: '700', color: c.text, textAlign: 'center', minHeight: 34 },
+    // vitrine : la scène du jardin + la barre d'essai
+    showcase: { borderRadius: 20, overflow: 'hidden', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
+    showcaseBar: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+    showcaseText: { flex: 1, fontSize: 13, color: c.textSecondary },
+    dailyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 12, marginBottom: 12 },
     frozenLock: { position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.textSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
     premiumPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
     premiumPillText: { fontSize: 10.5, fontWeight: '800', color: c.yellow },

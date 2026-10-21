@@ -238,7 +238,7 @@ export default function AdminGamification() {
                 ))}
               </View>
               {/* Icône */}
-              <Text style={styles.fieldLabel}>Icône (Ionicons ou image — « trophy », « flame », « ribbon » affichent les images 3D)</Text>
+              <Text style={styles.fieldLabel}>Icône : image téléversée (sinon, l'image 3D de la famille du succès — souche, flamme, arrosoir…)</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput style={[styles.input, { flex: 1 }]} value={b.icon} onChangeText={(v) => updateBadge(i, { icon: v })} placeholder="trophy, flame, ribbon… ou URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'icône du succès" style={styles.uploadBtn} onPress={() => uploadIcon(i)} disabled={uploadingKey === b.key}>
