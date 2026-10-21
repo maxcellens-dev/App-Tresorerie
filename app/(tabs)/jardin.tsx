@@ -33,14 +33,14 @@ import AdSlot from '../../components/marketing/AdSlot';
 import { useGardenCosmetics } from '../../hooks/garden/useGardenCosmetics';
 import { useMonthlyClosure } from '../../hooks/pilotage/useMonthlyClosure';
 import { signalAppReady } from '../../lib/platform/splashGate';
-import { relykaTone } from '../../lib/finance/pilotageView';
+import { gardenRelykaZero } from '../../lib/garden/relykaWords';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { formatEuros } from '../../lib/garden/picoChoices';
 import type { HotspotPart } from '../../lib/garden/sceneSvg';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
 import { pointer } from '../../lib/ui/webLayout';
-import { RELYKA_ZERO, WORDS } from '../../lib/garden/lexicon';
+import { WORDS } from '../../lib/garden/lexicon';
 import { computeNextStep } from '../../lib/garden/nextStep';
 import { GARDEN_ICONS } from '../../lib/garden/icons';
 
@@ -108,8 +108,9 @@ export default function JardinScreen() {
   }
 
   /* ── Ton Relyka : un chiffre, ou un mot quand il est à zéro (règle « un mot, pas un chiffre ») ── */
-  const tone = relykaTone(vm);
-  const zeroWord = tone === 'allocated' ? RELYKA_ZERO.allPlaced : tone === 'negative' ? RELYKA_ZERO.overBudget : tone === 'empty' ? RELYKA_ZERO.allCommitted : null;
+  // dans le langage de l'arrosoir (lib/garden/relykaWords) ; même règle de tons que le moteur
+  const zero = gardenRelykaZero(vm);
+  const zeroWord = zero?.word ?? null;
   const range = vm.relConf?.relykaRange;
   const totalChoices = choices.reduce((s, c) => s + c.amount, 0);
 
@@ -158,7 +159,7 @@ export default function JardinScreen() {
           {zeroWord ? (
             <>
               <GardenText variant="title">{zeroWord}</GardenText>
-              <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{vm.relykaZero?.sub}</GardenText>
+              <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{zero?.sub}</GardenText>
             </>
           ) : (
             <>

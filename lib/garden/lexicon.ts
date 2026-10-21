@@ -96,10 +96,5 @@ export function rootsGoal(months: number): string {
   return `Renforce tes racines : atteins ${months} mois d'épargne disponible`;
 }
 
-/** Les mots des états spéciaux du Relyka (règle « un mot, pas un chiffre »). */
-export const RELYKA_ZERO = {
-  /* Des phrases qu'on dirait à voix haute, sans jargon ni drame. */
-  allPlaced: 'Tout est déjà réparti',
-  allCommitted: 'Tout est déjà prévu ce mois-ci',
-  overBudget: 'Le mois est un peu serré',
-} as const;
+/* Les mots des états spéciaux du Relyka (règle « un mot, pas un chiffre ») : lib/garden/relykaWords,
+   dans le langage de l'arrosoir. */
