@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import { View, Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
+import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 interface Props {
   text: string;
@@ -100,16 +101,18 @@ export default function AiRichText({ text, style }: Props) {
   return <View>{out}</View>;
 }
 
+/* Polices du Jardin : une famille par graisse, `fontWeight` à 'normal' (sinon Android retombe sur
+   la police système). */
 const st = StyleSheet.create({
   blank: { height: 8 },
   hr: { height: 1, backgroundColor: 'rgba(128,128,128,0.25)', marginVertical: 10, borderRadius: 1 },
-  title: { fontWeight: '800', marginTop: 4, marginBottom: 2 },
-  bold: { fontWeight: '800' },
+  title: { fontFamily: GF.bodyHeavy, fontWeight: 'normal', marginTop: 4, marginBottom: 2 },
+  bold: { fontFamily: GF.bodyHeavy, fontWeight: 'normal' },
   italic: { fontStyle: 'italic' },
-  code: { fontWeight: '700' }, // backticks = mise en avant (souvent un montant), sans look « code »
+  code: { fontFamily: GF.bodyBold, fontWeight: 'normal' }, // backticks = mise en avant (souvent un montant), sans look « code »
   bulletRow: { flexDirection: 'row', gap: 7, paddingLeft: 2, marginVertical: 2 },
   bulletDot: { lineHeight: 20, opacity: 0.7 },
-  numDot: { lineHeight: 20, fontWeight: '700', minWidth: 18 },
+  numDot: { lineHeight: 20, fontFamily: GF.bodyBold, fontWeight: 'normal', minWidth: 18 },
   quoteRow: { flexDirection: 'row', gap: 9, marginVertical: 3, paddingLeft: 2 },
   quoteBar: { width: 3, borderRadius: 2, backgroundColor: 'rgba(128,128,128,0.35)' },
   quoteTxt: { opacity: 0.85 },

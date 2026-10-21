@@ -55,7 +55,8 @@ export function useWriteGuard() {
 
 /* ── Réserve minimum ──────────────────────────────────────────────────────────────────────────── */
 
-export function MarginSheet({ visible, onClose, userId }: { visible: boolean; onClose: () => void; userId: string | undefined }) {
+/** `onSaved` : appelé après un VRAI enregistrement (pas à la fermeture) — le guide de démarrage s'en sert. */
+export function MarginSheet({ visible, onClose, userId, onSaved }: { visible: boolean; onClose: () => void; userId: string | undefined; onSaved?: () => void }) {
   const { data: profile } = useProfile(userId);
   const update = useUpdateProfile(userId);
   const blocked = useWriteGuard();
@@ -68,6 +69,7 @@ export function MarginSheet({ visible, onClose, userId }: { visible: boolean; on
     /* Fermeture immédiate : la mise à jour est optimiste (le cache change avant le réseau), et un
        échec est signalé par le filet global des écritures. */
     update.mutate({ safety_margin_amount: Math.round(parse(draft)) }, {
+      onSuccess: () => onSaved?.(),
       onError: (e: any) => Alert.alert('Un souci', e?.message ?? 'Ta marge de sécurité n’a pas pu être enregistrée.'),
     });
     onClose();
@@ -86,7 +88,7 @@ export function MarginSheet({ visible, onClose, userId }: { visible: boolean; on
 
 /* ── Estimation des dépenses du quotidien ─────────────────────────────────────────────────────── */
 
-export function EstimateSheet({ visible, onClose, userId }: { visible: boolean; onClose: () => void; userId: string | undefined }) {
+export function EstimateSheet({ visible, onClose, userId, onSaved }: { visible: boolean; onClose: () => void; userId: string | undefined; onSaved?: () => void }) {
   const { data: profile } = useProfile(userId);
   const update = useUpdateProfile(userId);
   const blocked = useWriteGuard();
@@ -103,6 +105,7 @@ export function EstimateSheet({ visible, onClose, userId }: { visible: boolean; 
     try {
       const weekly = parse(draft);
       await update.mutateAsync({ weekly_variable_budget: weekly > 0 ? weekly : null });
+      if (weekly > 0) onSaved?.();
       onClose();
     } catch (e: any) {
       Alert.alert('Un souci', e?.message ?? 'Ton estimation n’a pas pu être enregistrée.');

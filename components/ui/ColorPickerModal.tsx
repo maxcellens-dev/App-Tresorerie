@@ -3,7 +3,6 @@
  * affiché au centre de l'écran. Natif + web. Saisie hex synchronisée.
  * Utilisé par le Style Editor : clic sur une pastille → ouvre ce sélecteur.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Platform, PanResponder, useWindowDimensions } from 'react-native';
@@ -206,8 +205,7 @@ export default function ColorPickerModal({
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

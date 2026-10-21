@@ -11,7 +11,7 @@ import GardenSideNav from '../../components/garden/GardenSideNav';
 
 const GARDEN_ROUTES = new Set<string>(GARDEN_TAB_ROUTES);
 /** Titres des onglets du Jardin, affichés dans la barre du haut (plus de grand titre dans la page). */
-const GARDEN_TAB_TITLES: Record<string, string> = { jardin: 'Mon jardin', argent: 'Mon argent', projets: 'Projets', pico: 'Pépin' };
+const GARDEN_TAB_TITLES: Record<string, string> = { jardin: 'Mon jardin', argent: 'Mon argent', projets: 'Projets', pepin: 'Pépin' };
 /** Titres des autres écrans (ceux qui n'en déclarent pas via ScreenHeader), dans les mots du Jardin. */
 const GARDEN_TITLES: Record<string, string> = {
   comptes: 'Mes comptes', transactions: 'Opérations', projects: 'Budgets', projection: 'Dans 5 ans',
@@ -78,7 +78,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="jardin" options={{ title: 'Jardin' }} />
           <Tabs.Screen name="argent" options={{ title: 'Mon argent' }} />
           <Tabs.Screen name="projets" options={{ title: 'Projets' }} />
-          <Tabs.Screen name="pico" options={{ title: 'Pépin' }} />
+          <Tabs.Screen name="pepin" options={{ title: 'Pépin' }} />
           {/* Écrans de détail, atteints depuis le Jardin */}
           <Tabs.Screen name="comptes" options={{ href: null, title: 'Comptes' }} />
           <Tabs.Screen name="transactions" options={{ href: null, title: 'Opérations' }} />

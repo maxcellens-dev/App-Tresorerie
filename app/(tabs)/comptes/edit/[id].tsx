@@ -4,7 +4,6 @@
  * compte sans changer d'écran. Cette route reste le chemin emprunté juste après la CRÉATION d'un
  * compte (`/comptes/add` y enchaîne pour proposer le partage).
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import { useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
@@ -74,8 +73,7 @@ export default function EditAccountScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

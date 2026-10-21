@@ -10,7 +10,6 @@
  * GARDE-FOUS : jamais avant la fin du splash, pendant le guide, en consultation admin,
  * ni tant qu'aucun signal n'est calculé.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -429,8 +428,7 @@ function MonthlyRing({ stats, COLORS }: { stats: PulseData['monthlyStats']; COLO
 
 function makeStyles(c: AppColors) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: AppColors) {

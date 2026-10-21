@@ -2,7 +2,6 @@
  * Admin — Publicités (bannières maison). Gère les bannières affichées dans les zones de pub
  * (activées via le flag « Publicités »). Texte ou image (téléversée), lien optionnel.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Image, Platform } from 'react-native';
@@ -611,8 +610,7 @@ export default function AdminAds() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

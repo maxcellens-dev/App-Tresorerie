@@ -1,6 +1,5 @@
-import { parseAiReport, signalMeta, scoreColor } from '../lib/ai/aiReport';
+import { parseAiReport } from '../lib/ai/aiReport';
 
-const C = { success: '#0f0', warning: '#fa0', danger: '#f00' };
 
 describe('aiReport — parsing des réponses Conseils IA en rapport structuré', () => {
   it('extrait le bloc de synthèse ##RELYKA (verdict, score, tag, signaux, actions)', () => {
@@ -145,13 +144,5 @@ describe('aiReport — parsing des réponses Conseils IA en rapport structuré',
     const r = parseAiReport(txt);
     expect(r.sections).toHaveLength(0);
     expect(r.structured).toBe(false);
-  });
-
-  it('helpers de couleur/statut', () => {
-    expect(signalMeta('good', C)).toEqual({ color: '#0f0', label: 'OK' });
-    expect(signalMeta('over', C)).toEqual({ color: '#f00', label: 'Dépassé' });
-    expect(scoreColor(80, C)).toBe('#0f0');
-    expect(scoreColor(50, C)).toBe('#fa0');
-    expect(scoreColor(20, C)).toBe('#f00');
   });
 });

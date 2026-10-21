@@ -9,7 +9,6 @@
  * Il ne fait qu'ANNONCER : il ne navigue pas. Revenir en arrière se fait par le bouton « Étape
  * précédente » du formulaire, qui seul sait ce qu'il faut remettre à zéro en chemin.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
@@ -44,8 +43,7 @@ export default function StepRail({ current, total, style }: Props) {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

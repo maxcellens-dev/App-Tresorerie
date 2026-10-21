@@ -1,25 +1,12 @@
 /**
- * useUiPrefs — préférences d'interface + masquages de recommandations, stockés CÔTÉ COMPTE
- * (profiles.ui_prefs) plutôt qu'en local par appareil. Ainsi ces réglages suivent l'utilisateur
- * partout et ne divergent pas d'un écran/appareil à l'autre.
+ * useUiPrefs — préférences d'interface stockées CÔTÉ COMPTE (profiles.ui_prefs) plutôt qu'en local
+ * par appareil : ces réglages suivent l'utilisateur partout et ne divergent pas d'un appareil à
+ * l'autre.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import { useProfile } from '../data/useProfile';
-import type { Profile, UiPrefs, RecoDismissals } from '../../types/database';
-import type { RecoType } from '../../lib/finance/recommendationEngine';
-
-function monthKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/** Masquages du mois courant (réinitialise automatiquement quand le mois change). */
-function freshDismissals(prefs: UiPrefs): RecoDismissals {
-  const m = monthKey();
-  const stored = prefs.reco_dismissals;
-  return stored && stored.month === m ? stored : { month: m, ignored: {}, completed: [] };
-}
+import type { Profile, UiPrefs } from '../../types/database';
 
 export function useUiPrefs(userId: string | undefined) {
   const qc = useQueryClient();
@@ -72,14 +59,14 @@ export function useCalculatorEnabledPref(userId: string | undefined) {
 }
 
 /** Pages pouvant afficher le bouton calculatrice (id stable + libellé pour les Paramètres). */
+/* Les pages qui portent le bouton (CalculatorButton). Les identifiants restent ceux enregistrés
+   chez les utilisateurs ; seuls les libellés suivent les mots du Jardin. */
 export const CALCULATOR_PAGES = [
-  { id: 'comptes', label: 'Comptes' },
-  { id: 'transactions', label: 'Transactions' },
-  { id: 'pilotage', label: 'Pilotage' },
-  { id: 'projets', label: 'Projets' },
-  { id: 'projection', label: 'Projection' },
-  { id: 'reporting', label: 'Reporting' },
-  { id: 'conseils-ia', label: 'Conseils IA' },
+  { id: 'transactions', label: 'Saisie' },
+  { id: 'projets', label: 'Projets et budgets' },
+  { id: 'projection', label: 'Dans 5 ans' },
+  { id: 'reporting', label: 'Bilan' },
+  { id: 'conseils-ia', label: 'Questions à Pépin' },
 ] as const;
 export type CalculatorPageId = (typeof CALCULATOR_PAGES)[number]['id'];
 
@@ -106,48 +93,4 @@ export function useProjectionHorizon(userId: string | undefined) {
     horizon: (prefs.projection_horizon === 12 ? 12 : 6) as 6 | 12,
     setHorizon: (v: 6 | 12): void => { void patch({ projection_horizon: v }); },
   };
-}
-
-/** Période de la page Reporting : 3, 6 (défaut) ou 12 mois, persistée par compte. */
-export function useReportingPeriod(userId: string | undefined) {
-  const { prefs, patch } = useUiPrefs(userId);
-  const p = prefs.reporting_period;
-  return {
-    period: (p === 3 || p === 12 ? p : 6) as 3 | 6 | 12,
-    setPeriod: (v: 3 | 6 | 12): void => { void patch({ reporting_period: v }); },
-  };
-}
-
-/** #2 — Filtre persistant des TOTAUX de la page Comptes : tout / comptes perso / comptes partagés. */
-export function useAccountsTotalsFilter(userId: string | undefined) {
-  const { prefs, patch } = useUiPrefs(userId);
-  return {
-    filter: (prefs.accounts_totals_filter ?? 'all') as 'all' | 'perso' | 'shared',
-    setFilter: (v: 'all' | 'perso' | 'shared'): void => { void patch({ accounts_totals_filter: v }); },
-  };
-}
-
-/** Masquages de recommandations du mois (ignorées / complétées), par compte. */
-export function useRecoDismissals(userId: string | undefined) {
-  const qc = useQueryClient();
-  const { prefs, patch } = useUiPrefs(userId);
-  const current = freshDismissals(prefs);
-
-  // Lit l'état le plus frais depuis le cache au moment de l'ajout (évite d'écraser un ajout proche).
-  const readFresh = () => freshDismissals((qc.getQueryData<Profile>(['profile', userId])?.ui_prefs ?? {}) as UiPrefs);
-
-  const addIgnored = (type: RecoType, amount: number): void => {
-    const f = readFresh();
-    void patch({ reco_dismissals: { ...f, ignored: { ...f.ignored, [type]: Math.round(amount) } } });
-  };
-  const addCompleted = (type: RecoType): void => {
-    const f = readFresh();
-    if (f.completed.includes(type)) return;
-    void patch({ reco_dismissals: { ...f, completed: [...f.completed, type] } });
-  };
-  /** Relancer les recommandations : efface masquages (ignorées + complétées) du mois courant. */
-  const resetDismissals = () =>
-    patch({ reco_dismissals: { month: monthKey(), ignored: {}, completed: [] } });
-
-  return { ignored: current.ignored, completed: current.completed, addIgnored, addCompleted, resetDismissals };
 }

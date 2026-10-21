@@ -311,14 +311,6 @@ export const SCENE3D = {
     "h": 345
   },
   "cabinStages": {
-    "1": {
-      "dx": -0.012,
-      "dy": 0.415,
-      "sw": 1.025,
-      "sh": 0.59,
-      "w": 360,
-      "h": 198
-    },
     "2": {
       "dx": -0.001,
       "dy": 0.42,
@@ -527,7 +519,6 @@ export const SCENE3D_IMG = {
   "can_empty": require('../../assets/garden3d/can_empty.webp'),
   "can_water": require('../../assets/garden3d/can_water.webp'),
   "cabin": require('../../assets/garden3d/cabin.webp'),
-  "cabin_stage_1": require('../../assets/garden3d/cabin_stage_1.webp'),
   "cabin_stage_2": require('../../assets/garden3d/cabin_stage_2.webp'),
   "cabin_stage_3": require('../../assets/garden3d/cabin_stage_3.webp'),
   "cabin_stage_4": require('../../assets/garden3d/cabin_stage_4.webp'),

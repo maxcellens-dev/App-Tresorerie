@@ -12,7 +12,6 @@
  * trois), et ses bandeaux avaient leur place à côté des réglages qui les déclenchent.
  * Accès direct à un onglet : `?tab=simulator|banners|help`.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
@@ -245,8 +244,7 @@ export default function AdminReliability() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

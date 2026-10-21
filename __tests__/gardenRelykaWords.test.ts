@@ -11,7 +11,7 @@ describe('gardenRelykaZero', () => {
 
   it('arrosoir vide : tout est promis aux dépenses prévues (la réserve seule reste)', () => {
     const z = gardenRelykaZero({ resteDisponibleBrut: -50, safetyMarginDisplay: 200, nextIncomeDate: '2026-11-01' })!;
-    expect(z.word).toBe('Ton arrosoir est vide ce mois-ci');
+    expect(z.word).toBe('Ton arrosoir est vide');
     expect(z.sub).toContain('1 novembre');
   });
 

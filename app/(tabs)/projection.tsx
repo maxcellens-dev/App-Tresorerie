@@ -47,7 +47,6 @@ import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } 
 import KeyboardAwareScrollView from '../../components/layout/KeyboardAwareScrollView';
 import { sanitizeAmountInput, sanitizeRateInput } from '../../lib/ui/amountInput';
 import { todayISO } from '../../lib/dateUtils';
-import { isGardenPalette } from '../../lib/garden/gardenPalette';
 import { GARDEN_COLORS as G } from '../../lib/garden/theme';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 import GardenText from '../../components/garden/GardenText';
@@ -740,7 +739,6 @@ function ProjectionBody({ section }: { section?: 'treso' | 'invest' } = {}) {
           )}
 
           {tab === 'invest' && (<>
-          {isGardenPalette(COLORS) ? (
             <View style={{ backgroundColor: G.branchesBg, borderRadius: 24, padding: 18, gap: 6, marginBottom: 12 }}>
               <GardenText variant="label" color={G.branchesText}>{isSimulationOnly ? `Simulation sur ${years} ans` : `Tes fruits dans ${years} ans`}</GardenText>
               <GardenText variant="amount" tabular color={G.branchesText}>{fmt(investFinal?.value ?? 0)}</GardenText>
@@ -759,14 +757,6 @@ function ProjectionBody({ section }: { section?: 'treso' | 'invest' } = {}) {
               </View>
               {yearlyInvested > 0 ? <GardenText variant="small" color={G.branchesText}>Déjà {fmt(yearlyInvested)} placés en {currentYear}.</GardenText> : null}
             </View>
-          ) : null}
-          {isGardenPalette(COLORS) ? null : (
-          <Text style={styles.sectionHint}>
-            {isSimulationOnly
-              ? `Simulation libre sur ${years} ans`
-              : `Projection globale sur ${years} ans (tous comptes)`}
-          </Text>
-          )}
 
           {/* Pas encore de compte d'investissement : on explique les zéros et on montre la sortie. */}
           {isSimulationOnly && (
@@ -813,44 +803,8 @@ function ProjectionBody({ section }: { section?: 'treso' | 'invest' } = {}) {
           ) : null}
 
           {/* ── Suivi annuel ── (dans le Jardin, il est dans la carte du haut) */}
-          {yearlyInvested > 0 && !isGardenPalette(COLORS) && (
-            <View style={[styles.kpiCard, { borderLeftColor: INVEST_COLOR, flexDirection: 'row', alignItems: 'center', marginBottom: 12 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.kpiLabel}>Investi en {currentYear}</Text>
-                <Text style={[styles.kpiValue, { color: semanticText(INVEST_COLOR, COLORS) }]}>{fmt(yearlyInvested)}</Text>
-                <Text style={styles.kpiSub}>apports et virements réels sur tes comptes invest</Text>
-              </View>
-              <Ionicons name="checkmark-circle" size={22} color={SAVINGS_COLOR} />
-            </View>
-          )}
 
           {/* KPIs globaux (dans le Jardin : la carte « Tes branches » les porte) */}
-          {isGardenPalette(COLORS) ? null : (<>
-          <View style={styles.kpiRow}>
-            <View style={[styles.kpiCard, { borderLeftColor: INVEST_COLOR }]}>
-              <Text style={styles.kpiLabel}>Valeur projetée</Text>
-              <Text style={[styles.kpiValue, { color: semanticText(INVEST_COLOR, COLORS) }]}>{fmt(investFinal?.value ?? 0)}</Text>
-              <Text style={styles.kpiSub}>après {years} ans</Text>
-            </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Capital investi</Text>
-              <Text style={styles.kpiValue}>{fmt(investFinal?.cumulativeContribution ?? 0)}</Text>
-              <Text style={styles.kpiSub}>tes apports</Text>
-            </View>
-          </View>
-          <View style={styles.kpiRow}>
-            <View style={[styles.kpiCard, { borderLeftColor: SAVINGS_COLOR }]}>
-              <Text style={styles.kpiLabel}>Plus-value nette</Text>
-              <Text style={[styles.kpiValue, { color: semanticText(SAVINGS_COLOR, COLORS) }]}>{fmtSigned(investFinal?.netGainTotal ?? 0)}</Text>
-              <Text style={styles.kpiSub}>après fiscalité</Text>
-            </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Revenu passif</Text>
-              <Text style={styles.kpiValue}>{fmt(investFinal?.netGainMonthly ?? 0)}</Text>
-              <Text style={styles.kpiSub}>/ mois la dernière année</Text>
-            </View>
-          </View>
-          </>)}
 
           {/* Graphique global */}
           <View style={styles.chartCard} ref={chartRef}>
@@ -894,7 +848,7 @@ function ProjectionBody({ section }: { section?: 'treso' | 'invest' } = {}) {
                         accessibilityRole="button"
                         accessibilityState={{ selected: active }}
                       >
-                        <Text style={[styles.accChipText, active && { color: INVEST_COLOR, fontWeight: isGardenPalette(COLORS) ? 'normal' : '700' }]} numberOfLines={1}>{a.name}</Text>
+                        <Text style={[styles.accChipText, active && { color: INVEST_COLOR, fontWeight: 'normal' }]} numberOfLines={1}>{a.name}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -995,7 +949,7 @@ function ProjectionBody({ section }: { section?: 'treso' | 'invest' } = {}) {
             <View style={styles.chipRow}>
               {YEAR_CHOICES.map((yy) => (
                 <TouchableOpacity key={yy} style={[styles.chip, years === yy && { backgroundColor: INVEST_COLOR, borderColor: INVEST_COLOR }]} onPress={() => setYears(yy)}>
-                  <Text style={[styles.chipText, years === yy && { color: '#fff', fontWeight: isGardenPalette(COLORS) ? 'normal' : '700' }]}>{yy} ans</Text>
+                  <Text style={[styles.chipText, years === yy && { color: '#fff', fontWeight: 'normal' }]}>{yy} ans</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1665,7 +1619,6 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPalette(c)) return base;
   /* JARDIN : cartes arrondies et contournées, polices du Jardin (une famille par graisse, jamais de
      fontWeight — Android retomberait sur Roboto), étiquettes en capitales, champs plus généreux. */
   const card = { backgroundColor: G.card, borderRadius: 24, borderWidth: 1, borderColor: G.line, shadowColor: '#1E3A2C', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 };

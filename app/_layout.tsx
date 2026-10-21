@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { GuideProvider } from '../contexts/GuideContext';
-import { AppIntroGate } from '../components/guide/AppIntroCarousel';
+import GardenWelcomeTour from '../components/onboarding/GardenWelcomeTour';
 import { CalculatorProvider } from '../contexts/CalculatorContext';
 import Calculator from '../components/transaction/Calculator';
 import UpdateBanner from '../components/system/UpdateBanner';
@@ -495,7 +495,7 @@ function AppChrome() {
       </View>
       {/* Écrans de présentation de l'app (toute première ouverture) — montés À LA RACINE pour ne
           pas dépendre du chargement de l'écran d'arrivée. Voir contexts/GuideContext. */}
-      {user && <AppIntroGate />}
+      {user && <GardenWelcomeTour />}
       {/* Modale de changement de profil — affichée au-dessus de tout */}
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
       {/* Conclusion du parcours : le profil financier, montré UNE fois, après la dernière bulle. */}

@@ -192,13 +192,6 @@ export default function AddAccountScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        {isGardenPalette(COLORS) ? null : (
-        <TouchableOpacity style={styles.back} onPress={goBack} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-        </TouchableOpacity>
-        )}
-        {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Nouveau compte</Text>}
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={[styles.scrollContent, keyboardPadding]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>

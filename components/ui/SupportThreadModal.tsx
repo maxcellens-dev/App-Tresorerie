@@ -2,7 +2,6 @@
  * SupportThreadModal — fil de discussion d'une demande d'assistance.
  * Partagé entre l'écran utilisateur et le panneau admin.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
@@ -186,8 +185,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

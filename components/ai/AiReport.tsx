@@ -1,213 +1,144 @@
 /**
- * Rendu VISUEL d'une réponse Conseils IA structurée (cf. lib/aiReport).
- * Couche 1 (synthèse, si présente) : Verdict (anneau de score SVG + tag + phrase), cartes d'insight
- *   « Ce qui te protège » / « Le vrai point de vigilance », Radar de signaux, Actions.
- * Couche 2 (toujours) : sections détaillées, chacune en carte (corps via AiRichText) → aucune info
- *   perdue. Entièrement piloté par la palette de thème passée en `c`.
+ * Une réponse de Pépin, en cartes du Jardin (structure : lib/ai/aiReport) — pas un fil de discussion.
+ *   1. L'avis de Pépin : son portrait, la note sur 100 (anneau) et la phrase qui résume.
+ *   2. Ton point fort / le point à surveiller : deux cartes teintées.
+ *   3. Ton mois en un coup d'œil : les signaux, chacun avec l'image de la partie de l'arbre dont il
+ *      parle (lib/ai/reportTopic) et un état en mots simples (Ça va / À surveiller / Dépassé).
+ *   4. Ce que je ferais à ta place : les actions, numérotées.
+ *   5. Le détail : une carte par section, illustrée de la même façon.
+ * Les textes de l'IA restent tels quels (mots simples) : le Jardin illustre, il ne renomme pas.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
-import { gardenFormStyles } from '../../lib/garden/legacyStyles';
-import { useMemo } from 'react';
-import { View, Text, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
+import { View, type StyleProp, type TextStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
 import AiRichText from './AiRichText';
-import { type AiReport as Report, signalMeta, scoreColor } from '../../lib/ai/aiReport';
+import Pico from '../garden/Pico';
+import GardenText from '../garden/GardenText';
+import GardenIcon from '../garden/GardenIcon';
+import { type AiReport as Report, type SignalStatus } from '../../lib/ai/aiReport';
+import { reportTopic } from '../../lib/ai/reportTopic';
+import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 
-/** Teinte douce d'une couleur hex (#rrggbb) → ajoute un canal alpha. Repli : couleur brute. */
-function tint(color: string, hexAlpha: string): string {
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? `${color}${hexAlpha}` : color;
+/** État d'un signal : un mot simple et sa teinte du Jardin (jamais de rouge vif). */
+function statusLook(status: SignalStatus): { label: string; fg: string; bg: string } {
+  if (status === 'good') return { label: 'Ça va', fg: G.branchesText, bg: G.branchesBg };
+  if (status === 'over') return { label: 'Dépassé', fg: G.flowersText, bg: G.flowersBg };
+  return { label: 'À surveiller', fg: G.noticeText, bg: G.notice };
 }
 
-/** Anneau de score SVG (arc de progression) — comme l'anneau du Pouls, robuste au layout flex. */
-function ScoreRing({ score, c }: { score: number; c: any }) {
-  const size = 66, stroke = 6;
-  const r = (size - stroke) / 2, cx = size / 2;
-  const C = 2 * Math.PI * r;
+const scoreLook = (score: number) => statusLook(score >= 70 ? 'good' : score >= 45 ? 'watch' : 'over');
+
+function ScoreRing({ score }: { score: number }) {
+  const size = 64, stroke = 7, r = (size - stroke) / 2, cx = size / 2, C = 2 * Math.PI * r;
   const filled = Math.max(0, Math.min(1, score / 100));
-  const col = scoreColor(score, c);
+  const look = scoreLook(score);
   return (
-    <View style={{ width: size, height: size }}>
+    <View style={{ width: size, height: size }} accessible accessibilityLabel={`Note : ${score} sur 100`}>
       <Svg width={size} height={size}>
-        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={tint(col, '2e')} strokeWidth={stroke} />
-        <Circle
-          cx={cx} cy={cx} r={r} fill="none" stroke={col} strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={`${C * filled} ${C - C * filled}`} transform={`rotate(-90 ${cx} ${cx})`}
-        />
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={G.track} strokeWidth={stroke} />
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={look.fg} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={`${C * filled} ${C - C * filled}`} transform={`rotate(-90 ${cx} ${cx})`} />
       </Svg>
-      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-        <Text style={{ fontSize: 20, fontWeight: '800', color: c.text, lineHeight: 22 }}>{score}</Text>
-        <Text style={{ fontSize: 8.5, color: c.textSecondary, fontWeight: '600', marginTop: -2 }}>/ 100</Text>
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
+        <GardenText variant="heading" tabular>{score}</GardenText>
       </View>
     </View>
   );
 }
 
-export default function AiReport({ report, c, baseTextStyle }: { report: Report; c: any; baseTextStyle: StyleProp<TextStyle> }) {
-  const s = useMemo(() => makeStyles(c), [c]);
+const card = { backgroundColor: G.card, borderWidth: 1, borderColor: G.line, borderRadius: GARDEN_RADII.lg, padding: GARDEN_SPACE.lg, gap: GARDEN_SPACE.sm } as const;
+
+export default function AiReport({ report, baseTextStyle }: { report: Report; baseTextStyle: StyleProp<TextStyle> }) {
   const sum = report.summary;
-  const bandColor = sum?.score != null ? scoreColor(sum.score, c) : c.emerald;
+  const tagLook = sum?.score != null ? scoreLook(sum.score) : { fg: G.branchesText, bg: G.branchesBg };
 
   return (
-    <View style={s.stack}>
-      {/* ── Verdict ── */}
-      {sum && (sum.verdict || sum.score != null || sum.tag) && (
-        <View style={s.verdict}>
-          {sum.score != null && <ScoreRing score={sum.score} c={c} />}
-          <View style={{ flex: 1, minWidth: 0 }}>
-            {!!sum.tag && (
-              <View style={[s.tagPill, { backgroundColor: tint(bandColor, '22'), borderColor: tint(bandColor, '55') }]}>
-                <Text style={[s.tagTxt, { color: bandColor }]}>{sum.tag}</Text>
+    <View style={{ gap: GARDEN_SPACE.md }}>
+      {/* ── 1. L'avis de Pépin ── */}
+      {sum && (sum.verdict || sum.score != null || sum.tag) ? (
+        <View style={[card, { backgroundColor: G.pico, borderWidth: 0, flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }]}>
+          <Pico avatar size={48} mood={sum.score != null && sum.score < 45 ? 'thinking' : 'joy'} />
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+            {sum.tag ? (
+              <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: GARDEN_RADII.pill, backgroundColor: tagLook.bg }}>
+                <GardenText variant="smallStrong" color={tagLook.fg} style={{ fontSize: 12 }}>{sum.tag}</GardenText>
               </View>
-            )}
-            {!!sum.verdict && <Text style={s.verdictTxt}>{sum.verdict}</Text>}
+            ) : null}
+            {sum.verdict ? <GardenText variant="bodyStrong">{sum.verdict}</GardenText> : null}
           </View>
+          {sum.score != null ? <ScoreRing score={sum.score} /> : null}
         </View>
-      )}
+      ) : null}
 
-      {/* ── Insights : ce qui protège / point de vigilance ── */}
-      {sum?.protect && (
-        <View style={[s.insight, { borderColor: c.cardBorder }]}>
-          <View style={[s.insightIc, { backgroundColor: tint(c.success, '22') }]}>
-            <Ionicons name="shield-checkmark" size={16} color={c.success} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[s.insightTitle, { color: c.success }]}>Ton point fort</Text>
-            <Text style={s.insightBody}>{sum.protect}</Text>
+      {/* ── 2. Point fort / point à surveiller ── */}
+      {sum?.protect ? (
+        <View style={[card, { backgroundColor: G.branchesBg, borderWidth: 0, flexDirection: 'row', gap: GARDEN_SPACE.md }]}>
+          <GardenIcon kind="done" bg={G.card} />
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <GardenText variant="label" color={G.branchesText}>Ton point fort</GardenText>
+            <GardenText variant="body">{sum.protect}</GardenText>
           </View>
         </View>
-      )}
-      {sum?.vigilance && (
-        <View style={[s.insight, { borderColor: c.cardBorder }]}>
-          <View style={[s.insightIc, { backgroundColor: tint(c.danger, '22') }]}>
-            <Ionicons name="alert" size={16} color={c.danger} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[s.insightTitle, { color: c.danger }]}>Le point de vigilance</Text>
-            <Text style={s.insightBody}>{sum.vigilance}</Text>
+      ) : null}
+      {sum?.vigilance ? (
+        <View style={[card, { backgroundColor: G.notice, borderWidth: 0, flexDirection: 'row', gap: GARDEN_SPACE.md }]}>
+          <GardenIcon kind="warn" bg={G.card} />
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <GardenText variant="label" color={G.noticeText}>Le point à surveiller</GardenText>
+            <GardenText variant="body">{sum.vigilance}</GardenText>
           </View>
         </View>
-      )}
+      ) : null}
 
-      {/* ── Radar de signaux ── */}
-      {sum && sum.signals.length > 0 && (
-        <View style={s.card}>
-          <View style={s.cardHead}>
-            <Text style={s.cardHeadTxt}>🛡️ Radar du mois</Text>
-            <Text style={s.cardHeadN}>{sum.signals.length} signaux</Text>
-          </View>
+      {/* ── 3. Ton mois en un coup d'œil ── */}
+      {sum && sum.signals.length > 0 ? (
+        <View style={[card, { paddingVertical: GARDEN_SPACE.md }]}>
+          <GardenText variant="label">Ton mois en un coup d'œil</GardenText>
           {sum.signals.map((sig, i) => {
-            const meta = signalMeta(sig.status, c);
+            const look = statusLook(sig.status);
             return (
-              <View key={i} style={[s.srow, i === 0 && { borderTopWidth: 0 }]}>
-                <View style={[s.dot, { backgroundColor: meta.color }]} />
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, paddingTop: 10, borderTopWidth: i ? 1 : 0, borderTopColor: G.line }}>
+                <GardenIcon kind={reportTopic(sig.label)} size={32} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={s.srowLabel} numberOfLines={1}>{sig.label}</Text>
-                  {!!sig.detail && <Text style={s.srowSub} numberOfLines={2}>{sig.detail}</Text>}
+                  <GardenText variant="bodyStrong" numberOfLines={1}>{sig.label}</GardenText>
+                  {sig.detail ? <GardenText variant="small" color={G.muted} numberOfLines={2}>{sig.detail}</GardenText> : null}
                 </View>
-                <View style={[s.pill, { backgroundColor: tint(meta.color, '22') }]}>
-                  <Text style={[s.pillTxt, { color: meta.color }]}>{meta.label}</Text>
+                <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: GARDEN_RADII.pill, backgroundColor: look.bg }}>
+                  <GardenText variant="smallStrong" color={look.fg} style={{ fontSize: 12 }}>{look.label}</GardenText>
                 </View>
               </View>
             );
           })}
         </View>
-      )}
+      ) : null}
 
-      {/* ── Actions prioritaires : « Ce que je ferais à ta place », en TOP N ── */}
-      {sum && sum.actions.length > 0 && (
-        <View style={s.card}>
-          <View style={s.cardHead}>
-            <View style={s.kicker}><Text style={s.kickerTxt}>TOP {Math.min(sum.actions.length, 3)}</Text></View>
-            <Text style={s.cardHeadTxt}>Ce que je ferais à ta place</Text>
-          </View>
+      {/* ── 4. Ce que je ferais à ta place ── */}
+      {sum && sum.actions.length > 0 ? (
+        <View style={[card, { paddingVertical: GARDEN_SPACE.md }]}>
+          <GardenText variant="label" color={G.branchesText}>Ce que je ferais à ta place</GardenText>
           {sum.actions.map((a, i) => (
-            <View key={i} style={[s.act, i > 0 && s.actDivider]}>
-              <View style={[s.rank, { backgroundColor: tint(a.primary ? c.emerald : c.textSecondary, '22') }]}>
-                <Text style={[s.rankTxt, { color: a.primary ? c.emerald : c.textSecondary }]}>{i + 1}</Text>
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, paddingTop: 10, borderTopWidth: i ? 1 : 0, borderTopColor: G.line }}>
+              <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: a.primary ? G.primary : G.field }}>
+                <GardenText variant="smallStrong" color={a.primary ? G.onPrimary : G.inkSoft}>{i + 1}</GardenText>
               </View>
-              <Text style={s.actTitle}>{a.title}</Text>
-              {!!a.meta && (
-                <View style={[s.metaPill, a.primary && { borderColor: tint(c.emerald, '55') }]}>
-                  <Text style={[s.metaTxt, a.primary && { color: c.emerald }]}>{a.meta}</Text>
-                </View>
-              )}
+              <GardenText variant="bodyStrong" style={{ flex: 1 }}>{a.title}</GardenText>
+              {a.meta ? <GardenText variant="small" color={a.primary ? G.primary : G.muted}>{a.meta}</GardenText> : null}
             </View>
           ))}
         </View>
-      )}
+      ) : null}
 
-      {/* ── Intro éventuelle (rare) ── */}
-      {!!report.intro && <AiRichText text={report.intro} style={baseTextStyle} />}
+      {report.intro ? <AiRichText text={report.intro} style={baseTextStyle} /> : null}
 
-      {/* ── Analyse détaillée : une carte par section (comme la cible), sous un intitulé. ── */}
-      {report.sections.length > 0 && (
-        <>
-          <Text style={s.detailLabel}>L'analyse détaillée</Text>
-          {report.sections.map((sec, i) => (
-            <View key={i} style={s.section}>
-              <View style={s.secHead}>
-                {!!sec.emoji && <Text style={s.secEmoji}>{sec.emoji}</Text>}
-                <Text style={s.secTitle}>{sec.title}</Text>
-              </View>
-              {!!sec.body && <AiRichText text={sec.body} style={baseTextStyle} />}
-            </View>
-          ))}
-        </>
-      )}
+      {/* ── 5. Le détail : une carte illustrée par section ── */}
+      {report.sections.map((sec, i) => (
+        <View key={i} style={card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
+            <GardenIcon kind={reportTopic(sec.title)} size={32} />
+            <GardenText variant="heading" style={{ flex: 1 }}>{sec.title}</GardenText>
+          </View>
+          {sec.body ? <AiRichText text={sec.body} style={baseTextStyle} /> : null}
+        </View>
+      ))}
     </View>
   );
-}
-
-function makeStyles(c: any) {
-  const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
-}
-
-function makeBaseStyles(c: any) {
-  return StyleSheet.create({
-    stack: { gap: 10 },
-
-    // `cardOpaque` et non `card` : ces cartes portent une ombre `elevation`, qui sur Android
-    // transparaît à travers un fond translucide (voile gris + halo, très visible en thème clair).
-    // Elles sont posées directement sur `bg`, donc l'aplat opaque rend exactement pareil.
-    verdict: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.cardOpaque, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 15, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
-    tagPill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2, marginBottom: 7 },
-    tagTxt: { fontSize: 11, fontWeight: '800' },
-    verdictTxt: { fontSize: 15.5, fontWeight: '800', color: c.text, lineHeight: 21 },
-
-    insight: { flexDirection: 'row', gap: 11, backgroundColor: c.cardOpaque, borderWidth: 1, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
-    insightIc: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flex: 0 },
-    insightTitle: { fontSize: 13.5, fontWeight: '800', marginBottom: 3 },
-    insightBody: { fontSize: 13.5, color: c.text, lineHeight: 19 },
-
-    card: { backgroundColor: c.cardOpaque, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
-    cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    cardHeadTxt: { fontSize: 13.5, fontWeight: '800', color: c.text },
-    kicker: { backgroundColor: c.violet, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-    kickerTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, color: c.bg },
-    cardHeadN: { marginLeft: 'auto', fontSize: 11, color: c.textSecondary, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-
-    srow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.cardBorder },
-    dot: { width: 9, height: 9, borderRadius: 5, flex: 0 },
-    srowLabel: { fontSize: 13.5, fontWeight: '700', color: c.text },
-    srowSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
-    pill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-    pillTxt: { fontSize: 11, fontWeight: '700' },
-
-    act: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9 },
-    actDivider: { borderTopWidth: 1, borderTopColor: c.cardBorder },
-    rank: { width: 26, height: 26, minWidth: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', flexGrow: 0, flexShrink: 0 },
-    rankTxt: { fontSize: 13, fontWeight: '800' },
-    actTitle: { flex: 1, fontSize: 13.5, fontWeight: '700', color: c.text },
-    metaPill: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-    metaTxt: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
-
-    detailLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', color: c.textSecondary, marginTop: 6, marginBottom: 0, marginLeft: 2 },
-    section: { backgroundColor: c.cardOpaque, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
-    secHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
-    secEmoji: { fontSize: 15 },
-    secTitle: { flex: 1, fontSize: 13, fontWeight: '800', letterSpacing: 0.3, color: c.text, textTransform: 'uppercase' },
-  });
 }

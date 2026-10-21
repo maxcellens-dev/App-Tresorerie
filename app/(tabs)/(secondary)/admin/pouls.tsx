@@ -13,7 +13,6 @@
  *
  * Stocké dans app_config.pulse (migrations 140 → 171).
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
@@ -262,8 +261,7 @@ function ToggleRow({ styles, COLORS, label, help, value, onChange, last }: {
 
 function makeStyles(c: AppColors) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: AppColors) {

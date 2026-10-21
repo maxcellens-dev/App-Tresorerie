@@ -21,6 +21,9 @@ import GardenBar from '../../components/garden/GardenBar';
 import GardenSegmented from '../../components/garden/GardenSegmented';
 import GardenSheet from '../../components/garden/GardenSheet';
 import PicoBubble from '../../components/garden/PicoBubble';
+import GardenIcon from '../../components/garden/GardenIcon';
+import { GardenRowGroup } from '../../components/garden/GardenList';
+import { GARDEN_ICONS } from '../../lib/garden/icons';
 import CurrencyPicker from '../../components/account/CurrencyPicker';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/data/useProfile';
@@ -34,6 +37,7 @@ import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { TABS, WORDS } from '../../lib/garden/lexicon';
 import { pointer } from '../../lib/ui/webLayout';
+import CalculatorButton from '../../components/transaction/CalculatorButton';
 
 type Tab = 'mine' | 'shared';
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
@@ -57,6 +61,7 @@ export default function ProjetsScreen() {
   const [archives, setArchives] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [rwName, setRwName] = useState('');
   const [rwDesc, setRwDesc] = useState('');
   const [rwEmoji, setRwEmoji] = useState(RW_EMOJIS[0]);
@@ -95,8 +100,15 @@ export default function ProjetsScreen() {
   };
 
   return (
+    <>
     <GardenPage title={TABS.projects} subtitle="Des plantes en pot à côté de ton arbre : chacune fleurit quand l'objectif est atteint."
       footer={<GardenButton label="Nouveau projet" onPress={() => setNewOpen(true)} />}>
+      {/* L'ampoule de l'ancienne page : ce qu'est un projet, ses trois modes, ses rythmes, le partagé. */}
+      <Pressable onPress={() => setInfoOpen(true)} accessibilityRole="button" accessibilityLabel="À quoi servent les projets ?"
+        style={({ pressed }: any) => [{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: GARDEN_RADII.pill, backgroundColor: G.pico, opacity: pressed ? 0.8 : 1 }, pointer]}>
+        <Ionicons name="bulb-outline" size={16} color={G.picoText} />
+        <GardenText variant="smallStrong" color={G.picoText}>À quoi servent les projets ?</GardenText>
+      </Pressable>
       {invitations.length > 0 ? (
         <View style={{ gap: GARDEN_SPACE.sm }}>
           <GardenText variant="label">Invitations</GardenText>
@@ -161,6 +173,20 @@ export default function ProjetsScreen() {
       <GardenButton label={archives ? 'Revenir aux projets en cours' : 'Voir les archives'} variant="secondary" onPress={() => setArchives((v) => !v)} />
 
       {/* Choix du type de projet */}
+      <GardenSheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="À quoi servent les projets ?" subtitle="des plantes en pot, à côté de ton arbre"
+        footer={<GardenButton label="J'ai compris" onPress={() => setInfoOpen(false)} />}>
+        <GardenText variant="body" color={G.inkSoft}>Un projet, c'est un objectif d'argent (une voiture, un voyage, des cours de piano…) que l'app suit pour toi. Chaque projet est une plante en pot, qui fleurit quand l'objectif est atteint.</GardenText>
+        <GardenRowGroup title="Ce que l'app fait pour toi" rows={[
+          { key: 'save', label: 'Mettre de côté', sub: 'elle prépare des virements vers ton épargne ou tes placements', icon: GARDEN_ICONS.roots.icon, iconColor: GARDEN_ICONS.roots.fg, iconBg: GARDEN_ICONS.roots.bg },
+          { key: 'keep', label: 'Conserver pour plus tard', sub: "l'argent ne bouge pas : il est juste réservé sur ton compte", icon: GARDEN_ICONS.setAside.icon, iconColor: GARDEN_ICONS.setAside.fg, iconBg: GARDEN_ICONS.setAside.bg },
+          { key: 'spend', label: 'Dépenser petit à petit', sub: 'elle crée de vraies dépenses au rythme du projet', icon: GARDEN_ICONS.budget.icon, iconColor: GARDEN_ICONS.budget.fg, iconBg: GARDEN_ICONS.budget.bg },
+        ]} />
+        <GardenText variant="body" color={G.inkSoft}>Puis tu choisis le rythme : un montant chaque mois, une date à atteindre, ou des échéances ponctuelles.</GardenText>
+        <GardenCard tint={G.waterBg} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
+          <GardenIcon kind="shared" bg={G.card} />
+          <GardenText variant="body" style={{ flex: 1 }}>Un projet partagé suit des dépenses communes (vacances, colocation…) et les équilibre entre plusieurs personnes.</GardenText>
+        </GardenCard>
+      </GardenSheet>
       <GardenSheet visible={newOpen} onClose={() => setNewOpen(false)} title="Nouveau projet">
         <GardenCard onPress={() => { setNewOpen(false); setTimeout(() => go('/(tabs)/projects/add'), 60); }} accessibilityLabel="Projet perso">
           <GardenText variant="bodyStrong">Projet perso</GardenText>
@@ -198,5 +224,7 @@ export default function ProjetsScreen() {
       {/* Zone publicité (maison) — bas de page */}
       <AdSlot placement="projets" />
     </GardenPage>
+    <CalculatorButton page="projets" />
+    </>
   );
 }

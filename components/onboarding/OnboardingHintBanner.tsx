@@ -5,7 +5,6 @@
  * - Dès que l'étape est accomplie : confirme. « Suivant » ferme le coachmark et ouvre la
  *   checklist « Pour bien démarrer » (vue d'ensemble simple des prochaines étapes).
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Pressable } from 'react-native';
@@ -106,8 +105,7 @@ export default function OnboardingHintBanner() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

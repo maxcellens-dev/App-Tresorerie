@@ -10,7 +10,6 @@
  * liste de choix), celle-ci un formulaire (carte large bordée d'orange, des champs de saisie). Les
  * confondre reviendrait à faire porter deux intentions à un même gabarit.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, Modal, ScrollView, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
@@ -130,8 +129,7 @@ export default function TreasuryDraftModal({
 
 function makeStyles(c: AppColors) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: AppColors) {

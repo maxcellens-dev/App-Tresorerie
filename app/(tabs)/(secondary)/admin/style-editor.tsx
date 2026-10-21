@@ -1,4 +1,3 @@
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Alert } from 'react-native';
@@ -1035,8 +1034,7 @@ function PctInput({ value, onChange, COLORS }: { value: string; onChange: (v: st
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

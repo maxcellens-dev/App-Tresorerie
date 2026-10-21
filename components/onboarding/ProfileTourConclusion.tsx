@@ -19,7 +19,6 @@
  * alors comme la CONCLUSION de ce que l'utilisateur vient de saisir. Puis il se pose (fondu +
  * remontée), l'emblème apparaît en ressort et les barres de répartition se remplissent en cascade.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
@@ -36,6 +35,7 @@ import { computeSecurityCushion, securityMonthsLabel } from '../../lib/finance/s
 import { useProfileReliability } from '../../hooks/pilotage/useProfileReliability';
 import type { FinancialProfileId } from '../../types/database';
 import { sheetWidth } from '../../lib/ui/appLayout';
+import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
 
 /** Durée du dépouillement. Assez long pour être lu, assez court pour ne pas faire attendre. */
 const SCAN_MS = 1650;
@@ -148,12 +148,11 @@ export default function ProfileTourConclusion() {
   const alloc = appliedAllocation(profileId, null, allocTable);
   if (!alloc) return null;
 
-  const ALLOC_ROWS = [
-    { label: 'Épargner', pct: alloc.save, color: COLORS.green ?? COLORS.emerald },
-    { label: 'Investir', pct: alloc.invest, color: COLORS.violet },
-    { label: 'Confort', pct: alloc.enjoy, color: COLORS.orange },
-    { label: 'Conserver', pct: alloc.keep, color: COLORS.blue },
-  ];
+  // Les mots et couleurs des gestes de Pépin (lib/garden/choiceLooks) : les mêmes que sur le Jardin.
+  const ALLOC_ROWS = (['save', 'invest', 'enjoy', 'keep'] as const).map((t) => ({
+    label: CHOICE_LOOKS[t].meaning.charAt(0).toUpperCase() + CHOICE_LOOKS[t].meaning.slice(1),
+    pct: alloc[t], color: CHOICE_LOOKS[t].fill,
+  }));
 
   /* DÉPOUILLEMENT — l'écran d'attente qui relie le parcours à son résultat. Volontairement sobre :
      une jauge, une phrase qui change, rien à faire. */
@@ -217,7 +216,7 @@ export default function ProfileTourConclusion() {
                 Les barres se remplissent en CASCADE (décalage de 0,1 par ligne sur la même valeur
                 animée) : on voit la répartition se constituer, ligne après ligne. */}
             <View style={styles.allocCard}>
-              <Text style={styles.allocTitle}>Comment ton Relyka sera réparti</Text>
+              <Text style={styles.allocTitle}>Ce que Pépin te proposera chaque mois</Text>
               {ALLOC_ROWS.map((r, i) => (
                 <View key={r.label} style={styles.allocRow}>
                   <Text style={styles.allocLabel}>{r.label}</Text>
@@ -295,8 +294,7 @@ export default function ProfileTourConclusion() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

@@ -51,9 +51,13 @@ describe('scene3dLayout', () => {
     const half = all(layoutScene({ ...st, water: 0.5 }, opts)).find((l) => l.img === 'can_water')!;
     const full = all(layoutScene({ ...st, water: 1 }, opts)).find((l) => l.img === 'can_water')!;
     expect(half.showBottom!).toBeLessThan(full.showBottom!);
-    // la cabane se construit par étapes logiques : plateforme, garde-corps, ossature, toit, finitions
-    const cabinAt = (progress: number) => all(layoutScene({ ...st, cabin: { progress, count: 1 } }, opts)).find((l) => l.key === 'cabin')!.img;
-    expect([0, 0.3, 0.5, 0.7, 1].map(cabinAt)).toEqual(['cabin_stage_1', 'cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
+    // la cabane se construit par étapes logiques : plancher (bas de l'étape 2), garde-corps, ossature, toit, cabane habitée
+    const cabinAt = (progress: number) => all(layoutScene({ ...st, cabin: { progress, count: 1 } }, opts)).find((l) => l.key === 'cabin')!;
+    expect([0, 0.3, 0.5, 0.7, 1].map((p) => cabinAt(p).img)).toEqual(['cabin_stage_2', 'cabin_stage_2', 'cabin_stage_3', 'cabin_stage_4', 'cabin']);
+    expect(cabinAt(0).showBottom).toBeLessThan(0.5);
+    // seule la cabane finie a sa fenêtre allumée
+    expect(layoutScene({ ...st, cabin: { progress: 1, count: 1 } }, opts).vector.windows).toHaveLength(1);
+    expect(layoutScene({ ...st, cabin: { progress: 0.7, count: 1 } }, opts).vector.windows).toHaveLength(0);
   });
 
   it('sans cabane, le grand arbre perd sa branche nue', () => {

@@ -8,7 +8,6 @@
  * Et si le serveur, lui, applique bien la règle (Supabase Auth → Policies), l'utilisateur recevait à
  * la place un refus en anglais sans savoir ce qu'on attendait de lui. Un seul juge : evaluatePassword.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
@@ -123,8 +122,7 @@ export default function ChangePasswordScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

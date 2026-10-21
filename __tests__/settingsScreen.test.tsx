@@ -67,7 +67,7 @@ describe('page Paramètres', () => {
   it('affiche ses sections', async () => {
     setupData();
     renderSettings();
-    expect(await screen.findByText('Gestion')).toBeTruthy();
+    expect(await screen.findByText('Ton Relyka')).toBeTruthy();
     expect(screen.getByText('Devise de référence')).toBeTruthy();
     expect(screen.getByText('Notifications')).toBeTruthy();
   });
@@ -75,8 +75,8 @@ describe('page Paramètres', () => {
   it("ne dit rien quand tout se passe bien", async () => {
     setupData({ writeFails: false });
     renderSettings();
-    await screen.findByText('Gestion');
-    fireEvent(screen.getByLabelText('E-mails d’information'), 'valueChange', false);
+    await screen.findByText('Ton Relyka');
+    fireEvent(screen.getByLabelText("E-mails d'information"), 'valueChange', false);
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByText(/n'a pas pu être enregistré/i)).toBeNull();
   });
@@ -86,18 +86,8 @@ describe('page Paramètres', () => {
   it("dit que le réglage n'est pas parti quand l'écriture échoue", async () => {
     setupData({ writeFails: true });
     renderSettings();
-    await screen.findByText('Gestion');
-    fireEvent(screen.getByLabelText('E-mails d’information'), 'valueChange', false);
+    await screen.findByText('Ton Relyka');
+    fireEvent(screen.getByLabelText("E-mails d'information"), 'valueChange', false);
     await waitFor(() => expect(screen.getByText(/n'a pas pu être enregistré/i)).toBeTruthy());
-  });
-
-  /* « Relancer les recommandations » cochait sa confirmation en dur, sans attendre l'écriture :
-     elle s'affichait même quand rien n'était parti — et ne s'éteignait plus jamais. */
-  it("ne confirme pas la relance des recommandations quand elle échoue", async () => {
-    setupData({ writeFails: true });
-    renderSettings();
-    await screen.findByText('Gestion');
-    fireEvent.press(screen.getByText('Relancer les recommandations'));
-    await waitFor(() => expect(screen.getByText(/n'ont pas pu être relancées/i)).toBeTruthy());
   });
 });

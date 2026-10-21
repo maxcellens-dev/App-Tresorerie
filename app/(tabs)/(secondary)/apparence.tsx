@@ -1,7 +1,6 @@
 /**
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -592,8 +591,7 @@ function CosmeticCard({ cos, styles, COLORS, onToggle, disabled }: { cos: any; s
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

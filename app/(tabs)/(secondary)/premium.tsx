@@ -42,7 +42,7 @@ const BENEFITS: { key: string; icon: string; title: string; desc: string; route?
   { key: 'shop', icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en noisettes.', route: '/(tabs)/(secondary)/boutique' },
   { key: 'color', icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.', route: '/(tabs)/(secondary)/apparence' },
   { key: 'reporting', icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.', route: '/(tabs)/reporting' },
-  { key: 'ai', icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.', route: '/(tabs)/conseils-ia' },
+  { key: 'ai', icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.', route: '/(tabs)/pepin?tab=ask' },
 ];
 
 /**
@@ -217,12 +217,6 @@ export default function PremiumScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
-        {isGardenPalette(COLORS) ? null : (
-        <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour">
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        )}
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           <View style={styles.hero}>
             <Ionicons name="star" size={36} color={COLORS.yellow} />
@@ -457,7 +451,6 @@ export default function PremiumScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPaletteL(c)) return base;
   // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
   return withGarden(base, {
     safe: { ...base.safe, paddingHorizontal: 16 },

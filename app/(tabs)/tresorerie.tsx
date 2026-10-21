@@ -1215,16 +1215,6 @@ function TreasuryPlanBody() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
         {/* Retour vers la page précédente */}
-        {isGardenPalette(COLORS) ? null : (
-        <TouchableOpacity
-          style={styles.backRow}
-          onPress={goBack}
-          accessibilityRole="button"
-        >
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        )}
         {/* En-tête ALLÉGÉ : sur un téléphone, la phrase d'explication occupait trois lignes au-dessus
             du tableau — c'est-à-dire au-dessus de la seule chose qu'on vient voir. Elle rejoint la
             fiche d'aide, atteignable d'un tap et relue quand on en a besoin, pas à chaque visite. */}

@@ -2,7 +2,6 @@
  * IconPickerModal — sélecteur d'icône pour une sous-catégorie (§13).
  * Grille d'icônes du glossaire (Ionicons). Centré, fermable au tap extérieur.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView, TouchableOpacity } from 'react-native';
@@ -62,8 +61,7 @@ export default function IconPickerModal({ visible, value, title = 'Choisir une i
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

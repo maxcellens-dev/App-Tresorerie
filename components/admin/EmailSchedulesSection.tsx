@@ -7,7 +7,6 @@
  * C'est ce qui donne à chaque occurrence son propre registre d'envois ; sans ça, dès la deuxième
  * échéance, tout le monde passerait pour « déjà servi » et plus personne ne recevrait rien.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView, Switch, Alert, ActivityIndicator } from 'react-native';
@@ -249,8 +248,7 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

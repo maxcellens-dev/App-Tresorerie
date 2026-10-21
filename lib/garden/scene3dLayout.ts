@@ -74,7 +74,12 @@ export interface Scene3dVector {
   waterLine: { x1: number; x2: number; y: number } | null;
   /** « z z » au-dessus de Pépin qui dort. */
   sleepZ: { x: number; y: number } | null;
+  /** Fenêtres éclairées de l'intérieur (cabane finie) : dessinées au-dessus du voile de la nuit. */
+  windows: Rect[];
 }
+
+/** Vitres de la fenêtre dans l'image de la cabane finie (fractions de l'image cabin.webp). */
+const CABIN_WINDOW = { x: 0.452, y: 0.378, w: 0.103, h: 0.138 };
 
 export interface Scene3d {
   /** Calques derrière l'arbre (nuages, clôture, terre, herbe, banc, mare, fleurs). */
@@ -146,6 +151,11 @@ export function rootLevel(months: number, beyondSix: boolean): keyof typeof M.so
 const SPOTS: [number, number][] = [[0.3, 0.42], [0.7, 0.34], [0.5, 0.68], [0.22, 0.7], [0.8, 0.62], [0.44, 0.22], [0.62, 0.52], [0.34, 0.56], [0.74, 0.16], [0.54, 0.4]];
 /* Fleurs posées devant, sur l'herbe : [x du pied, y du pied, échelle, miroir]. */
 const FLOWER_SLOTS: [number, number, number, boolean][] = [[402, 694, 1, false], [436, 706, 0.86, true], [548, 700, 0.95, false], [584, 690, 0.8, true], [616, 706, 0.9, false]];
+/** Champignons : [x du centre, y du pied, largeur, miroir], autour du tronc (x 470), entre les fleurs. */
+const MUSHROOM_SLOTS: [number, number, number, boolean][] = [
+  [430, 668, 16, false], [516, 666, 15, true], [338, 690, 22, true], [520, 688, 18, false],
+  [300, 702, 28, false], [468, 698, 22, true], [362, 712, 34, false], [500, 714, 28, true],
+];
 const PEPIN_W = 178;
 const CAN_W = 205;
 /* Herbe semée sur tout le dessus du plateau, du fond (petites, y bas) au bord avant (plus grandes) :
@@ -180,7 +190,7 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     // juste devant ce qu'elle cache (même pied, un cheveu plus près)
     list.push(img(key, `tuft_${o.season}_${variant % M.tuft.variants}`, cx - w / 2, footY - h * M.tuft.foot, w, h, { z: footY + 0.5 }));
   };
-  const v: Scene3dVector = { shadows: [], marks: [], dripRoots: state.drip.roots, dripBranches: null, glow: null, lights: [], waterLine: null, sleepZ: null };
+  const v: Scene3dVector = { shadows: [], marks: [], dripRoots: state.drip.roots, dripBranches: null, glow: null, lights: [], waterLine: null, sleepZ: null, windows: [] };
   const decor = new Set(o.decor ?? []);
   const night = o.moment !== 'day';
 
@@ -297,11 +307,14 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   let pepinX = 660;
   if (cabin) {
     const c = M.cabin, p = Math.max(0, Math.min(1, cabin.progress));
-    /* 5 étapes LOGIQUES (plateforme, garde-corps, ossature, toit, finitions). Les étapes 1 à 4 sont des
-       images à part (cabin_stage_k) quand elles existent ; à défaut, repli : la cabane finie révélée
-       de bas en haut. */
+    /* 5 étapes LOGIQUES (plancher, garde-corps, ossature, toit, cabane habitée). Les étapes 2 à 4 sont
+       des images à part (cabin_stage_k) ; le plancher est le bas de l'étape 2 (même plancher que les
+       suivantes : l'ancienne image à part, sur treillis, ne ressemblait à aucune autre et faisait
+       croire les étapes inversées). L'étape finale est éclairée de l'intérieur. À défaut d'image :
+       la cabane finie révélée de bas en haut. */
     const stage = p < 0.2 ? 1 : p < 0.4 ? 2 : p < 0.6 ? 3 : p < 0.8 ? 4 : 5;
-    const st = stage < 5 ? (M.cabinStages as Record<string, { dx: number; dy: number; sw: number; sh: number } | undefined>)[String(stage)] : undefined;
+    const stages = M.cabinStages as Record<string, { dx: number; dy: number; sw: number; sh: number } | undefined>;
+    const st = stage === 1 ? stages['2'] : stage < 5 ? stages[String(stage)] : undefined;
     let r: Rect, cabinZ: number | undefined;
     if (kind === 'adult' && 'branchTip' in t) {
       const tipX = tx + t.branchTip.x * tw, tipY = ty + t.branchTip.y * th, cw = tw * 0.34, ch = cw * c.h / c.w;
@@ -316,11 +329,14 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
       v.shadows.push({ cx: r.x + cw / 2, cy: GROUND + 14, rx: cw * 0.5, ry: 12, o: 0.45 });
       pepinX = 700;
     }
-    if (st) front.push(img('cabin', `cabin_stage_${stage}`, r.x + st.dx * r.w, r.y + st.dy * r.h, st.sw * r.w, st.sh * r.h, { z: cabinZ }));
+    if (st) front.push(img('cabin', `cabin_stage_${stage === 1 ? 2 : stage}`, r.x + st.dx * r.w, r.y + st.dy * r.h, st.sw * r.w, st.sh * r.h, { z: cabinZ, ...(stage === 1 ? { showBottom: 0.3 } : {}) }));
     else front.push(img('cabin', 'cabin', r.x, r.y, r.w, r.h, { z: cabinZ, ...(stage < 5 ? { showBottom: 0.25 + 0.75 * p } : {}) }));
     hot.push({ part: 'cabin', ...r });
-    // la petite lanterne sous le toit ne s'allume que la cabane finie
-    if (night && stage === 5) v.lights.push({ cx: r.x + r.w * 0.47, cy: r.y + r.h * 0.2, r: r.w * 0.22 });
+    if (stage === 5) {
+      // la cabane est habitée : la fenêtre s'allume (de jour comme de nuit), la lanterne la nuit
+      v.windows.push({ x: r.x + r.w * CABIN_WINDOW.x, y: r.y + r.h * CABIN_WINDOW.y, w: r.w * CABIN_WINDOW.w, h: r.h * CABIN_WINDOW.h });
+      if (night) v.lights.push({ cx: r.x + r.w * 0.47, cy: r.y + r.h * 0.2, r: r.w * 0.22 });
+    }
   }
 
   // ── Lanterne posée, champignons, panier de récolte ──
@@ -331,10 +347,14 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
     if (night) v.lights.push({ cx: x + w / 2, cy: y + h * 0.66, r: 46 });
   }
   if (decor.has('mushrooms')) {
-    // pieds enfoncés dans l'herbe (le bas des tiges est caché par une touffe)
-    const m = M.decor.mushrooms, w = 58, h = w * m.h / m.w;
-    front.push(img('mushrooms', 'decor_mushrooms', 330, 700 - h, w, h));
-    tuft(front, 'mushroomTuft', 359, 698, 74, 1);
+    /* Une zone de pousse autour du pied de l'arbre : plusieurs petites touffes, entre les fleurs,
+       plus petites au fond (près du tronc) qu'au bord. Les grosses ont le pied caché par l'herbe. */
+    const m = M.decor.mushrooms;
+    MUSHROOM_SLOTS.forEach(([cx, foot, w, flip], i) => {
+      const h = w * m.h / m.w;
+      front.push(img(`mushrooms${i}`, 'decor_mushrooms', cx - w / 2, foot - h, w, h, { flip, z: foot }));
+      if (w >= 28) tuft(front, `mushroomTuft${i}`, cx, foot - 2, w * 1.25, i);
+    });
   }
 
   // ── Arrosoir en verre : vide + eau coupée au niveau ──
@@ -358,7 +378,10 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   if (o.mascot !== false) {
     const p = M.pepin, mood: PepinMood = o.mood ?? (o.moment === 'night' ? 'sleep' : 'happy');
     const w = PEPIN_W / p.bodyW, h = w * p.h / p.w, x = pepinX - p.bodyX * w, y = 672 - p.foot * h;
-    v.shadows.push({ cx: pepinX + PEPIN_W * 0.5, cy: 670, rx: PEPIN_W * 0.46, ry: 12, o: 0.45 });
+    /* Deux ombres : un halo doux, et une ombre de CONTACT serrée sous les pattes (sans elle, Pépin
+       semblait flotter au-dessus de l'herbe). */
+    v.shadows.push({ cx: pepinX + PEPIN_W * 0.5, cy: 674, rx: PEPIN_W * 0.44, ry: 11, o: 0.3 });
+    v.shadows.push({ cx: pepinX + PEPIN_W * 0.44, cy: 672, rx: PEPIN_W * 0.3, ry: 6, o: 0.75 });
     pepinLayers(mood, o.outfit).forEach((name, i) => front.push(img(`pepin${i}`, name, x, y, w, h)));
     if (mood === 'sleep') v.sleepZ = { x: pepinX + PEPIN_W * 0.62, y: y + h * 0.12 };
     hot.push({ part: 'pico', x: pepinX - 6, y: y + h * 0.08, w: PEPIN_W + 12, h: h * 0.92 });

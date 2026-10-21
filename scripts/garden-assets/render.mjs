@@ -75,6 +75,8 @@ export async function render(state, opts, file) {
   await svgLayer(c, `${v.dripBranches ? `<line x1="${v.dripBranches.x}" y1="${v.dripBranches.y0}" x2="${v.dripBranches.x}" y2="${v.dripBranches.y1}" stroke="#8ED0EA" stroke-width="4.5" stroke-dasharray="7 11" stroke-linecap="round" opacity="0.9"/>` : ''}
     ${v.waterLine ? `<line x1="${v.waterLine.x1}" y1="${v.waterLine.y}" x2="${v.waterLine.x2}" y2="${v.waterLine.y}" stroke="#E4F6FF" stroke-width="3" stroke-linecap="round" opacity="0.8"/>` : ''}`);
   if (veil) await svgLayer(c, `<rect width="${W}" height="${H}" fill="rgb(${veil.rgb.join(',')})" opacity="${veil.a}"/>`);
+  if (v.windows.length) await svgLayer(c, `<defs>${rg('win', [[0, '#FFD98A', o.moment === 'day' || !o.moment ? 0.45 : 0.8], [1, '#FFC870', 0]])}</defs>
+    ${v.windows.map((w) => `<circle cx="${w.x + w.w / 2}" cy="${w.y + w.h / 2}" r="${w.w * 1.5}" fill="url(#win)"/><rect x="${w.x}" y="${w.y}" width="${w.w}" height="${w.h}" rx="${w.w * 0.06}" fill="#FFD36E" opacity="0.95"/><line x1="${w.x + w.w / 2}" y1="${w.y}" x2="${w.x + w.w / 2}" y2="${w.y + w.h}" stroke="#7A5A3A" stroke-width="${w.w * 0.09}"/><line x1="${w.x}" y1="${w.y + w.h / 2}" x2="${w.x + w.w}" y2="${w.y + w.h / 2}" stroke="#7A5A3A" stroke-width="${w.w * 0.09}"/>`).join('')}`);
   if (o.moment !== 'day') {
     await svgLayer(c, `<defs>${rg('moon', [[0, '#E8EEFF', 0.55], [1, '#E8EEFF', 0]])}${rg('lamp', [[0, '#FFE4A0', 0.95], [0.4, '#FFC870', 0.45], [1, '#FFC870', 0]])}</defs>
       ${o.moment === 'night' ? `<circle cx="800" cy="112" r="120" fill="url(#moon)"/><circle cx="800" cy="112" r="40" fill="#F2F5FF"/>` : ''}
@@ -99,6 +101,7 @@ const board = async (items, cols, file) => {
   await save(sheet, path.join(outDir, file));
 };
 
+await board([0.1, 0.3, 0.5, 0.7, 1].map((p) => [S({ cabin: { progress: p, count: 1 } }), { decor: ['mushrooms'] }]), 5, 'render_cabin.png');
 await render(base, { moment: 'day', decor: [], hotspots: true }, 'render_hotspots.png');
 await board(['day', 'dusk', 'night'].map((moment) => [base, { moment }]), 3, 'render_moments.png');
 await board(['spring', 'summer', 'autumn', 'winter'].map((season) => [base, { season }]), 4, 'render_seasons.png');

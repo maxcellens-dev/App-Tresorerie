@@ -12,7 +12,6 @@ import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import { sheetWidth, useSheetBottomPadding, useSheetFixedHeight } from '../../lib/ui/appLayout';
 import { RootPortal } from '../../lib/rootPortal';
 import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../../hooks/data/useRecurringTransactions';
-import { isGardenPalette } from '../../lib/garden/gardenPalette';
 import { todayISO } from '../../lib/dateUtils';
 import { GARDEN_COLORS as G } from '../../lib/garden/theme';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
@@ -97,7 +96,6 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
   const eur = (n: number, currency?: string | null) =>
     `${Math.round(n).toLocaleString('fr-FR')} ${currency ? currencySymbolFor(currency) : CURRENCY_SYMBOL}`;
 
-  const garden = isGardenPalette(c);
   const thisMonth = todayISO().slice(0, 7);
   const openEdit = (id: string) => { onClose(); router.push(`/(tabs)/transactions/edit/${id}` as any); };
 
@@ -109,12 +107,12 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
           <View style={s.grabber} />
           <View style={s.header}>
             <Ionicons name="repeat" size={20} color={c.text} />
-            <Text style={s.title}>{garden ? 'Tes opérations récurrentes' : 'Transactions récurrentes'}</Text>
+            <Text style={s.title}>Tes opérations récurrentes</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} hitSlop={12}><Ionicons name="close" size={22} color={c.textSecondary} /></Pressable>
           </View>
           {/* Ce n'est PAS le suivi du mois : c'est le catalogue de toutes les récurrentes, pour les
               modifier. Ce qui tombe ce mois-ci se lit dans Mon argent › Ce mois. */}
-          {garden ? <Text style={s.intro}>Toutes tes opérations récurrentes, quel que soit leur mois. Ce qui tombe ce mois-ci est repéré.</Text> : null}
+          <Text style={s.intro}>Toutes tes opérations récurrentes, quel que soit leur mois. Ce qui tombe ce mois-ci est repéré.</Text>
 
           {/* La feuille ayant une hauteur fixe, chargement et messages vides se posent au MILIEU de
               l'espace restant plutôt que collés sous le titre, avec un grand vide dessous. */}
@@ -137,18 +135,18 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
                   return (
                     <TouchableOpacity
                       key={k}
-                      style={[s.tab, on && (garden ? { backgroundColor: G.card, shadowColor: '#1E3A2C', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 } : { backgroundColor: color })]}
+                      style={[s.tab, on && { backgroundColor: G.card, shadowColor: '#1E3A2C', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 }]}
                       onPress={() => setPicked(k)}
                       activeOpacity={0.8}
                       accessibilityRole="tab"
                       accessibilityState={{ selected: on }}
                       accessibilityLabel={`${meta.tab} — ${n} récurrente${n > 1 ? 's' : ''}`}
                     >
-                      <Ionicons name={meta.icon as any} size={garden ? 15 : 13} color={on && !garden ? c.bg : color} />
-                      <Text style={[s.tabText, on && { color: garden ? color : c.bg }]} numberOfLines={1}>{meta.tab}</Text>
+                      <Ionicons name={meta.icon as any} size={15} color={color} />
+                      <Text style={[s.tabText, on && { color }]} numberOfLines={1}>{meta.tab}</Text>
                       {/* Un onglet vide garde son compteur à 0, en retrait : mieux vaut un « 0 »
                           lisible qu'un onglet qui semble cacher quelque chose. */}
-                      <Text style={[s.tabCount, on ? { color: garden ? color : c.bg, opacity: 0.85 } : n === 0 && { opacity: 0.45 }]}>{n}</Text>
+                      <Text style={[s.tabCount, on ? { color, opacity: 0.85 } : n === 0 && { opacity: 0.45 }]}>{n}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -162,12 +160,10 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
                 <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>
                   <View style={s.list}>
                   {visibleItems.map((it: RecurringItem, idx: number) => (
-                    <TouchableOpacity key={it.id} style={[s.row, garden && idx === visibleItems.length - 1 && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => openEdit(it.id)}>
-                      {garden ? (
+                    <TouchableOpacity key={it.id} style={[s.row, idx === visibleItems.length - 1 && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => openEdit(it.id)}>
                         <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: activeColor + '22', alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name={activeMeta.icon as any} size={17} color={activeColor} />
                         </View>
-                      ) : null}
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={s.rowLabel} numberOfLines={1}>{it.label}</Text>
                         <View style={s.rowSubLine}>
@@ -215,7 +211,6 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
    graisse, jamais de fontWeight — sinon Android retombe sur Roboto). */
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPalette(c)) return base;
   const font = (w: 'body' | 'bodyBold' | 'bodyHeavy' | 'display') => ({ fontFamily: GF[w], fontWeight: 'normal' as const });
   return {
     ...base,

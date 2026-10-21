@@ -59,6 +59,8 @@ function BoutiqueScreen() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = (profile as any)?.is_admin === true;
+  const avatarUrl = (profile as any)?.avatar_url as string | undefined;
+  const avatarInitial = String((profile as any)?.full_name || '?').charAt(0).toUpperCase();
   const { state, config, inventory, buyItem, creditGems, canClaimDailyGems, isReady, isError, isImpersonating } = useGamification(user?.id);
   // Même requête (même clé) que celle du hook ci-dessus : on ne lit ici que son ÉTAT, pour savoir
   // distinguer « config en route » de « config illisible » — les deux donnent `config` indéfini.
@@ -305,14 +307,7 @@ function BoutiqueScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
-        {isGardenPalette(COLORS) ? null : (
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        )}
         <View style={styles.headerRow}>
-          {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Boutique</Text>}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {/* Admin uniquement : crédite 100 relyks pour tester les achats facilement. */}
             {isAdmin && (
@@ -433,9 +428,19 @@ function BoutiqueScreen() {
                   state={garden.core.ready ? garden.tree : HERO}
                   options={{ ...applyTry(gardenLook, tryKey), mood: tried ? 'joy' : undefined, marks: false, label: tried ? `Essai : ${tried.label}` : 'Ton jardin' }}
                 />
+                {/* Un cadre s'essaie sur TON avatar, posé devant la scène. */}
+                {tryKey && previewKind(tryKey) === 'frame' ? (
+                  <View pointerEvents="none" style={styles.frameTry}>
+                    <View style={[styles.frameRing, { borderColor: COSMETIC_DEFS[tryKey].value }]}>
+                      {avatarUrl
+                        ? <Image source={{ uri: avatarUrl }} style={styles.frameImg} accessibilityIgnoresInvertColors />
+                        : <Text style={styles.frameInitial}>{avatarInitial}</Text>}
+                    </View>
+                  </View>
+                ) : null}
                 <View style={styles.showcaseBar}>
                   <Text style={styles.showcaseText} numberOfLines={2}>
-                    {tried ? `Essai : ${itemLabel(tried)}` : 'Touche un décor, un vêtement de Pépin ou une saison pour l’essayer ici.'}
+                    {tried ? `Essai : ${itemLabel(tried)}` : 'Touche un décor, un vêtement de Pépin, une saison ou un cadre pour l’essayer ici.'}
                   </Text>
                   {tried ? (
                     <>
@@ -585,7 +590,6 @@ function BoutiqueScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPaletteL(c)) return base;
   // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
   return withGarden(base, {
     safe: { ...base.safe, paddingHorizontal: 16 },
@@ -672,6 +676,10 @@ function makeBaseStyles(c: any) {
     // vitrine : la scène du jardin + la barre d'essai
     showcase: { borderRadius: 20, overflow: 'hidden', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
     showcaseBar: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+    frameTry: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 60, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)' },
+    frameRing: { width: 132, height: 132, borderRadius: 66, borderWidth: 6, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: c.card },
+    frameImg: { width: 120, height: 120, borderRadius: 60 },
+    frameInitial: { fontSize: 48, fontWeight: '800', color: c.text },
     showcaseText: { flex: 1, fontSize: 13, color: c.textSecondary },
     dailyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 12, marginBottom: 12 },
     frozenLock: { position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.textSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },

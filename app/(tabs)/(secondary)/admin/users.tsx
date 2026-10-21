@@ -6,7 +6,6 @@
  *    (actif ou non), puis SUPPRIMER la sélection (compte + données) — DOUBLE confirmation, et la
  *    liste des noms concernés à l'écran de confirmation.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, Modal, Pressable } from 'react-native';
@@ -465,8 +464,7 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

@@ -4,5 +4,5 @@ import { Redirect } from 'expo-router';
 // se fait désormais DANS l'app (Pilotage → guide utilisateur, cf. contexts/GuideContext), donc cette
 // route ne fait plus qu'ouvrir l'app. Conservée : d'anciens liens et redirections pointent dessus.
 export default function SetupScreen() {
-  return <Redirect href="/(tabs)/pilotage" />;
+  return <Redirect href="/(tabs)/jardin" />;
 }

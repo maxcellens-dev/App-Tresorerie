@@ -155,17 +155,3 @@ export function parseAiReport(text: string): AiReport {
   const structured = !!summary || sections.length >= 1;
   return { summary, intro, sections, structured };
 }
-
-/** Couleur + libellé d'un statut de signal, à partir de la palette de thème (c). */
-export function signalMeta(status: SignalStatus, c: any): { color: string; label: string } {
-  if (status === 'good') return { color: c.success, label: 'OK' };
-  if (status === 'over') return { color: c.danger, label: 'Dépassé' };
-  return { color: c.warning, label: 'À surveiller' };
-}
-
-/** Couleur d'une bande de score (0-100). */
-export function scoreColor(score: number, c: any): string {
-  if (score >= 70) return c.success;
-  if (score >= 45) return c.warning;
-  return c.danger;
-}

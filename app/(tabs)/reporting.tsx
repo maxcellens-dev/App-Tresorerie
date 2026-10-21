@@ -1,4 +1,3 @@
-import { isGardenPalette } from '../../lib/garden/gardenPalette';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import ScreenGradient from '../../components/layout/ScreenGradient';
 import CalculatorButton from '../../components/transaction/CalculatorButton';
@@ -906,7 +905,6 @@ function ReportingBody() {
     <View style={s.root}>
       <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
       <SafeAreaView style={s.safe} edges={['left', 'right']}>
-        <BackRow C={C} onPress={goBack} />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
           <Ionicons name="star-outline" size={48} color={C.amber} />
           {/* L'offre Premium peut être coupée globalement (admin) : inviter à « passer Premium »
@@ -949,7 +947,6 @@ function ReportingBody() {
         <View style={s.root}>
           <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
           <SafeAreaView style={s.safe} edges={['left', 'right']}>
-            <BackRow C={C} onPress={goBack} />
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
               <Ionicons name="cloud-offline-outline" size={48} color={C.textSecondary} />
               <Text style={{ color: C.text, marginTop: 14, fontSize: 16, fontWeight: '800', textAlign: 'center' }}>Tes données n’ont pas pu être chargées</Text>
@@ -978,7 +975,6 @@ function ReportingBody() {
         <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, isDesktop && { paddingBottom: 56 }]} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.income} progressBackgroundColor={C.card} />}>
 
-          <FadeIn><BackRow C={C} onPress={goBack} /></FadeIn>
 
           {/* KPIs */}
           <FadeIn delay={100}>
@@ -1302,17 +1298,6 @@ function ReportingBody() {
   );
 }
 
-function BackRow({ C, onPress }: { C: any; onPress: () => void }) {
-  // Jardin : le retour est dans la barre du haut.
-  if (isGardenPalette(C)) return null;
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingTop: 4 }}>
-      <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={onPress} accessibilityRole="button">
-        <Ionicons name="arrow-back" size={22} color={C.text} /><Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>Retour</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 function Gate({ C, s, icon, text }: { C: any; s: any; icon: string; text: string }) {
   return (
     <View style={s.root}>

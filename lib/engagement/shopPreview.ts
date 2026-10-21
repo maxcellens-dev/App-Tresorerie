@@ -3,8 +3,9 @@
  * boutique — ce qui est déjà équipé, PLUS l'article essayé (un décor de plus, un vêtement de Pépin
  * à la place du sien, une autre saison). Fonction PURE.
  *
- * Seuls les articles du Jardin s'essaient (décor, garde-robe, saison) : les cadres, couleurs et
- * packs n'ont rien à montrer sur l'arbre → `null`.
+ * Les articles du Jardin (décor, garde-robe, saison) changent la scène ; un cadre d'avatar s'essaie
+ * aussi (`'frame'`), mais sur ton avatar posé devant la scène, pas sur l'arbre. Couleurs et packs
+ * n'ont rien à montrer → `null`.
  */
 import { COSMETIC_DEFS } from './gamification';
 import type { SceneExtras } from '../garden/sceneCinematic';
@@ -17,9 +18,10 @@ const OUTFIT_SLOT: Record<string, keyof NonNullable<SceneExtras['outfit']>> = {
 };
 
 /** Ce que l'article change dans le Jardin, ou `null` s'il ne s'y voit pas. */
-export function previewKind(key: string): 'decor' | 'outfit' | 'season' | null {
+export function previewKind(key: string): 'decor' | 'outfit' | 'season' | 'frame' | null {
   const d = COSMETIC_DEFS[key];
   if (!d) return null;
+  if (d.slot === 'avatar_frame') return 'frame';
   if (String(d.slot).startsWith('decor_')) return 'decor';
   if (OUTFIT_SLOT[d.slot]) return 'outfit';
   if (d.slot === 'garden_season') return 'season';
@@ -29,7 +31,7 @@ export function previewKind(key: string): 'decor' | 'outfit' | 'season' | null {
 export function applyTry(look: GardenLook, key: string | null): GardenLook {
   if (!key) return look;
   const d = COSMETIC_DEFS[key], kind = previewKind(key);
-  if (!d || !kind) return look;
+  if (!d || !kind || kind === 'frame') return look;
   if (kind === 'decor') return { ...look, decor: Array.from(new Set([...(look.decor ?? []), d.value])) };
   if (kind === 'outfit') return { ...look, outfit: { ...(look.outfit ?? {}), [OUTFIT_SLOT[d.slot]]: d.value } };
   return { ...look, season: d.value as Season };

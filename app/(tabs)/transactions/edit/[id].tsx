@@ -645,12 +645,6 @@ function EditTransactionScreen() {
       <View style={styles.root}>
         <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]}>
-          {isGardenPalette(COLORS) ? null : (
-          <TouchableOpacity style={styles.back} onPress={closeEditor}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
-          )}
           <Text style={styles.text}>Cette transaction n’existe plus.</Text>
         </SafeAreaView>
       </View>
@@ -662,13 +656,6 @@ function EditTransactionScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
-        {isGardenPalette(COLORS) ? null : (
-        <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-        </TouchableOpacity>
-        )}
-        {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Modifier la transaction</Text>}
         {isPast && (
           <View style={styles.warningBanner}>
             <Ionicons name="warning" size={20} color={COLORS.danger} />
@@ -1121,8 +1108,7 @@ function EditTransactionScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

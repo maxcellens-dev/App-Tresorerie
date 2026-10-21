@@ -2,7 +2,6 @@
 // Affiche l'UNIQUE action prioritaire (moteur d'état). Dismissable ; réapparaît à la prochaine
 // ouverture de l'app tant que l'action reste pertinente (dismiss = mémoire de SESSION uniquement).
 // Visible UNIQUEMENT sur le Pilotage (jamais par-dessus un écran de saisie).
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Alert } from 'react-native';
@@ -230,8 +229,7 @@ export default function NextActionBanner() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

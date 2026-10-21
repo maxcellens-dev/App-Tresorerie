@@ -187,13 +187,6 @@ function SuccesScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
-        {isGardenPalette(COLORS) ? null : (
-        <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        )}
-        {isGardenPalette(COLORS) ? null : <Text style={styles.title}>Succès</Text>}
 
         {/* ── Ce qu'on affiche quand on ne SAIT pas encore ──────────────────────────────────
             Un « 0 » n'est pas une absence de réponse : la page annonçait 0 relyk, 0 succès et une
@@ -368,7 +361,6 @@ function SuccesScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPaletteL(c)) return base;
   // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
   return withGarden(base, {
     safe: { ...base.safe, paddingHorizontal: 16 },

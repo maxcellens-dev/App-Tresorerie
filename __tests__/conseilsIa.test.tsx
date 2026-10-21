@@ -32,7 +32,7 @@ jest.mock('../hooks/data/useUserSnapshot', () => ({
 }));
 jest.mock('../components/transaction/CalculatorButton', () => () => null);
 
-import ConseilsIaScreen from '../app/(tabs)/conseils-ia';
+import ConseilsIaScreen from '../components/ai/AskPepin';
 
 /**
  * Double de constructeur de requête Supabase : chaînable ET « thenable » (comme le vrai).
@@ -118,9 +118,9 @@ describe('Conseils Intelligents — affichage du compteur', () => {
   it('affiche « X / Y requêtes » une fois le quota lu', async () => {
     setup({ quota: { limit: 10, remaining: 8, extra_credits: 5 } });
     renderWithProviders(<ConseilsIaScreen />);
-    await waitFor(() => expect(screen.getByText('Conseils Intelligents')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByText('Bilan global')).toBeOnTheScreen());
     await waitFor(() => expect(screen.getByText('13')).toBeOnTheScreen());     // 8 incluses + 5 rechargées
-    expect(screen.getByText('/ 15 requêtes')).toBeOnTheScreen();
+    expect(screen.getByLabelText('13 requêtes disponibles sur 15')).toBeOnTheScreen();
   });
 
   it('n\'annonce PAS « 0 / 0 » tant que le quota n\'a pas répondu, puis affiche le vrai chiffre', async () => {
@@ -135,7 +135,7 @@ describe('Conseils Intelligents — affichage du compteur', () => {
     });
 
     renderWithProviders(<ConseilsIaScreen />);
-    await waitFor(() => expect(screen.getByText('Conseils Intelligents')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByText('Bilan global')).toBeOnTheScreen());
     expect(screen.getByText('—')).toBeOnTheScreen();
     expect(screen.queryByText('/ 0 requêtes')).toBeNull();
     expect(screen.queryByText(/plus de requêtes disponibles/i)).toBeNull();
@@ -150,14 +150,14 @@ describe('Conseils Intelligents — accès', () => {
   it('oppose le mur Premium à un utilisateur gratuit sans crédit', async () => {
     setup({ profile: { is_premium: false }, quota: { limit: 1, remaining: 0, is_premium: false, extra_credits: 0 } });
     renderWithProviders(<ConseilsIaScreen />);
-    await waitFor(() => expect(screen.getByText(/réservés aux abonnés Premium/i)).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByText(/réservé aux abonnés Premium/i)).toBeOnTheScreen());
   });
 
   it('LAISSE ENTRER un utilisateur gratuit qui a acheté des requêtes', async () => {
     setup({ profile: { is_premium: false }, quota: { limit: 1, remaining: 0, is_premium: false, extra_credits: 3 } });
     renderWithProviders(<ConseilsIaScreen />);
-    await waitFor(() => expect(screen.getByText('Conseils Intelligents')).toBeOnTheScreen());
-    expect(screen.queryByText(/réservés aux abonnés Premium/i)).toBeNull();
+    await waitFor(() => expect(screen.getByText('Bilan global')).toBeOnTheScreen());
+    expect(screen.queryByText(/réservé aux abonnés Premium/i)).toBeNull();
     expect(screen.getByText('3')).toBeOnTheScreen();
   });
 });
@@ -204,10 +204,12 @@ describe('Conseils Intelligents — envoi', () => {
     expect(mockSupabase.functions.invoke).toHaveBeenCalledWith('ai-advice', expect.objectContaining({
       body: expect.objectContaining({ kind: 'analysis', analysis_key: 'analysis_global', conversation_id: 'conv-neuve' }),
     }));
-    // Un troisième appui pendant que ça tourne ne part pas non plus.
-    await act(async () => { fireEvent.press(btn); });
+    // Pendant que ça tourne, les analyses se replient (la conversation a démarré) : relancer depuis
+    // la ligne repliée, puis l'analyse, ne part pas non plus.
+    await act(async () => { fireEvent.press(screen.getByText('Lancer une analyse')); });
+    await act(async () => { fireEvent.press(screen.getAllByText('Bilan global').pop()!); });
     expect(mockSupabase.functions.invoke).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Le conseiller réfléchit…')).toBeOnTheScreen();
+    expect(screen.getByText('Je regarde tes chiffres…')).toBeOnTheScreen();
     unmount();
   });
 
@@ -224,8 +226,10 @@ describe('Conseils Intelligents — envoi', () => {
 
     await act(async () => { fireEvent.press(screen.getByText('Bilan global')); });
     await waitFor(() => expect(mockSupabase.functions.invoke).toHaveBeenCalledTimes(1));
-    // Le sous-titre porte désormais le nom du fil créé — et plus « Nouvelle conversation ».
-    await waitFor(() => expect(screen.getAllByText(/Bilan global/).length).toBeGreaterThan(1));
+    // La pastille du haut porte désormais le nom du fil créé — et plus « Nouvelle conversation »
+    // (les analyses, elles, sont repliées : le titre n'apparaît plus qu'une fois).
+    await waitFor(() => expect(screen.getByText('Bilan global')).toBeOnTheScreen());
+    expect(screen.getByText('Lancer une analyse')).toBeOnTheScreen();
     expect(screen.queryByText(/Nouvelle conversation/)).toBeNull();
     unmount();
   });

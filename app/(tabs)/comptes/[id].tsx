@@ -1016,7 +1016,6 @@ function AccountDetailScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPalette(c)) return base;
   /* JARDIN : cartes arrondies et contournées, polices du Jardin (une famille par graisse, jamais de
      fontWeight — Android retomberait sur Roboto), boutons en pilule. */
   const card = { backgroundColor: G.card, borderRadius: 24, borderWidth: 1, borderColor: G.line, shadowColor: '#1E3A2C', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 };

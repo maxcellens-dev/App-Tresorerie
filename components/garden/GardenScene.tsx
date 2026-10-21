@@ -178,6 +178,25 @@ function GardenScene({ state, options, onPressPart, style }: Props) {
 
       {veil ? <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: `rgba(${veil.rgb.join(',')},${veil.a})` }} /> : null}
 
+      {/* Fenêtres allumées (cabane finie) : au-dessus du voile, pour briller la nuit aussi */}
+      {v.windows.length ? (
+        <Svg style={{ position: 'absolute', left: 0, top: 0 }} width="100%" height="100%" viewBox={`0 0 ${FRAME_W} ${FRAME_H}`} preserveAspectRatio="none" pointerEvents="none">
+          <Defs>
+            <RadialGradient id={id('win')} cx="0.5" cy="0.5" r="0.5">
+              <Stop offset="0" stopColor="#FFD98A" stopOpacity={moment === 'day' ? 0.45 : 0.8} /><Stop offset="1" stopColor="#FFC870" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          {v.windows.map((w, i) => (
+            <G key={i}>
+              <Circle cx={w.x + w.w / 2} cy={w.y + w.h / 2} r={w.w * 1.5} fill={`url(#${id('win')})`} />
+              <Rect x={w.x} y={w.y} width={w.w} height={w.h} rx={w.w * 0.06} fill="#FFD36E" opacity={0.95} />
+              <Line x1={w.x + w.w / 2} y1={w.y} x2={w.x + w.w / 2} y2={w.y + w.h} stroke="#7A5A3A" strokeWidth={w.w * 0.09} />
+              <Line x1={w.x} y1={w.y + w.h / 2} x2={w.x + w.w} y2={w.y + w.h / 2} stroke="#7A5A3A" strokeWidth={w.w * 0.09} />
+            </G>
+          ))}
+        </Svg>
+      ) : null}
+
       {/* Au-dessus du voile : lune, lanternes allumées, Pépin qui dort */}
       {moment !== 'day' ? (
         <Svg style={{ position: 'absolute', left: 0, top: 0 }} width="100%" height="100%" viewBox={`0 0 ${FRAME_W} ${FRAME_H}`} preserveAspectRatio="none" pointerEvents="none">

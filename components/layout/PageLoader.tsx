@@ -15,7 +15,6 @@
  * clignoter l'app et donnerait exactement l'impression de lenteur qu'on cherche à supprimer.
  * Le bon test est donc « je n'ai rien à montrer », pas « je suis en train de charger ».
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
@@ -42,8 +41,7 @@ export default function PageLoader({ label }: {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

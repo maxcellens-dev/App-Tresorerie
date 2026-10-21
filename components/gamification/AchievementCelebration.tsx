@@ -7,7 +7,6 @@
  * Les succès déjà débloqués avant cette fonctionnalité ont été marqués comme célébrés par la
  * migration → pas de célébration rétroactive.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import NutIcon from './NutIcon';
 import { successArt } from '../../lib/engagement/successArt';
@@ -207,8 +206,7 @@ export default function AchievementCelebration() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

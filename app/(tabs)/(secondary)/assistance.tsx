@@ -1,4 +1,3 @@
-import { isGardenPalette as isGardenPaletteF } from '../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, ActivityIndicator } from 'react-native';
@@ -296,8 +295,7 @@ export default function AssistanceScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

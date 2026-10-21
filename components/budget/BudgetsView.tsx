@@ -16,7 +16,6 @@
  *  • un dépassement en rouge (l'ambre du variable, cf. `BudgetGauge`) ;
  *  • un chiffre hérité sans le dire (« repris d'août » est toujours écrit).
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
@@ -507,8 +506,7 @@ function Row({ line, first, styles: s, yearly, depth = 0, dotColor, selectedId, 
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

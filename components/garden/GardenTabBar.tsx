@@ -18,7 +18,7 @@ import { GARDEN_COLORS, GARDEN_TOUCH } from '../../lib/garden/theme';
 import { TABS } from '../../lib/garden/lexicon';
 
 /** Routes du groupe (tabs) qui forment la navigation du Jardin. */
-export const GARDEN_TAB_ROUTES = ['argent', 'projets', 'jardin', 'pico'] as const;
+export const GARDEN_TAB_ROUTES = ['argent', 'projets', 'jardin', 'pepin'] as const;
 export type GardenTabRoute = (typeof GARDEN_TAB_ROUTES)[number];
 
 export function GardenNavIcon({ name, color, size = 24 }: { name: 'tree' | 'wallet' | 'pots' | 'pico'; color: string; size?: number }) {
@@ -92,7 +92,7 @@ export default function GardenTabBar({ state, navigation }: any) {
         </Pressable>
       </View>
       {tab('jardin', TABS.garden, 'tree')}
-      {tab('pico', TABS.pico, 'pico')}
+      {tab('pepin', TABS.pico, 'pico')}
       <GardenAddSheet visible={addOpen} onClose={() => setAddOpen(false)} />
     </View>
   );

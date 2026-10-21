@@ -49,6 +49,8 @@ interface GuideCtx {
   is: (s: GuideStage) => boolean;
   /** Marque un drapeau (optimiste + persisté) → l'étape suivante s'active. */
   done: (flag: GuideFlag) => void;
+  /** Le drapeau est-il posé (optimiste compris) ? La page « Plante ton arbre » coche ses étapes avec. */
+  flagged: (flag: GuideFlag) => boolean;
   /** L'utilisateur a des comptes ? (utile aux écrans pour adapter leur texte) */
   hasChecking: boolean;
   hasSavings: boolean;
@@ -59,7 +61,7 @@ interface GuideCtx {
 }
 
 const Ctx = createContext<GuideCtx>({
-  active: false, booting: false, stage: 'idle', is: () => false, done: () => {},
+  active: false, booting: false, stage: 'idle', is: () => false, done: () => {}, flagged: () => false,
   hasChecking: false, hasSavings: false, tourJustFinished: false, inSetup: false,
 });
 
@@ -242,10 +244,10 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   const value = useMemo<GuideCtx>(() => ({
-    active, booting, stage, is: (s: GuideStage) => stage === s, done, hasChecking, hasSavings,
+    active, booting, stage, is: (s: GuideStage) => stage === s, done, flagged: flag, hasChecking, hasSavings,
     tourJustFinished, inSetup,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [active, booting, stage, done, hasChecking, hasSavings, tourJustFinished, inSetup]);
+  }), [active, booting, stage, done, justSet, state, hasChecking, hasSavings, tourJustFinished, inSetup]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

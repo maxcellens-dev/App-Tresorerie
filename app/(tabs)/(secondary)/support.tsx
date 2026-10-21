@@ -93,7 +93,7 @@ export default function SupportScreen() {
             propre bouton « Retour » et son titre, avec un espacement et une taille qui ne
             correspondaient à aucune autre — c'est le genre d'écart qu'on ne voit qu'en passant
             d'un écran à l'autre. */}
-        <ScreenHeader title={isGardenPaletteL(COLORS) ? 'Aide' : 'Support'} onBack={goBack} />
+        <ScreenHeader title={'Aide'} onBack={goBack} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {sections.map((sec) => (
@@ -131,7 +131,6 @@ export default function SupportScreen() {
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  if (!isGardenPaletteL(c)) return base;
   // JARDIN : cartes arrondies, pilules, polices du Jardin (cf. lib/garden/legacyStyles).
   return withGarden(base, {
     safe: { ...base.safe, paddingHorizontal: 16 },

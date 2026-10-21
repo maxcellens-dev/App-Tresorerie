@@ -358,13 +358,14 @@ for (const s of SEASONS) for (let v = 0; v < 3; v++) await emit(`tuft_${s}_${v}`
 /* ── Cabane, échelle, ronces, fleurs, décors, nuages ──────────────────────────────────────────── */
 const simple = async (key, src, max) => { const im = await cut(src); M[key] = { w: im.w, h: im.h, ...(await emit(key, im, max)) }; };
 await simple('cabin', 'cabin_full', 360);
-/* Étapes de la cabane (facultatives) : cabin_1 … cabin_4, retouches de cabin_full générées une à une
-   (plateforme, garde-corps, ossature, toit). Chaque étape REMPLACE l'image entière : on garde sa
+/* Étapes de la cabane (facultatives) : cabin_2 … cabin_4, retouches de cabin_full générées une à une
+   (garde-corps, ossature, toit). Chaque étape REMPLACE l'image entière : on garde sa
    position relative à la cabane finie (même cadre d'origine, ramené à l'échelle de cabin_full). */
 M.cabinStages = {};
 {
   const full = OFF.cabin_full;
-  for (const k of [1, 2, 3, 4]) {
+  // pas d'étape 1 à part : le plancher est le bas de l'étape 2 (cf. lib/garden/scene3dLayout)
+  for (const k of [2, 3, 4]) {
     const o = OFF[`cabin_${k}`]; if (!o) continue;
     const s = full.srcW / o.srcW, im = await cut(`cabin_${k}`);
     M.cabinStages[k] = {

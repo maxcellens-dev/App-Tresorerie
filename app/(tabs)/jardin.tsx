@@ -30,6 +30,8 @@ import TreePartSheet from '../../components/garden/TreePartSheet';
 import MonthlyClosure from '../../components/closure/MonthlyClosure';
 import { useGardenModel } from '../../hooks/garden/useGardenModel';
 import AdSlot from '../../components/marketing/AdSlot';
+import GardenTip from '../../components/garden/GardenTip';
+import { useGuide } from '../../contexts/GuideContext';
 import { useGardenCosmetics } from '../../hooks/garden/useGardenCosmetics';
 import { useMonthlyClosure } from '../../hooks/pilotage/useMonthlyClosure';
 import { signalAppReady } from '../../lib/platform/splashGate';
@@ -49,6 +51,7 @@ const months = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits:
 
 export default function JardinScreen() {
   const router = useRouter();
+  const guide = useGuide();
   const { core, tree, choices, can, credits, inputs, investments } = useGardenModel();
   /* Un choix de Pépin ouvre DIRECTEMENT sa saisie, comme avant :
      racines / fruits → le virement pré-rempli ; arrosoir → le montant à conserver.
@@ -128,11 +131,14 @@ export default function JardinScreen() {
         </View>
       )}
     >
-      {vm.noAccountsYet || vm.setupIncomplete ? (
+      {/* Installation en cours (guide de démarrage, ou compte vidé de ses données) : la page
+          « Plante ton arbre » porte les cinq étapes. */}
+      {guide.active || vm.noAccountsYet || vm.setupIncomplete ? (
         <GardenCard tint={GARDEN_COLORS.branchesBg} onPress={() => router.push('/(tabs)/(secondary)/demarrer' as any)} accessibilityLabel="Planter ton arbre : finir de démarrer">
           <GardenText variant="label" color={GARDEN_COLORS.branchesText}>Démarrer</GardenText>
           <GardenText variant="heading">Plante ton arbre</GardenText>
-          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{vm.setupHint || 'Ajoute tes comptes et tes opérations récurrentes : ton arbre se dessinera tout seul.'}</GardenText>
+          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{vm.setupHint || 'Cinq étapes avec tes vrais comptes, environ cinq minutes : ton Relyka et ton arbre se calculent ensuite tout seuls.'}</GardenText>
+          <GardenText variant="smallStrong" color={GARDEN_COLORS.primary}>Continuer ›</GardenText>
         </GardenCard>
       ) : null}
 
@@ -142,7 +148,7 @@ export default function JardinScreen() {
 
       {/* Bureau : l'arbre à gauche, le Relyka et le prochain pas à droite (une colonne sur téléphone). */}
       <GardenColumns ratio={0.55} left={
-      <GardenScene state={tree} options={{ id: 'home', ...gardenLook }} onPressPart={(pt) => (pt === 'pico' ? router.push('/(tabs)/pico' as any) : setPart(pt))} />
+      <GardenScene state={tree} options={{ id: 'home', ...gardenLook }} onPressPart={(pt) => (pt === 'pico' ? router.push('/(tabs)/pepin' as any) : setPart(pt))} />
       } right={<>
 
       {/* ── 2. Ton Relyka = l'eau de l'arrosoir à utiliser ce mois-ci, et ce que Pico propose d'en faire ──
@@ -244,6 +250,9 @@ export default function JardinScreen() {
       </GardenCard>
 
       </>} />
+
+      {/* Le conseil du jour : en bas de page, il ne passe pas devant ce qui compte (réglable dans les Paramètres) */}
+      <GardenTip core={core} />
 
       {/* Zone publicité (maison) — bas de page, réglée en admin, masquée pour les Premium */}
       <AdSlot placement="jardin" />

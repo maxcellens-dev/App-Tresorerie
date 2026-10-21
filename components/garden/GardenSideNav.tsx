@@ -24,18 +24,17 @@ import { TABS, WORDS } from '../../lib/garden/lexicon';
 import { SIDEBAR_WIDTH, pointer, transition } from '../../lib/ui/webLayout';
 
 const MAIN: { route: GardenTabRoute; label: string; icon: 'tree' | 'wallet' | 'pots' | 'pico' }[] = [
+  { route: 'jardin', label: TABS.garden, icon: 'tree' },
   { route: 'argent', label: TABS.money, icon: 'wallet' },
   { route: 'projets', label: TABS.projects, icon: 'pots' },
-  { route: 'jardin', label: TABS.garden, icon: 'tree' },
-  { route: 'pico', label: TABS.pico, icon: 'pico' },
+  { route: 'pepin', label: TABS.pico, icon: 'pico' },
 ];
 /* Accès directs du bureau, rangés par sujet. `key` = dernier segment du chemin (surbrillance). */
 const GROUPS: { title: string; items: { key: string; label: string; icon: string; route: string }[] }[] = [
   { title: 'Ton argent', items: [
-    { key: 'month', label: 'Suivi du mois', icon: 'calendar-outline', route: '/(tabs)/jardin?open=can' },
     { key: 'tresorerie', label: WORDS.monthPlan, icon: 'stats-chart-outline', route: '/(tabs)/tresorerie' },
-    { key: 'credits', label: 'Mes crédits', icon: 'home-outline', route: '/(tabs)/(secondary)/credits' },
     { key: 'placements', label: 'Mes placements', icon: 'nutrition-outline', route: '/(tabs)/(secondary)/placements' },
+    { key: 'credits', label: 'Mes crédits', icon: 'home-outline', route: '/(tabs)/(secondary)/credits' },
     { key: 'projects', label: 'Budgets', icon: 'pie-chart-outline', route: '/(tabs)/projects' },
   ] },
   { title: 'Ton jardin', items: [

@@ -3,7 +3,6 @@
  * menu, fonctionnalités, statistiques, CTA et pied de page. Téléversement d'images vers
  * le bucket public « gamification » (préfixe landing/).
  */
-import { isGardenPalette as isGardenPaletteF } from '../../../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform, Image, Modal, useWindowDimensions } from 'react-native';
@@ -597,8 +596,7 @@ function Field({ label, value, onChange, multiline, styles, c }: { label: string
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

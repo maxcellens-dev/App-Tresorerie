@@ -7,7 +7,6 @@
  * sans que rien ne le signale — c'est arrivé. En montrant ce que le moteur vient réellement de
  * produire, un exemple périmé se voit immédiatement.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -63,8 +62,7 @@ export default function ConfidenceSummary({ conf }: { conf: RelykaConfidence }) 
 
 function makeStyles(c: any) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: any) {

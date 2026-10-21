@@ -7,7 +7,6 @@
  * - `SubCategoryFilterPanel` : le panneau complet (titre, « Tout effacer », fermer, bouton « Voir N »),
  *   pour un écran qui n'a QUE ce filtre — la fiche d'un compte, où le compte est déjà choisi.
  */
-import { isGardenPalette as isGardenPaletteF } from '../../lib/garden/gardenPalette';
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
 import { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -164,8 +163,7 @@ export function SubCategoryFilterPanel({ categories, value, onChange, onClose, r
 
 function makeStyles(c: AppColors) {
   const base = makeBaseStyles(c);
-  // JARDIN : même écran, habillé comme le reste de l'app (cf. lib/garden/legacyStyles › gardenFormStyles).
-  return isGardenPaletteF(c as any) ? gardenFormStyles(base) : base;
+  return gardenFormStyles(base);
 }
 
 function makeBaseStyles(c: AppColors) {

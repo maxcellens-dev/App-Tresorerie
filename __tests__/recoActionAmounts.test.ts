@@ -1,5 +1,4 @@
 import { computeRecommendations, type RecoType } from '../lib/finance/recommendationEngine';
-import { isHidden } from '../lib/finance/recoDismissals';
 import { formatRangeLabel } from '../lib/finance/currency';
 
 /**
@@ -227,20 +226,6 @@ describe('fin de période (avant la prochaine rentrée d’argent)', () => {
     expect(inconnu.enjoy.amount).toBe(mid.enjoy.amount);
     expect(nul.enjoy.amount).toBe(mid.enjoy.amount);
     expect(inconnu.keep.title).toBe('Réserver pour plus tard');
-  });
-});
-
-describe('« Ignorer » — tolérance de réapparition', () => {
-  it('un montant qui bouge de quelques euros ne fait pas revenir la reco', () => {
-    const ignored = { save: 400 };
-    expect(isHidden('save', 400, ignored, [])).toBe(true);
-    expect(isHidden('save', 412, ignored, [])).toBe(true);   // ±10 %
-    expect(isHidden('save', 500, ignored, [])).toBe(false);  // vrai changement de situation
-  });
-
-  it('petits montants : tolérance plancher de 20 €', () => {
-    expect(isHidden('keep', 65, { keep: 50 }, [])).toBe(true);   // ±20 € minimum
-    expect(isHidden('keep', 80, { keep: 50 }, [])).toBe(false);
   });
 });
 
