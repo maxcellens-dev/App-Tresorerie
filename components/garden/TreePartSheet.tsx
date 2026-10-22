@@ -69,8 +69,8 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
 
   if (part === 'roots') {
     const m = tree.roots.months;
-    const [k1, k2, k3] = tree.roots.markMonths;
-    const next = m < k1 ? k1 : m < k2 ? k2 : m < k3 ? k3 : null;
+    const [k1, k2, k3, k4] = tree.roots.markMonths;
+    const next = m < k1 ? k1 : m < k2 ? k2 : m < k3 ? k3 : m < k4 ? k4 : null;
     return (
       <GardenSheet visible onClose={onClose} title={TREE_PARTS.roots.name} subtitle={TREE_PARTS.roots.meaning}
         footer={<GardenButton label="Voir mon épargne" variant="secondary" onPress={() => go(menuHref('argent'))} />}>
@@ -78,12 +78,13 @@ export default function TreePartSheet({ part, onClose, tree, can, credits, savin
         <Row label="Ça couvre" value={`${months(m)} mois`} hint="de tes dépenses essentielles" />
         {next ? (
           <GardenCard tint={GARDEN_COLORS.rootsBg}>
-            <GardenText variant="heading">{rootsGoal(next)}</GardenText>
+            <GardenText variant="heading">{next === k4 ? `Couche dorée : atteins ${months(k4)} mois d'épargne` : rootsGoal(next)}</GardenText>
+            {next === k4 ? <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>Tes {months(k3)} mois sont là, c'est solide. À {months(k4)} mois, une couche dorée apparaît sous tes racines.</GardenText> : null}
             <GardenBar value={m / next} fill={GARDEN_COLORS.roots} track="#F6E9CC" accessibilityLabel={`${months(m)} mois sur ${next}`} />
           </GardenCard>
         ) : (
           <GardenCard tint={GARDEN_COLORS.rootsBg}>
-            <GardenText variant="body">Tes racines dépassent les {months(tree.roots.markMonths[2])} mois{tree.roots.beyondSix ? ` de ${months(tree.roots.extraMonths)} mois` : ''}. Ce qui dépasse pourrait être placé : ce sont les graines qui dorment sous ton arbre.</GardenText>
+            <GardenText variant="body">La couche dorée est là : tes racines dépassent les {months(k4)} mois{tree.roots.beyondLast ? ` de ${months(tree.roots.extraMonths)} mois` : ''}. Ce qui dépasse pourrait être placé : ce sont les graines qui dorment sous ton arbre.</GardenText>
           </GardenCard>
         )}
       </GardenSheet>

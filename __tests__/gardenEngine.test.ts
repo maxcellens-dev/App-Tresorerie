@@ -44,7 +44,7 @@ describe('computeTreeState — les 10 personnes', () => {
   it('Camille : jeune arbre, racines au-delà du 1er mois, cabane à 57 %, fleurs', () => {
     const s = S.camille;
     expect(s.stage).toBe('young');
-    expect(s.roots.marks).toEqual({ one: true, three: false, six: false });
+    expect(s.roots.marks).toEqual({ one: true, three: false, six: false, twelve: false });
     expect(s.cabin?.progress).toBeCloseTo(0.57, 2);
     expect(s.flowers).toBeGreaterThan(0);
     expect(s.rings).toBe(6);
@@ -59,9 +59,10 @@ describe('computeTreeState — les 10 personnes', () => {
     expect(s.fruits).toBe(0);
   });
 
-  it('Pierre : la nappe au-delà de 6 mois, 36 mois en plus', () => {
-    expect(S.pierre.roots.beyondSix).toBe(true);
-    expect(S.pierre.roots.extraMonths).toBe(36);
+  it('Pierre : la couche dorée au-delà de 12 mois, 30 mois en plus', () => {
+    expect(S.pierre.roots.golden).toBe(true);
+    expect(S.pierre.roots.beyondLast).toBe(true);
+    expect(S.pierre.roots.extraMonths).toBe(30);
     expect(S.pierre.roots.depth).toBe(1);
   });
 
@@ -85,7 +86,7 @@ describe('computeTreeState — les 10 personnes', () => {
 });
 
 describe('computeTreeState — règles générales', () => {
-  it('l\'arbre grandit avec l\'épargne de secours, sans jamais rapetisser quand elle monte', () => {
+  it('l\'arbre grandit avec l\'épargne, sans jamais rapetisser quand elle monte', () => {
     let prev = -1;
     for (const m of [0, 0.5, 1, 2, 3, 6, 12]) {
       const g = computeTreeState(person({ securityMonths: m })).growth;
@@ -185,7 +186,7 @@ describe('buildPicoChoices', () => {
 
   it('nomme les comptes simplement quand ils sont inconnus', () => {
     const c = buildPicoChoices([{ type: 'save', actionAmount: 1250 }]);
-    expect(c[0].text).toBe('Vire 1 250 € de ton compte courant vers ton épargne de secours.');
+    expect(c[0].text).toBe('Vire 1 250 € de ton compte courant vers ton épargne.');
   });
 
   it('ne conseille un virement permanent que quand le moteur le juge tenable', () => {
@@ -204,7 +205,7 @@ describe('buildPicoChoices', () => {
 
 describe('describeScene', () => {
   it('décrit la scène en français pour les lecteurs d\'écran', () => {
-    expect(describeScene(computeTreeState(PEOPLE.pierre))).toContain('au-delà de 6 mois');
+    expect(describeScene(computeTreeState(PEOPLE.pierre))).toContain('au-delà de 12 mois');
     expect(describeScene(computeTreeState(PEOPLE.camille))).toMatch(/cabane construite à 57 %/);
   });
 });

@@ -405,7 +405,12 @@ const LEGACY_CURRENCY = /^\s*(graines?|relyks?|gemmes?|gemmes de relyka)\s*$/i;
 /** Textes de succès enregistrés en base qui citent encore l'ancienne monnaie. */
 /* « Relyks » s'écrivait avec une majuscule, comme un nom propre : « noisettes » n'en prend qu'en
    début de texte. */
-const legacyText = (s?: string) => s?.replace(/\b(graine|relyk|gemme)(s?)\b/gi, (_m, _w, plural: string, at: number) => `${at === 0 ? 'N' : 'n'}oisette${plural}`);
+/* « Relyk » était MASCULIN, « noisette » est féminin : l'adjectif qui suit s'accorde (« 5 relyks
+   offerts » → « 5 noisettes offertes »). */
+const FEM: Record<string, string> = { offert: 'offerte', offerts: 'offertes', gagné: 'gagnée', gagnés: 'gagnées', crédité: 'créditée', crédités: 'créditées', cumulé: 'cumulée', cumulés: 'cumulées', reçu: 'reçue', reçus: 'reçues', dépensé: 'dépensée', dépensés: 'dépensées', bonus: 'bonus' };
+const legacyText = (s?: string) => s
+  ?.replace(/\b(graine|relyk|gemme)(s?)\b/gi, (_m, _w, plural: string, at: number) => `${at === 0 ? 'N' : 'n'}oisette${plural}`)
+  .replace(/\b(noisettes?) (offerts?|gagnés?|crédités?|cumulés?|reçus?|dépensés?)(?![\p{L}])/giu, (_m, n: string, adj: string) => `${n} ${FEM[adj.toLowerCase()] ?? adj}`);
 
 /** Fusionne la config stockée avec les valeurs par défaut. */
 export function mergeGamificationConfig(stored: Partial<GamificationConfig> | undefined): GamificationConfig {

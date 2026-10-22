@@ -1,6 +1,6 @@
 /**
  * « Prochain pas » du Jardin : un seul geste, le plus utile d'abord — et toujours quelque chose à
- * proposer, y compris au-delà de 6 mois d'épargne de secours.
+ * proposer, y compris au-delà de 6 mois d'épargne.
  */
 import { computeTreeState, type GardenInputs } from '../lib/garden/treeState';
 import { computeNextStep } from '../lib/garden/nextStep';

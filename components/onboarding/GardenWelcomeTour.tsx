@@ -45,8 +45,8 @@ export const PLANTING_STEPS: { kind: GardenIconKey; title: string; text: string 
 ];
 
 const PARTS: { kind: GardenIconKey; name: string; text: string }[] = [
-  { kind: 'roots', name: 'Les racines = ton épargne de secours', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté.' },
-  { kind: 'fruits', name: 'Les fruits = tes placements', text: 'Un fruit par placement ; ils mûrissent quand ils rapportent.' },
+  { kind: 'roots', name: 'Les racines = ton épargne', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté. À 12 mois, une couche dorée apparaît.' },
+  { kind: 'fruits', name: 'Les fruits = tes placements', text: 'Plus tu as placé, plus il y en a ; ils mûrissent quand tes placements rapportent.' },
   { kind: 'flowers', name: 'Les fleurs = tes plaisirs', text: 'La part du mois à dépenser pour toi, sans culpabiliser.' },
   { kind: 'brambles', name: 'Les ronces = un crédit cher', text: 'Rembourse-le, et elles disparaissent.' },
 ];

@@ -52,7 +52,7 @@ export const SEO_DEFAULTS: SeoConfig = {
   siteName: 'Relyka',
   titleDefault: 'Relyka — Regarde ton argent pousser',
   titleTemplate: '%s · Relyka',
-  description: "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire.",
+  description: "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne, tes placements, et Pépin pour te dire quoi en faire.",
   keywords: 'budget, finances personnelles, épargne, investissement, trésorerie, jardin, gestion de l’argent',
   canonicalBase: 'https://relyka.app',
   language: 'fr',
@@ -81,7 +81,10 @@ export const SEO_DEFAULTS: SeoConfig = {
  */
 const LEGACY_DEFAULTS: Partial<Record<keyof SeoConfig, string[]>> = {
   titleDefault: ['Relyka — Pilote ta trésorerie personnelle'],
-  description: ["Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité."],
+  description: [
+    "Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité.",
+    "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire.",
+  ],
   keywords: ['trésorerie, budget, finances personnelles, épargne, investissement, reste à vivre'],
   themeColor: ['#0D2E2A'],
   ogImageAlt: ['Relyka — pilote ta trésorerie'],

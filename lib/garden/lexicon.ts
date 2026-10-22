@@ -15,7 +15,7 @@
 /** Ce qui est dessiné : le nom sur l'arbre + le vrai terme affiché à côté. */
 export const TREE_PARTS = {
   can: { name: 'Arrosoir', meaning: 'Comptes courants' },
-  roots: { name: 'Racines', meaning: 'Épargne de secours' },
+  roots: { name: 'Racines', meaning: 'Épargne' },
   /* Les branches nues étaient laides à l'écran : les placements sont des FRUITS (un par placement),
      qui mûrissent quand ils rapportent. La clé `branches` est gardée pour ne pas tout renommer. */
   branches: { name: 'Fruits', meaning: 'Placements' },
@@ -86,7 +86,7 @@ export const WORDS = {
 } as const;
 
 /**
- * Objectif d'épargne de secours, dit simplement (« Renforce tes racines : atteins 3 mois d'épargne
+ * Objectif d'épargne, dit simplement (« Renforce tes racines : atteins 3 mois d'épargne
  * disponible »). Le trait est en mois de dépenses, comme partout dans l'app.
  */
 export function rootsGoal(months: number): string {

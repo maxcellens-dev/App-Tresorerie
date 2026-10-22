@@ -51,8 +51,8 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
       kind: 'roots', part: 'roots',
       title: rootsGoal(target),
       text: m > 0
-        ? `Aujourd'hui, ton épargne de secours paierait ${fmtMonths(m)} mois de tes dépenses si tes revenus s'arrêtaient.`
-        : "Ton épargne de secours, c'est ce qui paierait tes dépenses si tes revenus s'arrêtaient.",
+        ? `Aujourd'hui, ton épargne paierait ${fmtMonths(m)} mois de tes dépenses si tes revenus s'arrêtaient.`
+        : "Ton épargne, c'est ce qui paierait tes dépenses si tes revenus s'arrêtaient.",
       progress: { value: m, target },
     };
   }

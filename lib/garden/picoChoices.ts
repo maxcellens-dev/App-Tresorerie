@@ -24,7 +24,7 @@ export interface RecoLike {
 export interface ChoiceAccounts {
   /** Compte de départ des virements (compte courant principal). */
   from?: string | null;
-  /** Compte d'épargne de destination (le livret de secours). */
+  /** Compte d'épargne de destination (le livret d'épargne). */
   savingsTo?: string | null;
   /** Compte de placement de destination. */
   investTo?: string | null;
@@ -68,7 +68,7 @@ export function buildPicoChoices(recos: RecoLike[], accounts: ChoiceAccounts = {
 
     if (type === 'save') {
       const to = accounts.savingsTo?.trim() || null;
-      return [{ type, part: PART[type], amount, kind: 'transfer' as const, from, to, permanentMonthly, text: `Vire ${eur} de ${fromLabel} vers ${to ?? 'ton épargne de secours'}.` }];
+      return [{ type, part: PART[type], amount, kind: 'transfer' as const, from, to, permanentMonthly, text: `Vire ${eur} de ${fromLabel} vers ${to ?? 'ton épargne'}.` }];
     }
     if (type === 'invest') {
       const to = accounts.investTo?.trim() || null;

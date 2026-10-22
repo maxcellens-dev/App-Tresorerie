@@ -29,10 +29,11 @@ import RecoModeModal from '../../../components/pilotage/RecoModeModal';
 import ProfileReliabilitySheet from '../../../components/ui/ProfileReliabilitySheet';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useGardenModel } from '../../../hooks/garden/useGardenModel';
-import { useFinancialProfile, useProfileAllocations } from '../../../hooks/pilotage/useFinancialProfile';
+import { useFinancialProfile, useProfileAllocations, useProfileMatrixConfig } from '../../../hooks/pilotage/useFinancialProfile';
+import GardenSheet from '../../../components/garden/GardenSheet';
 import { useProfileReliability } from '../../../hooks/pilotage/useProfileReliability';
 import { useProfile } from '../../../hooks/data/useProfile';
-import { PROFILE_INFO, resolveProfileId } from '../../../lib/finance/financialProfileEngine';
+import { PROFILE_INFO, resolveProfileId, thresholdsFromMatrix, type ProfileThresholds } from '../../../lib/finance/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '../../../lib/finance/securityCushion';
 import { resolveRecoMode, appliedAllocation } from '../../../lib/finance/recoMode';
 import { formatEuros } from '../../../lib/garden/picoChoices';
@@ -69,6 +70,12 @@ export default function ParcoursScreen() {
   const [showRecoMode, setShowRecoMode] = useState(false);
   const [showReliability, setShowReliability] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
+  // Racines et étapes REPLIÉES : la page s'ouvre sur l'essentiel, le détail se déplie au besoin.
+  const [rootsOpen, setRootsOpen] = useState(false);
+  const [ladderOpen, setLadderOpen] = useState(false);
+  const [stepShown, setStepShown] = useState<(typeof CLASSED_PROFILES)[number] | null>(null);
+  const { data: matrix } = useProfileMatrixConfig();
+  const thresholds = thresholdsFromMatrix(matrix as any[]);
   const go = (r: string) => router.push(r as any);
 
   const pid = fp?.profile_id ? resolveProfileId(fp.profile_id) : null;
@@ -84,8 +91,9 @@ export default function ParcoursScreen() {
     avgMonthlyIncome: p?.avg_monthly_income ?? 0,
   });
   const m = tree.roots.months;
-  const [mk1, mk2, mk3] = tree.roots.markMonths;
-  const marks: [number, boolean][] = [[mk1, tree.roots.marks.one], [mk2, tree.roots.marks.three], [mk3, tree.roots.marks.six]];
+  const [mk1, mk2, mk3, mk4] = tree.roots.markMonths;
+  const marks: [number, boolean][] = [[mk1, tree.roots.marks.one], [mk2, tree.roots.marks.three], [mk3, tree.roots.marks.six], [mk4, tree.roots.marks.twelve]];
+  const nextMark = marks.find(([, ok]) => !ok)?.[0];
   const relColor = reliability ? (reliability.tone === 'good' ? G.branchesText : reliability.tone === 'warn' ? G.noticeText : G.fruitsText) : G.muted;
 
   /* ── Ton étape : qui tu es aujourd'hui, et d'où ça vient ── */
@@ -109,7 +117,6 @@ export default function ParcoursScreen() {
           <Ionicons name="information-circle-outline" size={16} color={G.muted} />
         </Pressable>
       ) : null}
-      <GardenText variant="small" color={G.muted}>Ton étape n'est pas figée : elle se recalcule dès qu'un solde ou un virement change.</GardenText>
     </GardenCard>
   ) : (
     <GardenCard>
@@ -125,9 +132,11 @@ export default function ParcoursScreen() {
       <GardenText variant="label">{recoMode.mode === 'manual' ? 'Ta répartition (réglée à la main)' : 'Comment Pépin répartit ton Relyka'}</GardenText>
       {ALLOC.map((a) => (
         <View key={a.key} style={{ gap: 4 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <GardenText variant="bodyStrong" color={a.fg}>{a.label} <GardenText variant="small" color={G.muted}>· {a.part}</GardenText></GardenText>
-            <GardenText variant="bodyStrong" color={a.fg} tabular>{alloc[a.key]} %</GardenText>
+          {/* Libellé qui passe à la ligne, pourcentage qui ne rétrécit jamais : « Reste sur ton compte
+              courant » poussait le % hors de la carte. */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: GARDEN_SPACE.md }}>
+            <GardenText variant="bodyStrong" color={a.fg} style={{ flex: 1, minWidth: 0 }}>{a.label} <GardenText variant="small" color={G.muted}>· {a.part}</GardenText></GardenText>
+            <GardenText variant="bodyStrong" color={a.fg} tabular style={{ flexShrink: 0 }}>{alloc[a.key]} %</GardenText>
           </View>
           <GardenBar value={alloc[a.key] / 100} fill={a.fill} track={a.track} accessibilityLabel={`${a.label} : ${alloc[a.key]} %`} />
         </View>
@@ -137,21 +146,23 @@ export default function ParcoursScreen() {
     </GardenCard>
   ) : null;
 
-  /* ── Tes racines : l'épargne de secours et ses traits — une seule ligne quand tout est franchi ── */
-  const rootsCard = tree.roots.marks.six ? (
+  /* ── Tes racines : l'épargne et ses traits — une seule ligne quand tout est franchi ── */
+  const rootsCard = tree.roots.golden ? (
     <GardenCard tint={G.rootsBg} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
       <View style={{ width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: G.roots }}>
         <Ionicons name="checkmark" size={17} color={G.ink} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <GardenText variant="bodyStrong" color={G.rootsText}>{TREE_PARTS.roots.name} · {months(m)} mois de dépenses de côté</GardenText>
-        <GardenText variant="small" color={G.inkSoft}>{tree.roots.beyondSix ? `${months(tree.roots.extraMonths)} mois au-delà des ${months(mk3)} : ils pourraient faire pousser tes fruits.` : `Tes ${months(mk3)} mois de secours sont là : c'est solide.`}</GardenText>
+        <GardenText variant="small" color={G.inkSoft}>{tree.roots.beyondLast ? `Couche dorée atteinte, et ${months(tree.roots.extraMonths)} mois au-delà des ${months(mk4)} : ils pourraient faire pousser tes fruits.` : `Couche dorée atteinte : ${months(mk4)} mois d'épargne, c'est très solide.`}</GardenText>
       </View>
     </GardenCard>
   ) : (
     <GardenCard tint={G.rootsBg}>
-      <GardenText variant="label" color={G.rootsText}>{TREE_PARTS.roots.name} · {months(m)} mois</GardenText>
-      {marks.map(([n, ok]) => (
+      <FoldHeader open={rootsOpen} onToggle={() => setRootsOpen((o) => !o)} color={G.rootsText}
+        title={`${TREE_PARTS.roots.name} · ${months(m)} mois`}
+        summary={nextMark ? `Prochain trait : ${months(nextMark)} mois d'épargne disponible` : undefined} />
+      {rootsOpen && marks.map(([n, ok]) => (
         <View key={n} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
           <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: ok ? G.roots : 'transparent', borderWidth: 2, borderColor: ok ? G.roots : '#E5CF9F' }}>
             {ok ? <Ionicons name="checkmark" size={15} color={G.ink} /> : null}
@@ -166,14 +177,16 @@ export default function ParcoursScreen() {
   const pidIdx = pid ? CLASSED_PROFILES.indexOf(pid as any) : -1;
   const ladderCard = (
     <GardenCard>
-      <GardenText variant="label">Les étapes</GardenText>
+      <FoldHeader open={ladderOpen} onToggle={() => setLadderOpen((o) => !o)} title="Les étapes"
+        summary={pidIdx >= 0 ? `Tu es à l'étape ${pidIdx + 1} sur ${CLASSED_PROFILES.length} : ${PROFILE_INFO[CLASSED_PROFILES[pidIdx]].name}` : `${CLASSED_PROFILES.length} étapes, de la plus fragile au patrimoine d'exception`} />
+      {ladderOpen ? <>
       <GardenText variant="small" color={G.inkSoft}>Neuf étapes, de la plus fragile au patrimoine d'exception. Ton arbre grandit à chacune.</GardenText>
       <View style={{ borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: G.line, overflow: 'hidden' }}>
         {CLASSED_PROFILES.map((p, i) => {
           const pi = PROFILE_INFO[p], here = i === pidIdx, passed = pidIdx > i;
           return (
-            <View key={p} accessible accessibilityLabel={`${pi.name}, ${pi.tier}${here ? ', ton étape' : passed ? ', franchie' : ''}`}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, paddingVertical: 9, paddingHorizontal: 12, borderTopWidth: i ? 1 : 0, borderTopColor: G.line, backgroundColor: here ? G.branchesBg : G.card, opacity: here || passed ? 1 : 0.62 }}>
+            <Pressable key={p} onPress={() => setStepShown(p)} accessibilityRole="button" accessibilityLabel={`${pi.name}, ${pi.tier}${here ? ', ton étape' : passed ? ', franchie' : ''}. Voir le détail`}
+              style={({ hovered }: any) => [pointer, { flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, paddingVertical: 9, paddingHorizontal: 12, borderTopWidth: i ? 1 : 0, borderTopColor: G.line, backgroundColor: here ? G.branchesBg : hovered ? G.field : G.card, opacity: here || passed ? 1 : 0.62 }]}>
               <GardenText variant="heading" style={{ width: 30, textAlign: 'center' }}>{pi.emoji}</GardenText>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <GardenText variant="bodyStrong" color={here ? G.branchesText : G.ink} numberOfLines={1}>{pi.name}</GardenText>
@@ -181,10 +194,12 @@ export default function ParcoursScreen() {
               </View>
               {here ? <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: GARDEN_RADII.pill, backgroundColor: G.primary }}><GardenText variant="smallStrong" color={G.onPrimary} style={{ fontFamily: GF.body, fontSize: 11 }}>Tu es ici</GardenText></View>
                 : passed ? <Ionicons name="checkmark-circle" size={18} color={G.branches} /> : null}
-            </View>
+              <Ionicons name="chevron-forward" size={16} color={G.muted} />
+            </Pressable>
           );
         })}
       </View>
+      </> : null}
       {pid === 'P0' || !pid ? <GardenText variant="small" color={G.muted}>Ton étape apparaîtra dès que tes comptes et tes rentrées d'argent seront renseignés.</GardenText> : null}
     </GardenCard>
   );
@@ -215,10 +230,66 @@ export default function ParcoursScreen() {
       <MarginSheet visible={editing === 'margin'} onClose={() => setEditing(null)} userId={core.userId} />
       <EstimateSheet visible={editing === 'weekly'} onClose={() => setEditing(null)} userId={core.userId} />
 
+      {stepShown ? (() => {
+        const sp = PROFILE_INFO[stepShown];
+        const sAlloc = appliedAllocation(stepShown, null, allocTable);
+        const idx = CLASSED_PROFILES.indexOf(stepShown);
+        return (
+          <GardenSheet visible onClose={() => setStepShown(null)} title={`${sp.emoji} ${sp.name}`} subtitle={`Étape ${idx + 1} sur ${CLASSED_PROFILES.length} · ${sp.tier}`}>
+            <GardenCard tint={G.branchesBg}>
+              <GardenText variant="label" color={G.branchesText}>{stepShown === pid ? 'Tu es ici' : idx < pidIdx ? 'Étape franchie' : 'Pour y arriver'}</GardenText>
+              <GardenText variant="bodyStrong">{stepCondition(stepShown, thresholds)}</GardenText>
+            </GardenCard>
+            <GardenText variant="body" color={G.inkSoft}>{sp.description}</GardenText>
+            <GardenText variant="small" color={G.muted}>Ton arbre à cette étape : taille {treeSize(rules.growthByProfile[stepShown])} sur 7.</GardenText>
+            <GardenText variant="label">Comment Pépin répartit ton Relyka à cette étape</GardenText>
+            {ALLOC.map((a) => (
+              <View key={a.key} style={{ gap: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: GARDEN_SPACE.md }}>
+                  <GardenText variant="bodyStrong" color={a.fg} style={{ flex: 1, minWidth: 0 }}>{a.label}</GardenText>
+                  <GardenText variant="bodyStrong" color={a.fg} tabular style={{ flexShrink: 0 }}>{sAlloc[a.key]} %</GardenText>
+                </View>
+                <GardenBar value={sAlloc[a.key] / 100} fill={a.fill} track={a.track} accessibilityLabel={`${a.label} : ${sAlloc[a.key]} %`} />
+              </View>
+            ))}
+          </GardenSheet>
+        );
+      })() : null}
+
       <RecoModeModal visible={showRecoMode} onClose={() => setShowRecoMode(false)} userId={core.userId} />
       {showReliability && reliability ? (
         <ProfileReliabilitySheet reliability={reliability} onClose={() => setShowReliability(false)} onNavigate={(route) => go(route)} />
       ) : null}
     </GardenPage>
   );
+}
+
+/** En-tête d'une carte repliable : titre, résumé d'une ligne, chevron. Toute la ligne se touche. */
+function FoldHeader({ open, onToggle, title, summary, color }: { open: boolean; onToggle: () => void; title: string; summary?: string; color?: string }) {
+  return (
+    <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${title}, ${open ? 'replier' : 'déplier'}`}
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md, minHeight: 44 }, pointer]}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <GardenText variant="label" color={color}>{title}</GardenText>
+        {summary && !open ? <GardenText variant="small" color={G.inkSoft}>{summary}</GardenText> : null}
+      </View>
+      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={color ?? G.muted} />
+    </Pressable>
+  );
+}
+
+const fmtK = (n: number) => eur(n);
+
+/** Ce qu'il faut pour être à une étape, dit en une phrase — avec les seuils de la base (admin). */
+function stepCondition(p: (typeof CLASSED_PROFILES)[number], T: ProfileThresholds): string {
+  const m = (n: number) => months(n);
+  switch (p) {
+    case 'P1': return 'Ce qui sort chaque mois dépasse ce qui rentre.';
+    case 'P2': return `Le mois se boucle, mais l'épargne couvre moins de ${m(T.monthsUp.P3)} mois de dépenses.`;
+    case 'P3': return `Une épargne d'au moins ${m(T.monthsUp.P3)} mois de dépenses.`;
+    case 'P4': return `Une épargne d'au moins ${m(T.monthsUp.P4)} mois de dépenses.`;
+    case 'P5': return `Une épargne d'au moins ${m(T.monthsUp.P5)} mois de dépenses.`;
+    case 'P6': return `Au moins ${m(T.monthsUp.P6)} mois d'épargne, et au moins ${fmtK(T.investedMinUp)} placés.`;
+    default: return `Un patrimoine d'au moins ${fmtK(T.wealthUp[p])}, ${m(T.wealthMinMonths[p])} mois d'épargne et au moins ${Math.round(T.wealthInvestedShareUp * 100)} % placés.`;
+  }
 }

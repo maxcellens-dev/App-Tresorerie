@@ -15,13 +15,14 @@ const opts = { season: 'summer' as const, moment: 'day' as const };
 const all = (s: ReturnType<typeof layoutScene>) => [...s.back, ...s.front];
 
 describe('scene3dLayout', () => {
-  it('les racines suivent les mois de secours, la nappe au-delà de 6 mois', () => {
+  it("les racines suivent les mois d'épargne, la couche dorée à partir de 12 mois", () => {
     expect(rootLevel(0, false)).toBe('r0');
     expect(rootLevel(0.5, false)).toBe('r1');
     expect(rootLevel(1, false)).toBe('r2');
     expect(rootLevel(3.2, false)).toBe('r4');
     expect(rootLevel(6, false)).toBe('r6');
-    expect(rootLevel(9, true)).toBe('aquifer');
+    expect(rootLevel(9, false)).toBe('r6');
+    expect(rootLevel(12, true)).toBe('aquifer');
     // les repères sont posés sur les pointes réelles des racines, de haut en bas
     expect(SCENE3D.marks.one).toBeLessThan(SCENE3D.marks.three);
     expect(SCENE3D.marks.three).toBeLessThan(SCENE3D.marks.six);

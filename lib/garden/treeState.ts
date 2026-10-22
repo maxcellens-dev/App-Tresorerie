@@ -12,8 +12,8 @@
  *   (moins d'eau), rien d'autre.
  * - Chaque élément dessiné correspond à une donnée réelle et nommable :
  *     taille de l'arbre ← l'étape du profil financier (P1 → P9, cf. lib/garden/gardenRules) ;
- *                         étape pas encore connue : épargne de secours + placements ;
- *     racines           ← mois de dépenses couverts par l'épargne de secours (trois traits, 1, 3 et
+ *                         étape pas encore connue : épargne + placements ;
+ *     racines           ← mois de dépenses couverts par l'épargne (trois traits, 1, 3 et
  *                         6 mois par défaut, puis une nappe au-delà : de l'argent qui pourrait être placé) ;
  * Tous les seuils viennent des RÈGLES (lib/garden/gardenRules, réglables en admin).
  *     fruits            ← la VALEUR des placements, en mois de dépenses (0 à 6 fruits, puis un
@@ -52,7 +52,7 @@ export interface GardenInputs {
   relyka?: number;
   /** Référence mensuelle du matelas (dépenses essentielles, à défaut revenu) — cf. computeSecurityCushion. */
   monthlyReference: number;
-  /** Mois couverts par l'épargne de secours (computeSecurityCushion().months) ; null = inconnu. */
+  /** Mois couverts par l'épargne (computeSecurityCushion().months) ; null = inconnu. */
   securityMonths: number | null;
   /** Valeur actuelle des placements (€). */
   investedValue: number;
@@ -94,14 +94,16 @@ export interface TreeState {
   roots: {
     /** Mois de secours (≥ 0) ; 0 quand inconnu. */
     months: number;
-    /** Profondeur dessinée, 0 → 1 (1 = trait des 6 mois). */
+    /** Profondeur dessinée, 0 → 1 (1 = 3ᵉ trait, 6 mois par défaut : les racines au plus profond). */
     depth: number;
-    /** Traits franchis (le 1ᵉʳ, le 2ᵉ, le 3ᵉ — 1, 3 et 6 mois par défaut). */
-    marks: { one: boolean; three: boolean; six: boolean };
-    /** Les mois des trois traits (règles). */
-    markMonths: [number, number, number];
-    /** Au-delà du dernier trait : la nappe, et combien de mois en plus. */
-    beyondSix: boolean;
+    /** Traits franchis (1, 3, 6 et 12 mois par défaut). */
+    marks: { one: boolean; three: boolean; six: boolean; twelve: boolean };
+    /** Les mois des quatre traits (règles). */
+    markMonths: [number, number, number, number];
+    /** 4ᵉ trait franchi : la couche DORÉE apparaît sous les racines. */
+    golden: boolean;
+    /** Au-delà du 4ᵉ trait, et combien de mois en plus (de quoi faire pousser des fruits). */
+    beyondLast: boolean;
     extraMonths: number;
   };
   /** Ampleur des placements, 0 → 1 (taille de l'arbre et des fruits). */
@@ -139,7 +141,7 @@ export function computeTreeState(i: GardenInputs, R: GardenRules = DEFAULT_GARDE
 
   const branches = ref > 0 ? clamp01(Math.sqrt(invested / (ref * R.branchesFullMonths))) : invested > 0 ? 0.2 : 0;
   /* Taille : l'étape du profil quand elle est connue (même échelle que « Mon parcours ») ; sinon,
-     l'épargne de secours et les placements. */
+     l'épargne et les placements. */
   const byProfile = i.profileId && i.profileId !== 'P0' ? R.growthByProfile[i.profileId] : undefined;
   const growth = clamp01(byProfile ?? (0.16 + 0.34 * Math.min(months / R.growthSavingsMonths, 1) + 0.5 * branches));
   const stage: TreeState['stage'] = growth < 0.27 ? 'sprout' : growth < 0.55 ? 'young' : branches < 0.15 ? 'tree' : growth < 0.85 ? 'fruiting' : 'grand';
@@ -198,10 +200,11 @@ export function computeTreeState(i: GardenInputs, R: GardenRules = DEFAULT_GARDE
     roots: {
       months,
       depth: clamp01(months / R.rootsMarks[2]),
-      marks: { one: months >= R.rootsMarks[0], three: months >= R.rootsMarks[1], six: months >= R.rootsMarks[2] },
+      marks: { one: months >= R.rootsMarks[0], three: months >= R.rootsMarks[1], six: months >= R.rootsMarks[2], twelve: months >= R.rootsMarks[3] },
       markMonths: R.rootsMarks,
-      beyondSix: months > R.rootsMarks[2],
-      extraMonths: months > R.rootsMarks[2] ? months - R.rootsMarks[2] : 0,
+      golden: months >= R.rootsMarks[3],
+      beyondLast: months > R.rootsMarks[3],
+      extraMonths: months > R.rootsMarks[3] ? months - R.rootsMarks[3] : 0,
     },
     branches,
     fruits,

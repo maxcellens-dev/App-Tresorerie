@@ -28,7 +28,7 @@ function accentFor(preset: string, styleConfig: any): string {
 }
 
 export function useAppColors(): AppColors {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { data: styleConfig } = useStyleConfig();
 
@@ -42,8 +42,17 @@ export function useAppColors(): AppColors {
      quitter affichait le thème de la VITRINE. D'où l'éclair sombre entre « Se connecter » et l'app.
      On enchaîne donc sur ce même thème admin : la bascule ne se voit plus, et dès que le profil
      arrive il est mémorisé (effet ci-dessous) pour toutes les ouvertures suivantes. */
-  const mode = (profile?.theme_mode ?? cachedUser?.mode ?? getCachedAdminTheme() ?? DEFAULT_MODE) as ThemeMode;
-  const preset = (profile?.theme_preset ?? cachedUser?.preset ?? DEFAULT_PRESET) as string;
+  /* VISITEUR (pas connecté) : le thème de la VITRINE, jamais celui du dernier utilisateur de
+     l'appareil — ce sont les couleurs actives que lisent la vitrine et les pages publiques. */
+  /* VISITEUR (déconnecté, connexion restaurée) : le thème de la VITRINE, jamais celui du dernier
+     utilisateur de l'appareil. PENDANT la restauration de session (`loading`), on garde le thème
+     mémorisé : sinon les premiers rendus partaient en clair et une partie de l'écran ne se
+     repeignait pas en sombre ensuite. */
+  const visitor = !user && !authLoading;
+  const mode = (visitor
+    ? (getCachedAdminTheme() ?? DEFAULT_MODE)
+    : (profile?.theme_mode ?? cachedUser?.mode ?? getCachedAdminTheme() ?? DEFAULT_MODE)) as ThemeMode;
+  const preset = (visitor ? DEFAULT_PRESET : (profile?.theme_preset ?? cachedUser?.preset ?? DEFAULT_PRESET)) as string;
 
   // Mémorise le thème dès qu'il est réellement connu (profil chargé) pour le prochain démarrage.
   useEffect(() => {
@@ -54,5 +63,6 @@ export function useAppColors(): AppColors {
   /* La palette de l'app est celle du Jardin, déclinée selon le MODE (clair/sombre) et la COULEUR
      D'ACCENT choisis dans Apparence. L'émeraude par défaut garde le vert du Jardin ; toute autre
      couleur prend la teinte de l'accent (calculée en mode clair). */
-  return gardenAppColors(preset === DEFAULT_PRESET ? null : accentFor(preset, styleConfig), mode === 'dark' ? 'dark' : 'light');
+  const m = mode === 'dark' ? 'dark' : 'light';
+  return gardenAppColors(preset === DEFAULT_PRESET ? null : accentFor(preset, styleConfig), m, styleConfig?.garden?.[m], styleConfig?.garden_glow?.[m]);
 }

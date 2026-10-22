@@ -19,7 +19,7 @@ describe('GardenScene', () => {
     const { getByLabelText } = render(<GardenScene state={camille} options={{ id: 't' }} onPressPart={onPressPart} />);
     fireEvent.press(getByLabelText('Arrosoir · Comptes courants'));
     fireEvent.press(getByLabelText('Cabane · Crédit'));
-    fireEvent.press(getByLabelText('Racines · Épargne de secours'));
+    fireEvent.press(getByLabelText('Racines · Épargne'));
     expect(onPressPart.mock.calls.map((c) => c[0])).toEqual(['can', 'cabin', 'roots']);
   });
 

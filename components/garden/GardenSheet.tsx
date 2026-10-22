@@ -9,12 +9,13 @@
  * endroits », déjà corrigé ailleurs dans l'app).
  */
 import type { ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import GardenText from './GardenText';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE, GARDEN_TOUCH } from '../../lib/garden/theme';
 import { useResponsive } from '../../hooks/theme/useResponsive';
+import { useKeyboardHeight } from '../../hooks/platform/useKeyboardHeight';
 import { MAX_W, shadow } from '../../lib/ui/webLayout';
 
 interface Props {
@@ -33,9 +34,15 @@ export default function GardenSheet({ visible, onClose, title, subtitle, childre
   /* BUREAU : une feuille collée en bas d'un écran de 27 pouces n'a pas de sens — même règle que le
      reste de l'app (MAX_W.dialog) : boîte de dialogue centrée, coins arrondis partout. */
   const { isDesktop } = useResponsive();
+  /* CLAVIER : la fenêtre ne se redimensionne jamais (edge-to-edge, cf. useKeyboardHeight) — une
+     feuille avec un champ (marge de sécurité, dépenses du quotidien…) passait SOUS le clavier. On
+     la remonte de la hauteur mesurée et on la borne à la place qui reste au-dessus. */
+  const kb = useKeyboardHeight();
+  const { height: winH } = useWindowDimensions();
+  const lifted = !isDesktop && kb > 0;
   return (
     <Modal visible={visible} transparent animationType={isDesktop ? 'fade' : 'slide'} statusBarTranslucent onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: isDesktop ? 'center' : 'flex-end', alignItems: isDesktop ? 'center' : 'stretch', padding: isDesktop ? GARDEN_SPACE.xxl : 0 }}>
+      <View style={{ flex: 1, justifyContent: isDesktop ? 'center' : 'flex-end', alignItems: isDesktop ? 'center' : 'stretch', padding: isDesktop ? GARDEN_SPACE.xxl : 0, paddingBottom: lifted ? kb : isDesktop ? GARDEN_SPACE.xxl : 0 }}>
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
@@ -44,14 +51,14 @@ export default function GardenSheet({ visible, onClose, title, subtitle, childre
         />
         <View
           style={[{
-            maxHeight: isDesktop ? '86%' : '88%',
+            maxHeight: lifted ? Math.max(200, (winH - kb) * 0.92) : isDesktop ? '86%' : '88%',
             backgroundColor: GARDEN_COLORS.bg,
             borderTopLeftRadius: GARDEN_RADII.xl + 4,
             borderTopRightRadius: GARDEN_RADII.xl + 4,
             borderBottomLeftRadius: isDesktop ? GARDEN_RADII.xl + 4 : 0,
             borderBottomRightRadius: isDesktop ? GARDEN_RADII.xl + 4 : 0,
             paddingTop: GARDEN_SPACE.sm + 2,
-            paddingBottom: isDesktop ? GARDEN_SPACE.xl : Math.max(insets.bottom, GARDEN_SPACE.lg),
+            paddingBottom: isDesktop ? GARDEN_SPACE.xl : lifted ? GARDEN_SPACE.md : Math.max(insets.bottom, GARDEN_SPACE.lg),
             width: isDesktop ? '100%' : undefined,
             maxWidth: isDesktop ? MAX_W.dialog : undefined,
           }, isDesktop ? shadow(3) : null]}

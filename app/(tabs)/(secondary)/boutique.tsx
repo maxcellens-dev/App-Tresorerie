@@ -102,7 +102,7 @@ function BoutiqueScreen() {
   const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
   const itemLabel = (item: ShopItem) => (item.type === 'gems_iap' ? formatCurrency(gemsOf(item), currencyName) : item.label);
   const itemDesc = (item: ShopItem) => (item.type === 'daily_gems'
-    ? `${formatCurrency(gemsOf(item) || 5, currencyName)} offert${(gemsOf(item) || 5) > 1 ? 's' : ''}, une fois par jour.`
+    ? `${formatCurrency(gemsOf(item) || 5, currencyName)} offerte${(gemsOf(item) || 5) > 1 ? 's' : ''}, une fois par jour.`
     : item.description);
 
   // L'onglet « Relyka » est masquable en admin : si masqué, pas de barre d'onglets (seulement « App »).
@@ -213,7 +213,7 @@ function BoutiqueScreen() {
           credited = await creditGems(gemsAmount);
         }
         if (credited.ok) say(`+${formatCurrency(gemsAmount, currencyName)} ✓`, 'ok');
-        else say(`Achat validé, mais tes ${formatCurrency(gemsAmount, currencyName)} n'ont pas pu être crédités. Écris-nous depuis Réglages → Aide : on les ajoute à ton compte.`, 'error');
+        else say(`Achat validé, mais tes ${formatCurrency(gemsAmount, currencyName)} n'ont pas pu être créditées. Écris-nous depuis Réglages → Aide : on les ajoute à ton compte.`, 'error');
       }
       else if (res.reason === 'cancelled') say('Achat annulé.', 'error');
       else say(res.message ?? 'Achat indisponible.', 'error');

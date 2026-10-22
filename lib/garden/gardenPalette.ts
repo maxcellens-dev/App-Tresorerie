@@ -12,64 +12,88 @@
  * `isGardenPalette` permet aux rares décors (dégradé de fond) de s'effacer.
  */
 import type { AppColors } from '../../theme/palette';
-import { GARDEN_COLORS as G, applyGardenTheme } from './theme';
+import { GARDEN_COLORS as G, applyGardenTheme, gardenThemeColors, type GardenOverrides, type GardenPaletteValues, type GardenGlowConfig } from './theme';
 
-/** Palettes du Jardin déjà construites, une par (mode, accent). */
+/** Palettes du Jardin déjà construites, une par (mode, accent, surcharges). */
 const byKey = new Map<string, AppColors>();
 const gardenPalettes = new WeakSet<object>();
+
+/** Palette de l'app (format `AppColors`) à partir des couleurs du Jardin d'un mode. */
+function toAppColors(P: GardenPaletteValues, mode: 'light' | 'dark'): AppColors {
+  const c = {
+    mode,
+    bg: P.bg,
+    card: P.card,
+    cardSolid: P.card,
+    cardOpaque: P.card,
+    cardBorder: P.line,
+    text: P.ink,
+    textSecondary: P.muted,
+    danger: P.fruitsText,
+    emerald: P.primary,
+    accent: P.primary,
+    primary: P.primary,
+    border: P.line,
+    background: P.bg,
+    surface: P.card,
+    sub: P.muted,
+    red: P.fruitsText,
+    screenBg: P.bg,
+    tabActive: P.ink,
+    tabInactive: P.muted,
+    checking: P.waterText,
+    savings: P.rootsText,
+    investment: P.branchesText,
+    balance: P.waterText,
+    blue: P.waterText,
+    orange: P.fruitsText,
+    // Hors matières : éclaircis la nuit, sinon un violet foncé sur fond sombre ne se lit pas.
+    violet: mode === 'dark' ? '#C9B8F7' : '#6B4FB0',
+    teal: mode === 'dark' ? '#86D9D9' : '#1F7A7A',
+    amber: P.rootsText,
+    green: P.primary,
+    yellow: P.noticeText,
+    warning: P.noticeText,
+    success: P.primary,
+    selected: P.branchesBg,
+    currentMonth: P.branchesBg,
+    headerBg: P.glow,
+    onAccent: P.onPrimary,
+    accentText: P.primary,
+  } as AppColors;
+  gardenPalettes.add(c);
+  return c;
+}
 
 /**
  * Palette du Jardin selon le MODE (clair / sombre) et la COULEUR D'ACCENT choisis dans Apparence,
  * comme avant la refonte : l'accent colore les boutons et teinte le fond. `accent` absent = le vert
  * du Jardin. Les composants du Jardin lisent GARDEN_COLORS, mis à jour ici (applyGardenTheme).
+ * `overrides` : couleurs du Jardin réglées par l'admin dans le Style Editor (app_config.theme.style.garden).
+ * ⚠️ RÉSERVÉ au thème de l'APP (useAppColors) : cette fonction ÉCRIT les couleurs actives.
  */
-export function gardenAppColors(accent?: string | null, mode: 'light' | 'dark' = 'light'): AppColors {
-  const key = applyGardenTheme(mode, accent);
+export function gardenAppColors(accent?: string | null, mode: 'light' | 'dark' = 'light', overrides?: GardenOverrides | null, glow?: Partial<GardenGlowConfig> | null): AppColors {
+  const key = applyGardenTheme(mode, accent, overrides, glow);
   const hit = byKey.get(key);
   if (hit) return hit;
-  const cached = {
-    mode,
-    bg: G.bg,
-    card: G.card,
-    cardSolid: G.card,
-    cardOpaque: G.card,
-    cardBorder: G.line,
-    text: G.ink,
-    textSecondary: G.muted,
-    danger: G.fruitsText,
-    emerald: G.primary,
-    accent: G.primary,
-    primary: G.primary,
-    border: G.line,
-    background: G.bg,
-    surface: G.card,
-    sub: G.muted,
-    red: G.fruitsText,
-    screenBg: G.bg,
-    tabActive: G.ink,
-    tabInactive: G.muted,
-    checking: G.waterText,
-    savings: G.rootsText,
-    investment: G.branchesText,
-    balance: G.waterText,
-    blue: G.waterText,
-    orange: G.fruitsText,
-    violet: '#6B4FB0',
-    teal: '#1F7A7A',
-    amber: G.rootsText,
-    green: G.primary,
-    yellow: G.noticeText,
-    warning: G.noticeText,
-    success: G.primary,
-    selected: G.branchesBg,
-    currentMonth: G.branchesBg,
-    headerBg: G.glow,
-    onAccent: G.onPrimary,
-    accentText: G.primary,
-  } as AppColors;
-  byKey.set(key, cached);
-  gardenPalettes.add(cached);
-  return cached;
+  const c = toAppColors({ ...G }, mode);
+  byKey.set(key, c);
+  return c;
+}
+
+/**
+ * Même palette, SANS toucher aux couleurs actives (GARDEN_COLORS). Pour les couleurs des pages
+ * publiques (useBrandColors) : ce hook est monté AUSSI une fois connecté (splash, chargement,
+ * mises à jour) — s'il réécrivait les couleurs actives en clair, le mode sombre de l'app se
+ * cassait par endroits (cartes blanches, texte foncé sur fond foncé).
+ */
+export function gardenColorsFor(accent?: string | null, mode: 'light' | 'dark' = 'light', overrides?: GardenOverrides | null, glow?: Partial<GardenGlowConfig> | null): AppColors {
+  const key = `pure|${mode}|${accent ?? ''}|${overrides ? JSON.stringify(overrides) : ''}|${glow ? JSON.stringify(glow) : ''}`;
+  const hit = byKey.get(key);
+  if (hit) return hit;
+  const c = toAppColors(gardenThemeColors(mode, accent, overrides, glow), mode);
+  byKey.set(key, c);
+  return c;
 }
 
 /** Vrai si `colors` est une palette du Jardin (quelle que soit sa couleur d'accent). */

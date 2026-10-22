@@ -49,7 +49,7 @@ const STEPS = [
 /* Icônes et couleurs : lib/garden/icons (les mêmes que dans l'app). */
 const PARTS: { kind: GardenIconKey; name: string; meaning: string; text: string }[] = [
   { kind: 'water', name: 'Arrosoir', meaning: 'Comptes courants', text: "L'eau qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues." },
-  { kind: 'roots', name: 'Racines', meaning: 'Épargne de secours', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté.' },
+  { kind: 'roots', name: 'Racines', meaning: 'Épargne', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté. À 12 mois, une couche dorée apparaît.' },
   { kind: 'fruits', name: 'Fruits', meaning: 'Placements', text: 'Ils se multiplient avec ce que tu places, mûrissent quand ça rapporte, et deviennent dorés avec une belle plus-value.' },
   { kind: 'flowers', name: 'Fleurs', meaning: 'Pour te faire plaisir', text: "La part de ton mois à dépenser pour toi, sans culpabiliser." },
   { kind: 'cabin', name: 'Cabane', meaning: 'Crédit', text: 'Une planche de plus à chaque mensualité, jusqu’à ce qu’elle soit à toi.' },
@@ -57,7 +57,7 @@ const PARTS: { kind: GardenIconKey; name: string; meaning: string; text: string 
 
 /* Ce que chaque geste fait POUSSER (section « Chaque mois, tu arroses ton jardin »). */
 const WATERING_TEXT: Record<'save' | 'invest' | 'enjoy' | 'keep', string> = {
-  save: 'Tes racines s’enfoncent : l’épargne qui te protège d’un coup dur, vers 1, 3 puis 6 mois de dépenses.',
+  save: 'Tes racines s’enfoncent : l’épargne qui te protège d’un coup dur, vers 1, 3, 6 puis 12 mois de dépenses.',
   invest: 'Tes fruits grossissent : l’argent placé qui travaille pour toi, et mûrit quand il rapporte.',
   enjoy: 'Ton jardin fleurit : la part du mois pour te faire plaisir, sans culpabiliser.',
   keep: 'Un peu d’eau reste au frais : sur ton compte courant, pour la suite du mois.',

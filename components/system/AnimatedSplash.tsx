@@ -32,7 +32,7 @@ import { onAppReady } from '../../lib/platform/splashGate';
 // Doit correspondre à app.json > expo-splash-screen > backgroundColor (transition invisible).
 const SPLASH_BG = '#F4EFE6';
 const BG_LIGHT = '#F4EFE6';
-const BG_DARK = '#121D18';
+const BG_DARK = '#2A3036';
 /** Taille d'affichage du logo = app.json > expo-splash-screen > imageWidth (image carrée 512×512). */
 const LOGO = 96;
 /* Le logo doit être CELUI du splash natif, sinon il change sous les yeux au relais. Le natif ne

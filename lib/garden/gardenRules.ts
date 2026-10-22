@@ -10,7 +10,7 @@
  * ── LOGIQUE D'ENSEMBLE ───────────────────────────────────────────────────────────────────────────
  * La TAILLE de l'arbre suit l'étape du profil financier (P1 → P9, la même échelle que « Mon
  * parcours ») : l'arbre et le profil racontent la même histoire. Le reste du dessin garde sa propre
- * mesure, plus fine : racines = épargne de secours, fruits = placements, fleurs = plaisir,
+ * mesure, plus fine : racines = épargne, fruits = placements, fleurs = plaisir,
  * cabane / ronces = crédits.
  */
 import type { FinancialProfileId } from '../../types/database';
@@ -25,8 +25,8 @@ export interface GardenRules {
   growthSavingsMonths: number;
   /** …et placements (mois) qui donnent l'arbre entier. */
   branchesFullMonths: number;
-  /** Les trois traits des racines (mois d'épargne de secours), croissants. Au-delà du dernier : la nappe. */
-  rootsMarks: [number, number, number];
+  /** Les quatre traits des racines (mois d'épargne), croissants. Le dernier fait apparaître la couche dorée. */
+  rootsMarks: [number, number, number, number];
   /** Valeur placée (mois) à partir de laquelle on a 1, 2, 3, 4 puis 6 fruits (croissant, le 1ᵉʳ = 0). */
   fruitSteps: [number, number, number, number, number];
   /** Panier de récolte : petit puis grand (mois placés). */
@@ -49,7 +49,7 @@ export const DEFAULT_GARDEN_RULES: GardenRules = {
   growthByProfile: { P1: 0.18, P2: 0.24, P3: 0.33, P4: 0.47, P5: 0.6, P6: 0.72, P7: 0.8, P8: 0.9, P9: 1 },
   growthSavingsMonths: 3,
   branchesFullMonths: 24,
-  rootsMarks: [1, 3, 6],
+  rootsMarks: [1, 3, 6, 12],
   fruitSteps: [0, 1, 3, 6, 12],
   harvestSmallMonths: 12,
   harvestBigMonths: 36,
@@ -83,7 +83,8 @@ export function mergeGardenRules(raw: unknown): GardenRules {
     growthByProfile,
     growthSavingsMonths: num(r.growthSavingsMonths, D.growthSavingsMonths, 0.5, 60),
     branchesFullMonths: num(r.branchesFullMonths, D.branchesFullMonths, 1, 600),
-    rootsMarks: ascending(r.rootsMarks, D.rootsMarks, 0.5, 60),
+    // Règles enregistrées avant le 4ᵉ trait (12 mois) : on garde les trois traits choisis et on ajoute le 4ᵉ.
+    rootsMarks: ascending(Array.isArray(r.rootsMarks) && r.rootsMarks.length === 3 ? [...r.rootsMarks, Math.max(D.rootsMarks[3], Number(r.rootsMarks[2]) * 2)] : r.rootsMarks, D.rootsMarks, 0.5, 120),
     fruitSteps: fruitSteps[0] === 0 ? fruitSteps : D.fruitSteps,
     harvestSmallMonths,
     harvestBigMonths: Math.max(harvestSmallMonths + 0.5, num(r.harvestBigMonths, D.harvestBigMonths, 1, 1200)),

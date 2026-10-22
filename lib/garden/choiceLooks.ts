@@ -10,7 +10,7 @@ import { GARDEN_ICONS, RECO_ICON } from './icons';
 export interface ChoiceLook {
   /** Le geste, en mots du jardin (« Arrose tes racines »). */
   verb: string;
-  /** Le vrai sens, toujours à côté (« épargne de secours »). */
+  /** Le vrai sens, toujours à côté (« épargne »). */
   meaning: string;
   /** Nom Ionicons, ou 'garden-roots' (dessin maison, cf. components/garden/ChoiceIcon). */
   icon: string;
@@ -25,8 +25,9 @@ const look = (type: RecoType, verb: string, meaning: string): ChoiceLook => {
 };
 
 export const CHOICE_LOOKS: Record<RecoType, ChoiceLook> = live(() => ({
-  save: look('save', 'Arrose tes racines', 'épargne de secours'),
+  save: look('save', 'Arrose tes racines', 'épargne'),
   invest: look('invest', 'Fais grossir tes fruits', 'placements'),
-  enjoy: look('enjoy', 'Fais fleurir ton jardin', 'pour te faire plaisir'),
+  // Les fleurs = la part que tu peux dépenser pour toi : on les CUEILLE (on en profite), on ne les fait pas pousser.
+  enjoy: look('enjoy', 'Cueille tes fleurs', 'pour te faire plaisir'),
   keep: look('keep', "Garde dans l'arrosoir", 'reste sur ton compte courant'),
 }));

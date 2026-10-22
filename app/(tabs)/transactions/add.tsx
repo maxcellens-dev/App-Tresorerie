@@ -837,8 +837,9 @@ function AddTransactionScreen() {
               {/* Récurrence */}
               <View style={styles.recurringSection}>
                 <TouchableOpacity style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]} onPress={() => setIsRecurring(!isRecurring)}>
-                  <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
+                  <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.emerald : COLORS.textSecondary} />
                   <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>{isTransfer ? 'Virement récurrent' : 'Récurrent (ex. salaire mensuel)'}</Text>
+                  <View style={[styles.recurringCheck, isRecurring && styles.recurringCheckOn]}>{isRecurring ? <Ionicons name="checkmark" size={16} color={COLORS.onAccent} /> : null}</View>
                   {/* Bordure du guide tracée SUR le bouton lui-même (aucune position mesurée).
                       `inset: 0` et non le défaut négatif : le bouton occupe toute la largeur
                       disponible, une bordure débordante était rognée à gauche et à droite. */}
@@ -1108,6 +1109,8 @@ function makeBaseStyles(c: any) {
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary },
   recurringLabelActive: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  recurringCheck: { marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+  recurringCheckOn: { backgroundColor: c.emerald, borderColor: c.emerald },
   // Consigne du guide : carte aux couleurs INVERSÉES (cf. useInvertedColors), comme les autres
   // messages de démarrage — elle doit trancher sur le formulaire, pas s'y fondre.
   recurringGuideHint: {

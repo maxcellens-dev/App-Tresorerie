@@ -105,8 +105,8 @@ export default function GardenRulesEditor({ value, onChange }: { value: Partial<
         {box('branchesFullMonths', 'P0 : placements pour l’arbre entier', 'mois')}
       </Block>
 
-      <Block title="Racines" hint="Les trois traits de l'épargne de secours (croissants). Au-delà du dernier, la nappe apparaît.">
-        {box('rootsMarks.0', '1ᵉʳ trait', 'mois')}{box('rootsMarks.1', '2ᵉ trait', 'mois')}{box('rootsMarks.2', '3ᵉ trait', 'mois')}
+      <Block title="Racines" hint="Les quatre traits de l'épargne (croissants). Le 4ᵉ fait apparaître la couche dorée sous les racines.">
+        {box('rootsMarks.0', '1ᵉʳ trait', 'mois')}{box('rootsMarks.1', '2ᵉ trait', 'mois')}{box('rootsMarks.2', '3ᵉ trait', 'mois')}{box('rootsMarks.3', 'Couche dorée', 'mois')}
       </Block>
 
       <Block title="Fruits" hint="Valeur placée à partir de laquelle on a 1, 2, 3, 4 puis 6 fruits (croissant, le premier vaut 0 : dès 1 € placé). Panier de récolte au pied de l'arbre. Fruits et panier dorés selon la plus-value.">

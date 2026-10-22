@@ -834,8 +834,9 @@ function EditTransactionScreen() {
               onPress={() => setIsRecurring(!isRecurring)}
               disabled={isInstanceEdit}
             >
-              <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
+              <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.emerald : COLORS.textSecondary} />
               <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>Récurrent</Text>
+              <View style={[styles.recurringCheck, isRecurring && styles.recurringCheckOn]}>{isRecurring ? <Ionicons name="checkmark" size={16} color={COLORS.onAccent} /> : null}</View>
             </TouchableOpacity>
             {isRecurring && (
               <>
@@ -1172,6 +1173,8 @@ function makeBaseStyles(c: any) {
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontFamily: GF.body, fontSize: 15, color: c.textSecondary },
   recurringLabelActive: { color: c.onAccent, fontFamily: GF.bodyBold, fontWeight: 'normal' },
+  recurringCheck: { marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+  recurringCheckOn: { backgroundColor: c.emerald, borderColor: c.emerald },
   instanceModeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   instanceModeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center' },
   instanceModeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },

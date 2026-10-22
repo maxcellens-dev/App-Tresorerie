@@ -4,13 +4,18 @@
  * Dessinés dans le même esprit que la scène (volumes doux, couleurs naturelles).
  */
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
+import { Platform } from 'react-native';
+
+/* Masqué aux lecteurs d'écran. Sur le web, les props d'accessibilité natives atterrissaient sur le <svg>
+   (« React does not recognize the importantForAccessibility prop ») : aria-hidden à la place. */
+const SVG_HIDDEN: any = Platform.OS === 'web' ? { 'aria-hidden': true } : { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' };
 
 export const isGardenIcon = (icon?: string | null) => !!icon && icon.startsWith('garden:');
 
 export default function GardenItemIcon({ icon, size = 40 }: { icon: string; size?: number }) {
   const name = icon.replace(/^garden:/, '');
   return (
-    <Svg width={size} height={size} viewBox="0 0 64 64" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <Svg width={size} height={size} viewBox="0 0 64 64" {...SVG_HIDDEN}>
       {name === 'lantern' ? (<>
         <Circle cx={32} cy={34} r={22} fill="#FFE2A0" opacity={0.35} />
         <Path d="M32 6V14" stroke="#3A2A1E" strokeWidth={2} />

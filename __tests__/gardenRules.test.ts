@@ -18,7 +18,8 @@ describe('mergeGardenRules', () => {
 
   it('reprend une valeur valide, refuse une liste qui ne monte pas', () => {
     const r = mergeGardenRules({ rootsMarks: [2, 4, 8], cabinSteps: [50, 40, 60, 80], flowersFullPct: '30' });
-    expect(r.rootsMarks).toEqual([2, 4, 8]);
+    // trois traits enregistrés avant le 4ᵉ : on garde les trois, le 4ᵉ est ajouté
+    expect(r.rootsMarks).toEqual([2, 4, 8, 16]);
     expect(r.cabinSteps).toEqual(DEFAULT_GARDEN_RULES.cabinSteps);
     expect(r.flowersFullPct).toBe(30);
   });
@@ -46,8 +47,8 @@ describe('taille de l’arbre et profil financier', () => {
 
   it('les traits des racines suivent les règles', () => {
     const t = computeTreeState({ ...base, securityMonths: 5 }, mergeGardenRules({ rootsMarks: [2, 4, 8] }));
-    expect(t.roots.markMonths).toEqual([2, 4, 8]);
-    expect(t.roots.marks).toEqual({ one: true, three: true, six: false });
+    expect(t.roots.markMonths).toEqual([2, 4, 8, 16]);
+    expect(t.roots.marks).toEqual({ one: true, three: true, six: false, twelve: false });
   });
 
   it('les étapes de la cabane suivent les règles', () => {

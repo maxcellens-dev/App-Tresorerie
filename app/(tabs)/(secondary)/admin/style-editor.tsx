@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../../hooks/data/useProfile';
@@ -19,6 +20,7 @@ import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, t
 import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG, DEFAULT_INK, DEFAULT_CARD } from '../../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
 import ColorPickerModal from '../../../../components/ui/ColorPickerModal';
+import GardenColorsEditor from '../../../../components/admin/GardenColorsEditor';
 import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/platform/webFonts';
 import { ensureNativeFonts, useNativeFontsVersion } from '../../../../lib/platform/nativeFonts';
 import { GARDEN_FONTS as GF } from '../../../../lib/garden/fontFamilies';
@@ -154,7 +156,7 @@ export default function StyleEditor() {
 
   const isAdmin = profile?.is_admin ?? false;
 
-  const [tab, setTab] = useState<Tab>('colors');
+  const [tab, setTab] = useState<Tab>('background');
   const [previewMode, setPreviewMode] = useState<ThemeMode>('dark');
   const [activeMode, setActiveMode]   = useState<ThemeMode>('dark'); // mode édité (fond/cartes)
   const [preset, setPreset]   = useState<ThemePreset>('emerald');
@@ -190,6 +192,11 @@ export default function StyleEditor() {
   const [newDark,  setNewDark]  = useState('#FFFFFF');
   const [newLight, setNewLight] = useState('#000000');
 
+  // Couleurs du Jardin réglées par mode (saisies brutes ; seules les hex valides sont enregistrées).
+  const [gardenInputs, setGardenInputs] = useState<Record<'light' | 'dark', Record<string, string>>>({ light: {}, dark: {} });
+  // S'ouvre sur le mode affiché : on règle ce qu'on a sous les yeux.
+  const [gardenGlow, setGardenGlow] = useState<Record<'light' | 'dark', Record<string, any>>>({ light: {}, dark: {} });
+  const [gardenMode, setGardenMode] = useState<'light' | 'dark'>(COLORS.mode === 'dark' ? 'dark' : 'light');
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
@@ -219,6 +226,8 @@ export default function StyleEditor() {
       setLightBg(styleConfig.light.bg_color ?? DEFAULT_BG.light);
       setLightInk(styleConfig.light.ink_color ?? DEFAULT_INK.light);
       setLightCard(styleConfig.light.card_color ?? DEFAULT_CARD.light);
+      setGardenGlow({ light: { ...(styleConfig.garden_glow?.light ?? {}) }, dark: { ...(styleConfig.garden_glow?.dark ?? {}) } });
+      setGardenInputs({ light: { ...(styleConfig.garden?.light ?? {}) }, dark: { ...(styleConfig.garden?.dark ?? {}) } } as any);
       setFontFamily(styleConfig.font_family ?? 'System');
       setFontImportUrl(styleConfig.font_import_url ?? '');
       setAppNameFont(styleConfig.app_name_font ?? 'Arial Rounded MT Bold');
@@ -394,6 +403,11 @@ export default function StyleEditor() {
       SEMANTIC_KEYS.forEach(k => { const v = lightSemanticInputs[k] ?? ''; if (isValidHex(v)) validatedLightSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
+        garden_glow: gardenGlow,
+        garden: {
+          light: Object.fromEntries(Object.entries(gardenInputs.light).filter(([, v]) => isValidHex(v)).map(([k, v]) => [k, v.toUpperCase()])),
+          dark: Object.fromEntries(Object.entries(gardenInputs.dark).filter(([, v]) => isValidHex(v)).map(([k, v]) => [k, v.toUpperCase()])),
+        },
         dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg)  ? darkBg.toUpperCase()  : DEFAULT_BG.dark,  ink_color: isValidHex(darkInk)  ? darkInk.toUpperCase()  : DEFAULT_INK.dark,  card_color: isValidHex(darkCard)  ? darkCard.toUpperCase()  : DEFAULT_CARD.dark,  header_alpha: clampPct(Number(darkHeaderAlpha)  || 0) },
         light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light, ink_color: isValidHex(lightInk) ? lightInk.toUpperCase() : DEFAULT_INK.light, card_color: isValidHex(lightCard) ? lightCard.toUpperCase() : DEFAULT_CARD.light, header_alpha: clampPct(Number(lightHeaderAlpha) || 0) },
         font_family: fontFamily,
@@ -454,19 +468,14 @@ export default function StyleEditor() {
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'colors',     label: 'Couleurs',     icon: 'color-palette-outline' },
-    { id: 'background', label: 'Fond & Cartes', icon: 'layers-outline' },
+    { id: 'background', label: 'Couleurs du Jardin', icon: 'leaf-outline' },
     { id: 'font',       label: 'Police',       icon: 'text-outline' },
   ];
 
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <LinearGradient
-        colors={[COLORS.emerald + '4D', COLORS.emerald + '2E', COLORS.emerald + '14', COLORS.bg]}
-        locations={[0, 0.28, 0.58, 1.0]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
@@ -475,56 +484,6 @@ export default function StyleEditor() {
         </View>
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-          {/* ══ Aperçu (toujours visible) ══ */}
-          <View style={styles.preview}>
-            <LinearGradient
-              colors={curGradEnabled && curStops.some(s => s > 0)
-                ? curStops.map(s => previewColors.emerald + toHex(s)) as any
-                : [previewColors.bg, previewColors.bg]}
-              locations={[0, 0.28, 0.58, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-            {/* Barre d'entête simulée — reflète le « surplus d'accent » en direct (comme l'app). */}
-            <View style={[styles.previewHeaderBar, { backgroundColor: previewHeaderBg }]}>
-              <Text style={{ color: previewColors.text, fontWeight: '800', fontSize: 13, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>Relyka</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontFamily: GF.bodyBold, color: previewMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)', fontSize: 10, fontWeight: 'normal' }}>Entête</Text>
-                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: previewColors.emerald }} />
-              </View>
-            </View>
-            <View style={styles.previewHeader}>
-              <Text style={[styles.previewLabel, { color: previewMode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }]}>APERÇU</Text>
-              <View style={styles.previewModeSwitcher}>
-                {THEME_MODES.map(m => (
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Aperçu ${m.label}`}
-                    accessibilityState={{ selected: previewMode === m.id }}
-                    key={m.id}
-                    style={[styles.previewModeBtn, previewMode === m.id && { backgroundColor: previewColors.emerald + '30' }]}
-                    onPress={() => { setPreviewMode(m.id); setActiveMode(m.id); }}
-                  >
-                    <Ionicons name={m.icon as any} size={13} color={previewMode === m.id ? previewColors.emerald : (previewMode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)')} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            <View style={styles.previewCards}>
-              {(['Courant', 'Épargne', 'Invest'] as const).map((label, i) => {
-                const cols = [previewColors.checking, previewColors.savings, previewColors.investment];
-                const col = cols[i];
-                const amounts = ['6 118', '21 000', '76 687'];
-                const cardBg = previewColors.card; // reflète la couleur de carte + l'opacité choisies
-                const txtMuted = previewMode === 'dark' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
-                return (
-                  <View key={label} style={[styles.previewCard, { backgroundColor: cardBg, borderColor: col + '40', borderLeftColor: col }]}>
-                    <Ionicons name={i === 0 ? 'wallet-outline' : i === 1 ? 'leaf-outline' : 'trending-up-outline'} size={13} color={col} />
-                    <Text style={[styles.previewCardLabel, { color: txtMuted, fontFamily: fontFamily === 'System' ? undefined : fontFamily }]}>{label}</Text>
-                    <Text style={[styles.previewCardAmount, { color: col, fontFamily: fontFamily === 'System' ? undefined : fontFamily }]}>{amounts[i]} €</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
 
           {/* ══ Onglets ══ */}
           <View style={styles.tabBar}>
@@ -656,247 +615,14 @@ export default function StyleEditor() {
                 <Text style={[styles.hint, { marginTop: 10 }]}>Les presets sont disponibles pour tous les utilisateurs dans Paramètres.</Text>
               </Section>
 
-              {/* Couleurs sémantiques — seulement le mode prévisualisé */}
-              {(() => {
-                const inputs = previewMode === 'dark' ? semanticInputs : lightSemanticInputs;
-                const setInputs = previewMode === 'dark' ? setSemanticInputs : setLightSemanticInputs;
-                const defaults = previewMode === 'dark' ? SEMANTIC_DEFAULTS : SEMANTIC_DEFAULTS_LIGHT;
-                const modeLabel = previewMode === 'dark' ? 'Sombre 🌙' : 'Clair ☀️';
-                // Couleur « encre » de base (texte principal / contraste) : blanc en sombre, noir en clair.
-                const inkVal = previewMode === 'dark' ? darkInk : lightInk;
-                const setInk = previewMode === 'dark' ? setDarkInk : setLightInk;
-                const inkDefault = DEFAULT_INK[previewMode];
-                const inkValid = isValidHex(inkVal);
-                const inkCol = inkValid ? inkVal : inkDefault;
-                const inkIsDefault = inkVal.toUpperCase() === inkDefault.toUpperCase();
-                const inkLabel = previewMode === 'dark' ? '⚪ Blanc (texte de base)' : '⚫ Noir (texte de base)';
-                return (
-                  <Section label={`Couleurs principales — Thème ${modeLabel}`} icon="brush-outline" COLORS={COLORS}>
-                    <Text style={styles.hint}>
-                      {previewMode === 'dark'
-                        ? 'Montants, boutons et libellés pour le thème sombre. Globaux à tous les utilisateurs.'
-                        : 'Palette indépendante pour le thème clair — couleurs plus sombres pour le contraste sur fond pâle.'}
-                    </Text>
-                    <View style={{ gap: 10 }}>
-                      {/* Encre de base (blanc/noir de l'app) — texte principal partout où COLORS.text est utilisé. */}
-                      <View style={styles.accentItem}>
-                        <TouchableOpacity
-                          style={[styles.swatch, { backgroundColor: inkCol, borderWidth: 1, borderColor: COLORS.cardBorder }]}
-                          onPress={() => setColorPicker({ value: inkCol, onPick: (picked) => setInk(picked) })}
-                          activeOpacity={0.8}
-                        />
-                        <Text style={styles.accentLabel}>{inkLabel}</Text>
-                        <TextInput
-                          style={[styles.hexInput, { width: 84 }, !inkValid && { borderColor: COLORS.danger }]}
-                          value={inkVal}
-                          onChangeText={setInk}
-                          placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                          maxLength={7} autoCapitalize="characters"
-                        />
-                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur du texte"
-                          onPress={() => setInk(inkDefault)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          disabled={inkIsDefault}
-                        >
-                          <Ionicons name="refresh-outline" size={20} color={inkIsDefault ? COLORS.cardBorder : COLORS.emerald} />
-                        </TouchableOpacity>
-                      </View>
-                      {SEMANTIC_KEYS.map(k => {
-                        const inputHex = inputs[k] ?? defaults[k];
-                        const valid = isValidHex(inputHex);
-                        const col = valid ? inputHex : defaults[k];
-                        const isDefault = inputHex.toUpperCase() === defaults[k].toUpperCase();
-                        return (
-                          <View key={k} style={styles.accentItem}>
-                            <TouchableOpacity
-                              style={[styles.swatch, { backgroundColor: col }]}
-                              onPress={() => setColorPicker({ value: col, onPick: (picked) => setInputs(prev => ({ ...prev, [k]: picked })) })}
-                              activeOpacity={0.8}
-                            />
-                            <Text style={styles.accentLabel}>{SEMANTIC_LABELS[k].emoji} {SEMANTIC_LABELS[k].label}</Text>
-                            <TextInput
-                              style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
-                              value={inputHex}
-                              onChangeText={v => setInputs(prev => ({ ...prev, [k]: v }))}
-                              placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                              maxLength={7} autoCapitalize="characters"
-                            />
-                            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur"
-                              onPress={() => setInputs(prev => ({ ...prev, [k]: defaults[k] }))}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                              disabled={isDefault}
-                            >
-                              <Ionicons name="refresh-outline" size={20} color={isDefault ? COLORS.cardBorder : COLORS.emerald} />
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </Section>
-                );
-              })()}
-
             </>
           )}
 
           {/* ══════════ ONGLET FOND & CARTES ══════════ */}
           {tab === 'background' && (
             <>
-              {/* Sélecteur du mode à éditer */}
-              <View style={styles.modeTabs}>
-                {THEME_MODES.map(m => (
-                  <TouchableOpacity key={m.id}
-                    style={[styles.modeTab, activeMode === m.id && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '18' }]}
-                    onPress={() => { setActiveMode(m.id); setPreviewMode(m.id); }}>
-                    <Ionicons name={m.icon as any} size={14} color={activeMode === m.id ? COLORS.emerald : COLORS.textSecondary} />
-                    <Text style={[styles.modeTabText, { color: activeMode === m.id ? COLORS.emerald : COLORS.textSecondary }]}>Réglages {m.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Section label="Couleur de fond de l'app" icon="contrast-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Couleur derrière le dégradé. {activeMode === 'dark' ? 'En sombre, un noir pur peut être adouci (ex. #0A0E14).' : ''}</Text>
-                <View style={styles.accentItem}>
-                  <TouchableOpacity
-                    style={[styles.swatch, { backgroundColor: isValidHex(aBg) ? aBg : DEFAULT_BG[activeMode], borderWidth: 1, borderColor: COLORS.cardBorder }]}
-                    onPress={() => setColorPicker({ value: isValidHex(aBg) ? aBg : DEFAULT_BG[activeMode], onPick: setBg })}
-                    activeOpacity={0.8}
-                  />
-                  <Text style={styles.accentLabel}>Fond {activeMode === 'dark' ? 'sombre' : 'clair'}</Text>
-                  <TextInput
-                    style={[styles.hexInput, { width: 96 }, !isValidHex(aBg) && { borderColor: COLORS.danger }]}
-                    value={aBg}
-                    onChangeText={setBg}
-                    placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                    maxLength={7} autoCapitalize="characters"
-                  />
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur de fond" onPress={() => setBg(DEFAULT_BG[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aBg.toUpperCase() === DEFAULT_BG[activeMode]}>
-                    <Ionicons name="refresh-outline" size={20} color={aBg.toUpperCase() === DEFAULT_BG[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
-                  </TouchableOpacity>
-                </View>
-                <View style={{ gap: 8 }}>
-                  {/* Ligne 1 : fonds colorés/chauds */}
-                  <View style={styles.alphaRow}>
-                    {(activeMode === 'dark'
-                      ? ['#000000', '#0A0E14', '#111418', '#16181C']
-                      : ['#F4EFE6', '#FDF6EC', '#F0EBE3', '#EAE5DC']
-                    ).map(hex => (
-                      <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex }, aBg.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
-                        <Text style={{ fontFamily: GF.bodyBold, color: activeMode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: 'normal' }}>{hex.slice(1)}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  {/* Ligne 2 : fonds neutres + blanc (mode clair seulement) */}
-                  {activeMode === 'light' && (
-                    <View style={styles.alphaRow}>
-                      {['#F7F8FA', '#F2F3F5', '#EAECEF', '#FFFFFF'].map(hex => (
-                        <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex, borderWidth: 1, borderColor: hex === '#FFFFFF' ? COLORS.cardBorder : 'transparent' }, aBg.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
-                          <Text style={{ fontFamily: GF.bodyBold, color: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: 'normal' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              </Section>
-
-              <Section label="Dégradé de fond" icon="layers-outline" COLORS={COLORS}>
-                <View style={styles.row2}>
-                  <ModeBtn label="Activé" icon="eye-outline" active={aEnabled} accent={COLORS.emerald} COLORS={COLORS} onPress={() => setEnabled(true)} />
-                  <ModeBtn label="Désactivé" icon="eye-off-outline" active={!aEnabled} accent={COLORS.danger} COLORS={COLORS} onPress={() => setEnabled(false)} />
-                </View>
-                {aEnabled && (
-                  <>
-                    <Text style={[styles.hint, { marginTop: 14 }]}>
-                      Opacité de chaque palier (haut → bas). Ex : 30 · 18 · 10 · 5.
-                    </Text>
-                    {(['Palier 1 (haut)', 'Palier 2', 'Palier 3', 'Palier 4 (bas)'] as const).map((lbl, i) => (
-                      <View key={i} style={styles.inputRow}>
-                        <Text style={styles.inputLabel}>{lbl}</Text>
-                        <PctInput value={aStops[i] ?? '0'} onChange={v => setStop(i, v)} COLORS={COLORS} />
-                      </View>
-                    ))}
-                    {/* Barre de prévisualisation horizontale du dégradé */}
-                    <LinearGradient
-                      colors={aStops.map(s => previewColors.emerald + toHex(Math.min(100, Math.max(0, Number(s) || 0)) / 100)) as any}
-                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                      style={styles.gradBar}
-                    />
-                  </>
-                )}
-              </Section>
-
-              <Section label="Couleur des cartes" icon="square-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Couleur de base des cartes (avant transparence). {activeMode === 'dark' ? 'En sombre, mets un gris/noir pour des cartes sombres (pense à monter l’opacité ci-dessous).' : 'En clair, du blanc reste le plus lisible.'}</Text>
-                <View style={styles.accentItem}>
-                  <TouchableOpacity
-                    style={[styles.swatch, { backgroundColor: isValidHex(aCard) ? aCard : DEFAULT_CARD[activeMode], borderWidth: 1, borderColor: COLORS.cardBorder }]}
-                    onPress={() => setColorPicker({ value: isValidHex(aCard) ? aCard : DEFAULT_CARD[activeMode], onPick: setCard })}
-                    activeOpacity={0.8}
-                  />
-                  <Text style={styles.accentLabel}>Carte {activeMode === 'dark' ? 'sombre' : 'claire'}</Text>
-                  <TextInput
-                    style={[styles.hexInput, { width: 96 }, !isValidHex(aCard) && { borderColor: COLORS.danger }]}
-                    value={aCard}
-                    onChangeText={setCard}
-                    placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                    maxLength={7} autoCapitalize="characters"
-                  />
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur des cartes" onPress={() => setCard(DEFAULT_CARD[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aCard.toUpperCase() === DEFAULT_CARD[activeMode]}>
-                    <Ionicons name="refresh-outline" size={20} color={aCard.toUpperCase() === DEFAULT_CARD[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.alphaRow}>
-                  {(activeMode === 'dark'
-                    ? ['#FFFFFF', '#1C1F24', '#16181C', '#000000']
-                    : ['#FFFFFF', '#FBFAF7', '#F2F3F5', '#EAECEF']
-                  ).map(hex => (
-                    <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex, borderWidth: 1, borderColor: hex === '#FFFFFF' ? COLORS.cardBorder : 'transparent' }, aCard.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setCard(hex)}>
-                      <Text style={{ fontFamily: GF.bodyBold, color: hex === '#FFFFFF' || hex === '#FBFAF7' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: 'normal' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </Section>
-
-              <Section label="Transparence des cartes" icon="albums-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>0 % = opaque · plus le % monte, plus le fond transparaît.</Text>
-                <View style={styles.inputRow}>
-                  <Text style={styles.inputLabel}>Opacité des cartes (0-100 %)</Text>
-                  <PctInput value={aAlpha} onChange={v => setAlpha(v)} COLORS={COLORS} />
-                </View>
-                <View style={styles.alphaRow}>
-                  {(activeMode === 'dark' ? [0, 8, 15, 25] : [0, 70, 88, 100]).map(pct => {
-                    // Mode clair : cartes blanches (blanc sur fond coloré) ; sombre : blanches translucides sur noir.
-                    const bg = `rgba(255,255,255,${pct / 100})`;
-                    return (
-                      <TouchableOpacity key={pct} style={[styles.alphaSample, { backgroundColor: bg, borderWidth: 1, borderColor: COLORS.cardBorder }, Math.abs(Number(aAlpha || 0) - pct) < 2 && { borderColor: COLORS.emerald }]} onPress={() => setAlpha(String(pct))}>
-                        <Text style={{ fontFamily: GF.bodyBold, color: activeMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: 10, fontWeight: 'normal' }}>{pct}%</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </Section>
-
-              {/* ── Surplus d'accent sur l'entête (couleur = accent de l'utilisateur) ── */}
-              <Section label={`Entête — surplus d'accent — ${activeMode === 'dark' ? 'Sombre 🌙' : 'Clair ☀️'}`} icon="browsers-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>
-                  À 0 %, l'entête prolonge le dégradé du corps (aucune couture). Au-delà, seule l'entête prend plus de couleur d'accent par-dessus le fond.
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                  <Text style={[styles.inputLabel, { marginBottom: 0, flex: 1 }]}>Surplus d'accent</Text>
-                  <Text style={{ fontFamily: GF.bodyBold, fontSize: 15, fontWeight: 'normal', color: COLORS.text, minWidth: 40, textAlign: 'right' }}>{aHeaderAlpha} %</Text>
-                </View>
-                {Platform.OS === 'web' ? (
-                  // Slider HTML natif — fluidité maximale
-                  <input
-                    type="range" min={0} max={100} step={1}
-                    value={Number(aHeaderAlpha) || 0}
-                    onChange={(e: any) => setHeaderAlpha(String(e.target.value))}
-                    style={{ width: '100%', cursor: 'pointer', accentColor: COLORS.emerald, height: 6, marginBottom: 12 } as any}
-                  />
-                ) : (
-                  <PctInput value={aHeaderAlpha} onChange={v => setHeaderAlpha(v)} COLORS={COLORS} />
-                )}
-              </Section>
+              <GardenColorsEditor mode={gardenMode} onModeChange={setGardenMode} value={gardenInputs} onChange={setGardenInputs} glowValue={gardenGlow} onGlowChange={setGardenGlow}
+                onPickColor={(initial, onPick) => setColorPicker({ value: initial, onPick })} />
             </>
           )}
 
@@ -905,29 +631,12 @@ export default function StyleEditor() {
             <>
             <Section label="Polices" icon="text-outline" COLORS={COLORS}>
               <Text style={styles.hint}>
-                Une seule liste pour tout : choisis la police du texte et celle du nom de l'app parmi les
-                polices intégrées ou celles que tu importes ci-dessous. (Appliquées sur le web ; sur mobile,
-                seules les polices système s'appliquent.)
+                Le texte de l'app utilise les polices du Jardin (Nunito, Fredoka pour les titres). Seul le
+                NOM de l'app se choisit ici, parmi les polices intégrées ou celles que tu importes ci-dessous.
               </Text>
 
-              {/* Sélecteur 1 — police du TEXTE de l'app */}
-              <Text style={styles.fieldLabel}>Police du texte de l'app</Text>
-              <FontSelect
-                value={fontFamily}
-                onChange={setFontFamily}
-                options={allFontOptions}
-                onRemoveCustom={removeCustomFont}
-                COLORS={COLORS}
-                styles={styles}
-              />
-              <View style={styles.fontPreviewBox}>
-                <Text {...FONT_PREVIEW_PROPS} style={{ fontSize: 15, color: COLORS.text, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>
-                  Solde courant : 1 234 € · Épargne, projets et projection.
-                </Text>
-              </View>
-
               {/* Sélecteur 2 — police du NOM de l'app (même liste) */}
-              <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Police du nom de l'app</Text>
+              <Text style={styles.fieldLabel}>Police du nom de l'app</Text>
               <FontSelect
                 value={appNameFont}
                 onChange={setAppNameFont}
@@ -983,8 +692,8 @@ export default function StyleEditor() {
             )}
           </TouchableOpacity>
           <Text style={styles.footnote}>
-            Mode et accentuation : par utilisateur.{'\n'}
-            Dégradé, transparence, police et palette : globaux.
+            Mode et couleur d'accent : choisis par chacun dans Apparence.{'\n'}
+            Couleurs du Jardin, presets et police du nom : globaux, pour tous.
           </Text>
         </KeyboardAwareScrollView>
       </SafeAreaView>

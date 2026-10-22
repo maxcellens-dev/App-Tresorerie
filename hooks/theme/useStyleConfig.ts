@@ -4,6 +4,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
+import type { GardenOverrides, GardenGlowConfig } from '../../lib/garden/theme';
 
 export interface ModeStyleConfig {
   gradient_enabled: boolean;
@@ -69,6 +70,10 @@ export interface StyleConfig {
   semantic_colors: Record<string, string>;
   /** Surcharges des couleurs sémantiques pour le thème CLAIR (indépendant du sombre). */
   light_semantic_colors: Record<string, string>;
+  /** Couleurs du JARDIN réglées par l'admin, par mode (clé de la palette → hex). Vide = défauts du Jardin. */
+  garden: { light: GardenOverrides; dark: GardenOverrides };
+  /** Dégradé du haut des pages, par mode (vide = réglages par défaut). */
+  garden_glow: { light: Partial<GardenGlowConfig>; dark: Partial<GardenGlowConfig> };
 }
 
 /** Ordonne une liste d'ids de presets selon l'ordre sauvegardé (ids absents ajoutés à la fin). */
@@ -101,6 +106,8 @@ export const STYLE_DEFAULTS: StyleConfig = {
   preset_order: [],
   semantic_colors: {},
   light_semantic_colors: {},
+  garden: { light: {}, dark: {} },
+  garden_glow: { light: {}, dark: {} },
 };
 
 const KEY = 'style_config';
@@ -135,6 +142,8 @@ export function useStyleConfig() {
         preset_order: style?.preset_order ?? STYLE_DEFAULTS.preset_order,
         semantic_colors: style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
         light_semantic_colors: style?.light_semantic_colors ?? STYLE_DEFAULTS.light_semantic_colors,
+        garden: { light: style?.garden?.light ?? {}, dark: style?.garden?.dark ?? {} },
+        garden_glow: { light: style?.garden_glow?.light ?? {}, dark: style?.garden_glow?.dark ?? {} },
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -164,6 +173,8 @@ export function useSaveStyleConfig() {
         preset_order: existing.style?.preset_order ?? STYLE_DEFAULTS.preset_order,
         semantic_colors: existing.style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
         light_semantic_colors: existing.style?.light_semantic_colors ?? STYLE_DEFAULTS.light_semantic_colors,
+        garden: { light: existing.style?.garden?.light ?? {}, dark: existing.style?.garden?.dark ?? {} },
+        garden_glow: { light: existing.style?.garden_glow?.light ?? {}, dark: existing.style?.garden_glow?.dark ?? {} },
       };
       const merged: StyleConfig = {
         dark:  { ...prev.dark,  ...(config.dark  ?? {}) },
@@ -178,6 +189,9 @@ export function useSaveStyleConfig() {
         preset_order: config.preset_order ?? prev.preset_order,
         semantic_colors: config.semantic_colors ?? prev.semantic_colors,
         light_semantic_colors: config.light_semantic_colors ?? prev.light_semantic_colors,
+        // Remplacée EN BLOC par mode : « Défaut » sur une couleur doit pouvoir la retirer.
+        garden: { light: config.garden?.light ?? prev.garden.light, dark: config.garden?.dark ?? prev.garden.dark },
+        garden_glow: { light: config.garden_glow?.light ?? prev.garden_glow.light, dark: config.garden_glow?.dark ?? prev.garden_glow.dark },
       };
       const { error } = await supabase.from('app_config').update({
         theme: { ...existing, style: merged },

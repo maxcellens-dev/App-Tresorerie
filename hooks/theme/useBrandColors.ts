@@ -8,7 +8,8 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { useLandingConfig } from '../config/useLandingConfig';
 import { getCachedAdminTheme, subscribeThemeCache, themeCacheVersion } from '../../lib/platform/themeBoot';
-import { gardenAppColors } from '../../lib/garden/gardenPalette';
+import { gardenColorsFor } from '../../lib/garden/gardenPalette';
+import { useStyleConfig } from './useStyleConfig';
 import type { AppColors, ThemeMode } from '../../theme/palette';
 
 export function useBrandColors(previewMode?: ThemeMode): AppColors {
@@ -18,5 +19,10 @@ export function useBrandColors(previewMode?: ThemeMode): AppColors {
   useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
   // Repli CLAIR (le Jardin, le splash crème et la vitrine le sont) tant que la config n'a pas répondu.
   const mode = (previewMode ?? landing?.theme ?? getCachedAdminTheme() ?? 'light') as ThemeMode;
-  return useMemo(() => gardenAppColors(null, mode === 'dark' ? 'dark' : 'light'), [mode]);
+  // Couleurs du Jardin réglées en admin (Style Editor) : le site les porte aussi, comme l'app.
+  const { data: styleConfig } = useStyleConfig();
+  const m = mode === 'dark' ? 'dark' : 'light';
+  const overrides = styleConfig?.garden?.[m];
+  const glow = styleConfig?.garden_glow?.[m];
+  return useMemo(() => gardenColorsFor(null, m, overrides, glow), [m, overrides, glow]);
 }

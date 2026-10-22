@@ -136,8 +136,9 @@ export function treeSize(growth: number): number {
 const TREE_H = [100, 160, 330, 420, 500, 570, 640];
 
 /** Niveau de racines : le niveau dont la pointe est la plus proche de la profondeur visée. */
-export function rootLevel(months: number, beyondSix: boolean): keyof typeof M.soil {
-  if (beyondSix) return 'aquifer';
+export function rootLevel(months: number, golden: boolean): keyof typeof M.soil {
+  // La couche dorée (image « aquifer ») : réservée au 4ᵉ trait, 12 mois d'épargne par défaut.
+  if (golden) return 'aquifer';
   if (months <= 0.05) return 'r0';
   if (months < 1) return 'r1';
   if (months < 2) return 'r2';
@@ -156,6 +157,8 @@ const MUSHROOM_SLOTS: [number, number, number, boolean][] = [
   [430, 668, 16, false], [516, 666, 15, true], [338, 690, 22, true], [520, 688, 18, false],
   [300, 702, 28, false], [468, 698, 22, true], [362, 712, 34, false], [500, 714, 28, true],
 ];
+/** 4ᵉ trait (12 mois) : à hauteur de la couche dorée de l'image « aquifer », sous la pointe des racines. */
+const GOLD_MARK_Y = 1040;
 const PEPIN_W = 178;
 const fmtMonths = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
 /** Pattes de Pépin dans ses images : [centre x, remontée par rapport au point le plus bas, demi-largeur] (fractions de l'image). */
@@ -217,15 +220,15 @@ export function layoutScene(state: TreeState, o: Scene3dOptions): Scene3d {
   }
 
   // ── Plateau : terre (niveau de racines) puis plaque d'herbe de la saison ──
-  const lvl = rootLevel(state.roots.months, state.roots.beyondSix), soil = M.soil[lvl];
+  const lvl = rootLevel(state.roots.months, state.roots.golden), soil = M.soil[lvl];
   back.push(img('soil', `soil_${lvl}`, soil.x, soil.y, soil.w, soil.h));
   back.push(img('slab', `slab_${o.season}`, M.slab.x, M.slab.y, M.slab.w, M.slab.h));
   // quelques touffes sur le dessus : l'herbe n'est plus une plaque nue
   DECO_TUFTS.forEach(([x, y, w], i) => tuft(front, `tuftDeco${i}`, x, y, w * 1.35, i));
   hot.push({ part: 'roots', x: soil.x, y: M.slab.y + M.slab.h - 20, w: soil.w, h: soil.y + soil.h - (M.slab.y + M.slab.h - 20) });
   if (o.marks !== false) {
-    const { one, three, six } = state.roots.marks;
-    v.marks = [{ y: M.marks.one, label: `${fmtMonths(state.roots.markMonths[0])} mois`, reached: one }, { y: M.marks.three, label: `${fmtMonths(state.roots.markMonths[1])} mois`, reached: three }, { y: M.marks.six, label: `${fmtMonths(state.roots.markMonths[2])} mois`, reached: six }];
+    const { one, three, six, twelve } = state.roots.marks;
+    v.marks = [{ y: M.marks.one, label: `${fmtMonths(state.roots.markMonths[0])} mois`, reached: one }, { y: M.marks.three, label: `${fmtMonths(state.roots.markMonths[1])} mois`, reached: three }, { y: M.marks.six, label: `${fmtMonths(state.roots.markMonths[2])} mois`, reached: six }, { y: GOLD_MARK_Y, label: `${fmtMonths(state.roots.markMonths[3])} mois`, reached: twelve }];
   }
 
   // ── Banc (au fond à droite), mare (devant), champignons ──

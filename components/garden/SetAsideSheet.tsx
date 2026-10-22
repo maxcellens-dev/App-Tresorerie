@@ -98,7 +98,7 @@ export default function SetAsideSheet({ visible, onClose, core }: { visible: boo
     const title = isKept ? "Gardé dans l'arrosoir" : t === 'epargne' ? 'Pour tes racines' : 'Pour tes fruits';
     return (
       <GardenSheet visible={visible} onClose={onClose} title={title}
-        subtitle={isKept ? 'le montant que tu gardes ce mois-ci sur ton compte courant' : `à virer plus tard vers ${t === 'epargne' ? 'ton épargne de secours' : 'tes placements'}`}
+        subtitle={isKept ? 'le montant que tu gardes ce mois-ci sur ton compte courant' : `à virer plus tard vers ${t === 'epargne' ? 'ton épargne' : 'tes placements'}`}
         footer={(
           <View style={{ gap: GARDEN_SPACE.sm }}>
             {isKept
@@ -133,7 +133,7 @@ export default function SetAsideSheet({ visible, onClose, core }: { visible: boo
       </View>
 
       {/* Toujours affichés, même à 0 : c'est par eux qu'on met un premier montant de côté. */}
-      <GardenRowGroup title="Mis de côté pour plus tard" rows={([['epargne', 'Pour tes racines', 'épargne de secours', 'roots'], ['invest', 'Pour tes fruits', 'placements', 'fruits']] as const).map(([type, label, what, kind]) => ({
+      <GardenRowGroup title="Mis de côté pour plus tard" rows={([['epargne', 'Pour tes racines', 'épargne', 'roots'], ['invest', 'Pour tes fruits', 'placements', 'fruits']] as const).map(([type, label, what, kind]) => ({
         key: type, label, value: eur(pending[type]), onPress: () => open(type),
         sub: pending[type] > 0 ? `${what} · en attente de virement` : `${what} · touche pour ajouter un montant`,
         icon: GARDEN_ICONS[kind].icon, iconColor: GARDEN_ICONS[kind].fg, iconBg: GARDEN_ICONS[kind].bg,
