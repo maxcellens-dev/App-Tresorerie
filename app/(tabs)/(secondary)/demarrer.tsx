@@ -33,9 +33,9 @@ import { GARDEN_COLORS as G, GARDEN_SPACE } from '../../../lib/garden/theme';
 
 /** Pourquoi chaque étape compte, dit par Pépin (une phrase). */
 const WHY = [
-  "Ton compte courant, c'est ton arrosoir : c'est de là que part tout le calcul. Mets le solde que ta banque affiche aujourd'hui.",
-  "Tes livrets et tes placements font tes racines et tes fruits. Même un petit montant compte. Pas d'épargne pour l'instant ? Aucun souci, passe.",
-  "Ton salaire, ton loyer, tes abonnements : ce qui revient chaque mois. Coche « récurrente » en l'enregistrant, et je le prévois pour toi tous les mois.",
+  "Ton compte courant, c'est de là que part tout le calcul. Mets le solde que ta banque affiche aujourd'hui.",
+  "Tes livrets et tes placements : même un petit montant compte. Pas d'épargne pour l'instant ? Aucun souci, passe.",
+  "Ton salaire, ton loyer, tes abonnements : ce qui revient chaque mois. Touche la tuile, tape le montant, enregistre : je le prévois pour toi à chaque fois.",
   "Courses, sorties, petites dépenses : donne-moi une estimation par semaine. Je l'ajuste à ton vrai rythme au fil des mois.",
   "Le minimum que tu veux toujours garder sur ton compte. Je ne le compte jamais dans ton Relyka. Zéro, c'est possible aussi.",
 ];
@@ -66,26 +66,26 @@ export default function DemarrerScreen() {
 
   const open = (i: number) => {
     if (i === 0 || i === 1) router.push('/(tabs)/comptes/add' as any);
-    else if (i === 2) router.push('/(tabs)/transactions/add?type=expense&recurring=1' as any);
+    else if (i === 2) router.push('/(tabs)/(secondary)/recurrentes' as any);
     else setSheet(i === 3 ? 'estimate' : 'margin');
   };
 
   return (
-    <GardenPage secondary header={<ScreenHeader title="Plante ton arbre" onBack={goBack} />}
+    <GardenPage secondary header={<ScreenHeader title="Démarrer" onBack={goBack} />}
       footer={finished
-        ? <GardenButton label="Voir mon jardin" onPress={() => router.navigate('/(tabs)/jardin' as any)} />
+        ? <GardenButton label="Voir mon accueil" onPress={() => router.navigate('/(tabs)/jardin' as any)} />
         : <GardenButton label={current === 1 ? 'Ajouter mon épargne' : `Étape ${current + 1} : ${PLANTING_STEPS[current].title.toLowerCase()}`} onPress={() => open(current)} />}>
       <GardenColumns left={<GardenScene state={tree} options={{ id: 'start', marks: false, mood: finished ? 'joy' : 'happy' }} />} right={<>
         <View style={{ gap: 6 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <GardenText variant="label" color={G.branchesText}>{finished ? 'Ton arbre est planté' : 'Ton arbre se plante'}</GardenText>
+            <GardenText variant="label" color={G.branchesText}>{finished ? 'C’est prêt' : 'Ton installation'}</GardenText>
             <GardenText variant="smallStrong" tabular>{doneCount} / {PLANTING_STEPS.length}</GardenText>
           </View>
           <GardenBar value={doneCount / PLANTING_STEPS.length} fill={G.primary} track={G.track} accessibilityLabel={`${doneCount} étapes sur ${PLANTING_STEPS.length}`} />
         </View>
 
         <PicoBubble mood={finished ? 'joy' : 'happy'}>
-          {finished ? "Bravo, ton jardin est planté ! Ton Relyka et ton arbre se mettent à jour tout seuls à chaque opération. Reviens quand tu veux faire le tour de ton jardin." : WHY[current]}
+          {finished ? "Bravo, c'est prêt ! Ton Relyka se met à jour tout seul à chaque opération. Reviens quand tu veux mettre tes soldes à jour." : WHY[current]}
         </PicoBubble>
 
         {PLANTING_STEPS.map((s, i) => {

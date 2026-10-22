@@ -23,12 +23,12 @@ import { TREE_PARTS } from '../../lib/garden/lexicon';
 import { GARDEN_COLORS, GARDEN_RADII } from '../../lib/garden/theme';
 
 const PART_LABEL: Record<HotspotPart, string> = {
-  can: `${TREE_PARTS.can.name} · ${TREE_PARTS.can.meaning}`,
-  roots: `${TREE_PARTS.roots.name} · ${TREE_PARTS.roots.meaning}`,
-  tree: `${TREE_PARTS.branches.name} · ${TREE_PARTS.branches.meaning}`,
-  cabin: `${TREE_PARTS.cabin.name} · ${TREE_PARTS.cabin.meaning}`,
-  brambles: `${TREE_PARTS.brambles.name} · ${TREE_PARTS.brambles.meaning}`,
-  flowers: `${TREE_PARTS.flowers.name} · ${TREE_PARTS.flowers.meaning}`,
+  can: TREE_PARTS.can.name,
+  roots: TREE_PARTS.roots.name,
+  tree: TREE_PARTS.branches.name,
+  cabin: TREE_PARTS.cabin.name,
+  brambles: TREE_PARTS.brambles.name,
+  flowers: TREE_PARTS.flowers.name,
   pico: 'Pépin',
 };
 

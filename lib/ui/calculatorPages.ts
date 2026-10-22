@@ -6,8 +6,8 @@
  * on n'en change jamais un sans le rattacher dans LEGACY.
  */
 export const CALCULATOR_GROUPS = [
-  { title: 'Ton jardin', pages: [
-    { id: 'jardin', label: 'Jardin', icon: 'leaf-outline' },
+  { title: 'Ton suivi', pages: [
+    { id: 'jardin', label: 'Accueil', icon: 'home-outline' },
     { id: 'pepin', label: 'Pépin', icon: 'chatbubble-ellipses-outline' },
   ] },
   { title: 'Ton argent', pages: [

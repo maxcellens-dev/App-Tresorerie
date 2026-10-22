@@ -82,7 +82,7 @@ export default function PicoChoicesSheet({ visible, onClose, core, choices }: Pr
         visible={visible && !modeOpen}
         onClose={onClose}
         title={WORDS.picoChoices}
-        subtitle="L'eau de ton arrosoir, utilisée au mieux. Fais les virements dans ta banque, puis enregistre-les ici."
+        subtitle="Ton Relyka, utilisé au mieux. Fais les virements dans ta banque, puis enregistre-les ici."
         footer={<GardenButton label={WORDS.changeChoices} variant="secondary" onPress={() => setModeOpen(true)} />}
       >
         {choices.length === 0 ? <PicoBubble mood="thinking">Pas de choix ce mois-ci : ton Relyka est déjà réparti.</PicoBubble> : null}
@@ -118,13 +118,13 @@ export default function PicoChoicesSheet({ visible, onClose, core, choices }: Pr
             <GardenText variant="label" color={GARDEN_COLORS.noticeText}>{WORDS.pending}</GardenText>
             {pendingSave > 0 ? (
               <View style={{ gap: 6 }}>
-                <GardenText variant="body">{eur(pendingSave)} pour tes racines, mis de côté pour plus tard.</GardenText>
+                <GardenText variant="body">{eur(pendingSave)} pour ton épargne, mis de côté pour plus tard.</GardenText>
                 <GardenButton label="Faire ce virement maintenant" variant="secondary" onPress={() => transferPending('epargne', pendingSave)} />
               </View>
             ) : null}
             {pendingInvest > 0 ? (
               <View style={{ gap: 6 }}>
-                <GardenText variant="body">{eur(pendingInvest)} pour tes fruits (placements), mis de côté pour plus tard.</GardenText>
+                <GardenText variant="body">{eur(pendingInvest)} pour tes placements, mis de côté pour plus tard.</GardenText>
                 <GardenButton label="Faire ce virement maintenant" variant="secondary" onPress={() => transferPending('invest', pendingInvest)} />
               </View>
             ) : null}

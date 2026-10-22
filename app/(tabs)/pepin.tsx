@@ -62,11 +62,11 @@ export default function PepinScreen() {
   return (
     <GardenPage calculator="pepin">
       {tabs}
-      {!core.ready ? <GardenWaiting message="Pépin fait le tour du jardin…" /> : (
+      {!core.ready ? <GardenWaiting message="Pépin regarde tes comptes…" /> : (
         <PicoBubble mood={messages.length ? 'joy' : 'happy'}>
           {messages.length
             ? `J'ai regardé ${WORDS.relyka.charAt(0).toLowerCase() + WORDS.relyka.slice(1)} et voici ce que je te propose d'en faire : ${messages.length} remarque${messages.length > 1 ? 's' : ''} pour toi.`
-            : "Rien de particulier pour l'instant : ton jardin suit son cours."}
+            : "Rien de particulier pour l'instant : tout suit son cours."}
         </PicoBubble>
       )}
       {core.ready ? (

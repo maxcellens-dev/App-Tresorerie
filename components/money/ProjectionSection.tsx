@@ -634,7 +634,7 @@ function ProjectionBody({ section: tab }: { section: 'treso' | 'invest' }) {
 
           {tab === 'invest' && (<>
             <View style={{ backgroundColor: G.branchesBg, borderRadius: 24, padding: 18, gap: 6, marginBottom: 12 }}>
-              <GardenText variant="label" color={G.branchesText}>{isSimulationOnly ? `Simulation sur ${years} ans` : `Tes fruits dans ${years} ans`}</GardenText>
+              <GardenText variant="label" color={G.branchesText}>{isSimulationOnly ? `Simulation sur ${years} ans` : `Tes placements dans ${years} ans`}</GardenText>
               <GardenText variant="amount" tabular color={G.branchesText}>{fmt(investFinal?.value ?? 0)}</GardenText>
               <GardenText variant="small" color={G.inkSoft}>si tu continues à ce rythme, tous tes placements ensemble</GardenText>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>

@@ -41,6 +41,7 @@ import { formatEuros } from '../../lib/garden/picoChoices';
 import type { HotspotPart } from '../../lib/garden/sceneTypes';
 import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/theme';
 import { CHOICE_LOOKS } from '../../lib/garden/choiceLooks';
+import { live } from '../../lib/garden/live';
 import { pointer } from '../../lib/ui/webLayout';
 import { WORDS } from '../../lib/garden/lexicon';
 import { computeNextStep } from '../../lib/garden/nextStep';
@@ -49,6 +50,17 @@ import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 const months = (m: number) => m.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+/** « d'octobre », « de mars » : le mois en cours, avec l'élision. */
+const monthOf = () => {
+  const m = new Date().toLocaleDateString('fr-FR', { month: 'long' });
+  return /^[aeiouyh]/i.test(m) ? `d'${m}` : `de ${m}`;
+};
+/** Les trois parts de la jauge ; une couleur = un sens, la même partout. */
+const GAUGE = live(() => [
+  { key: 'spent', label: WORDS.spent, color: GARDEN_COLORS.fruits },
+  { key: 'planned', label: 'Prévu', color: GARDEN_COLORS.water },
+  { key: 'free', label: 'Libre', color: GARDEN_COLORS.primary },
+] as const);
 
 export default function JardinScreen() {
   const router = useRouter();
@@ -106,7 +118,7 @@ export default function JardinScreen() {
   if (!core.ready || !p) {
     return (
       <GardenPage>
-        <GardenWaiting message={core.failed ? "Ton jardin n'a pas pu se charger. Tire vers le bas pour réessayer." : core.isOffline ? 'Hors connexion : ton jardin attend le réseau.' : 'Ton jardin se prépare…'} />
+        <GardenWaiting message={core.failed ? "Ton accueil n'a pas pu se charger. Tire vers le bas pour réessayer." : core.isOffline ? 'Hors connexion : tes chiffres attendent le réseau.' : 'Tes chiffres se préparent…'} />
       </GardenPage>
     );
   }
@@ -117,6 +129,9 @@ export default function JardinScreen() {
   const zeroWord = zero?.word ?? null;
   const range = vm.relConf?.relykaRange;
   const totalChoices = choices.reduce((s, c) => s + c.amount, 0);
+  /* La jauge : dépensé + encore prévu + libre (= le Relyka). */
+  const free = zeroWord ? 0 : Math.max(0, vm.relykaAffiche);
+  const gaugeTotal = can ? Math.max(0, can.spent) + Math.max(0, can.leftToSpend) + free : 0;
 
   /* ── Prochain pas : UN geste, le plus utile d'abord (lib/garden/nextStep) ── */
   const step = computeNextStep(tree, inputs.monthlyReference, inputs.investedValue, inputs.recurringInvestMonthly);
@@ -135,10 +150,10 @@ export default function JardinScreen() {
       {/* Installation en cours (guide de démarrage, ou compte vidé de ses données) : la page
           « Plante ton arbre » porte les cinq étapes. */}
       {guide.active || vm.noAccountsYet || vm.setupIncomplete ? (
-        <GardenCard tint={GARDEN_COLORS.branchesBg} onPress={() => router.push('/(tabs)/(secondary)/demarrer' as any)} accessibilityLabel="Planter ton arbre : finir de démarrer">
+        <GardenCard tint={GARDEN_COLORS.branchesBg} onPress={() => router.push('/(tabs)/(secondary)/demarrer' as any)} accessibilityLabel="Finir de démarrer">
           <GardenText variant="label" color={GARDEN_COLORS.branchesText}>Démarrer</GardenText>
-          <GardenText variant="heading">Plante ton arbre</GardenText>
-          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{vm.setupHint || 'Cinq étapes avec tes vrais comptes, environ cinq minutes : ton Relyka et ton arbre se calculent ensuite tout seuls.'}</GardenText>
+          <GardenText variant="heading">Finis ton installation</GardenText>
+          <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{vm.setupHint || 'Cinq étapes avec tes vrais comptes, environ cinq minutes : ton Relyka se calcule ensuite tout seul.'}</GardenText>
           <GardenText variant="smallStrong" color={GARDEN_COLORS.primary}>Continuer ›</GardenText>
         </GardenCard>
       ) : null}
@@ -147,21 +162,16 @@ export default function JardinScreen() {
         <MonthlyClosure variableEnvelope={p.variable_envelope_initial ?? 0} checkingAccounts={core.closureAccounts} />
       ) : null}
 
-      {/* Bureau : l'arbre à gauche, le Relyka et le prochain pas à droite (une colonne sur téléphone). */}
-      <GardenColumns ratio={0.55} left={
-      <GardenScene state={tree} options={{ id: 'home', ...gardenLook }} onPressPart={(pt) => (pt === 'pico' ? router.push('/(tabs)/pepin' as any) : setPart(pt))} />
-      } right={<>
-
-      {/* ── 2. Ton Relyka = l'eau de l'arrosoir à utiliser ce mois-ci, et ce que Pico propose d'en faire ──
-          La carte n'est PAS cliquable (elle contient des lignes et un bouton : pas de bouton dans un
-          bouton) : son HAUT (titre + montant) ouvre le détail du calcul ; chaque geste est une ligne. */}
+      {/* ── 1. UN chiffre : ton Relyka, et d'où il vient en une jauge (dépensé / prévu / libre) ──
+          Le haut ouvre le détail du calcul ; la jauge ouvre le suivi du mois (deux boutons voisins,
+          jamais l'un dans l'autre). */}
       <GardenCard>
         <Pressable onPress={() => setRelykaOpen(true)} accessibilityRole="button" accessibilityLabel={`${WORDS.relyka} : ${zeroWord ?? eur(vm.relykaAffiche)}. Voir le détail du calcul`}
           style={({ pressed }: any) => [{ gap: 4, opacity: pressed ? 0.75 : 1 }, pointer]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: GARDEN_SPACE.sm }}>
-            <GardenText variant="label" color={GARDEN_COLORS.waterText} style={{ flex: 1 }}>{WORDS.relyka} · l'eau de ton arrosoir</GardenText>
+            <GardenText variant="bodyStrong" color={GARDEN_COLORS.inkSoft} style={{ flex: 1 }}>{WORDS.relyka}</GardenText>
             {range?.isRange ? <GardenText variant="small" color={GARDEN_COLORS.muted}>estimation</GardenText> : null}
-            <GardenText variant="smallStrong" color={GARDEN_COLORS.primary}>Voir le détail ›</GardenText>
+            <GardenText variant="smallStrong" color={GARDEN_COLORS.primary}>Détail ›</GardenText>
           </View>
           {zeroWord ? (
             <>
@@ -170,16 +180,44 @@ export default function JardinScreen() {
             </>
           ) : (
             <>
-              <GardenText variant="amount" tabular>{eur(vm.relykaAffiche)}</GardenText>
-              <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>Ce qu'il te reste à utiliser ce mois-ci, une fois tes dépenses prévues et ta réserve minimum gardée. Pépin te propose :</GardenText>
+              <GardenText variant="amount" tabular style={{ fontSize: 52, lineHeight: 60 }} adjustsFontSizeToFit numberOfLines={1}>{eur(vm.relykaAffiche)}</GardenText>
+              <GardenText variant="body" color={GARDEN_COLORS.inkSoft}>à utiliser d'ici la fin {monthOf()}{(can?.minimum ?? 0) > 0 ? ', sans toucher à ta réserve' : ''}.</GardenText>
             </>
           )}
         </Pressable>
-        {totalChoices > 0 ? (
-          <View style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', gap: 3 }}>
-            {choices.map((c) => <View key={c.type} style={{ flex: c.amount, backgroundColor: CHOICE_LOOKS[c.type].fill }} />)}
-          </View>
+        {can && gaugeTotal > 0 ? (
+          <Pressable onPress={() => setPart('can')} accessibilityRole="button"
+            accessibilityLabel={`Ce mois : ${eur(can.spent)} dépensés, ${eur(can.leftToSpend)} encore prévus, ${eur(free)} libres. Voir le suivi du mois`}
+            style={({ pressed }: any) => [{ gap: 8, paddingTop: 6, opacity: pressed ? 0.75 : 1 }, pointer]}>
+            <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 3 }}>
+              {GAUGE.map((g) => {
+                const v = g.key === 'spent' ? can.spent : g.key === 'planned' ? can.leftToSpend : free;
+                // un segment non nul reste visible, même minuscule à côté des autres
+                return v > 0 ? <View key={g.key} style={{ flex: Math.max(v, gaugeTotal * 0.03), backgroundColor: g.color }} /> : null;
+              })}
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', columnGap: GARDEN_SPACE.md, rowGap: 4 }}>
+              {GAUGE.map((g) => {
+                const v = g.key === 'spent' ? can.spent : g.key === 'planned' ? can.leftToSpend : free;
+                return (
+                  <View key={g.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: g.color }} />
+                    <GardenText variant="smallStrong" tabular color={GARDEN_COLORS.inkSoft}>{g.label} {eur(v)}</GardenText>
+                  </View>
+                );
+              })}
+            </View>
+          </Pressable>
         ) : null}
+      </GardenCard>
+
+      {/* Bureau : la répartition à gauche, l'arbre et le prochain pas à droite (une colonne sur téléphone). */}
+      <GardenColumns ratio={0.5} left={<>
+
+      {/* ── 2. Que faire de ton Relyka : les choix de Pépin, une ligne par geste ── */}
+      {choices.length ? (
+      <GardenCard>
+        <GardenText variant="heading">Que faire de {zeroWord ? 'ton Relyka' : `ces ${eur(totalChoices)}`} ?</GardenText>
         {choices.length ? (
           <View style={{ borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: GARDEN_COLORS.line, overflow: 'hidden' }}>
             {choices.map((c, i) => {
@@ -190,7 +228,7 @@ export default function JardinScreen() {
                   <GardenIcon icon={look.icon} fg={look.fg} bg={look.bg} />
                   <View style={{ flex: 1 }}>
                     <GardenText variant="bodyStrong">{look.verb}</GardenText>
-                    <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{c.kind === 'transfer' && c.to ? `${look.meaning} · vers ${c.to}` : look.meaning}</GardenText>
+                    <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{c.kind === 'transfer' && c.to ? `vers ${c.to}` : look.meaning}</GardenText>
                   </View>
                   <GardenText variant="bodyStrong" tabular color={look.fg}>{eur(c.amount)}</GardenText>
                 </>
@@ -210,27 +248,12 @@ export default function JardinScreen() {
             « plus tard » et le réglage de la répartition restent dans les choix de Pépin. */}
         {choices.length ? <GardenButton label="Plus tard, répartition…" variant="secondary" onPress={() => setChoicesOpen(true)} /> : null}
       </GardenCard>
-
-      {/* ── 3. Le quotidien : combien je peux encore dépenser, et pourquoi → Mon argent › Ce mois ── */}
-      {can ? (
-        <GardenCard onPress={() => setPart('can')} accessibilityLabel={`Ce mois : ${eur(can.spent)} dépensés, ${eur(can.leftToSpend)} encore à sortir. Voir le suivi du mois`}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <GardenText variant="label">Ce mois-ci</GardenText>
-            <GardenText variant="smallStrong" color={GARDEN_COLORS.primary}>Suivi du mois ›</GardenText>
-          </View>
-          <View style={{ flexDirection: 'row', gap: GARDEN_SPACE.md }}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{WORDS.spent}</GardenText>
-              <GardenText variant="heading" tabular color={GARDEN_COLORS.fruitsText}>{eur(can.spent)}</GardenText>
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <GardenText variant="small" color={GARDEN_COLORS.inkSoft}>{WORDS.leftToSpend}</GardenText>
-              <GardenText variant="heading" tabular color={GARDEN_COLORS.waterText}>{eur(can.leftToSpend)}</GardenText>
-            </View>
-          </View>
-          <GardenText variant="small" color={GARDEN_COLORS.muted}>Une prévision : tes prélèvements encore à passer et tes dépenses habituelles, déjà mis de côté dans ton Relyka.</GardenText>
-        </GardenCard>
       ) : null}
+
+      </>} right={<>
+
+      {/* ── 3. L'arbre : le décor, qui suit la situation ; chaque partie ouvre sa fiche ── */}
+      <GardenScene state={tree} options={{ id: 'home', ...gardenLook }} onPressPart={(pt) => (pt === 'pico' ? router.push('/(tabs)/pepin' as any) : setPart(pt))} />
 
       {/* ── 4. Prochain pas ── */}
       {/* La carte mène là où le geste se fait : crédits, parcours, ajout d'un placement, placements. */}
@@ -261,7 +284,7 @@ export default function JardinScreen() {
       <RelykaSheet visible={relykaOpen} onClose={() => setRelykaOpen(false)} core={core} />
       <TreePartSheet part={part} onClose={() => setPart(null)} tree={tree} can={can} credits={credits} core={core}
         savingsTotal={p.total_savings ?? p.current_savings ?? 0} investedTotal={p.total_invested ?? 0} enjoyAmount={inputs.enjoyThisMonth} investments={investments} />
-      <GardenSheet visible={keepOpen} onClose={() => setKeepOpen(false)} title="Garder dans l'arrosoir" subtitle="conserver ce mois-ci sur ton compte courant"
+      <GardenSheet visible={keepOpen} onClose={() => setKeepOpen(false)} title="Garder sur ton compte" subtitle="conserver ce mois-ci sur ton compte courant"
         footer={<GardenButton label="Enregistrer" onPress={saveKeep} loading={setMonthlyReservation.isPending} />}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm }}>
           <TextInput value={keepDraft} onChangeText={(v) => setKeepDraft(sanitizeAmountInput(v))} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={GARDEN_COLORS.muted} accessibilityLabel="Montant à conserver"

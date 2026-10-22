@@ -30,9 +30,17 @@ interface Props {
   applyTopInset?: boolean;
   /** Onglet principal du Jardin : pas de retour, la marque à gauche. */
   main?: boolean;
+  /** Accueil : la date du jour et « Salut {prénom} » à la place du titre. */
+  greeting?: boolean;
 }
 
-export default function GardenTopBar({ title, applyTopInset = true, main }: Props) {
+/** « Jeudi 22 octobre » : la date du jour, majuscule en tête. */
+const todayLabel = () => {
+  const s = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+export default function GardenTopBar({ title, applyTopInset = true, main, greeting }: Props) {
   const router = useRouter();
   const goBack = useNavBack();
   const insets = useSafeAreaInsets();
@@ -47,12 +55,14 @@ export default function GardenTopBar({ title, applyTopInset = true, main }: Prop
   const streak = useGamification(user?.id).state?.streak ?? 0;
   const avatarUrl = (profile as any)?.avatar_url as string | undefined;
   const name = (profile as any)?.full_name || (user as any)?.user_metadata?.full_name || user?.email || '?';
+  // Prénom = premier mot du nom ; sans nom (adresse e-mail seule), un simple « Salut ».
+  const firstName = (profile as any)?.full_name || (user as any)?.user_metadata?.full_name ? String(name).trim().split(/\s+/)[0] : '';
   const round = { width: GARDEN_TOUCH, height: GARDEN_TOUCH, borderRadius: GARDEN_TOUCH / 2, backgroundColor: GARDEN_COLORS.card, borderWidth: 1, borderColor: GARDEN_COLORS.line, alignItems: 'center' as const, justifyContent: 'center' as const, overflow: 'hidden' as const };
 
   return (
     // `glow` : en sombre, la barre porte la teinte d'où part le halo de la page (GardenGlow) — pas de couture.
     <View style={{ paddingTop: applyTopInset ? insets.top : 0, backgroundColor: GARDEN_COLORS.glow }}>
-      <View style={{ height: 56, flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm, paddingHorizontal: GARDEN_SPACE.lg }}>
+      <View style={{ height: greeting ? 64 : 56, flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm, paddingHorizontal: GARDEN_SPACE.lg }}>
         {main ? null : (
           <Pressable onPress={goBack} accessibilityRole="button" accessibilityLabel="Retour" hitSlop={6} style={[round, pointer]}>
             <Svg width={18} height={18} viewBox="0 0 24 24"><Path d="m15 6-6 6 6 6" stroke={GARDEN_COLORS.ink} strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>
@@ -61,15 +71,20 @@ export default function GardenTopBar({ title, applyTopInset = true, main }: Prop
         {/* minWidth 0 + maxWidth : sans eux, un titre long déborde sous la pastille au lieu de s'abréger. */}
         <View style={{ flex: 1, minWidth: 0 }}>
           {/* Le titre ramène au Jardin, comme le titre de l'entête ramenait au Pilotage. */}
-          {fontsReady && shown ? (
-            <Pressable onPress={() => router.navigate('/(tabs)/jardin' as any)} accessibilityRole="link" accessibilityLabel={`${shown}, aller au Jardin`} style={[{ alignSelf: 'flex-start', maxWidth: '100%' }, pointer]}>
+          {fontsReady && greeting ? (
+            <View>
+              <GardenText variant="smallStrong" color={GARDEN_COLORS.inkSoft} numberOfLines={1}>{todayLabel()}</GardenText>
+              <GardenText variant="title" numberOfLines={1} accessibilityRole="header">{firstName ? `Salut ${firstName}` : 'Salut'}</GardenText>
+            </View>
+          ) : fontsReady && shown ? (
+            <Pressable onPress={() => router.navigate('/(tabs)/jardin' as any)} accessibilityRole="link" accessibilityLabel={`${shown}, aller à l'accueil`} style={[{ alignSelf: 'flex-start', maxWidth: '100%' }, pointer]}>
               <GardenText variant={main ? 'title' : 'heading'} numberOfLines={1} accessibilityRole="header">{shown}</GardenText>
             </Pressable>
           ) : null}
         </View>
         {fontsReady ? (
           <Pressable onPress={() => router.push('/(tabs)/(secondary)/succes' as any)} accessibilityRole="button" accessibilityLabel={`Série : ${streak} semaines. Voir mes succès`} hitSlop={6} style={pointer}>
-            <GardenPill label={`${streak} sem.`} bg={GARDEN_COLORS.pico} color={GARDEN_COLORS.picoText} dot="#C9A57E" />
+            <GardenPill label={greeting ? `Série : ${streak} sem.` : `${streak} sem.`} bg={GARDEN_COLORS.pico} color={GARDEN_COLORS.picoText} dot="#C9A57E" />
           </Pressable>
         ) : null}
         <Pressable onPress={() => router.push('/(tabs)/(secondary)/moi' as any)} accessibilityRole="button" accessibilityLabel="Mon profil" hitSlop={6} style={[round, { borderWidth: 2, borderColor: GARDEN_COLORS.branches }, pointer]}>

@@ -76,7 +76,7 @@ export function MarginSheet({ visible, onClose, userId, onSaved }: { visible: bo
   };
 
   return (
-    <GardenSheet visible={visible} onClose={onClose} title={WORDS.minimumToKeep} subtitle="l'eau que tu gardes toujours dans ton arrosoir"
+    <GardenSheet visible={visible} onClose={onClose} title={WORDS.minimumToKeep} subtitle="ce que tu gardes toujours sur ton compte courant"
       footer={<GardenButton label="Enregistrer" onPress={save} />}>
       <AmountField value={draft} onChange={setDraft} unit={CURRENCY_SYMBOL} />
       <GardenText variant="body" color={G.inkSoft}>

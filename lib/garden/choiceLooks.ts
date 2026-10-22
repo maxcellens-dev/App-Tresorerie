@@ -1,16 +1,16 @@
 /**
- * Ce que devient l'eau de l'arrosoir (le Relyka) : un geste par recommandation de Pico, avec la
- * partie de l'arbre qu'il fait pousser, son vrai sens et sa couleur. Une seule source pour la carte
- * du Jardin et la feuille des choix de Pico. Icône et couleurs : lib/garden/icons (UNE par sens).
+ * Ce que Pépin propose de faire du Relyka : une ligne par recommandation, avec son nom en mot
+ * courant, ce qu'elle veut dire et sa couleur. Une seule source pour la carte d'accueil et la feuille
+ * des choix de Pépin. Icône et couleurs : lib/garden/icons (UNE par sens).
  */
 import { live } from './live';
 import type { RecoType } from '../finance/recommendationEngine';
 import { GARDEN_ICONS, RECO_ICON } from './icons';
 
 export interface ChoiceLook {
-  /** Le geste, en mots du jardin (« Arrose tes racines »). */
+  /** Le nom, en mot courant (« Épargne »). */
   verb: string;
-  /** Le vrai sens, toujours à côté (« épargne »). */
+  /** Ce qu'il veut dire, en clair (« mettre de côté pour plus tard »). */
   meaning: string;
   /** Nom Ionicons, ou 'garden-roots' (dessin maison, cf. components/garden/ChoiceIcon). */
   icon: string;
@@ -25,9 +25,8 @@ const look = (type: RecoType, verb: string, meaning: string): ChoiceLook => {
 };
 
 export const CHOICE_LOOKS: Record<RecoType, ChoiceLook> = live(() => ({
-  save: look('save', 'Arrose tes racines', 'épargne'),
-  invest: look('invest', 'Fais grossir tes fruits', 'placements'),
-  // Les fleurs = la part que tu peux dépenser pour toi : on les CUEILLE (on en profite), on ne les fait pas pousser.
-  enjoy: look('enjoy', 'Cueille tes fleurs', 'pour te faire plaisir'),
-  keep: look('keep', "Garde dans l'arrosoir", 'reste sur ton compte courant'),
+  save: look('save', 'Épargne', 'mettre de côté pour plus tard'),
+  invest: look('invest', 'Investissements', 'faire travailler ton argent'),
+  enjoy: look('enjoy', 'Plaisir', 'pour te faire plaisir'),
+  keep: look('keep', 'À garder', 'reste sur ton compte courant'),
 }));

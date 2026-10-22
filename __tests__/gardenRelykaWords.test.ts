@@ -11,20 +11,20 @@ describe('gardenRelykaZero', () => {
 
   it('arrosoir vide : tout est promis aux dépenses prévues (la réserve seule reste)', () => {
     const z = gardenRelykaZero({ resteDisponibleBrut: -50, safetyMarginDisplay: 200, nextIncomeDate: '2026-11-01' })!;
-    expect(z.word).toBe('Ton arrosoir est vide');
+    expect(z.word).toBe('Rien de libre ce mois-ci');
     expect(z.sub).toContain('1 novembre');
   });
 
   it('toute l’eau est versée : ce qui est mis de côté', () => {
     const z = gardenRelykaZero({ resteDisponibleBrut: -500, safetyMarginDisplay: 200, conservedTotal: 710 })!;
-    expect(z.word).toBe('Toute ton eau est déjà versée');
+    expect(z.word).toBe('Tout est déjà mis de côté');
     expect(z.sub.replace(/\s/g, ' ')).toContain('710 €');
   });
 
   it('à sec : toutes les réserves utilisées, et ce qui dépasse', () => {
     const z = gardenRelykaZero({ resteDisponibleBrut: -320, safetyMarginDisplay: 200, conservedTotal: 0 })!;
-    expect(z.word).toBe('Ton arrosoir est à sec');
-    expect(z.sub).toContain('Tu as utilisé toutes tes réserves ce mois-ci');
+    expect(z.word).toBe('Mois serré');
+    expect(z.sub).toContain('Tu as utilisé ta réserve ce mois-ci');
     expect(z.sub).toContain('prochaine rentrée');
   });
 });

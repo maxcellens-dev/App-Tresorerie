@@ -39,7 +39,7 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
   if (tree.brambles > 0) {
     return {
       kind: 'brambles', part: 'brambles',
-      title: 'Arrache tes ronces : rembourse ton crédit cher',
+      title: 'Rembourse ton crédit cher en premier',
       text: "Un crédit renouvelable ou un découvert coûte plus cher que ce qu'un placement rapporte. Le rembourser en premier, c'est le placement le plus rentable.",
     };
   }
@@ -61,17 +61,17 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
     const extra = ref > 0 ? (m - mk3) * ref : 0;
     return {
       kind: 'firstFruit', part: 'fruits',
-      title: 'Plante ton premier fruit : ouvre un placement',
+      title: 'Ouvre un premier placement',
       text: extra >= 50
-        ? `Tes racines tiennent ${fmtMonths(m)} mois, c'est solide. Les ${fmtEur(extra)} au-delà de ${fmtMonths(mk3)} mois peuvent commencer à travailler dans un placement.`
-        : `Tes racines tiennent ${fmtMonths(m)} mois, c'est solide. La suite de ton argent peut commencer à travailler dans un placement.`,
+        ? `Ton épargne tient ${fmtMonths(m)} mois, c'est solide. Les ${fmtEur(extra)} au-delà de ${fmtMonths(mk3)} mois peuvent commencer à travailler dans un placement.`
+        : `Ton épargne tient ${fmtMonths(m)} mois, c'est solide. La suite de ton argent peut commencer à travailler dans un placement.`,
     };
   }
 
   if (!(investMonthly > 0)) {
     return {
       kind: 'dripFruits', part: 'fruits',
-      title: 'Arrose tes fruits chaque mois',
+      title: 'Place un peu chaque mois',
       text: 'Un petit virement programmé vers tes placements, chaque mois : c\'est la régularité qui les fait grossir, bien plus que le montant.',
     };
   }
@@ -81,14 +81,14 @@ export function computeNextStep(tree: TreeState, monthlyReference: number, inves
   if (target == null) {
     return {
       kind: 'grand', part: 'fruits',
-      title: 'Ton arbre est à son plus grand',
-      text: `Tes placements représentent ${fmtMonths(placed)} mois de dépenses. Continue d'arroser : Pépin te dit chaque mois quoi faire de ce qui reste.`,
+      title: 'Tes placements sont au plus haut palier',
+      text: `Tes placements représentent ${fmtMonths(placed)} mois de dépenses. Continue ainsi : Pépin te dit chaque mois quoi faire de ce qui reste.`,
     };
   }
   return {
     kind: 'growFruits', part: 'fruits',
-    title: `Fais grossir tes fruits : ${target} mois de dépenses placés`,
-    text: `Tes placements représentent aujourd'hui ${fmtMonths(placed)} mois de tes dépenses. Ton arrosage régulier les fait grandir.`,
+    title: `Vise ${target} mois de dépenses placés`,
+    text: `Tes placements représentent aujourd'hui ${fmtMonths(placed)} mois de tes dépenses. Tes versements réguliers les font grandir.`,
     progress: { value: placed, target },
   };
 }

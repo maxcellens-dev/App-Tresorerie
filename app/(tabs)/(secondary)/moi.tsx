@@ -89,7 +89,7 @@ export default function MoiScreen() {
       {/* Une seule colonne, même sur bureau : un menu se lit de haut en bas (centré, largeur de formulaire). */}
       <View style={{ width: '100%', maxWidth: MAX_W.dialog, alignSelf: 'center', gap: GARDEN_SPACE.md }}>
         {identity}
-        <GardenList title="Mon jardin" items={garden} />
+        <GardenList title="Mon suivi" items={garden} />
         <GardenList title="Réglages" items={settings} />
         <GardenList title="Compte" items={account} />
         {logout}

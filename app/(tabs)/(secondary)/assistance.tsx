@@ -41,7 +41,7 @@ const FAQ: { q: string; a: string }[] = [
     a: 'Ouvre « Mon argent », puis touche « Ajouter un compte » sous la liste. Tu peux aussi passer par le bouton « + ».',
   },
   {
-    q: 'Qu’est-ce que mon Relyka (l’eau de l’arrosoir) ?',
+    q: 'Qu’est-ce que mon Relyka ?',
     a: 'C’est ce qu’il te reste vraiment ce mois-ci : ton solde courant, moins ce qui est déjà prévu (prélèvements à venir, dépenses du quotidien, projets) et ta réserve minimum. Touche la carte « Ton Relyka » sur le Jardin pour voir le détail du calcul ; la réserve minimum se règle dans « Mon parcours ».',
   },
   {

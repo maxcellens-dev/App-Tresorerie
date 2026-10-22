@@ -29,6 +29,7 @@ export default function SecondaryLayout() {
       <Stack.Screen name="demarrer" />
       <Stack.Screen name="credits" />
       <Stack.Screen name="placements" />
+      <Stack.Screen name="recurrentes" />
     </Stack>
   );
 }

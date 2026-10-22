@@ -56,7 +56,7 @@ export default function CreditsScreen() {
                   </View>
                   <GardenBar value={progress} fill={expensive ? G.brambles : '#C9A57E'} track={expensive ? G.bramblesBg : G.pico} accessibilityLabel={`Remboursé à ${Math.round(progress * 100)} %`} />
                   <GardenText variant="small" color={G.inkSoft}>
-                    Remboursé à {Math.round(progress * 100)} % · {c.rateAnnual.toLocaleString('fr-FR')} %{expensive ? ` · ${TREE_PARTS.brambles.meaning.toLowerCase()}` : ''}
+                    Remboursé à {Math.round(progress * 100)} % · {c.rateAnnual.toLocaleString('fr-FR')} %{expensive ? ` · ${TREE_PARTS.brambles.name.toLowerCase()}` : ''}
                   </GardenText>
                 </GardenCard>
               );

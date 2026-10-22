@@ -100,7 +100,7 @@ export default function ProjetsScreen() {
   };
 
   return (
-    <GardenPage calculator="projets" title={TABS.projects} subtitle="Des plantes en pot à côté de ton arbre : chacune fleurit quand l'objectif est atteint."
+    <GardenPage calculator="projets" title={TABS.projects} subtitle="Un objectif, un montant, une date : Pépin te dit combien mettre de côté chaque mois."
       footer={<GardenButton label="Nouveau projet" onPress={() => setNewOpen(true)} />}>
       {/* L'ampoule de l'ancienne page : ce qu'est un projet, ses trois modes, ses rythmes, le partagé. */}
       <Pressable onPress={() => setInfoOpen(true)} accessibilityRole="button" accessibilityLabel="À quoi servent les projets ?"
@@ -172,7 +172,7 @@ export default function ProjetsScreen() {
       <GardenButton label={archives ? 'Revenir aux projets en cours' : 'Voir les archives'} variant="secondary" onPress={() => setArchives((v) => !v)} />
 
       {/* Choix du type de projet */}
-      <GardenSheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="À quoi servent les projets ?" subtitle="des plantes en pot, à côté de ton arbre"
+      <GardenSheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="À quoi servent les projets ?" subtitle="mettre de côté pour un objectif"
         footer={<GardenButton label="J'ai compris" onPress={() => setInfoOpen(false)} />}>
         <GardenText variant="body" color={G.inkSoft}>Un projet, c'est un objectif d'argent (une voiture, un voyage, des cours de piano…) que l'app suit pour toi. Chaque projet est une plante en pot, qui fleurit quand l'objectif est atteint.</GardenText>
         <GardenRowGroup title="Ce que l'app fait pour toi" rows={[

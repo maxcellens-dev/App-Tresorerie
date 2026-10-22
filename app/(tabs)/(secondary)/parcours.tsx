@@ -53,7 +53,7 @@ const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
 /* Chaque part du Relyka : le geste de Pépin (mêmes mots et couleurs que le Jardin, lib/garden/choiceLooks). */
 const ALLOC = live(() => (['save', 'invest', 'enjoy', 'keep'] as const).map((key) => {
   const l = CHOICE_LOOKS[key];
-  return { key, label: l.meaning.charAt(0).toUpperCase() + l.meaning.slice(1), part: l.verb, fill: l.fill, track: l.bg, fg: l.fg };
+  return { key, label: l.verb, part: l.meaning, fill: l.fill, track: l.bg, fg: l.fg };
 }));
 
 type Editing = null | 'margin' | 'weekly';
@@ -154,7 +154,7 @@ export default function ParcoursScreen() {
       </View>
       <View style={{ flex: 1, gap: 2 }}>
         <GardenText variant="bodyStrong" color={G.rootsText}>{TREE_PARTS.roots.name} · {months(m)} mois de dépenses de côté</GardenText>
-        <GardenText variant="small" color={G.inkSoft}>{tree.roots.beyondLast ? `Couche dorée atteinte, et ${months(tree.roots.extraMonths)} mois au-delà des ${months(mk4)} : ils pourraient faire pousser tes fruits.` : `Couche dorée atteinte : ${months(mk4)} mois d'épargne, c'est très solide.`}</GardenText>
+        <GardenText variant="small" color={G.inkSoft}>{tree.roots.beyondLast ? `Palier doré atteint, et ${months(tree.roots.extraMonths)} mois au-delà des ${months(mk4)} : ils pourraient être placés.` : `Palier doré atteint : ${months(mk4)} mois d'épargne, c'est très solide.`}</GardenText>
       </View>
     </GardenCard>
   ) : (
@@ -180,7 +180,7 @@ export default function ParcoursScreen() {
       <FoldHeader open={ladderOpen} onToggle={() => setLadderOpen((o) => !o)} title="Les étapes"
         summary={pidIdx >= 0 ? `Tu es à l'étape ${pidIdx + 1} sur ${CLASSED_PROFILES.length} : ${PROFILE_INFO[CLASSED_PROFILES[pidIdx]].name}` : `${CLASSED_PROFILES.length} étapes, de la plus fragile au patrimoine d'exception`} />
       {ladderOpen ? <>
-      <GardenText variant="small" color={G.inkSoft}>Neuf étapes, de la plus fragile au patrimoine d'exception. Ton arbre grandit à chacune.</GardenText>
+      <GardenText variant="small" color={G.inkSoft}>Neuf étapes, de la plus fragile au patrimoine d'exception.</GardenText>
       <View style={{ borderRadius: GARDEN_RADII.md, borderWidth: 1, borderColor: G.line, overflow: 'hidden' }}>
         {CLASSED_PROFILES.map((p, i) => {
           const pi = PROFILE_INFO[p], here = i === pidIdx, passed = pidIdx > i;
@@ -213,7 +213,7 @@ export default function ParcoursScreen() {
         { key: 'variable', label: 'Dépenses variables', sub: p?.variable_envelope_source === 'history' ? `moyenne réelle sur ${p.variable_envelope_months_used} mois` : 'ton estimation, en attendant 2 mois d’historique', value: (p?.variable_envelope_initial ?? 0) > 0 ? `${eur(p!.variable_envelope_initial)} / mois` : '—', icon: 'cart-outline', iconColor: G.flowersText, iconBg: G.flowersBg },
       ]} />
       <GardenRowGroup title="Ce que tu nous dis" rows={[
-        { key: 'margin', label: WORDS.minimumToKeep, sub: "l'eau que tu gardes dans ton arrosoir", value: margin > 0 ? eur(margin) : 'aucune', icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg, onPress: () => setEditing('margin') },
+        { key: 'margin', label: WORDS.minimumToKeep, sub: 'toujours gardé sur ton compte courant', value: margin > 0 ? eur(margin) : 'aucune', icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg, onPress: () => setEditing('margin') },
         { key: 'weekly', label: 'Dépenses du quotidien (estimation)', sub: 'sert tant que tu n’as pas 2 mois d’historique', value: weekly > 0 ? `${eur(weekly)} / sem.` : 'estimé pour toi', icon: 'create-outline', iconColor: G.picoText, iconBg: G.pico, onPress: () => setEditing('weekly') },
       ]} />
     </>
@@ -241,7 +241,7 @@ export default function ParcoursScreen() {
               <GardenText variant="bodyStrong">{stepCondition(stepShown, thresholds)}</GardenText>
             </GardenCard>
             <GardenText variant="body" color={G.inkSoft}>{sp.description}</GardenText>
-            <GardenText variant="small" color={G.muted}>Ton arbre à cette étape : taille {treeSize(rules.growthByProfile[stepShown])} sur 7.</GardenText>
+            <GardenText variant="small" color={G.muted}>Ton arbre sur l'accueil à cette étape : taille {treeSize(rules.growthByProfile[stepShown])} sur 7.</GardenText>
             <GardenText variant="label">Comment Pépin répartit ton Relyka à cette étape</GardenText>
             {ALLOC.map((a) => (
               <View key={a.key} style={{ gap: 4 }}>

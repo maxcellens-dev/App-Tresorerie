@@ -17,15 +17,15 @@ describe('GardenScene', () => {
   it('renvoie la partie touchée', () => {
     const onPressPart = jest.fn();
     const { getByLabelText } = render(<GardenScene state={camille} options={{ id: 't' }} onPressPart={onPressPart} />);
-    fireEvent.press(getByLabelText('Arrosoir · Comptes courants'));
-    fireEvent.press(getByLabelText('Cabane · Crédit'));
-    fireEvent.press(getByLabelText('Racines · Épargne'));
+    fireEvent.press(getByLabelText('Comptes courants'));
+    fireEvent.press(getByLabelText('Crédits'));
+    fireEvent.press(getByLabelText('Épargne'));
     expect(onPressPart.mock.calls.map((c) => c[0])).toEqual(['can', 'cabin', 'roots']);
   });
 
   it("sans gestionnaire, c'est une image décrite, sans bouton", () => {
     const { getByLabelText, queryByLabelText } = render(<GardenScene state={camille} options={{ id: 'u' }} />);
     expect(getByLabelText(/Un jeune arbre, racines à 1,8 mois/)).toBeTruthy();
-    expect(queryByLabelText('Arrosoir · Comptes courants')).toBeNull();
+    expect(queryByLabelText('Comptes courants')).toBeNull();
   });
 });

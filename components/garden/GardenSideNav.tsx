@@ -37,7 +37,7 @@ const GROUPS: { title: string; items: { key: string; label: string; icon: string
     { key: 'projects', label: 'Budgets', icon: 'pie-chart-outline', route: '/(tabs)/projects' },
     { key: 'tresorerie', label: WORDS.monthPlan, icon: 'stats-chart-outline', route: '/(tabs)/tresorerie' },
   ] },
-  { title: 'Ton jardin', items: [
+  { title: 'Ton suivi', items: [
     { key: 'parcours', label: WORDS.myJourney, icon: 'leaf-outline', route: '/(tabs)/(secondary)/parcours' },
     { key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting' },
     { key: 'succes', label: WORDS.successes, icon: 'ribbon-outline', route: '/(tabs)/(secondary)/succes' },
@@ -76,7 +76,7 @@ export default function GardenSideNav() {
     /* Largeur FIGÉE sur un conteneur : un ScrollView seul s'étirait (flex) et prenait la moitié de l'écran. */
     <View style={{ width: SIDEBAR_WIDTH, flexShrink: 0, height: '100%', backgroundColor: GARDEN_COLORS.card, borderRightWidth: 1, borderRightColor: GARDEN_COLORS.line }}>
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: GARDEN_SPACE.md, paddingVertical: GARDEN_SPACE.xl, gap: GARDEN_SPACE.lg }}>
-      <Pressable onPress={() => router.push('/(tabs)/jardin' as any)} accessibilityRole="link" accessibilityLabel="Relyka, aller au Jardin" style={[{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm, paddingHorizontal: GARDEN_SPACE.sm }, pointer]}>
+      <Pressable onPress={() => router.push('/(tabs)/jardin' as any)} accessibilityRole="link" accessibilityLabel="Relyka, aller à l'accueil" style={[{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.sm, paddingHorizontal: GARDEN_SPACE.sm }, pointer]}>
         {/* L'icône de l'app, pas Pico : Pico n'apparaît que là où il parle (conseils, jardin). */}
         <Image source={require('../../assets/logo.png')} style={{ width: 34, height: 34 }} resizeMode="contain" accessibilityIgnoresInvertColors />
         {fontsReady ? <GardenText variant="heading">Relyka</GardenText> : null}

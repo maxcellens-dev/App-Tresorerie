@@ -15,13 +15,14 @@ export const ADD_ACTIONS: { key: string; label: string; hint: string; route: str
   { key: 'expense', label: 'Dépense', hint: 'courses, sorties, une facture…', route: '/(tabs)/transactions/add?type=expense&origin=/(tabs)/jardin', color: GARDEN_COLORS.flowers },
   { key: 'income', label: 'Recette', hint: 'salaire, remboursement, vente…', route: '/(tabs)/transactions/add?type=income&origin=/(tabs)/jardin', color: GARDEN_COLORS.branches },
   { key: 'transfer', label: 'Virement', hint: 'entre tes comptes', route: '/(tabs)/transactions/add?type=transfer&origin=/(tabs)/jardin', color: GARDEN_COLORS.water },
+  { key: 'recurring', label: 'Ce qui revient', hint: 'salaire, loyer, abonnements… prévus automatiquement', route: '/(tabs)/(secondary)/recurrentes', color: GARDEN_COLORS.primary },
   { key: 'balance', label: 'Nouveau solde', hint: "corriger le solde d'un compte", route: '/(tabs)/comptes/solde', color: GARDEN_COLORS.roots },
 ];
 
 export default function GardenAddSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
   return (
-    <GardenSheet visible={visible} onClose={onClose} title="Ajouter" subtitle={`Pas besoin de tout noter : ${WORDS.gardenTour.toLowerCase()} rattrape ce qui manque.`}>
+    <GardenSheet visible={visible} onClose={onClose} title="Ajouter" subtitle="Pas besoin de tout noter : mettre tes soldes à jour rattrape ce qui manque.">
       {ADD_ACTIONS.map((a) => (
         <GardenCard key={a.key} onPress={() => { onClose(); setTimeout(() => router.push(a.route as any), 60); }} accessibilityLabel={a.label} style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
           <View style={{ width: 14, height: 40, borderRadius: 7, backgroundColor: a.color }} />

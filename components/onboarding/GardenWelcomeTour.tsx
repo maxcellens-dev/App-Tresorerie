@@ -45,10 +45,10 @@ export const PLANTING_STEPS: { kind: GardenIconKey; title: string; text: string 
 ];
 
 const PARTS: { kind: GardenIconKey; name: string; text: string }[] = [
-  { kind: 'roots', name: 'Les racines = ton épargne', text: 'Elles descendent vers 1, 3 puis 6 mois de dépenses mis de côté. À 12 mois, une couche dorée apparaît.' },
-  { kind: 'fruits', name: 'Les fruits = tes placements', text: 'Plus tu as placé, plus il y en a ; ils mûrissent quand tes placements rapportent.' },
-  { kind: 'flowers', name: 'Les fleurs = tes plaisirs', text: 'La part du mois à dépenser pour toi, sans culpabiliser.' },
-  { kind: 'brambles', name: 'Les ronces = un crédit cher', text: 'Rembourse-le, et elles disparaissent.' },
+  { kind: 'roots', name: 'Ton épargne', text: 'Ton argent de secours : 1, 3 puis 6 mois de dépenses mis de côté.' },
+  { kind: 'fruits', name: 'Tes placements', text: 'Ton argent qui travaille pour toi.' },
+  { kind: 'flowers', name: 'Ton plaisir', text: 'La part du mois à dépenser pour toi, sans culpabiliser.' },
+  { kind: 'brambles', name: 'Ton crédit cher', text: 'À rembourser en premier.' },
 ];
 
 const eur = (n: number) => formatEuros(n, CURRENCY_SYMBOL);
@@ -78,13 +78,13 @@ function slides(): Slide[] {
   return [
     {
       key: 'garden',
-      title: 'Ton argent devient un jardin',
-      text: 'Relyka te montre ton argent comme un arbre qui pousse avec toi. Chaque partie du dessin est une vraie partie de ton argent, toujours écrite à côté.',
+      title: 'Ton argent, clair en un coup d’œil',
+      text: 'Relyka te dit chaque mois combien tu peux vraiment utiliser, et quoi en faire. Ton arbre, lui, pousse quand ta situation s’améliore.',
       visual: <View style={{ borderRadius: GARDEN_RADII.lg, overflow: 'hidden' }}><GardenScene state={HERO} options={{ id: 'welcome', marks: false, mood: 'joy' }} /></View>,
     },
     {
       key: 'relyka',
-      title: 'Ton Relyka, c’est l’eau de ton arrosoir',
+      title: 'Ton Relyka : ce qu’il te reste vraiment',
       text: 'Chaque mois, Relyka calcule ce qu’il te reste VRAIMENT : une fois tes factures, tes dépenses habituelles et ta réserve minimum mises de côté. Ce n’est pas ton solde du jour, c’est ce que tu peux utiliser sans mauvaise surprise.',
       visual: (
         <View style={[card, { alignItems: 'center', gap: GARDEN_SPACE.sm }]}>
@@ -98,7 +98,7 @@ function slides(): Slide[] {
     {
       key: 'pepin',
       title: 'Pépin te dit quoi en faire',
-      text: 'Pépin, ton hérisson, te propose comment répartir cette eau selon ta situation. Tu restes libre : c’est toi qui fais tes virements, quand tu veux.',
+      text: 'Pépin, ton hérisson, te propose comment répartir ton Relyka selon ta situation. Tu restes libre : c’est toi qui fais tes virements, quand tu veux.',
       visual: (
         <View style={{ gap: GARDEN_SPACE.md }}>
           <PicoBubble mood="joy">Ce mois-ci, je te propose :</PicoBubble>
@@ -122,13 +122,13 @@ function slides(): Slide[] {
     },
     {
       key: 'tree',
-      title: 'Ton arbre grandit avec toi',
-      text: 'Ce que tu fais de ton argent se voit tout de suite sur ton arbre. Il recule aussi quand ça se complique : pas de jugement, juste un repère.',
+      title: 'Ton arbre suit ta situation',
+      text: 'Plus ton épargne et tes placements grandissent, plus ton arbre pousse. Il recule aussi quand ça se complique : pas de jugement, juste un repère.',
       visual: <View style={[card, { paddingVertical: 6 }]}>{PARTS.map((p) => <Row key={p.kind} kind={p.kind} title={p.name} text={p.text} />)}</View>,
     },
     {
       key: 'plant',
-      title: 'Plante ton arbre en 5 minutes',
+      title: 'C’est parti, en 5 minutes',
       text: 'Pas de questionnaire : on part de tes vrais comptes. Cinq étapes, et ton Relyka se calcule tout seul. Tu pourras tout modifier ensuite.',
       visual: <View style={[card, { paddingVertical: 6 }]}>{PLANTING_STEPS.map((s, i) => <Row key={s.title} n={i + 1} kind={s.kind} title={s.title} text={s.text} />)}</View>,
     },
@@ -183,7 +183,7 @@ export default function GardenWelcomeTour() {
                 <View style={{ flexDirection: 'row', gap: GARDEN_SPACE.sm }}>
                   {index > 0 ? <View style={{ flex: 1 }}><GardenButton label="Retour" variant="secondary" onPress={() => setIndex((i) => i - 1)} /></View> : null}
                   <View style={{ flex: 2 }}>
-                    <GardenButton label={last ? 'Planter mon arbre' : 'Suivant'} onPress={() => (last ? finish(true) : setIndex((i) => i + 1))} />
+                    <GardenButton label={last ? 'Commencer' : 'Suivant'} onPress={() => (last ? finish(true) : setIndex((i) => i + 1))} />
                   </View>
                 </View>
               </View>

@@ -11,7 +11,7 @@ import GardenSideNav from '../../components/garden/GardenSideNav';
 
 const GARDEN_ROUTES = new Set<string>(GARDEN_TAB_ROUTES);
 /** Titres des onglets du Jardin, affichés dans la barre du haut (plus de grand titre dans la page). */
-const GARDEN_TAB_TITLES: Record<string, string> = { jardin: 'Mon jardin', argent: 'Mon argent', projets: 'Projets', pepin: 'Pépin' };
+const GARDEN_TAB_TITLES: Record<string, string> = { jardin: 'Accueil', argent: 'Mon argent', projets: 'Projets', pepin: 'Pépin' };
 /** Titres des autres écrans (ceux qui n'en déclarent pas via ScreenHeader), dans les mots du Jardin. */
 const GARDEN_TITLES: Record<string, string> = {
   comptes: 'Mes comptes', transactions: 'Opérations', projects: 'Budgets',
@@ -29,7 +29,7 @@ function TabsHeader({ desktop = false }: { desktop?: boolean }) {
   const fullPath = segments.join('/');
   // Dernier segment RÉEL de la route, groupes Expo Router exclus.
   const routeName = segments.filter((s) => !s.startsWith('(')).pop() ?? '';
-  if (GARDEN_ROUTES.has(routeName)) return <GardenTopBar main title={GARDEN_TAB_TITLES[routeName]} applyTopInset={!desktop} />;
+  if (GARDEN_ROUTES.has(routeName)) return <GardenTopBar main greeting={routeName === 'jardin'} title={GARDEN_TAB_TITLES[routeName]} applyTopInset={!desktop} />;
   // « add » existe pour les comptes ET les opérations : le chemin tranche.
   const pathTitle = fullPath.includes('comptes/add') ? 'Nouveau compte' : fullPath.includes('admin') ? 'Admin' : undefined;
   return <GardenTopBar title={pathTitle ?? GARDEN_TITLES[routeName]} applyTopInset={!desktop} />;
@@ -75,7 +75,7 @@ export default function TabsLayout() {
           }}
         >
           {/* Les quatre espaces du Jardin (barre GardenTabBar) */}
-          <Tabs.Screen name="jardin" options={{ title: 'Jardin' }} />
+          <Tabs.Screen name="jardin" options={{ title: 'Accueil' }} />
           <Tabs.Screen name="argent" options={{ title: 'Mon argent' }} />
           <Tabs.Screen name="projets" options={{ title: 'Projets' }} />
           <Tabs.Screen name="pepin" options={{ title: 'Pépin' }} />
@@ -88,7 +88,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="reporting" options={{ href: null, title: 'Reporting' }} />
           <Tabs.Screen name="conseils-ia" options={{ href: null, title: 'Pépin · tes questions' }} />
           {/* Ancienne adresse du tableau de bord : redirige vers le Jardin (liens et notifications). */}
-          <Tabs.Screen name="pilotage" options={{ href: null, title: 'Jardin' }} />
+          <Tabs.Screen name="pilotage" options={{ href: null, title: 'Accueil' }} />
         </Tabs>
       </View>
       <OnboardingGate />

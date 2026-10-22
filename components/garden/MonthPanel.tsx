@@ -166,7 +166,7 @@ export function useMonthPanel(core: PilotageCore, onLeave: () => void): { conten
 
       {/* 3 · Ce que tu protèges, et ce que tu gères (TOUTES les récurrentes : le catalogue à modifier). */}
       <GardenRowGroup title="Ce que tu protèges" rows={[
-        { key: 'margin', label: WORDS.minimumToKeep, sub: margin > 0 ? "l'eau que tu gardes dans ton arrosoir" : 'aucune réserve choisie, touche pour en choisir une', value: margin > 0 ? eur(margin) : undefined, icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg, onPress: () => setSub('margin') },
+        { key: 'margin', label: WORDS.minimumToKeep, sub: margin > 0 ? 'toujours gardé sur ton compte courant' : 'aucune réserve choisie, touche pour en choisir une', value: margin > 0 ? eur(margin) : undefined, icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg, onPress: () => setSub('margin') },
         { key: 'low', label: WORDS.lowestDay, sub: dayLabel(vm.troughDate) ?? 'au fil du mois', value: eur(lowest), icon: GARDEN_ICONS.trough.icon, iconColor: GARDEN_ICONS.trough.fg, iconBg: GARDEN_ICONS.trough.bg },
         { key: 'set', label: WORDS.setAside, sub: 'pour un projet ou plus tard', value: eur(setAside), icon: GARDEN_ICONS.setAside.icon, iconColor: GARDEN_ICONS.setAside.fg, iconBg: GARDEN_ICONS.setAside.bg, onPress: () => setSub('aside') },
       ]} />

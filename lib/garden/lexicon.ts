@@ -4,34 +4,33 @@
  * Changer un mot se fait ici, en une ligne, et non écran par écran.
  *
  * ── LA RÈGLE DES MOTS ────────────────────────────────────────────────────────────────────────────
- * Les mots du jardin décrivent SEULEMENT ce qu'on voit sur le dessin (arrosoir, racines, branches,
- * fruits, fleurs, ronces), toujours accompagnés du vrai terme. Partout ailleurs : le mot courant,
- * celui que tout le monde comprend (« Crédit », « Opérations », « Réserve minimum »…). Pas de
- * métaphore pour la métaphore : un terme qui demande une explication est un mauvais terme.
+ * Le mot COURANT d'abord, partout, y compris sur les fiches du dessin : « Épargne », « Placements »,
+ * « Plaisir », « Crédit ». Le jardin est un décor, pas un vocabulaire : on ne demande jamais à
+ * l'utilisateur de traduire « racines » en « épargne ». Les mots du dessin (`drawn`) ne servent
+ * qu'à nommer ce qu'on touche sur l'illustration, en second. Un terme qui demande une explication
+ * est un mauvais terme.
  *
  * Tutoiement partout (règle de l'app), sauf pages légales et admin.
  */
 
-/** Ce qui est dessiné : le nom sur l'arbre + le vrai terme affiché à côté. */
+/** Ce qui est dessiné : le vrai terme, ce qu'il veut dire en clair, et l'élément du dessin. */
 export const TREE_PARTS = {
-  can: { name: 'Arrosoir', meaning: 'Comptes courants' },
-  roots: { name: 'Racines', meaning: 'Épargne' },
-  /* Les branches nues étaient laides à l'écran : les placements sont des FRUITS (un par placement),
-     qui mûrissent quand ils rapportent. La clé `branches` est gardée pour ne pas tout renommer. */
-  branches: { name: 'Fruits', meaning: 'Placements' },
-  fruits: { name: 'Fruits mûrs', meaning: 'Gains' },
-  flowers: { name: 'Fleurs', meaning: 'Pour te faire plaisir' },
-  brambles: { name: 'Ronces', meaning: 'Crédit cher' },
-  /** Crédit sain : la cabane se construit à chaque mensualité, jusqu'à être vraiment à toi. */
-  cabin: { name: 'Cabane', meaning: 'Crédit' },
-  rings: { name: 'Anneaux', meaning: 'Série' },
+  can: { name: 'Comptes courants', meaning: 'ton argent du quotidien', drawn: 'Arrosoir' },
+  roots: { name: 'Épargne', meaning: 'ton argent de secours', drawn: 'Racines' },
+  /* La clé `branches` (les placements) est gardée pour ne pas tout renommer. */
+  branches: { name: 'Placements', meaning: 'ton argent qui travaille', drawn: 'Fruits' },
+  fruits: { name: 'Gains', meaning: 'ce que tes placements rapportent', drawn: 'Fruits mûrs' },
+  flowers: { name: 'Plaisir', meaning: 'pour te faire plaisir', drawn: 'Fleurs' },
+  brambles: { name: 'Crédit cher', meaning: 'à rembourser en premier', drawn: 'Ronces' },
+  cabin: { name: 'Crédits', meaning: 'ce qu’il te reste à rembourser', drawn: 'Cabane' },
+  rings: { name: 'Série', meaning: 'semaines d’affilée', drawn: 'Anneaux' },
 } as const;
 
 export type TreePart = keyof typeof TREE_PARTS;
 
 /** Les cinq onglets. */
 export const TABS = {
-  garden: 'Jardin',
+  garden: 'Accueil',
   money: 'Mon argent',
   add: 'Ajouter',
   projects: 'Projets',
@@ -79,19 +78,18 @@ export const WORDS = {
   settings: 'Paramètres',
   appearance: 'Apparence',
   shop: 'Boutique',
-  gardenTour: 'Faire le tour du jardin',
-  gardenTourHint: 'mettre à jour tes soldes',
+  gardenTour: 'Mettre à jour mes soldes',
+  gardenTourHint: 'recopie ce que ta banque affiche',
   momentRelyka: 'Le Moment Relyka',
   nextStep: 'Prochain pas',
 } as const;
 
 /**
- * Objectif d'épargne, dit simplement (« Renforce tes racines : atteins 3 mois d'épargne
- * disponible »). Le trait est en mois de dépenses, comme partout dans l'app.
+ * Objectif d'épargne, dit simplement (« Vise 3 mois d'épargne de secours »). Le trait est en mois
+ * de dépenses, comme partout dans l'app.
  */
 export function rootsGoal(months: number): string {
-  return `Renforce tes racines : atteins ${months} mois d'épargne disponible`;
+  return `Vise ${months} mois d'épargne de secours`;
 }
 
-/* Les mots des états spéciaux du Relyka (règle « un mot, pas un chiffre ») : lib/garden/relykaWords,
-   dans le langage de l'arrosoir. */
+/* Les mots des états spéciaux du Relyka (règle « un mot, pas un chiffre ») : lib/garden/relykaWords. */

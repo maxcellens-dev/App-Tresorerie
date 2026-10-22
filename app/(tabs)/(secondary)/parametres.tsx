@@ -270,7 +270,7 @@ function SettingsScreen() {
         {/* ── Ton Relyka ── */}
         <Section title="Ton Relyka">
           <Row first icon="speedometer-outline" fg={G.rootsText} bg={G.rootsBg} label="Prudence"
-            sub="Tes rentrées pas encore arrivées (ton salaire du mois, par exemple) comptent-elles déjà dans l'eau de ton arrosoir ? Plus tu es prudent, plus on se base sur l'argent déjà arrivé.">
+            sub="Tes rentrées pas encore arrivées (ton salaire du mois, par exemple) comptent-elles déjà dans ton Relyka ? Plus tu es prudent, plus on se base sur l'argent déjà arrivé.">
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
               {PRUDENCE.map((o) => <Chip key={o.label} label={o.label} on={prudenceLevel === o.value} onPress={() => saveProfile({ prudence_level: o.value })} disabled={readOnly} />)}
             </View>
@@ -281,7 +281,7 @@ function SettingsScreen() {
                   {deductionOrder.map((type, i) => (
                     <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <View style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: GARDEN_RADII.pill, backgroundColor: CHOICE_LOOKS[type].bg }}>
-                        <GardenText variant="smallStrong" color={CHOICE_LOOKS[type].fg} style={{ fontFamily: GF.body, fontSize: 12 }}>{CHOICE_LOOKS[type].meaning}</GardenText>
+                        <GardenText variant="smallStrong" color={CHOICE_LOOKS[type].fg} style={{ fontFamily: GF.body, fontSize: 12 }}>{CHOICE_LOOKS[type].verb}</GardenText>
                       </View>
                       {i < deductionOrder.length - 1 ? <Ionicons name="chevron-forward" size={12} color={G.muted} /> : null}
                     </View>
@@ -308,7 +308,7 @@ function SettingsScreen() {
 
         {/* ── Aides ── */}
         <Section title="Aides">
-          <Row first icon="bulb-outline" fg={G.picoText} bg={G.pico} label="Le conseil du jour" sub="une astuce en bas de la page Jardin"
+          <Row first icon="bulb-outline" fg={G.picoText} bg={G.pico} label="Le conseil du jour" sub="une astuce en bas de l'accueil"
             right={<Toggle label="Le conseil du jour" value={tipsEnabled} onChange={setTipsEnabled} disabled={readOnly} />} />
           <Row icon="calculator-outline" fg={G.waterText} bg={G.waterBg} label="Calculatrice" sub="un bouton flottant, à déplacer où tu veux, sur les pages de ton choix"
             right={<Toggle label="Calculatrice" value={calculatorEnabled} onChange={setCalculatorEnabled} disabled={readOnly} />}>

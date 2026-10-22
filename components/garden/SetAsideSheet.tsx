@@ -95,7 +95,7 @@ export default function SetAsideSheet({ visible, onClose, core }: { visible: boo
     const isKept = mode === 'kept';
     const t = mode === 'kept' ? null : mode;
     const after = t ? pending[t] + parse(draft) : parse(draft);
-    const title = isKept ? "Gardé dans l'arrosoir" : t === 'epargne' ? 'Pour tes racines' : 'Pour tes fruits';
+    const title = isKept ? 'Gardé sur ton compte' : t === 'epargne' ? 'Pour ton épargne' : 'Pour tes placements';
     return (
       <GardenSheet visible={visible} onClose={onClose} title={title}
         subtitle={isKept ? 'le montant que tu gardes ce mois-ci sur ton compte courant' : `à virer plus tard vers ${t === 'epargne' ? 'ton épargne' : 'tes placements'}`}
@@ -125,7 +125,7 @@ export default function SetAsideSheet({ visible, onClose, core }: { visible: boo
     <GardenSheet visible={visible} onClose={onClose} title="Argent mis de côté" subtitle={`${eur(total)} qui ne comptent pas dans ce qu'il te reste à utiliser`}>
       <View style={{ gap: 6 }}>
         <GardenRowGroup title="Gardé ce mois-ci" rows={[{
-          key: 'kept', label: "Dans l'arrosoir", value: eur(kept), onPress: () => open('kept'),
+          key: 'kept', label: 'Sur ton compte courant', value: eur(kept), onPress: () => open('kept'),
           sub: kept > 0 ? 'repart de zéro chaque mois · touche pour modifier' : 'touche pour garder un montant',
           icon: GARDEN_ICONS.water.icon, iconColor: GARDEN_ICONS.water.fg, iconBg: GARDEN_ICONS.water.bg,
         }]} />
@@ -133,7 +133,7 @@ export default function SetAsideSheet({ visible, onClose, core }: { visible: boo
       </View>
 
       {/* Toujours affichés, même à 0 : c'est par eux qu'on met un premier montant de côté. */}
-      <GardenRowGroup title="Mis de côté pour plus tard" rows={([['epargne', 'Pour tes racines', 'épargne', 'roots'], ['invest', 'Pour tes fruits', 'placements', 'fruits']] as const).map(([type, label, what, kind]) => ({
+      <GardenRowGroup title="Mis de côté pour plus tard" rows={([['epargne', 'Pour ton épargne', 'épargne', 'roots'], ['invest', 'Pour tes placements', 'placements', 'fruits']] as const).map(([type, label, what, kind]) => ({
         key: type, label, value: eur(pending[type]), onPress: () => open(type),
         sub: pending[type] > 0 ? `${what} · en attente de virement` : `${what} · touche pour ajouter un montant`,
         icon: GARDEN_ICONS[kind].icon, iconColor: GARDEN_ICONS[kind].fg, iconBg: GARDEN_ICONS[kind].bg,
