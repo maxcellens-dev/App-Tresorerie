@@ -18,7 +18,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 45
+      "versionCode": 46
     },
     "plugins": [
       "./plugins/withJitpackAuth",
