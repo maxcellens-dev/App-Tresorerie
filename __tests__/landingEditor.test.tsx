@@ -40,7 +40,7 @@ beforeEach(() => {
 it('keeps the showcase and its login link available when loading fails', () => {
   mockLoaded = undefined;
   render(<GardenLandingPage previewWidth={390} />);
-  expect(screen.getByText('Regarde ton argent pousser.')).toBeTruthy();
+  expect(screen.getByText('Sache ce que tu peux vraiment dépenser.')).toBeTruthy();
   fireEvent.press(screen.getAllByText("J'ai déjà un compte")[0]);
   expect(mockRouter.push).toHaveBeenCalledWith('/login');
 });
@@ -83,7 +83,7 @@ it('previews the installed application with unsaved native copy', () => {
   fireEvent.changeText(screen.getByLabelText('Bouton principal'), 'Entrer dans mon jardin');
   fireEvent.press(screen.getByText('Aperçu application installée'));
   // l'accueil reprend le slogan du Jardin (mêmes mots que la vitrine web), avec le bouton non enregistré
-  expect(screen.getByText('Regarde ton argent pousser.')).toBeTruthy();
+  expect(screen.getByText('Sache ce que tu peux vraiment dépenser.')).toBeTruthy();
   expect(screen.getByText('Entrer dans mon jardin')).toBeTruthy();
   expect(signalAppReady).not.toHaveBeenCalled();
   expect(screen.queryByText(DEFAULT_LANDING.heroTitle)).toBeNull();

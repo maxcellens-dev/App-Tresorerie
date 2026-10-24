@@ -46,3 +46,12 @@ describe('accountOrder — ordre unique des comptes dans toute l’app', () => {
     expect(compareAccounts(acc('CCP', 'checking'), acc('CCP', 'checking'))).toBe(0);
   });
 });
+
+describe('page Comptes : ordre choisi', () => {
+  const { applyCustomOrder } = require('../lib/finance/accountOrder');
+  it('applique l’ordre choisi, les comptes jamais déplacés suivent', () => {
+    const accs = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+    expect(applyCustomOrder(accs, ['c', 'a']).map((x: any) => x.id)).toEqual(['c', 'a', 'b', 'd']);
+    expect(applyCustomOrder(accs, []).map((x: any) => x.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});

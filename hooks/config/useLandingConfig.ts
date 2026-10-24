@@ -174,7 +174,7 @@ export const DEFAULT_LANDING: LandingConfig = {
     { icon: 'rocket', title: 'Projets d’épargne', text: 'Définis tes objectifs et suis ta progression mois après mois.' },
     { icon: 'bulb', title: 'Recommandations', text: 'Des conseils personnalisés selon ton profil pour épargner, investir ou conserver.' },
     { icon: 'shield-checkmark', title: 'Sécurisé', text: 'Tes données sont chiffrées et protégées. Ta vie privée d’abord.' },
-    { icon: 'trophy', title: 'Motivant', text: 'Séries, succès et noisettes : garde le cap avec plaisir.' },
+    { icon: 'trophy', title: 'Motivant', text: 'Séries, succès et relyks : garde le cap avec plaisir.' },
   ],
   stats: [
     { value: '100%', label: 'Gratuit pour démarrer' },
@@ -183,7 +183,7 @@ export const DEFAULT_LANDING: LandingConfig = {
   ],
   finalTitle: 'Prêt à reprendre le contrôle ?',
   finalSubtitle: 'Crée ton espace en quelques secondes. Aucune carte bancaire requise.',
-  footerText: 'Relyka — Ton argent, comme un jardin.',
+  footerText: 'Relyka — Sache ce que tu peux vraiment dépenser.',
   footerLinks: [
     { label: 'Confidentialité', anchor: 'confidentialite' },
     { label: 'Mentions légales', anchor: 'legal' },
@@ -208,8 +208,8 @@ export const DEFAULT_LANDING: LandingConfig = {
 const KEY = 'landing_config';
 
 /** Fusionne la config stockée avec les valeurs par défaut (champ par champ). */
-/** Anciens défauts du code gelés en base (avant le Jardin) : on les remplace par les défauts actuels. */
-const LEGACY_FOOTER = ['Relyka — Prévisions · Budget · Sérénité.'];
+/** Anciens défauts du code gelés en base (avant puis pendant le Jardin) : remplacés par les défauts actuels. */
+const LEGACY_FOOTER = ['Relyka — Prévisions · Budget · Sérénité.', 'Relyka — Ton argent, comme un jardin.'];
 
 export function mergeLanding(stored: Partial<LandingConfig> | undefined): LandingConfig {
   if (!stored) return DEFAULT_LANDING;

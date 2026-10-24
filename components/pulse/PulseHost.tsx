@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Pico from '../garden/Pico';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useGuide } from '../../contexts/GuideContext';
@@ -36,6 +37,7 @@ import { monthKey, type PulseSignalId } from '../../lib/pulse/pulseEngine';
 import PulseSignalCard from './PulseSignalCard';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
+import { GARDEN_COLORS as G } from '../../lib/garden/theme';
 
 /**
  * Ouverture manuelle (fin de clôture mensuelle, aperçu admin).
@@ -287,12 +289,13 @@ export default function PulseHost() {
 
           {/* Titre + mois sur la MÊME ligne : « État des lieux · juillet 2026 ». */}
           <View style={styles.header}>
+            <Pico avatar size={36} mood="happy" />
             <View style={styles.titleRow}>
-              <Text style={styles.title} numberOfLines={1}>🧭 État des lieux</Text>
+              <Text style={styles.title} numberOfLines={1}>État des lieux</Text>
               <Text style={styles.period} numberOfLines={1}>· {periodLabel}</Text>
             </View>
             <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
-              <Ionicons name="close" size={20} color={COLORS.textSecondary} />
+              <Ionicons name="close" size={20} color={G.muted} />
             </Pressable>
           </View>
 
@@ -337,11 +340,11 @@ export default function PulseHost() {
                     retrouvait rejetée à la ligne suivante et se lisait comme un quatrième poste. */}
                 <Text style={styles.legendPeriod}>En {periodLabel}</Text>
                 <View style={styles.legend}>
-                  <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
+                  <View style={[styles.legendDot, { backgroundColor: G.roots }]} />
                   <Text style={styles.legendTxt}>{eurFmt(pulse.monthlyStats.saved)} mis de côté</Text>
-                  <View style={[styles.legendDot, { backgroundColor: COLORS.violet }]} />
+                  <View style={[styles.legendDot, { backgroundColor: G.fruits }]} />
                   <Text style={styles.legendTxt}>{eurFmt(pulse.monthlyStats.invested)} placés</Text>
-                  <View style={[styles.legendDot, { backgroundColor: COLORS.blue }]} />
+                  <View style={[styles.legendDot, { backgroundColor: G.water }]} />
                   <Text style={styles.legendTxt}>{eurFmt(pulse.monthlyStats.kept)} conservés</Text>
                 </View>
               </View>
@@ -386,9 +389,9 @@ function MonthlyRing({ stats, COLORS }: { stats: PulseData['monthlyStats']; COLO
   const C = 2 * Math.PI * r;
 
   const parts = [
-    { value: Math.max(0, stats.saved), color: COLORS.green },
-    { value: Math.max(0, stats.invested), color: COLORS.violet },
-    { value: Math.max(0, stats.kept), color: COLORS.blue },
+    { value: Math.max(0, stats.saved), color: G.roots },
+    { value: Math.max(0, stats.invested), color: G.fruits },
+    { value: Math.max(0, stats.kept), color: G.water },
   ].filter((p) => p.value > 0);
   const total = parts.reduce((s, p) => s + p.value, 0);
   // Un léger écart entre parts, seulement s'il y en a plusieurs (sinon on couperait un cercle plein).
@@ -405,7 +408,7 @@ function MonthlyRing({ stats, COLORS }: { stats: PulseData['monthlyStats']; COLO
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size}>
-        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={COLORS.cardBorder} strokeWidth={strokeWidth} />
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={G.track} strokeWidth={strokeWidth} />
         {arcs.map((a) => (
           <Circle
             key={a.key}
@@ -418,8 +421,8 @@ function MonthlyRing({ stats, COLORS }: { stats: PulseData['monthlyStats']; COLO
         ))}
       </Svg>
       <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-        <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', color: COLORS.text, letterSpacing: -0.5 }}>{eurFmt(total)}</Text>
-        <Text style={{ fontFamily: GF.body, fontSize: 9, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 12, maxWidth: 78 }}>
+        <Text style={{ fontFamily: GF.bodyHeavy, fontSize: 19, fontWeight: 'normal', color: G.ink, letterSpacing: -0.5 }}>{eurFmt(total)}</Text>
+        <Text style={{ fontFamily: GF.body, fontSize: 9, color: G.muted, textAlign: 'center', lineHeight: 12, maxWidth: 78 }}>
           non dépensés{'\n'}sur le mois
         </Text>
       </View>
@@ -439,7 +442,7 @@ function makeBaseStyles(c: AppColors) {
     center: { position: 'absolute', left: 12, right: 12, alignItems: 'center' },
     sheet: {
       width: '100%', maxWidth: 560,
-      backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
+      backgroundColor: G.card, borderWidth: 1, borderColor: G.line,
       borderRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14,
       ...Platform.select({
         ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 10 } },
@@ -447,38 +450,38 @@ function makeBaseStyles(c: AppColors) {
         default: { boxShadow: '0 10px 30px rgba(0,0,0,0.25)' } as any,
       }),
     },
-    grabber: { alignSelf: 'center', width: 38, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginBottom: 12 },
+    grabber: { alignSelf: 'center', width: 38, height: 4, borderRadius: 999, backgroundColor: G.line, marginBottom: 12 },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     titleRow: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-    title: { fontFamily: GF.bodyHeavy, flexShrink: 1, fontSize: 18, fontWeight: 'normal', color: c.text, letterSpacing: -0.3 },
-    period: { fontFamily: GF.body, flexShrink: 0, fontSize: 12, color: c.textSecondary, textTransform: 'capitalize' },
+    title: { fontFamily: GF.display, flexShrink: 1, fontSize: 20, fontWeight: 'normal', color: G.ink },
+    period: { fontFamily: GF.body, flexShrink: 0, fontSize: 12, color: G.muted, textTransform: 'capitalize' },
     closeBtn: { padding: 4 },
     summary: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       marginTop: 12, marginBottom: 4, paddingVertical: 9, paddingHorizontal: 12,
-      backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
+      backgroundColor: G.field, borderRadius: 14, borderWidth: 1, borderColor: G.line,
     },
-    profile: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, fontWeight: 'normal', color: c.text },
-    estimated: { fontFamily: GF.body, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
+    profile: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, fontWeight: 'normal', color: G.ink },
+    estimated: { fontFamily: GF.body, fontSize: 11.5, color: G.muted, lineHeight: 16, marginTop: 8, fontStyle: 'italic' },
     list: { flexGrow: 0, marginTop: 12 },
 
     // ── Carte de récapitulatif (anneau + repères du mois) ──
     leadCard: {
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+      backgroundColor: G.field, borderWidth: 1, borderColor: G.line,
       borderRadius: 18, padding: 14,
     },
     leadRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
     leadStats: { flex: 1, gap: 10, minWidth: 0 },
     leadStatRow: {
-      backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
+      backgroundColor: G.card, borderWidth: 1, borderColor: G.line,
       borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11,
     },
-    leadStatLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.text },
-    leadStatSub: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
+    leadStatLabel: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: G.ink },
+    leadStatSub: { fontFamily: GF.body, fontSize: 11, color: G.muted, marginTop: 3, lineHeight: 15 },
     legend: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 4 },
     legendDot: { width: 8, height: 8, borderRadius: 999 },
-    legendTxt: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.text, marginRight: 6 },
+    legendTxt: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: G.ink, marginRight: 6 },
     // Période du bilan : posée AU-DESSUS des trois montants, pas accrochée à leur suite.
-    legendPeriod: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: c.textSecondary, textTransform: 'capitalize', marginTop: 10 },
+    legendPeriod: { fontFamily: GF.bodyBold, fontSize: 11, fontWeight: 'normal', color: G.muted, textTransform: 'capitalize', marginTop: 10 },
   });
 }

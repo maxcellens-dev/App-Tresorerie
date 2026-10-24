@@ -47,3 +47,13 @@ describe('récurrentes en tuiles', () => {
     expect(rent.recurrence).toBe('monthly');
   });
 });
+
+describe('bocal des projets', () => {
+  const { jarCoins } = require('../components/project/ProjectJar');
+  it('se remplit de pièces avec l’avancement, vide à 0 %', () => {
+    expect(jarCoins(0)).toHaveLength(0);
+    const half = jarCoins(50).length, full = jarCoins(100).length;
+    expect(half).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(half);
+  });
+});

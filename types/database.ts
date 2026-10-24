@@ -190,8 +190,6 @@ export interface RecoDismissals {
 
 /** Préférences d'interface stockées par compte (profiles.ui_prefs). */
 export interface UiPrefs {
-  /** Affichage des conseils en haut du Pilotage (défaut : activé). */
-  pilotage_tips_enabled?: boolean;
   /** Accès rapide à la calculatrice flottante (défaut : activé). */
   calculator_enabled?: boolean;
   /** Pages où le bouton calculatrice est affiché (défaut : transactions uniquement). */
@@ -206,6 +204,8 @@ export interface UiPrefs {
   projection_horizon?: 6 | 12;
   /** Période de la page Reporting : 3, 6 (défaut) ou 12 mois. */
   reporting_period?: 3 | 6 | 12;
+  /** Ordre des comptes choisi sur la page Comptes (ids) ; les autres suivent l'ordre unique. */
+  account_order?: string[];
 }
 
 export interface Account {

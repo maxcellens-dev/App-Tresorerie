@@ -25,7 +25,7 @@ import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
 import { useCalculator } from '../../../contexts/CalculatorContext';
-import { usePilotageTips, CALCULATOR_PAGES, CALCULATOR_GROUPS, type CalculatorPageId } from '../../../hooks/config/useUiPrefs';
+import { CALCULATOR_PAGES, CALCULATOR_GROUPS, type CalculatorPageId } from '../../../hooks/config/useUiPrefs';
 import { useRecoThresholds } from '../../../hooks/pilotage/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/pilotage/useFinancialProfile';
 import { usePushPermission } from '../../../hooks/platform/usePushPermission';
@@ -170,7 +170,6 @@ function SettingsScreen() {
   }, [readOnly, updateProfile]);
 
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled, pages: calculatorPages, setPages: setCalculatorPages } = useCalculator();
-  const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
   const [pushDiag, setPushDiag] = useState<string | null>(null);
   const pushPerm = usePushPermission();
   const { data: recoThresholds } = useRecoThresholds();
@@ -306,18 +305,6 @@ function SettingsScreen() {
           </Row>
         </Section>
 
-        {/* ── Aides ── */}
-        <Section title="Aides">
-          <Row first icon="bulb-outline" fg={G.picoText} bg={G.pico} label="Le conseil du jour" sub="une astuce en bas de l'accueil"
-            right={<Toggle label="Le conseil du jour" value={tipsEnabled} onChange={setTipsEnabled} disabled={readOnly} />} />
-          <Row icon="calculator-outline" fg={G.waterText} bg={G.waterBg} label="Calculatrice" sub="un bouton flottant, à déplacer où tu veux, sur les pages de ton choix"
-            right={<Toggle label="Calculatrice" value={calculatorEnabled} onChange={setCalculatorEnabled} disabled={readOnly} />}>
-            {calculatorEnabled ? (
-              <CalculatorPagesPicker pages={calculatorPages} onChange={setCalculatorPages} disabled={readOnly} />
-            ) : null}
-          </Row>
-        </Section>
-
         {/* ── Notifications : e-mail et téléphone au même endroit (« comment Relyka me joint ? »).
             Le push n'existe pas sur le web. ── */}
         <Section title="Notifications">
@@ -346,17 +333,24 @@ function SettingsScreen() {
           ) : null}
         </Section>
 
-        {/* ── Application : verrouillage et mise à jour n'existent que sur le téléphone ── */}
-        {!IS_WEB ? (
-          <Section title="Application">
-            {APP_LOCK_SUPPORTED ? (
-              <Row first icon="finger-print-outline" fg={G.waterText} bg={G.waterBg} label="Verrouiller l'app" sub="Face ID, empreinte ou code du téléphone à l'ouverture"
-                right={<Toggle label="Verrouiller l'app" value={appLockOn} onChange={toggleAppLock} />} />
+        {/* ── Application : la calculatrice d'abord (partout) ; verrouillage et mise à jour n'existent
+            que sur le téléphone. ── */}
+        <Section title="Application">
+          <Row first icon="calculator-outline" fg={G.waterText} bg={G.waterBg} label="Calculatrice" sub="un bouton flottant, à déplacer où tu veux, sur les pages de ton choix"
+            right={<Toggle label="Calculatrice" value={calculatorEnabled} onChange={setCalculatorEnabled} disabled={readOnly} />}>
+            {calculatorEnabled ? (
+              <CalculatorPagesPicker pages={calculatorPages} onChange={setCalculatorPages} disabled={readOnly} />
             ) : null}
-            <Row first={!APP_LOCK_SUPPORTED} icon={updateAvailable ? 'arrow-up-circle-outline' : 'checkmark-circle-outline'} fg={updateAvailable ? G.primary : G.inkSoft} bg={updateAvailable ? G.branchesBg : G.field}
+          </Row>
+          {!IS_WEB && APP_LOCK_SUPPORTED ? (
+            <Row icon="finger-print-outline" fg={G.waterText} bg={G.waterBg} label="Verrouiller l'app" sub="Face ID, empreinte ou code du téléphone à l'ouverture"
+              right={<Toggle label="Verrouiller l'app" value={appLockOn} onChange={toggleAppLock} />} />
+          ) : null}
+          {!IS_WEB ? (
+            <Row icon={updateAvailable ? 'arrow-up-circle-outline' : 'checkmark-circle-outline'} fg={updateAvailable ? G.primary : G.inkSoft} bg={updateAvailable ? G.branchesBg : G.field}
               label="Mise à jour" sub={RUNNING_NEWER_BUNDLE ? `${updateSub}\nCorrectifs appliqués : v${BUNDLE_VERSION}` : updateSub} onPress={checkUpdate} />
-          </Section>
-        ) : null}
+          ) : null}
+        </Section>
       </View>
     </GardenPage>
   );

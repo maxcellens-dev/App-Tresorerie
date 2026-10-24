@@ -32,7 +32,7 @@ it('normalizes a restored pre-redesign cache before any network request', () => 
 it('renders the public garden showcase immediately from the legacy cache', () => {
   const { wrapper } = restoredCache();
   render(<GardenLandingPage previewWidth={390} />, { wrapper });
-  expect(screen.getByText('Regarde ton argent pousser.')).toBeTruthy();
+  expect(screen.getByText('Sache ce que tu peux vraiment dépenser.')).toBeTruthy();
   expect(screen.getAllByText(DEFAULT_LANDING.brandName).length).toBeGreaterThan(0);
 });
 

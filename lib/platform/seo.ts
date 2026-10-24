@@ -52,8 +52,8 @@ export const SEO_DEFAULTS: SeoConfig = {
   siteName: 'Relyka',
   titleDefault: 'Relyka — Regarde ton argent pousser',
   titleTemplate: '%s · Relyka',
-  description: "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne, tes placements, et Pépin pour te dire quoi en faire.",
-  keywords: 'budget, finances personnelles, épargne, investissement, trésorerie, jardin, gestion de l’argent',
+  description: "Relyka te dit chaque mois ce que tu peux vraiment dépenser, et Pépin, ton hérisson, te conseille quoi faire du reste : épargner, investir, garder ou te faire plaisir.",
+  keywords: 'budget, finances personnelles, épargne, investissement, trésorerie, reste à vivre, gestion de l’argent',
   canonicalBase: 'https://relyka.app',
   language: 'fr',
   author: 'Relyka',
@@ -62,7 +62,7 @@ export const SEO_DEFAULTS: SeoConfig = {
   follow: true,
   ogType: 'website',
   ogImage: '',
-  ogImageAlt: 'Relyka — ton argent, comme un jardin',
+  ogImageAlt: 'Relyka — sache ce que tu peux vraiment dépenser',
   twitterCard: 'summary_large_image',
   twitterSite: '',
   twitterCreator: '',
@@ -75,7 +75,7 @@ export const SEO_DEFAULTS: SeoConfig = {
 };
 
 /**
- * ANCIENS DÉFAUTS gelés en base au premier enregistrement de l'admin (avant le Jardin) : ce ne sont
+ * ANCIENS DÉFAUTS gelés en base au premier enregistrement de l'admin (avant le Jardin, puis du Jardin) : ce ne sont
  * pas des choix, on les remplace par les défauts actuels. Toute AUTRE valeur saisie en admin reste
  * prioritaire.
  */
@@ -84,10 +84,11 @@ const LEGACY_DEFAULTS: Partial<Record<keyof SeoConfig, string[]>> = {
   description: [
     "Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité.",
     "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne de secours, tes placements, et Pépin pour te dire quoi en faire.",
+    "Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne, tes placements, et Pépin pour te dire quoi en faire.",
   ],
-  keywords: ['trésorerie, budget, finances personnelles, épargne, investissement, reste à vivre'],
+  keywords: ['trésorerie, budget, finances personnelles, épargne, investissement, reste à vivre', 'budget, finances personnelles, épargne, investissement, trésorerie, jardin, gestion de l’argent'],
   themeColor: ['#0D2E2A'],
-  ogImageAlt: ['Relyka — pilote ta trésorerie'],
+  ogImageAlt: ['Relyka — pilote ta trésorerie', 'Relyka — ton argent, comme un jardin'],
 };
 
 /** Fusionne une config admin (partielle) avec les défauts. */

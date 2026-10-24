@@ -23,22 +23,22 @@ import { GARDEN_COLORS, GARDEN_RADII, GARDEN_SPACE } from '../../lib/garden/them
 import { TABS, WORDS } from '../../lib/garden/lexicon';
 import { SIDEBAR_WIDTH, pointer, transition } from '../../lib/ui/webLayout';
 
-const MAIN: { route: GardenTabRoute; label: string; icon: 'tree' | 'wallet' | 'pots' | 'pico' }[] = [
-  { route: 'jardin', label: TABS.garden, icon: 'tree' },
+const MAIN: { route: GardenTabRoute; label: string; icon: 'home' | 'wallet' | 'target' | 'pico' }[] = [
+  { route: 'jardin', label: TABS.garden, icon: 'home' },
   { route: 'argent', label: TABS.money, icon: 'wallet' },
-  { route: 'projets', label: TABS.projects, icon: 'pots' },
+  { route: 'projets', label: TABS.projects, icon: 'target' },
   { route: 'pepin', label: TABS.pico, icon: 'pico' },
 ];
 /* Accès directs du bureau, rangés par sujet. `key` = dernier segment du chemin (surbrillance). */
 const GROUPS: { title: string; items: { key: string; label: string; icon: string; route: string }[] }[] = [
   { title: 'Ton argent', items: [
-    { key: 'placements', label: 'Mes placements', icon: 'nutrition-outline', route: '/(tabs)/(secondary)/placements' },
+    { key: 'placements', label: 'Mes placements', icon: 'trending-up-outline', route: '/(tabs)/(secondary)/placements' },
     { key: 'credits', label: 'Mes crédits', icon: 'home-outline', route: '/(tabs)/(secondary)/credits' },
     { key: 'projects', label: 'Budgets', icon: 'pie-chart-outline', route: '/(tabs)/projects' },
     { key: 'tresorerie', label: WORDS.monthPlan, icon: 'stats-chart-outline', route: '/(tabs)/tresorerie' },
   ] },
   { title: 'Ton suivi', items: [
-    { key: 'parcours', label: WORDS.myJourney, icon: 'leaf-outline', route: '/(tabs)/(secondary)/parcours' },
+    { key: 'parcours', label: WORDS.myJourney, icon: 'stats-chart-outline', route: '/(tabs)/(secondary)/parcours' },
     { key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting' },
     { key: 'succes', label: WORDS.successes, icon: 'ribbon-outline', route: '/(tabs)/(secondary)/succes' },
     { key: 'boutique', label: WORDS.shop, icon: 'bag-handle-outline', route: '/(tabs)/(secondary)/boutique' },

@@ -14,6 +14,7 @@ import { useAppColors } from '../../hooks/theme/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import type { PulseSignal } from '../../lib/pulse/pulseEngine';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
+import { GARDEN_COLORS as G } from '../../lib/garden/theme';
 
 interface Props {
   signal: PulseSignal;
@@ -68,7 +69,7 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
             style={[
               styles.fill,
               {
-                backgroundColor: COLORS.accent,
+                backgroundColor: G.primary,
                 width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
               },
             ]}
@@ -89,18 +90,18 @@ function makeStyles(c: AppColors) {
 function makeBaseStyles(c: AppColors) {
   return StyleSheet.create({
     card: {
-      backgroundColor: c.card,
+      backgroundColor: G.field,
       borderWidth: 1,
-      borderColor: c.cardBorder,
+      borderColor: G.line,
       borderRadius: 18,
       padding: 16,
       marginBottom: 10,
     },
-    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: c.textSecondary, marginBottom: 8 },
-    headline: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: c.text, letterSpacing: -0.2, lineHeight: 22 },
-    detail: { fontFamily: GF.body, fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 6 },
-    track: { height: 6, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 12, overflow: 'hidden' },
+    label: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: G.muted, marginBottom: 8 },
+    headline: { fontFamily: GF.bodyHeavy, fontSize: 16, fontWeight: 'normal', color: G.ink, letterSpacing: -0.2, lineHeight: 22 },
+    detail: { fontFamily: GF.body, fontSize: 12, color: G.muted, lineHeight: 18, marginTop: 6 },
+    track: { height: 6, borderRadius: 999, backgroundColor: G.line, marginTop: 12, overflow: 'hidden' },
     fill: { height: 6, borderRadius: 999 },
-    amount: { fontFamily: GF.bodyBold, fontSize: 11.5, color: c.textSecondary, marginTop: 10, fontWeight: 'normal' },
+    amount: { fontFamily: GF.bodyBold, fontSize: 11.5, color: G.muted, marginTop: 10, fontWeight: 'normal' },
   });
 }

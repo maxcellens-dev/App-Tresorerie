@@ -19,12 +19,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import GardenText from '../garden/GardenText';
 import GardenButton from '../garden/GardenButton';
-import GardenScene from '../garden/GardenScene';
 import GardenGlow from '../garden/GardenGlow';
 import GardenIcon from '../garden/GardenIcon';
-import WateringCan from '../garden/WateringCan';
+import Pico from '../garden/Pico';
 import PicoBubble from '../garden/PicoBubble';
-import { HERO } from '../marketing/GardenLandingPage';
 import { useGuide } from '../../contexts/GuideContext';
 import { useGardenFonts } from '../../hooks/garden/useGardenFonts';
 import { useResponsive } from '../../hooks/theme/useResponsive';
@@ -79,8 +77,8 @@ function slides(): Slide[] {
     {
       key: 'garden',
       title: 'Ton argent, clair en un coup d’œil',
-      text: 'Relyka te dit chaque mois combien tu peux vraiment utiliser, et quoi en faire. Ton arbre, lui, pousse quand ta situation s’améliore.',
-      visual: <View style={{ borderRadius: GARDEN_RADII.lg, overflow: 'hidden' }}><GardenScene state={HERO} options={{ id: 'welcome', marks: false, mood: 'joy' }} /></View>,
+      text: 'Relyka te dit chaque mois combien tu peux vraiment utiliser, et quoi en faire. Pépin, ton hérisson, t’accompagne à chaque étape.',
+      visual: <View style={[card, { alignItems: 'center', paddingVertical: GARDEN_SPACE.xl }]}><Pico size={150} mood="joy" /></View>,
     },
     {
       key: 'relyka',
@@ -88,7 +86,6 @@ function slides(): Slide[] {
       text: 'Chaque mois, Relyka calcule ce qu’il te reste VRAIMENT : une fois tes factures, tes dépenses habituelles et ta réserve minimum mises de côté. Ce n’est pas ton solde du jour, c’est ce que tu peux utiliser sans mauvaise surprise.',
       visual: (
         <View style={[card, { alignItems: 'center', gap: GARDEN_SPACE.sm }]}>
-          <WateringCan level={0.7} width={150} accessibilityLabel="Un arrosoir bien rempli" />
           <GardenText variant="label" color={G.waterText}>Ton Relyka · exemple</GardenText>
           <GardenText variant="amount" tabular>{eur(900)}</GardenText>
           <GardenText variant="small" color={G.muted} center>à utiliser ce mois-ci</GardenText>
@@ -122,8 +119,8 @@ function slides(): Slide[] {
     },
     {
       key: 'tree',
-      title: 'Ton arbre suit ta situation',
-      text: 'Plus ton épargne et tes placements grandissent, plus ton arbre pousse. Il recule aussi quand ça se complique : pas de jugement, juste un repère.',
+      title: 'Ton parcours, étape par étape',
+      text: 'De l’épargne de secours jusqu’au patrimoine, neuf étapes. Relyka te montre où tu en es et ce qu’il faut pour passer à la suivante : pas de jugement, juste un repère.',
       visual: <View style={[card, { paddingVertical: 6 }]}>{PARTS.map((p) => <Row key={p.kind} kind={p.kind} title={p.name} text={p.text} />)}</View>,
     },
     {

@@ -78,7 +78,7 @@ export const WORDS = {
   settings: 'Paramètres',
   appearance: 'Apparence',
   shop: 'Boutique',
-  gardenTour: 'Mettre à jour mes soldes',
+  gardenTour: 'Mettre à jour le solde de mes comptes',
   gardenTourHint: 'recopie ce que ta banque affiche',
   momentRelyka: 'Le Moment Relyka',
   nextStep: 'Prochain pas',

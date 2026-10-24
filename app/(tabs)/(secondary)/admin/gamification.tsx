@@ -2,7 +2,7 @@
  * Admin — Gamification & Identité.
  * Édite la config app_config.gamification : identité (libellés/icônes), série, remise premium,
  * et la liste des badges (libellé, description, métrique, icône Ionicons OU image téléversée,
- * seuils + noisettes de récompense). Téléversement d'icônes vers le bucket « gamification ».
+ * seuils + relyks de récompense). Téléversement d'icônes vers le bucket « gamification ».
  */
 import { gardenFormStyles } from '../../../../lib/garden/legacyStyles';
 import GardenRulesEditor from '../../../../components/admin/GardenRulesEditor';
@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import NutIcon from '../../../../components/gamification/NutIcon';
+import CurrencyIcon from '../../../../components/gamification/CurrencyIcon';
 import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAppColors } from '../../../../hooks/theme/useAppColors';
@@ -29,7 +29,7 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Semaines connectées (cumul)' },
   { value: 'login_streak_days', label: 'Jours consécutifs connecté' },
   { value: 'account_age_days', label: 'Ancienneté (jours)' },
-  { value: 'gems_earned', label: 'Noisettes gagnées (cumul)' },
+  { value: 'gems_earned', label: 'Relyks gagnées (cumul)' },
   { value: 'closures_count', label: 'Clôtures effectuées' },
   { value: 'surplus_months_streak', label: 'Mois consécutifs en excédent' },
   { value: 'invest_followed', label: 'Recos investir suivies' },
@@ -131,12 +131,12 @@ export default function AdminGamification() {
               <Switch value={cfg.identity.enabled} onValueChange={(v) => setIdentity({ enabled: v })} />
             </View>
             <Field label="Nom de la monnaie (au singulier)" value={cfg.identity.currencyName} onChange={(v) => setIdentity({ currencyName: v })} styles={styles} c={COLORS} />
-            <Text style={styles.hint}>Le « s » du pluriel est ajouté à l'affichage. Les anciens noms (graine, relyk, gemme) sont remplacés par « Noisette ».</Text>
-            {/* L'icône de la monnaie n'est plus réglable : c'est la noisette 3D du Jardin partout (l'ancien
+            <Text style={styles.hint}>Le « s » du pluriel est ajouté à l'affichage. Les anciens noms (graine, noisette, gemme) sont remplacés par « Relyk » (féminin : une relyk).</Text>
+            {/* L'icône de la monnaie n'est plus réglable : c'est la pièce Relyk partout (l'ancien
                 champ n'était plus lu par l'app — on ne laisse pas un réglage sans effet). */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
-              <NutIcon size={34} />
-              <Text style={[styles.hint, { flex: 1, marginTop: 0 }]}>Icône de la monnaie : la noisette 3D du Jardin, utilisée dans toute l'app.</Text>
+              <CurrencyIcon size={34} />
+              <Text style={[styles.hint, { flex: 1, marginTop: 0 }]}>Icône de la monnaie : la pièce Relyk, utilisée dans toute l'app.</Text>
             </View>
             <Field label="Libellé de la série" value={cfg.identity.streakLabel} onChange={(v) => setIdentity({ streakLabel: v })} styles={styles} c={COLORS} />
             <IconField label="Icône de série (🔥 = flamme 3D, ou emoji, Ionicons, image)" value={cfg.identity.streakIcon}
@@ -254,7 +254,7 @@ export default function AdminGamification() {
               <View style={styles.levelRow}>
                 <Text style={[styles.levelName, { color: COLORS.textSecondary }]}>Seuil</Text>
                 <TextInput style={styles.miniInput} value={String(b.threshold ?? 0)} onChangeText={(v) => updateBadge(i, { threshold: Number(v) || 0 })} keyboardType="numeric" placeholder="seuil" placeholderTextColor={COLORS.textSecondary} />
-                <NutIcon size={14} />
+                <CurrencyIcon size={14} />
                 <TextInput style={styles.miniInput} value={String(b.gems ?? 0)} onChangeText={(v) => updateBadge(i, { gems: Number(v) || 0 })} keyboardType="numeric" placeholder="récompense" placeholderTextColor={COLORS.textSecondary} />
               </View>
             </View>

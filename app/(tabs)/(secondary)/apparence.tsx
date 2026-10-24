@@ -213,10 +213,9 @@ function AppearanceScreen() {
     /* Flammes de série et titres de profil ne sont plus affichés nulle part depuis le Jardin : ils
        ne sont plus proposés ici (les articles restent dans l'inventaire, sans effet). */
     { slot: 'avatar_frame', label: "Cadres d'avatar", items: bySlot('avatar_frame') },
-    /* Jardin : le décor posé autour de l'arbre, la garde-robe de Pépin, la saison choisie. */
-    { slot: 'decor', label: 'Décor du jardin', items: ownedCosmetics.filter((c) => String(c.slot).startsWith('decor_')) },
+    /* La garde-robe de Pépin. (Décors et saisons du jardin ne s'affichent plus nulle part : ils ne
+       sont plus proposés ici, les articles restent dans l'inventaire, sans effet.) */
     { slot: 'pico', label: 'Garde-robe de Pépin', items: ownedCosmetics.filter((c) => String(c.slot).startsWith('pico_')) },
-    { slot: 'garden_season', label: 'Saison du jardin (sinon, la vraie saison)', items: bySlot('garden_season') },
   ].filter((g) => g.items.length > 0)), [ownedCosmetics]);
 
   // Les couleurs de base (celles de la palette native) sont gratuites pour tous.

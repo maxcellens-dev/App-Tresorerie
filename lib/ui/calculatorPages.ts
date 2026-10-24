@@ -13,12 +13,12 @@ export const CALCULATOR_GROUPS = [
   { title: 'Ton argent', pages: [
     { id: 'argent', label: 'Mon argent', icon: 'wallet-outline' },
     { id: 'comptes', label: 'Comptes et crédits', icon: 'card-outline' },
-    { id: 'placements', label: 'Mes placements', icon: 'nutrition-outline' },
+    { id: 'placements', label: 'Mes placements', icon: 'trending-up-outline' },
     { id: 'tresorerie', label: 'Plan de trésorerie', icon: 'stats-chart-outline' },
     { id: 'budgets', label: 'Budgets', icon: 'pie-chart-outline' },
   ] },
   { title: 'Tes projets et tes saisies', pages: [
-    { id: 'projets', label: 'Projets', icon: 'flower-outline' },
+    { id: 'projets', label: 'Projets', icon: 'flag-outline' },
     { id: 'transactions', label: 'Saisie d’une opération', icon: 'add-circle-outline' },
   ] },
 ] as const;

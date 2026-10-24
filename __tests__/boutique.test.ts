@@ -56,7 +56,7 @@ describe('formatCurrency — le nom de la monnaie est configurable', () => {
   });
 
   it('retombe sur le nom par défaut quand la config est vide', () => {
-    expect(formatCurrency(3, '')).toBe('3 Noisettes');
+    expect(formatCurrency(3, '')).toBe('3 Relyks');
   });
 });
 
@@ -123,11 +123,11 @@ describe('mergeGamificationConfig — ce que l’administration pilote, et ce qu
     expect(merged.identity.currencyName).toBe(DEFAULT_GAMIFICATION.identity.currencyName);
   });
 
-  it("les anciens noms de la monnaie, gelés en base, deviennent « noisettes »", () => {
-    const stored = DEFAULT_GAMIFICATION.badges.map((b) => (b.key === 'collect_2000' ? { ...b, description: 'Accumule 2000 Relyks.' } : b));
-    const merged = mergeGamificationConfig({ identity: { ...DEFAULT_GAMIFICATION.identity, currencyName: 'Relyk' }, badges: stored });
-    expect(merged.identity.currencyName).toBe('Noisette');
-    expect(merged.badges.find((b) => b.key === 'collect_2000')?.description).toBe('Accumule 2000 noisettes.');
+  it("les anciens noms de la monnaie, gelés en base, deviennent « relyks » (féminin)", () => {
+    const stored = DEFAULT_GAMIFICATION.badges.map((b) => (b.key === 'collect_2000' ? { ...b, description: 'Accumule 2000 noisettes gagnés.' } : b));
+    const merged = mergeGamificationConfig({ identity: { ...DEFAULT_GAMIFICATION.identity, currencyName: 'Noisette' }, badges: stored });
+    expect(merged.identity.currencyName).toBe('Relyk');
+    expect(merged.badges.find((b) => b.key === 'collect_2000')?.description).toBe('Accumule 2000 relyks gagnées.');
   });
 });
 

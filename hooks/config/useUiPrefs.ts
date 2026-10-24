@@ -42,12 +42,12 @@ export function useUiPrefs(userId: string | undefined) {
   return { prefs, patch };
 }
 
-/** Conseils en haut du Pilotage (défaut : activé). */
-export function usePilotageTips(userId: string | undefined) {
+/** Ordre des comptes choisi sur la page Comptes (cf. lib/finance/accountOrder › applyCustomOrder). */
+export function useAccountOrderPref(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
   return {
-    enabled: prefs.pilotage_tips_enabled !== false,
-    setEnabled: (v: boolean): void => { void patch({ pilotage_tips_enabled: v }); },
+    order: prefs.account_order ?? [],
+    setOrder: (ids: string[]): void => { void patch({ account_order: ids }); },
   };
 }
 

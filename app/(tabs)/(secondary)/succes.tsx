@@ -4,7 +4,7 @@
  */
 import { successArt } from '../../../lib/engagement/successArt';
 import { SCENE3D_IMG } from '../../../lib/garden/scene3dAssets';
-import NutIcon from '../../../components/gamification/NutIcon';
+import CurrencyIcon from '../../../components/gamification/CurrencyIcon';
 import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
 import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
 import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
@@ -175,7 +175,7 @@ function SuccesScreen() {
         )}
         {!unlocked && gems > 0 && (
           <View style={styles.rewardPill}>
-            <NutIcon size={12} mono={COLORS.textSecondary} />
+            <CurrencyIcon size={12} mono={COLORS.textSecondary} />
             <Text style={[styles.rewardText, { color: COLORS.textSecondary }]}>+{gems}</Text>
           </View>
         )}
@@ -240,14 +240,14 @@ function SuccesScreen() {
               onPress={() => router.push('/(tabs)/(secondary)/boutique?focus=gems' as any)}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel="Recharger en noisettes"
+              accessibilityLabel="Recharger en relyks"
             >
-              <NutIcon size={24} />
+              <CurrencyIcon size={24} />
               <Text style={styles.summaryValue}>{state?.gems ?? 0}</Text>
               {/* Cette case OUVRE la boutique, les deux autres non — rien ne le disait : trois cases
                   strictement identiques, dont une seule réagit au toucher. Le petit « + » le dit. */}
               <View style={styles.summaryLinkRow}>
-                <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Noisette')}</Text>
+                <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
                 <Ionicons name="add-circle" size={12} color={COLORS.blue} />
               </View>
             </TouchableOpacity>
@@ -340,8 +340,8 @@ function SuccesScreen() {
                   {!!selected.description && <Text style={styles.modalDesc}>{selected.description}</Text>}
                   {gems > 0 && (
                     <View style={[styles.modalReward, { borderColor: tint + '66', backgroundColor: tint + '14' }]}>
-                      <NutIcon size={16} />
-                      <Text style={[styles.modalRewardText, { color: tint }]}>+{gems} {currencyPlural(config?.identity.currencyName || 'Noisette')}</Text>
+                      <CurrencyIcon size={16} />
+                      <Text style={[styles.modalRewardText, { color: tint }]}>+{gems} {currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
                     </View>
                   )}
                   <View style={[styles.modalStatusPill, { backgroundColor: unlocked ? UNLOCK_COLOR + '1A' : COLORS.cardBorder + '55' }]}>

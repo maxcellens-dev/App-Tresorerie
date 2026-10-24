@@ -49,3 +49,16 @@ export function compareAccounts(a: SortableAccount, b: SortableAccount): number 
 export function sortAccounts<T extends SortableAccount>(accounts: T[]): T[] {
   return [...accounts].sort(compareAccounts);
 }
+
+/**
+ * Ordre CHOISI par l'utilisateur sur la page Comptes (profiles.ui_prefs.account_order) : les comptes
+ * listés passent dans cet ordre, les autres (nouveaux, jamais déplacés) gardent l'ordre unique
+ * ci-dessus, après eux. Ne s'applique qu'à la page Comptes : sélecteurs et listes gardent l'ordre unique.
+ */
+export function applyCustomOrder<T extends { id: string }>(accounts: T[], order: string[] | null | undefined): T[] {
+  if (!order?.length) return accounts;
+  const rank = new Map(order.map((id, i) => [id, i]));
+  const listed = accounts.filter((a) => rank.has(a.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+  return [...listed, ...accounts.filter((a) => !rank.has(a.id))];
+}
+

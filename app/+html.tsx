@@ -32,11 +32,11 @@ export default function Root({ children }: PropsWithChildren) {
         {/* SEO de BASE (statique) — repli pour les crawlers sans JS (aperçus sociaux). Les valeurs
             fines sont appliquées au runtime par le SEO Center (composant SeoHead, admin-paramétrable). */}
         <title>Relyka — Regarde ton argent pousser</title>
-        <meta name="description" content="Relyka transforme tes comptes en un arbre qui pousse : ce qu'il te reste vraiment ce mois-ci, ton épargne, tes placements, et Pépin pour te dire quoi en faire." />
+        <meta name="description" content="Relyka te dit chaque mois ce que tu peux vraiment dépenser, et Pépin, ton hérisson, te conseille quoi faire du reste : épargner, investir, garder ou te faire plaisir." />
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Relyka" />
         <meta property="og:title" content="Relyka — Regarde ton argent pousser" />
-        <meta property="og:description" content="Ton argent, comme un jardin : ce qu'il te reste vraiment ce mois-ci, ton épargne, tes placements." />
+        <meta property="og:description" content="Sache ce que tu peux vraiment dépenser, et laisse Pépin te conseiller pour le reste." />
         <meta name="twitter:card" content="summary_large_image" />
         {/* Nom du site dans Google (la ligne au-dessus de l'URL) : il vient des données
             structurées `WebSite` de la page d'accueil. MIROIR de public/index.html — c'est ce

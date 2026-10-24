@@ -90,6 +90,23 @@ export function useSetBudgets(profileId: string | undefined) {
   });
 }
 
+/**
+ * SUPPRIME le budget d'une catégorie : toutes ses lignes, mensuelles et annuelles, passées comprises.
+ * C'est la seule façon de faire disparaître un budget pour de bon — un montant à 0 le retire
+ * seulement à partir du mois en cours (le passé garde sa trace, cf. plus haut).
+ */
+export function useDeleteBudget(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (categoryId: string) => {
+      if (!supabase || !profileId) throw new Error('Not authenticated');
+      const { error } = await supabase.from('budgets').delete().eq('profile_id', profileId).eq('category_id', categoryId);
+      if (error) throw error;
+    },
+    onSuccess: () => { client.invalidateQueries({ queryKey: [BUDGETS_KEY, profileId] }); },
+  });
+}
+
 /** Un seul budget — commodité pour les écrans qui n'en modifient qu'un. */
 export function useSetBudget(profileId: string | undefined) {
   const many = useSetBudgets(profileId);

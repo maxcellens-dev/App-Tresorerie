@@ -21,16 +21,18 @@ import GardenText from '../../components/garden/GardenText';
 import GardenCard from '../../components/garden/GardenCard';
 import GardenButton from '../../components/garden/GardenButton';
 import GardenSegmented from '../../components/garden/GardenSegmented';
-import { GardenRowGroup } from '../../components/garden/GardenList';
 import AdSlot from '../../components/marketing/AdSlot';
 import { ProjectionSection } from '../../components/money/ProjectionSection';
 import { useGardenModel } from '../../hooks/garden/useGardenModel';
 import { formatEuros } from '../../lib/garden/picoChoices';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../lib/finance/currency';
 import { GARDEN_ICONS, accountIcon } from '../../lib/garden/icons';
-import { effectiveSharedMode } from '../../lib/finance/perimeter';
 import { GARDEN_COLORS as G, GARDEN_RADII, GARDEN_SPACE, mixHex } from '../../lib/garden/theme';
 import { MONEY_VIEWS, TABS, TREE_PARTS } from '../../lib/garden/lexicon';
+import { useAccountOrderPref } from '../../hooks/config/useUiPrefs';
+import { applyCustomOrder } from '../../lib/finance/accountOrder';
+import { GardenRowGroup } from '../../components/garden/GardenList';
+import { effectiveSharedMode } from '../../lib/finance/perimeter';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
 type View2 = 'today' | 'tomorrow';
@@ -62,8 +64,13 @@ export default function ArgentScreen() {
   const go = (r: string) => router.push(r as any);
 
   const accounts = useMemo(() => (core.allAccounts as any[]).filter((a) => !a.is_archived), [core.allAccounts]);
-  const mine = accounts.filter((a) => a._role === 'owner' && !a.is_joint);
-  const shared = accounts.filter((a) => a.is_joint || a._role !== 'owner');
+  /* L'ordre choisi par l'utilisateur ; sans choix, mes comptes puis les comptes partagés. */
+  const { order, setOrder } = useAccountOrderPref(core.userId);
+  const ordered = useMemo(() => {
+    const base = [...accounts.filter((a) => a._role === 'owner' && !a.is_joint), ...accounts.filter((a) => a.is_joint || a._role !== 'owner')];
+    return applyCustomOrder(base, order);
+  }, [accounts, order]);
+  const [reorder, setReorder] = useState(false);
   const debts = credits.reduce((s, c) => s + Math.max(0, c.remaining), 0);
 
   /* Les deux vues, et à droite l'accès à TOUTES les opérations (liste, recherche, filtres). */
@@ -95,6 +102,30 @@ export default function ArgentScreen() {
 
   const total = (p.total_checking ?? 0) + (p.total_savings ?? 0) + (p.total_invested ?? 0);
 
+  /* « Réorganiser » : deux flèches échangent un compte avec son voisin du groupe ; l'ordre de TOUS
+     les comptes est enregistré d'un coup (ui_prefs.account_order). */
+  const moveArrows = (a: any, group: any[]) => {
+    const idx = group.indexOf(a);
+    const move = (delta: -1 | 1) => {
+      const other = group[idx + delta];
+      if (!other) return;
+      const ids = ordered.map((x: any) => x.id);
+      const i = ids.indexOf(a.id), j = ids.indexOf(other.id);
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      setOrder(ids);
+    };
+    const arrow = (delta: -1 | 1) => {
+      const off = !group[idx + delta];
+      return (
+        <Pressable onPress={() => move(delta)} disabled={off} accessibilityRole="button" accessibilityLabel={`Placer ${a.name} ${delta < 0 ? 'avant' : 'après'}`} hitSlop={6}
+          style={[{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: G.track, opacity: off ? 0.35 : 1 }, pointer]}>
+          <Ionicons name={delta < 0 ? 'arrow-up' : 'arrow-down'} size={16} color={G.ink} />
+        </Pressable>
+      );
+    };
+    return <View style={{ flexDirection: 'row', gap: 4 }}>{arrow(-1)}{arrow(1)}</View>;
+  };
+
   return (
     <GardenPage calculator="argent" title={TABS.money}>
       {segmented}
@@ -108,13 +139,19 @@ export default function ArgentScreen() {
             </View>
             <Pico size={84} mood="joy" />
           </GardenCard>
-          {/* Ordre : arrosoir (courants), fruits (placements), racines (épargne), crédits, autres.
-              Les comptes PARTAGÉS sont rangés avec ceux de leur type, toujours après les miens,
-              reconnaissables à leur icône et à leur libellé en italique. */}
+          {/* Ordre des groupes : courants, placements, épargne, crédits, autres. Dans un groupe, les
+              comptes dans l'ordre choisi par l'utilisateur (« Réorganiser ») ; les comptes partagés
+              sont reconnaissables à leur icône et à leur nom en italique. */}
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <Pressable onPress={() => setReorder((r) => !r)} accessibilityRole="button" hitSlop={8} style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }, pointer]}>
+              <Ionicons name={reorder ? 'checkmark' : 'swap-vertical'} size={16} color={G.primary} />
+              <GardenText variant="smallStrong" color={G.primary}>{reorder ? 'Terminé' : 'Réorganiser'}</GardenText>
+            </Pressable>
+          </View>
           <GardenGrid cols={2}>
           {GROUPS.map((g) => {
             const ofType = (a: any) => (g.type === 'other' ? !['checking', 'savings', 'investment'].includes(a.type) : a.type === g.type);
-            const own = mine.filter(ofType), others = shared.filter(ofType);
+            const list = ordered.filter(ofType);
             /* Compte partagé : une joint « contribution » (ou réglé à 0 % pour moi) n'entre PAS dans mes
                totaux — montant en retrait et « hors de ton total » ; sinon seule MA PART y entre. */
             const sharedNote = (a: any) => {
@@ -122,23 +159,27 @@ export default function ArgentScreen() {
               if (effectiveSharedMode(a.shared_mode) === 'contribution' || pct === 0) return { note: ' · hors de ton total', outside: true };
               return { note: pct < 100 ? ` · ta part : ${Math.round(pct)} %` : '', outside: false };
             };
-            const accountRow = (a: any, isShared: boolean) => ({
-              key: a.id, label: a.name, italic: isShared, valueMuted: isShared && sharedNote(a).outside,
-              sub: isShared ? `${a.is_joint ? 'compte joint' : 'partagé avec toi'}${sharedNote(a).note}` : `${g.typeLabel}${a.is_default ? ' · Principal' : ''}`,
-              value: `${Math.round(Number(a.balance)).toLocaleString('fr-FR')} ${currencySymbolFor(a.currency)}`,
-              icon: isShared ? GARDEN_ICONS.shared.icon : GARDEN_ICONS[accountIcon(a.type)].icon,
-              iconColor: isShared ? GARDEN_ICONS.shared.fg : g.color, iconBg: isShared ? GARDEN_ICONS.shared.bg : g.bg,
-              onPress: () => go(`/(tabs)/comptes/${a.id}`),
-            });
-            const rows = [...own.map((a) => accountRow(a, false)), ...others.map((a) => accountRow(a, true))];
+            const accountRow = (a: any) => {
+              const isShared = a.is_joint || a._role !== 'owner';
+              return {
+                key: a.id, label: a.name, italic: isShared, valueMuted: isShared && sharedNote(a).outside,
+                sub: isShared ? `${a.is_joint ? 'compte joint' : 'partagé avec toi'}${sharedNote(a).note}` : `${g.typeLabel}${a.is_default ? ' · Principal' : ''}`,
+                value: `${Math.round(Number(a.balance)).toLocaleString('fr-FR')} ${currencySymbolFor(a.currency)}`,
+                icon: isShared ? GARDEN_ICONS.shared.icon : GARDEN_ICONS[accountIcon(a.type)].icon,
+                iconColor: isShared ? GARDEN_ICONS.shared.fg : g.color, iconBg: isShared ? GARDEN_ICONS.shared.bg : g.bg,
+                onPress: reorder ? undefined : () => go(`/(tabs)/comptes/${a.id}`),
+                right: reorder ? moveArrows(a, list) : undefined,
+              };
+            };
+            const rows = list.map(accountRow);
             if (g.type === 'investment') {
-              /* Fruits : une ligne de total en tête, qui mène à « Mes placements » (la projection des
-                 placements ne tient pas dans une ligne). Toujours là, même sans placement. */
+              /* Placements : une ligne de total en tête, qui mène à « Mes placements » (leur prévision ne
+                 tient pas dans une ligne). Toujours là, même sans placement. */
               return (
                 <GardenRowGroup key={g.type} title={g.title} titleColor={g.color} rows={[{
-                  key: 'placements', label: 'Mes placements', sub: rows.length ? 'le fruit de tes placements' : 'aucun placement pour l’instant',
+                  key: 'placements', label: 'Mes placements', sub: rows.length ? 'leur valeur et ce qu’ils peuvent devenir' : 'aucun placement pour l’instant',
                   value: eur(p.total_invested ?? 0),
-                  // ligne de TOTAL : sans icône, fond teinté des fruits — elle ne ressemble pas à un compte
+                  // ligne de TOTAL : sans icône, fond teinté — elle ne ressemble pas à un compte
                   bg: mixHex(GARDEN_ICONS.fruits.bg, G.card, 0.7),
                   onPress: () => go('/(tabs)/(secondary)/placements'),
                 }, ...rows]} />
@@ -148,8 +189,7 @@ export default function ArgentScreen() {
             const groupTotal = g.type === 'checking' ? p.total_checking : g.type === 'savings' ? p.total_savings : null;
             return <GardenRowGroup key={g.type} title={g.title} titleColor={g.color} total={groupTotal != null ? eur(groupTotal) : undefined} rows={rows} />;
           }).flatMap((node, i) => (i === 2 ? [node, (
-            /* Crédits (la cabane) : après les racines. Un achat immobilier peut compter plusieurs
-               crédits → ils ont leur page. */
+            /* Crédits : après l'épargne. Un achat immobilier peut compter plusieurs crédits → ils ont leur page. */
             <GardenRowGroup key="credits" title={TREE_PARTS.cabin.name} titleColor={GARDEN_ICONS.cabin.fg} total={credits.length ? eur(debts) : undefined} rows={[{
               key: 'credits', label: 'Mes crédits',
               sub: credits.length ? `${credits.length} crédit${credits.length > 1 ? 's' : ''} en cours` : 'aucun crédit en cours',

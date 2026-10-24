@@ -312,7 +312,7 @@ export default function BalanceUpdateScreen() {
             const tone = a.type === 'savings' ? COLORS.savings
               : a.type === 'investment' ? COLORS.investment
               : COLORS.checking;
-            const icon = a.type === 'savings' ? 'leaf-outline'
+            const icon = a.type === 'savings' ? 'shield-checkmark-outline'
               : a.type === 'investment' ? 'trending-up-outline'
               : 'wallet-outline';
             return (

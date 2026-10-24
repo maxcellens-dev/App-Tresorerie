@@ -21,13 +21,13 @@ import { TABS } from '../../lib/garden/lexicon';
 export const GARDEN_TAB_ROUTES = ['argent', 'projets', 'jardin', 'pepin'] as const;
 export type GardenTabRoute = (typeof GARDEN_TAB_ROUTES)[number];
 
-export function GardenNavIcon({ name, color, size = 24 }: { name: 'tree' | 'wallet' | 'pots' | 'pico'; color: string; size?: number }) {
+export function GardenNavIcon({ name, color, size = 24 }: { name: 'home' | 'wallet' | 'target' | 'pico'; color: string; size?: number }) {
   if (name === 'pico') return <Pico avatar size={size + 2} />;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      {name === 'tree' ? (<><Path d="M12 21v-6" /><Path d="M12 15c-4 0-7-2.5-7-6a7 7 0 0 1 14 0c0 3.5-3 6-7 6z" /></>) : null}
+      {name === 'home' ? <Path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /> : null}
       {name === 'wallet' ? (<><Rect x={2} y={6} width={20} height={14} rx={4} /><Path d="M16 13h2M2 10h20" /></>) : null}
-      {name === 'pots' ? (<><Path d="M6 14h12l-1.5 7h-9z" /><Path d="M12 14V8" /><Circle cx={12} cy={6} r={2.5} /><Path d="M12 10c-3 0-4-2-4-3 2 0 4 1 4 3zM12 10c3 0 4-2 4-3-2 0-4 1-4 3z" /></>) : null}
+      {name === 'target' ? (<><Circle cx={12} cy={12} r={9} /><Circle cx={12} cy={12} r={5} /><Circle cx={12} cy={12} r={1.5} /></>) : null}
     </Svg>
   );
 }
@@ -65,7 +65,7 @@ export default function GardenTabBar({ state, navigation }: any) {
   const [addOpen, setAddOpen] = useState(false);
   const current = state.routes[state.index]?.name;
 
-  const tab = (route: GardenTabRoute, label: string, icon: 'tree' | 'wallet' | 'pots' | 'pico') => {
+  const tab = (route: GardenTabRoute, label: string, icon: 'home' | 'wallet' | 'target' | 'pico') => {
     const on = current === route;
     const pending = pendingByRoute[route] ?? 0;
     const color = on ? GARDEN_COLORS.ink : GARDEN_COLORS.muted;
@@ -84,14 +84,14 @@ export default function GardenTabBar({ state, navigation }: any) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: GARDEN_COLORS.card, borderTopWidth: 1, borderTopColor: GARDEN_COLORS.line, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 10), paddingHorizontal: 6 }}>
       {tab('argent', TABS.money, 'wallet')}
-      {tab('projets', TABS.projects, 'pots')}
+      {tab('projets', TABS.projects, 'target')}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Pressable onPress={() => setAddOpen(true)} accessibilityRole="button" accessibilityLabel={TABS.add}
           style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, backgroundColor: pressed ? GARDEN_COLORS.primaryPressed : GARDEN_COLORS.primary, alignItems: 'center', justifyContent: 'center', marginTop: -18, shadowColor: '#26784A', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 6 })}>
           <Svg width={26} height={26} viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" stroke="#FFFFFF" strokeWidth={2.6} strokeLinecap="round" /></Svg>
         </Pressable>
       </View>
-      {tab('jardin', TABS.garden, 'tree')}
+      {tab('jardin', TABS.garden, 'home')}
       {tab('pepin', TABS.pico, 'pico')}
       <GardenAddSheet visible={addOpen} onClose={() => setAddOpen(false)} />
     </View>

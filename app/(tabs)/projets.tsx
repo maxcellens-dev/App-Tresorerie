@@ -17,11 +17,11 @@ import GardenPage, { GardenGrid, GardenWaiting } from '../../components/garden/G
 import GardenText from '../../components/garden/GardenText';
 import GardenCard from '../../components/garden/GardenCard';
 import GardenButton from '../../components/garden/GardenButton';
-import GardenBar from '../../components/garden/GardenBar';
 import GardenSegmented from '../../components/garden/GardenSegmented';
 import GardenSheet from '../../components/garden/GardenSheet';
 import PicoBubble from '../../components/garden/PicoBubble';
 import GardenIcon from '../../components/garden/GardenIcon';
+import ProjectJar from '../../components/project/ProjectJar';
 import { GardenRowGroup } from '../../components/garden/GardenList';
 import { GARDEN_ICONS } from '../../lib/garden/icons';
 import CurrencyPicker from '../../components/account/CurrencyPicker';
@@ -141,15 +141,19 @@ export default function ProjetsScreen() {
         ) : <GardenGrid cols={3}>{mine.map((p) => {
           const pct = progressById[p.id] ?? 0;
           return (
-            <GardenCard key={p.id} onPress={() => go(`/(tabs)/projects/add?id=${p.id}`)} accessibilityLabel={`${p.name}, ${Math.round(pct)} %`}>
+            <GardenCard key={p.id} onPress={() => go(`/(tabs)/projects/add?id=${p.id}`)} accessibilityLabel={`${p.name}, ${Math.round(pct)} %`} tint={pct >= 100 ? G.rootsBg : undefined}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: GARDEN_SPACE.md }}>
+              {/* Le bocal se remplit avec l'avancement, doré une fois l'objectif atteint */}
+              <ProjectJar pct={pct} size={52} />
+              <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: GARDEN_SPACE.sm }}>
                 <GardenText variant="bodyStrong" style={{ flex: 1 }} numberOfLines={1}>{p.name}</GardenText>
-                <GardenText variant="smallStrong" tabular>{Math.round(pct)} %</GardenText>
+                <GardenText variant="smallStrong" tabular color={pct >= 100 ? G.rootsText : G.primary}>{pct >= 100 ? 'Atteint' : `${Math.round(pct)} %`}</GardenText>
               </View>
-              <GardenBar value={pct / 100} fill={G.flowers} track={G.flowersBg} accessibilityLabel={`${p.name} : ${Math.round(pct)} %`} />
               <GardenText variant="small" color={G.inkSoft}>
                 Objectif {eur(p.target_amount)}{p.monthly_allocation ? ` · ${eur(p.monthly_allocation)}/mois` : ''}{p.target_date ? ` · ${new Date(`${String(p.target_date).slice(0, 10)}T00:00:00`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` : ''}{p.mode && MODE_LABEL[p.mode] ? ` · ${MODE_LABEL[p.mode]}` : ''}{p.status === 'on_hold' ? ' · en pause' : p.status === 'completed' ? ' · atteint' : ''}
               </GardenText>
+              </View>
             </GardenCard>
           );
         })}</GardenGrid>
@@ -174,7 +178,7 @@ export default function ProjetsScreen() {
       {/* Choix du type de projet */}
       <GardenSheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="À quoi servent les projets ?" subtitle="mettre de côté pour un objectif"
         footer={<GardenButton label="J'ai compris" onPress={() => setInfoOpen(false)} />}>
-        <GardenText variant="body" color={G.inkSoft}>Un projet, c'est un objectif d'argent (une voiture, un voyage, des cours de piano…) que l'app suit pour toi. Chaque projet est une plante en pot, qui fleurit quand l'objectif est atteint.</GardenText>
+        <GardenText variant="body" color={G.inkSoft}>Un projet, c'est un objectif d'argent (une voiture, un voyage, des cours de piano…) que l'app suit pour toi. Chaque projet est un bocal qui se remplit au fil des mois, jusqu'à l'objectif.</GardenText>
         <GardenRowGroup title="Ce que l'app fait pour toi" rows={[
           { key: 'save', label: 'Mettre de côté', sub: 'elle prépare des virements vers ton épargne ou tes placements', icon: GARDEN_ICONS.roots.icon, iconColor: GARDEN_ICONS.roots.fg, iconBg: GARDEN_ICONS.roots.bg },
           { key: 'keep', label: 'Conserver pour plus tard', sub: "l'argent ne bouge pas : il est juste réservé sur ton compte", icon: GARDEN_ICONS.setAside.icon, iconColor: GARDEN_ICONS.setAside.fg, iconBg: GARDEN_ICONS.setAside.bg },

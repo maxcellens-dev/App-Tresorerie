@@ -39,18 +39,20 @@ import { todayISO } from '../../lib/dateUtils';
 import BudgetInlineBlock from '../budget/BudgetInlineBlock';
 import AdSlot from '../marketing/AdSlot';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
+import { GARDEN_COLORS as G } from '../../lib/garden/theme';
+import Pico from '../garden/Pico';
 
 /**
  * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
- * passerait dans le rouge) — ce n'est PAS un jugement de l'état des lieux, qui lui n'a plus ni
- * statut ni couleur. Clés SÉMANTIQUES du thème uniquement → suit le Style Editor.
+ * passerait sous zéro) — ce n'est PAS un jugement de l'état des lieux, qui lui n'a plus ni statut
+ * ni couleur. Couleurs du thème de l'app (GARDEN_COLORS) : jamais de rouge d'alarme.
  */
-function toneColor(COLORS: AppColors, tone: PulseTone): string {
-  const key = tone === 'positive' ? 'green'
-    : tone === 'caution' ? 'orange'
-    : tone === 'negative' ? 'danger'
-    : 'blue';
-  return COLORS[key] ?? COLORS.textSecondary;
+function toneColor(_COLORS: AppColors, tone: PulseTone): string {
+  return tone === 'positive' ? G.branchesText : tone === 'caution' ? G.noticeText : tone === 'negative' ? G.fruitsText : G.waterText;
+}
+/** Fond doux assorti à la teinte (lisible en clair comme en sombre). */
+function toneBg(tone: PulseTone): string {
+  return tone === 'positive' ? G.branchesBg : tone === 'caution' ? G.notice : tone === 'negative' ? G.fruitsBg : G.waterBg;
 }
 
 /** Instantané du Pouls juste avant la saisie (pour mesurer ce qui a bougé). */
@@ -315,9 +317,10 @@ export default function PulseDeltaHost() {
         ]}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>C’est enregistré 🧭</Text>
+          <Pico avatar size={36} mood="joy" />
+          <Text style={styles.title}>C’est enregistré</Text>
           <Pressable onPress={dismiss} hitSlop={14} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
-            <Ionicons name="close" size={19} color={COLORS.textSecondary} />
+            <Ionicons name="close" size={19} color={G.muted} />
           </Pressable>
         </View>
 
@@ -325,7 +328,7 @@ export default function PulseDeltaHost() {
           {feedback.chips.map((chip) => {
             const color = toneColor(COLORS, chip.tone);
             return (
-              <View key={chip.key} style={[styles.chip, { backgroundColor: color + '1F', borderColor: color + '55' }]}>
+              <View key={chip.key} style={[styles.chip, { backgroundColor: toneBg(chip.tone) }]}>
                 <Text style={[styles.chipText, { color }]}>{chip.text}</Text>
               </View>
             );
@@ -347,21 +350,22 @@ export default function PulseDeltaHost() {
              En dépassement, c'est donc le DÉPASSEMENT qui prend la tête ; le détail « combien
              dépensé sur combien de prévu » descend en second, où il documente le chiffre. */
           const over = !env.absorbed && env.monthOverflow > 0;
-          const color = over || env.overflow > 0 ? toneColor(COLORS, 'caution') : toneColor(COLORS, 'positive');
+          const envTone: PulseTone = over || env.overflow > 0 ? 'caution' : 'positive';
+          const color = toneColor(COLORS, envTone);
           // Jauge PLEINE en dépassement : une barre vide à côté de « dépassé de 1 438 € » se lit
           // comme « il ne s'est rien passé », alors que l'enveloppe est au contraire saturée.
           const pct = over ? 1 : Math.max(0, Math.min(1, env.remaining / Math.max(1, env.initial)));
           return (
-            <View style={[styles.env, { borderColor: color + '55', backgroundColor: color + '14' }]}>
+            <View style={[styles.env, { backgroundColor: toneBg(envTone) }]}>
               <Text style={styles.envText}>
                 {over ? (
                   <>
-                    🛒 Dépenses variables <Text style={[styles.envValue, { color }]}>dépassé de {eurSigned(env.monthOverflow, false)}</Text>
+                    Dépenses variables <Text style={[styles.envValue, { color }]}>dépassé de {eurSigned(env.monthOverflow, false)}</Text>
                     {' '}ce mois-ci
                   </>
                 ) : (
                   <>
-                    🛒 Dépenses variables : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
+                    Dépenses variables : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
                     {' '}restants ce mois sur {eurSigned(env.initial, false)}
                   </>
                 )}
@@ -396,11 +400,11 @@ export default function PulseDeltaHost() {
           const color = toneColor(COLORS, tone);
           const moved = Math.round(eom.delta) !== 0;
           return (
-            <View style={[styles.eom, { borderColor: color + '55', backgroundColor: color + '14' }]}>
+            <View style={[styles.eom, { backgroundColor: toneBg(tone) }]}>
               {/* Une PHRASE, pas deux colonnes de chiffres : on dit ce que le solde sera, quand, et
                   sur quoi (les comptes COURANTS — l'épargne n'est pas dedans). */}
               <Text style={styles.eomText}>
-                🗓️ {firstOfNextMonthLabel()}, tu devrais avoir{' '}
+                {firstOfNextMonthLabel()}, tu devrais avoir{' '}
                 <Text style={[styles.eomValue, { color }]}>{eurSigned(eom.amount, false)}</Text>
                 {' '}sur tes comptes courants
                 {moved
@@ -462,8 +466,8 @@ function makeBaseStyles(c: AppColors) {
     center: { position: 'absolute', left: 12, right: 12, alignItems: 'center' },
     card: {
       width: '100%', maxWidth: 560,
-      backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
-      borderRadius: 20, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10,
+      backgroundColor: G.card, borderWidth: 1, borderColor: G.line,
+      borderRadius: 24, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 10,
       ...Platform.select({
         ios: { shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
         android: { elevation: 12 },
@@ -471,29 +475,27 @@ function makeBaseStyles(c: AppColors) {
       }),
     },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-    title: { fontFamily: GF.bodyHeavy, flex: 1, fontSize: 15, fontWeight: 'normal', color: c.text },
+    title: { fontFamily: GF.display, flex: 1, fontSize: 19, fontWeight: 'normal', color: G.ink },
     closeBtn: { padding: 2, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+    chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     chipText: { fontFamily: GF.bodyHeavy, fontSize: 12.5, fontWeight: 'normal' },
 
     /* Ligne « Fin de mois » : une seule ligne, pas une carte — elle complète les pastilles sans
        rallonger la confirmation. */
-    eom: {
-      borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10,
-    },
+    eom: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 },
     /* Ligne « Dépenses variables » : le chiffre qu'une dépense variable déplace RÉELLEMENT. */
-    env: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10 },
-    envText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, lineHeight: 18 },
+    env: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 },
+    envText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: G.inkSoft, lineHeight: 19 },
     envValue: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal' },
-    envTrack: { height: 5, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8, overflow: 'hidden' },
+    envTrack: { height: 6, borderRadius: 999, backgroundColor: G.track, marginTop: 8, overflow: 'hidden' },
     envFill: { height: '100%', borderRadius: 999 },
-    envHint: { fontFamily: GF.body, fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 6 },
+    envHint: { fontFamily: GF.body, fontSize: 12, color: G.muted, lineHeight: 16, marginTop: 6 },
 
-    eomText: { fontFamily: GF.bodyBold, fontSize: 12.5, fontWeight: 'normal', color: c.textSecondary, lineHeight: 18 },
+    eomText: { fontFamily: GF.bodyBold, fontSize: 13, fontWeight: 'normal', color: G.inkSoft, lineHeight: 19 },
     eomValue: { fontFamily: GF.bodyHeavy, fontSize: 14, fontWeight: 'normal' },
-    eomDelta: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: c.textSecondary },
-    hint: { fontFamily: GF.body, fontSize: 10.5, color: c.textSecondary, marginTop: 14, textAlign: 'center' },
-    grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8 },
+    eomDelta: { fontFamily: GF.bodyBold, fontSize: 12, fontWeight: 'normal', color: G.muted },
+    hint: { fontFamily: GF.body, fontSize: 11, color: G.muted, marginTop: 14, textAlign: 'center' },
+    grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 999, backgroundColor: G.track, marginTop: 8 },
   });
 }

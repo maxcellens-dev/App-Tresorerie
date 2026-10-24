@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 /**
  * Liste groupée du Jardin : UNE carte par groupe, des lignes séparées par un filet. C'est la forme
  * des menus et réglages — une carte par ligne éparpillait l'écran et multipliait les « boutons ».
@@ -79,6 +80,8 @@ export interface GardenRow {
   bg?: string;
   /** Montant en retrait (gris, sans gras) : un compte qui n'entre pas dans ton total. */
   valueMuted?: boolean;
+  /** À droite, À LA PLACE du montant et de la flèche (ex. les flèches de « Réorganiser »). */
+  right?: ReactNode;
 }
 
 /**
@@ -105,8 +108,10 @@ export function GardenRowGroup({ title, titleColor, total, rows }: { title?: str
                 <GardenText variant="bodyStrong" numberOfLines={1} style={r.italic ? { fontStyle: 'italic' } : undefined}>{r.label}</GardenText>
                 {r.sub ? <GardenText variant="small" color={GARDEN_COLORS.muted} numberOfLines={1}>{r.sub}</GardenText> : null}
               </View>
+              {r.right ?? (<>
               {r.value ? <GardenText variant={r.valueMuted ? "body" : "bodyStrong"} tabular color={r.valueMuted ? GARDEN_COLORS.muted : undefined}>{r.value}</GardenText> : null}
               {r.onPress ? <Ionicons name="chevron-forward" size={16} color={GARDEN_COLORS.muted} /> : null}
+              </>)}
             </>
           );
           const base = [{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: GARDEN_SPACE.md, minHeight: 56, paddingHorizontal: GARDEN_SPACE.lg, paddingVertical: 10 }, i > 0 ? { borderTopWidth: 1, borderTopColor: GARDEN_COLORS.line } : null, r.bg ? { backgroundColor: r.bg } : null];

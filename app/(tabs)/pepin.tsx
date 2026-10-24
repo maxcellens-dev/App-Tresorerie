@@ -12,6 +12,7 @@ import GardenButton from '../../components/garden/GardenButton';
 import GardenSegmented from '../../components/garden/GardenSegmented';
 import PicoBubble from '../../components/garden/PicoBubble';
 import PicoRemark from '../../components/garden/PicoRemark';
+import GardenTip from '../../components/garden/GardenTip';
 import AskPepin from '../../components/ai/AskPepin';
 import AdSlot from '../../components/marketing/AdSlot';
 import { View } from 'react-native';
@@ -39,7 +40,10 @@ export default function PepinScreen() {
      Relyka » ou « Réserver » ne renvoyaient à rien. Deux remèdes : le Relyka et sa répartition sont
      rappelés en tête, et chaque remarque sur une décision porte le geste du Jardin et son montant. */
   const amountOf = (t: string) => choices.find((c) => c.type === t)?.amount ?? 0;
-  const messages = [...(core.vm.relykaMessages ?? []), ...(core.vm.recoMessages ?? [])].filter((m) => m.text).map((m) => {
+  /* Les remarques qui expliquent une reco du plan sont DÉPLIABLES sous cette reco, sur l'accueil :
+     ici, seulement celles qui n'y figurent pas (Relyka, point bas, budget, reco absente du plan). */
+  const inPlan = new Set(choices.filter((c) => c.amount > 0).map((c) => c.type as string));
+  const messages = [...(core.vm.relykaMessages ?? []), ...(core.vm.recoMessages ?? [])].filter((m) => m.text && !(m.recoType && inPlan.has(m.recoType))).map((m) => {
     if (!m.recoType || !CHOICE_LOOKS[m.recoType]) return m;
     const amt = amountOf(m.recoType);
     return { ...m, label: amt > 0 ? `${CHOICE_LOOKS[m.recoType].verb} · ${eur(amt)}` : CHOICE_LOOKS[m.recoType].verb };
@@ -65,10 +69,12 @@ export default function PepinScreen() {
       {!core.ready ? <GardenWaiting message="Pépin regarde tes comptes…" /> : (
         <PicoBubble mood={messages.length ? 'joy' : 'happy'}>
           {messages.length
-            ? `J'ai regardé ${WORDS.relyka.charAt(0).toLowerCase() + WORDS.relyka.slice(1)} et voici ce que je te propose d'en faire : ${messages.length} remarque${messages.length > 1 ? 's' : ''} pour toi.`
+            ? `J'ai regardé tes comptes : ${messages.length} remarque${messages.length > 1 ? 's' : ''} pour toi, en plus de mon plan sur l'accueil.`
             : "Rien de particulier pour l'instant : tout suit son cours."}
         </PicoBubble>
       )}
+      {/* Le conseil du jour, dit par Pépin (toujours affiché) */}
+      {core.ready ? <GardenTip core={core} /> : null}
       {core.ready ? (
         <GardenCard tint={G.waterBg}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: GARDEN_SPACE.md }}>

@@ -16,10 +16,9 @@ import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
-import GardenPage, { GardenColumns } from '../../../components/garden/GardenPage';
+import GardenPage from '../../../components/garden/GardenPage';
 import GardenText from '../../../components/garden/GardenText';
 import GardenCard from '../../../components/garden/GardenCard';
-import GardenScene from '../../../components/garden/GardenScene';
 import GardenButton from '../../../components/garden/GardenButton';
 import GardenBar from '../../../components/garden/GardenBar';
 import GardenIcon from '../../../components/garden/GardenIcon';
@@ -44,7 +43,7 @@ export default function DemarrerScreen() {
   const router = useRouter();
   const goBack = useNavBack();
   const guide = useGuide();
-  const { core, tree } = useGardenModel();
+  const { core } = useGardenModel();
   const { vm, profile } = core;
   const accounts = core.accountsPerso as any[];
   const [sheet, setSheet] = useState<'estimate' | 'margin' | null>(null);
@@ -75,7 +74,7 @@ export default function DemarrerScreen() {
       footer={finished
         ? <GardenButton label="Voir mon accueil" onPress={() => router.navigate('/(tabs)/jardin' as any)} />
         : <GardenButton label={current === 1 ? 'Ajouter mon épargne' : `Étape ${current + 1} : ${PLANTING_STEPS[current].title.toLowerCase()}`} onPress={() => open(current)} />}>
-      <GardenColumns left={<GardenScene state={tree} options={{ id: 'start', marks: false, mood: finished ? 'joy' : 'happy' }} />} right={<>
+      <View style={{ gap: GARDEN_SPACE.md }}>
         <View style={{ gap: 6 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <GardenText variant="label" color={G.branchesText}>{finished ? 'C’est prêt' : 'Ton installation'}</GardenText>
@@ -109,7 +108,7 @@ export default function DemarrerScreen() {
 
         {/* L'épargne est facultative : on peut la passer d'un geste, sans créer de compte vide. */}
         {current === 1 ? <GardenButton label="Je n'ai pas d'épargne pour l'instant" variant="secondary" onPress={() => guide.done('g2_nudge_savings')} /> : null}
-      </>} />
+      </View>
 
       <EstimateSheet visible={sheet === 'estimate'} onClose={() => setSheet(null)} userId={core.userId} onSaved={() => guide.done('g2_variable')} />
       <MarginSheet visible={sheet === 'margin'} onClose={() => setSheet(null)} userId={core.userId} onSaved={() => guide.done('g2_margin')} />

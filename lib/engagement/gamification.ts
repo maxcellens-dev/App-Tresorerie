@@ -59,7 +59,7 @@ export interface BadgeDef {
 export interface GamificationIdentity {
   enabled: boolean;
   currencyName: string;   // ex. « Gemmes de Relyka »
-  currencyIcon: string;   // plus lu par l'app (la monnaie = la noisette 3D) ; gardé pour les configs stockées
+  currencyIcon: string;   // plus lu par l'app (la monnaie = la pièce Relyk) ; gardé pour les configs stockées
   streakIcon: string;     // emoji ou Ionicons ou URL
   streakLabel: string;    // ex. « Série »
 }
@@ -85,10 +85,10 @@ export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   cosmetiques: 'Cosmétiques',
   titres: 'Titres de profil',
   premium: 'Exclusif Premium',
-  gems: 'Recharger en noisettes',
+  gems: 'Recharger en relyks',
 };
 /** Ordre d'affichage des catégories dans la boutique. */
-export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'jardin', 'garde_robe', 'saisons', 'apparence', 'cosmetiques', 'premium', 'gems'];
+export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'garde_robe', 'apparence', 'cosmetiques', 'premium', 'gems'];
 
 /** Icône représentative par catégorie (pour les filtres de la boutique). */
 export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
@@ -100,7 +100,7 @@ export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
   cosmetiques: 'sparkles-outline',
   titres: 'ribbon-outline',
   premium: 'star',
-  gems: 'leaf-outline',
+  gems: 'cash-outline',
 };
 
 /* ⚠️ `ACCENT_PACK_COLORS` (7 teintes en dur) a été RETIRÉ : rien ne s'en servait, et il laissait
@@ -278,7 +278,7 @@ export interface GamificationConfig {
 export const DEFAULT_GAMIFICATION: GamificationConfig = {
   identity: {
     enabled: true,
-    currencyName: 'Noisette', // forme SINGULIÈRE — le « s » du pluriel est ajouté à l'affichage
+    currencyName: 'Relyk', // forme SINGULIÈRE (féminin : « une relyk ») — le « s » du pluriel est ajouté à l'affichage
     currencyIcon: 'diamond',
     streakIcon: '🔥',
     streakLabel: 'Série',
@@ -318,16 +318,16 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'invest_1', category: 'Action', metric: 'invest_followed', label: 'Premier fruit', description: 'Suis une recommandation d’investir.', icon: 'trending-up', threshold: 1, gems: 40 },
     { key: 'invest_5', category: 'Action', metric: 'invest_followed', label: 'Investisseur', description: 'Suis 5 recommandations d’investir.', icon: 'trending-up', threshold: 5, gems: 200 },
     // ── Collection (relyks cumulés) ──
-    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 noisettes.', icon: 'leaf', threshold: 100, gems: 0 },
-    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 noisettes.', icon: 'leaf', threshold: 500, gems: 0 },
-    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 noisettes.', icon: 'leaf', threshold: 2000, gems: 0 },
+    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 relyks.', icon: 'leaf', threshold: 100, gems: 0 },
+    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 relyks.', icon: 'leaf', threshold: 500, gems: 0 },
+    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 relyks.', icon: 'leaf', threshold: 2000, gems: 0 },
     // ── Profil & Découverte ──
     { key: 'profil_photo', category: 'Profil', metric: 'profile_photo', label: 'Mon plus beau profil', description: 'Ajoute une photo de profil.', icon: 'camera', threshold: 1, gems: 20 },
     { key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done', label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».', icon: 'compass', threshold: 1, gems: 50 },
   ],
   shop: [
     // ── Gratuit ──
-    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 noisettes offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
+    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 relyks offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
     /* ── Décor du jardin : visible autour de ton arbre, à équiper dans Apparence ── */
     { key: 'garden_mushrooms', type: 'cosmetic', category: 'jardin', label: 'Champignons', description: 'Deux champignons au pied de l’arrosoir.', price: 60, icon: 'garden:mushrooms' },
     { key: 'garden_lantern', type: 'cosmetic', category: 'jardin', label: 'Lanterne', description: 'Une lanterne qui brille dans ton arbre.', price: 80, icon: 'garden:lantern' },
@@ -394,28 +394,27 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'cosmetic_title_visionnaire', type: 'cosmetic', category: 'premium', label: 'Titre « Visionnaire »', description: 'Un titre exclusif réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     { key: 'cosmetic_title_elite', type: 'cosmetic', category: 'premium', label: 'Titre « Élite »', description: 'Le titre le plus prestigieux, réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     // ── Recharger en gemmes (argent réel via le store) ──
-    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 noisettes', description: 'Recharge instantanée.', price: 0, icon: 'leaf', payload: { gems: 100, productId: '100_relyks' } },
-    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 noisettes', description: 'Le pack le plus populaire.', price: 0, icon: 'leaf', payload: { gems: 500, productId: '500_relyks' } },
-    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 noisettes', description: 'Le meilleur rapport.', price: 0, icon: 'leaf', payload: { gems: 1000, productId: '1000_relyks' } },
+    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'leaf', payload: { gems: 100, productId: '100_relyks' } },
+    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'leaf', payload: { gems: 500, productId: '500_relyks' } },
+    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 relyks', description: 'Le meilleur rapport.', price: 0, icon: 'leaf', payload: { gems: 1000, productId: '1000_relyks' } },
   ],
 };
 
 /** Anciens noms de la monnaie (seuls, au singulier ou au pluriel). */
-const LEGACY_CURRENCY = /^\s*(graines?|relyks?|gemmes?|gemmes de relyka)\s*$/i;
+const LEGACY_CURRENCY = /^\s*(graines?|noisettes?|gemmes?|gemmes de relyka)\s*$/i;
 /** Textes de succès enregistrés en base qui citent encore l'ancienne monnaie. */
-/* « Relyks » s'écrivait avec une majuscule, comme un nom propre : « noisettes » n'en prend qu'en
-   début de texte. */
-/* « Relyk » était MASCULIN, « noisette » est féminin : l'adjectif qui suit s'accorde (« 5 relyks
-   offerts » → « 5 noisettes offertes »). */
+/* La monnaie redevient la « relyk » (après la graine, puis la noisette), désormais FÉMININE :
+   l'adjectif qui suit s'accorde (« 5 relyks offerts » → « 5 relyks offertes »). Majuscule
+   seulement en début de texte. */
 const FEM: Record<string, string> = { offert: 'offerte', offerts: 'offertes', gagné: 'gagnée', gagnés: 'gagnées', crédité: 'créditée', crédités: 'créditées', cumulé: 'cumulée', cumulés: 'cumulées', reçu: 'reçue', reçus: 'reçues', dépensé: 'dépensée', dépensés: 'dépensées', bonus: 'bonus' };
 const legacyText = (s?: string) => s
-  ?.replace(/\b(graine|relyk|gemme)(s?)\b/gi, (_m, _w, plural: string, at: number) => `${at === 0 ? 'N' : 'n'}oisette${plural}`)
-  .replace(/\b(noisettes?) (offerts?|gagnés?|crédités?|cumulés?|reçus?|dépensés?)(?![\p{L}])/giu, (_m, n: string, adj: string) => `${n} ${FEM[adj.toLowerCase()] ?? adj}`);
+  ?.replace(/\b(graine|noisette|gemme)(s?)\b/gi, (_m, _w, plural: string, at: number) => `${at === 0 ? 'R' : 'r'}elyk${plural}`)
+  .replace(/\b(relyks?) (offerts?|gagnés?|crédités?|cumulés?|reçus?|dépensés?)(?![\p{L}])/giu, (_m, n: string, adj: string) => `${n} ${FEM[adj.toLowerCase()] ?? adj}`);
 
 /** Fusionne la config stockée avec les valeurs par défaut. */
 export function mergeGamificationConfig(stored: Partial<GamificationConfig> | undefined): GamificationConfig {
   if (!stored) return DEFAULT_GAMIFICATION;
-  /* Nom de monnaie enregistré en admin avant le passage aux noisettes (graine, relyk, gemme) : c'est
+  /* Nom de monnaie enregistré en admin avant le retour aux relyks (graine, noisette, gemme) : c'est
      l'ancien défaut gelé en base, pas un choix — on reprend le défaut du code. Un AUTRE nom saisi en
      admin reste prioritaire. */
   const identity = { ...DEFAULT_GAMIFICATION.identity, ...(stored.identity ?? {}) };
@@ -439,6 +438,9 @@ const DEPRECATED_SHOP_KEYS = new Set<string>([
      anneaux du tronc), et les titres de profil sont retirés. Ceux qui les ont achetés les GARDENT
      (inventaire intact, toujours équipables dans Apparence) : on arrête seulement de les vendre. */
   ...Object.entries(COSMETIC_DEFS).filter(([, d]) => d.slot === 'streak_flame' || d.slot === 'title').map(([k]) => k),
+  /* Plus vendus depuis la sortie du Jardin : décors et saisons de la scène. La boutique ne vend plus que
+     l'habillage de Pépin (et le profil). Ceux qui les ont achetés les gardent dans leur inventaire. */
+  ...Object.entries(COSMETIC_DEFS).filter(([, d]) => String(d.slot).startsWith('decor_') || d.slot === 'garden_season').map(([k]) => k),
 ]);
 
 /** Types d'articles retirés du code : un article personnalisé qui en porte un ne ferait plus rien. */
@@ -486,15 +488,15 @@ function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
   return [...usable, ...missing];
 }
 
-/** Forme plurielle du nom de la monnaie (« Noisette » → « Noisettes »). */
+/** Forme plurielle du nom de la monnaie (« Relyk » → « Relyks »). */
 export function currencyPlural(currencyName: string): string {
-  const name = currencyName || 'Noisette';
+  const name = currencyName || 'Relyk';
   return /s$/i.test(name) ? name : `${name}s`;
 }
 
-/** « 1 Noisette », « 50 Noisettes », « 0 Noisettes » — ajoute le « s » du pluriel. */
+/** « 1 Relyk », « 50 Relyks », « 0 Relyks » — ajoute le « s » du pluriel. */
 export function formatCurrency(n: number, currencyName: string): string {
-  const name = currencyName || 'Noisette';
+  const name = currencyName || 'Relyk';
   const singular = /s$/i.test(name) ? name.replace(/s$/i, '') : name;
   return `${n} ${Math.abs(n) === 1 ? singular : currencyPlural(name)}`;
 }

@@ -16,7 +16,7 @@ export const ADD_ACTIONS: { key: string; label: string; hint: string; route: str
   { key: 'income', label: 'Recette', hint: 'salaire, remboursement, vente…', route: '/(tabs)/transactions/add?type=income&origin=/(tabs)/jardin', color: GARDEN_COLORS.branches },
   { key: 'transfer', label: 'Virement', hint: 'entre tes comptes', route: '/(tabs)/transactions/add?type=transfer&origin=/(tabs)/jardin', color: GARDEN_COLORS.water },
   { key: 'recurring', label: 'Ce qui revient', hint: 'salaire, loyer, abonnements… prévus automatiquement', route: '/(tabs)/(secondary)/recurrentes', color: GARDEN_COLORS.primary },
-  { key: 'balance', label: 'Nouveau solde', hint: "corriger le solde d'un compte", route: '/(tabs)/comptes/solde', color: GARDEN_COLORS.roots },
+  { key: 'balance', label: 'Mettre à jour le solde de mes comptes', hint: "corriger le solde d'un compte", route: '/(tabs)/comptes/solde', color: GARDEN_COLORS.roots },
 ];
 
 export default function GardenAddSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {

@@ -42,7 +42,8 @@ import { addMonthKey, monthLabel } from '../../lib/finance/monthKeys';
 import { variableSpentByCategory } from '../../lib/finance/variableSpend';
 import { isMovementsCategory } from '../../lib/ui/defaultCategories';
 import { useBudgetContext } from '../../hooks/data/useBudgetData';
-import { useSetBudgets, type SetBudgetInput } from '../../hooks/data/useBudgets';
+import { useDeleteBudget, useSetBudgets, type SetBudgetInput } from '../../hooks/data/useBudgets';
+import { appConfirm } from '../../lib/ui/appDialog';
 import { effectiveBudget, monthKeyOf, yearKeyOf, type BudgetPeriod } from '../../lib/finance/budgetEngine';
 import { GARDEN_FONTS as GF } from '../../lib/garden/fontFamilies';
 
@@ -83,6 +84,7 @@ export default function BudgetEditScreen() {
 
   const ctx = useBudgetContext(user?.id);
   const setBudgets = useSetBudgets(user?.id);
+  const deleteBudget = useDeleteBudget(user?.id);
   const lock = useSubmitLock();
   const [busy, setBusy] = useState(false);
 
@@ -219,6 +221,18 @@ export default function BudgetEditScreen() {
     () => Object.values(drafts).filter((d) => (parseAmountInput(d.amount) ?? 0) > 0).length,
     [drafts],
   );
+
+  /** Supprime le budget d'une catégorie (toutes ses lignes), après confirmation. */
+  async function removeBudget(categoryId: string, name: string) {
+    const ok = await appConfirm({ title: `Supprimer le budget « ${name} » ?`, message: 'Il disparaît de tous les mois, passés compris.', confirmText: 'Supprimer', destructive: true });
+    if (!ok) return;
+    try {
+      await deleteBudget.mutateAsync(categoryId);
+      setDraft(categoryId, { amount: '', period: 'month' });
+    } catch (e: unknown) {
+      setError(describeWriteError(e));
+    }
+  }
 
   async function save() {
     if (!lock.acquire()) return;
@@ -378,6 +392,13 @@ export default function BudgetEditScreen() {
 
                           {/* La cadence n'apparaît qu'une fois un montant saisi : la proposer sur
                               quarante lignes vides, c'est quarante décisions à ne pas prendre. */}
+                          {/* Supprimer pour de bon (toutes périodes) : seulement pour un budget déjà enregistré. */}
+                          {(ctx.budgets ?? []).some((b) => b.category_id === r.id) && (
+                            <TouchableOpacity onPress={() => removeBudget(r.id, r.name)} accessibilityRole="button" accessibilityLabel={`Supprimer le budget ${r.name}`} hitSlop={8} style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4 }}>
+                              <Ionicons name="trash-outline" size={15} color={C.textSecondary} />
+                              <Text style={s.cadenceText}>Supprimer</Text>
+                            </TouchableOpacity>
+                          )}
                           {on && (
                             <View style={s.cadence}>
                               {(['month', 'year'] as BudgetPeriod[]).map((p) => (

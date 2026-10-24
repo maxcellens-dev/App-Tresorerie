@@ -3,18 +3,16 @@ import { shopArt } from '../../../lib/engagement/shopArt';
 import { applyTry, previewKind } from '../../../lib/engagement/shopPreview';
 import { pepinLayers } from '../../../lib/garden/scene3dLayout';
 import { SCENE3D_IMG } from '../../../lib/garden/scene3dAssets';
-import GardenScene from '../../../components/garden/GardenScene';
 import GardenSheet from '../../../components/garden/GardenSheet';
-import { HERO } from '../../../components/marketing/GardenLandingPage';
 import { useGardenCosmetics } from '../../../hooks/garden/useGardenCosmetics';
-import { useGardenModel } from '../../../hooks/garden/useGardenModel';
 /**
- * Boutique — dépense les noisettes gagnées. En haut le cadeau du jour, puis la VITRINE (ton jardin,
- * où l'on essaie un article avant de l'acheter), puis un RAYON par famille qui défile sur le côté.
+ * Boutique — dépense les relyks gagnées. En haut le cadeau du jour, puis la VITRINE (Pépin seul,
+ * sur un fond neutre, où l'on essaie un vêtement avant de l'acheter), puis un RAYON par famille qui
+ * défile sur le côté : l'habillage de Pépin, ton profil, le Premium.
  * Les recharges s'ouvrent depuis le solde.
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
-import NutIcon from '../../../components/gamification/NutIcon';
+import CurrencyIcon from '../../../components/gamification/CurrencyIcon';
 import { isGardenPalette as isGardenPaletteL } from '../../../lib/garden/gardenPalette';
 import { GARDEN_COLORS as GL } from '../../../lib/garden/theme';
 import { gFont, gCard, gLabel, withGarden } from '../../../lib/garden/legacyStyles';
@@ -85,19 +83,17 @@ function BoutiqueScreen() {
      (lien « Recharger » des Succès) l'ouvre directement. */
   const [gemsOpen, setGemsOpen] = useState(focus === 'gems');
   const [confirmItem, setConfirmItem] = useState<{ key: string; label: string; price: number } | null>(null);
-  /* ESSAYER AVANT D'ACHETER : l'article du Jardin touché s'affiche sur la scène, par-dessus ce qui
-     est déjà équipé (lib/engagement/shopPreview). Ton vrai arbre quand il est prêt, sinon l'arbre
-     d'exemple de la vitrine. */
+  /* ESSAYER AVANT D'ACHETER : le vêtement touché s'affiche sur Pépin, par-dessus ce qu'il porte
+     déjà (lib/engagement/shopPreview) ; un cadre s'essaie sur ton avatar. */
   const [tryKey, setTryKey] = useState<string | null>(null);
   const gardenLook = useGardenCosmetics();
-  const garden = useGardenModel();
 
   const gems = state?.gems ?? 0;
   const discountPct = config?.premium_discount_pct ?? 0;
   /* Prix final : la remise Premium, et rien d'autre. La « Sélection du mois » (2 articles tournants
      à −30 %) a été retirée — elle encombrait la page et faisait cohabiter deux prix par article. */
   const priceOf = (base: number) => shopFinalPrice(base, { isPremium, premiumPct: discountPct });
-  const currencyName = config?.identity.currencyName ?? 'Noisette';
+  const currencyName = config?.identity.currencyName ?? 'Relyk';
   // Libellé / description calculés pour les articles « monnaie » (toujours au nom courant + pluriel).
   const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
   const itemLabel = (item: ShopItem) => (item.type === 'gems_iap' ? formatCurrency(gemsOf(item), currencyName) : item.label);
@@ -141,9 +137,7 @@ function BoutiqueScreen() {
      petits rayons du profil (apparence, cadres, titres) sont réunis ; le cadeau du jour et les
      recharges ont leur propre place (en tête / depuis le solde). */
   const SHELVES: { key: string; title: string; cats: ShopCategory[] }[] = [
-    { key: 'jardin', title: SHOP_CATEGORY_LABELS.jardin, cats: ['jardin'] },
     { key: 'garde_robe', title: SHOP_CATEGORY_LABELS.garde_robe, cats: ['garde_robe'] },
-    { key: 'saisons', title: SHOP_CATEGORY_LABELS.saisons, cats: ['saisons'] },
     { key: 'profil', title: 'Ton profil', cats: ['apparence', 'cosmetiques', 'titres'] },
     { key: 'premium', title: SHOP_CATEGORY_LABELS.premium, cats: ['premium'] },
   ];
@@ -223,12 +217,9 @@ function BoutiqueScreen() {
     }
   };
 
-  /** Image d'un article : le vrai objet 3D du Jardin (décor), Pépin qui porte le vêtement, l'arbre
-   *  dans sa saison ; sinon l'image 3D de la boutique (flammes, trophée, noisettes) ou l'icône. */
+  /** Image d'un article : Pépin qui porte le vêtement ; sinon l'image de la boutique ou l'icône. */
   const itemArt = (item: ShopItem, size: number) => {
-    const def = COSMETIC_DEFS[item.key], kind = previewKind(item.key);
-    if (kind === 'decor') return <Image source={(SCENE3D_IMG as any)[`decor_${def.value}`]} style={{ width: size, height: size }} resizeMode="contain" />;
-    if (kind === 'season') return <Image source={(SCENE3D_IMG as any)[`tree_adult_${def.value}`]} style={{ width: size, height: size }} resizeMode="contain" />;
+    const kind = previewKind(item.key);
     if (kind === 'outfit') {
       const layers = pepinLayers('happy', applyTry({}, item.key).outfit);
       return (
@@ -294,7 +285,7 @@ function BoutiqueScreen() {
         <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canBuy ? COLORS.emerald : COLORS.cardBorder }]} onPress={() => canBuy && setConfirmItem({ key: item.key, label: item.label, price })} disabled={!canBuy} activeOpacity={0.85}>
           {busy ? <ActivityIndicator size="small" color="#fff" /> : (
             <>
-              <NutIcon size={13} mono={canBuy ? '#fff' : COLORS.textSecondary} />
+              <CurrencyIcon size={13} mono={canBuy ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.buyText, { color: canBuy ? '#fff' : COLORS.textSecondary }]}>{price}</Text>
             </>
           )}
@@ -309,6 +300,21 @@ function BoutiqueScreen() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
         <View style={styles.headerRow}>
+          {/* Premium, sur la même ligne que le solde (place gagnée en hauteur), en quelques mots. */}
+          {premiumEnabled && !gamificationOff ? (
+            isPremium ? (
+              <View style={styles.premiumChip}>
+                <Ionicons name="star" size={14} color={COLORS.emerald} />
+                <Text style={styles.premiumChipText} numberOfLines={1}>Premium : −{discountPct} %</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.premiumChip} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel={`Passer Premium : moins ${discountPct} % sur la boutique et zéro pub`}>
+                <Ionicons name="star-outline" size={14} color={COLORS.yellow} />
+                <Text style={styles.premiumChipText} numberOfLines={1}>−{discountPct} % avec Premium</Text>
+                <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )
+          ) : <View />}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {/* Admin uniquement : crédite 100 relyks pour tester les achats facilement. */}
             {isAdmin && (
@@ -320,12 +326,12 @@ function BoutiqueScreen() {
                   if (!submit.acquire()) return;
                   try {
                     const r = await creditGems(100);
-                    if (r.ok) say('+100 noisettes (admin)', 'ok');
+                    if (r.ok) say('+100 relyks (admin)', 'ok');
                     else say("Le crédit administrateur n'a pas pu être enregistré.", 'error');
                   } finally { submit.release(); }
                 }}
                 activeOpacity={0.85}
-                accessibilityLabel="Ajouter 100 noisettes (admin)"
+                accessibilityLabel="Ajouter 100 relyks (admin)"
               >
                 <Ionicons name="add" size={14} color="#fff" />
                 <Text style={styles.adminGemBtnText}>100</Text>
@@ -337,9 +343,9 @@ function BoutiqueScreen() {
               onPress={() => setGemsOpen(true)}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="Recharger en noisettes"
+              accessibilityLabel="Recharger en relyks"
             >
-              <NutIcon size={16} />
+              <CurrencyIcon size={16} />
               {/* Un solde inconnu n'est pas un solde à zéro : tant que la lecture n'a pas abouti,
                   afficher « 0 » laissait croire que tous les relyks avaient disparu. */}
               <Text style={styles.gemText}>{isReady ? gems : '…'}</Text>
@@ -351,7 +357,7 @@ function BoutiqueScreen() {
         {relykaTabEnabled && (
           <View style={styles.tabsRow}>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'app' && styles.tabBtnActive]} onPress={() => setTab('app')} activeOpacity={0.85}>
-              <NutIcon size={16} mono={activeTab === 'app' ? COLORS.emerald : COLORS.textSecondary} />
+              <CurrencyIcon size={16} mono={activeTab === 'app' ? COLORS.emerald : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'app' && styles.tabTextActive]}>App</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tabBtn, activeTab === 'relyka' && styles.tabBtnActive]} onPress={() => setTab('relyka')} activeOpacity={0.85}>
@@ -391,30 +397,14 @@ function BoutiqueScreen() {
               {isError && (
                 <View style={[styles.msgBox, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '14', marginBottom: 12 }]}>
                   <Ionicons name="cloud-offline-outline" size={15} color={COLORS.danger} />
-                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de noisettes n'a pas pu être lu : les achats sont indisponibles.</Text>
+                  <Text style={[styles.msg, { color: COLORS.danger }]}>Ton solde de relyks n'a pas pu être lu : les achats sont indisponibles.</Text>
                 </View>
-              )}
-
-              {/* Bandeau premium */}
-              {premiumEnabled && (
-                isPremium ? (
-                  <View style={[styles.premiumBanner, { borderColor: COLORS.emerald + '66' }]}>
-                    <Ionicons name="star" size={16} color={COLORS.emerald} />
-                    <Text style={styles.premiumText}>Premium actif — remise de {discountPct}% appliquée.</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity style={[styles.premiumBanner, { borderColor: COLORS.yellow + '66' }]} onPress={() => router.navigate('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
-                    <Ionicons name="star-outline" size={16} color={COLORS.yellow} />
-                    <Text style={styles.premiumText}>Passe Premium : −{discountPct}% sur la boutique + zéro pub.</Text>
-                    <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
-                  </TouchableOpacity>
-                )
               )}
 
               {/* Le cadeau du jour : en tête, seulement s'il existe (on le voit sans chercher). */}
               {dailyItem ? (
                 <View style={styles.dailyCard}>
-                  <NutIcon size={34} />
+                  <CurrencyIcon size={34} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemLabel}>{dailyItem.label}</Text>
                     <Text style={styles.itemDesc}>{itemDesc(dailyItem)}</Text>
@@ -423,12 +413,15 @@ function BoutiqueScreen() {
                 </View>
               ) : null}
 
-              {/* VITRINE : ton jardin, avec l'article essayé. Toucher un article du Jardin l'y pose. */}
+              {/* VITRINE : Pépin seul, sur un fond neutre, avec le vêtement essayé. */}
               <View style={styles.showcase}>
-                <GardenScene
-                  state={garden.core.ready ? garden.tree : HERO}
-                  options={{ ...applyTry(gardenLook, tryKey), mood: tried ? 'joy' : undefined, marks: false, label: tried ? `Essai : ${tried.label}` : 'Ton jardin' }}
-                />
+                <View style={styles.pepinStage}>
+                  <View style={{ width: 120, height: 120 }} accessible accessibilityRole="image" accessibilityLabel={tried ? `Pépin essaie : ${itemLabel(tried)}` : 'Pépin'}>
+                    {pepinLayers(tried ? 'joy' : 'happy', applyTry(gardenLook, tryKey).outfit).map((l) => (
+                      <Image key={l} source={SCENE3D_IMG[l]} style={{ position: 'absolute', width: 120, height: 120 }} resizeMode="contain" />
+                    ))}
+                  </View>
+                </View>
                 {/* Un cadre s'essaie sur TON avatar, posé devant la scène. */}
                 {tryKey && previewKind(tryKey) === 'frame' ? (
                   <View pointerEvents="none" style={styles.frameTry}>
@@ -441,7 +434,7 @@ function BoutiqueScreen() {
                 ) : null}
                 <View style={styles.showcaseBar}>
                   <Text style={styles.showcaseText} numberOfLines={2}>
-                    {tried ? `Essai : ${itemLabel(tried)}` : 'Touche un décor, un vêtement de Pépin, une saison ou un cadre pour l’essayer ici.'}
+                    {tried ? `Essai : ${itemLabel(tried)}` : 'Touche un vêtement de Pépin ou un cadre pour l’essayer ici.'}
                   </Text>
                   {tried ? (
                     <>
@@ -484,7 +477,7 @@ function BoutiqueScreen() {
                           onPress={() => (tryable ? setTryKey(isTried ? null : item.key) : undefined)}
                           activeOpacity={tryable ? 0.85 : 1}
                           accessibilityRole={tryable ? 'button' : undefined}
-                          accessibilityLabel={tryable ? `${itemLabel(item)} : l'essayer dans ton jardin` : itemLabel(item)}>
+                          accessibilityLabel={tryable ? `${itemLabel(item)} : l'essayer` : itemLabel(item)}>
                           <View style={styles.tileArt}>{itemArt(item, 70)}</View>
                           <Text style={styles.tileLabel} numberOfLines={2}>{itemLabel(item)}</Text>
                           {renderBuyButton(item)}
@@ -537,7 +530,7 @@ function BoutiqueScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Recharger en noisettes : ouvert depuis le solde (les packs ne sont plus un rayon). */}
+      {/* Recharger en relyks : ouvert depuis le solde (les packs ne sont plus un rayon). */}
       <GardenSheet visible={gemsOpen && !gamificationOff} onClose={() => setGemsOpen(false)} title={SHOP_CATEGORY_LABELS.gems} subtitle={`ton solde : ${isReady ? formatCurrency(gems, currencyName) : '…'}`}>
         {msg ? <Text style={[styles.msg, { color: msg.tone === 'ok' ? COLORS.emerald : COLORS.danger }]}>{msg.text}</Text> : null}
         <View style={styles.compactGrid}>
@@ -549,7 +542,7 @@ function BoutiqueScreen() {
             </View>
           ))}
         </View>
-        {!PURCHASES_SUPPORTED ? <Text style={styles.gemsNote}>Les achats de noisettes se font depuis l'application mobile Relyka.</Text> : null}
+        {!PURCHASES_SUPPORTED ? <Text style={styles.gemsNote}>Les achats de relyks se font depuis l'application mobile Relyka.</Text> : null}
       </GardenSheet>
 
       {/* Confirmation d'achat (évite les dépenses accidentelles en un clic) */}
@@ -560,7 +553,7 @@ function BoutiqueScreen() {
           <Pressable style={{ width: '100%', alignItems: 'center' }} onPress={() => {}}>
           <View style={styles.modalCard}>
             <View style={[styles.modalIcon, { backgroundColor: COLORS.blue + '22' }]}>
-              <NutIcon size={30} />
+              <CurrencyIcon size={30} />
             </View>
             <Text style={styles.modalTitle}>Confirmer l'achat</Text>
             <Text style={styles.modalText}>
@@ -605,7 +598,7 @@ function makeStyles(c: any) {
     sectionIntro: { ...base.sectionIntro, ...gFont('body'), color: GL.inkSoft },
     catHeader: { ...base.catHeader, ...gLabel },
     gemsNote: { ...base.gemsNote, ...gFont('body'), color: GL.muted },
-    premiumBanner: { ...base.premiumBanner, backgroundColor: GL.notice, borderWidth: 0, borderRadius: 20 },
+    premiumChip: { ...base.premiumChip, backgroundColor: GL.notice },
     premiumText: { ...base.premiumText, ...gFont('bodyBold'), color: GL.noticeText },
     card: { ...base.card, ...gCard, borderRadius: 20 },
     filterChip: { ...base.filterChip, borderRadius: 999, backgroundColor: GL.card, borderColor: GL.line },
@@ -665,7 +658,9 @@ function makeBaseStyles(c: any) {
     soonText: { fontFamily: GF.bodyHeavy, fontSize: 11, fontWeight: 'normal', color: c.textSecondary },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 60 },
-    premiumBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 },
+    premiumChip: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 999, backgroundColor: c.card },
+    premiumChipText: { fontFamily: GF.bodyBold, fontSize: 13, color: c.text, flexShrink: 1 },
+    pepinStage: { height: 150, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background },
     premiumText: { fontFamily: GF.bodyBold, flex: 1, fontSize: 12.5, color: c.text, fontWeight: 'normal' },
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     cardFrozen: { opacity: 0.6, borderStyle: 'dashed', borderColor: c.yellow + '55' },

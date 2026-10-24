@@ -8,7 +8,7 @@
  * migration → pas de célébration rétroactive.
  */
 import { gardenFormStyles } from '../../lib/garden/legacyStyles';
-import NutIcon from './NutIcon';
+import CurrencyIcon from './CurrencyIcon';
 import { successArt } from '../../lib/engagement/successArt';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
@@ -152,7 +152,7 @@ export default function AchievementCelebration() {
 
   if (!current) return null;
   const gems = current.gems ?? 0;
-  const currency = config?.identity.currencyName ?? 'Noisette';
+  const currency = config?.identity.currencyName ?? 'Relyk';
   const glowScale = glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] });
 
@@ -195,7 +195,7 @@ export default function AchievementCelebration() {
         {!!current.description && <Text style={styles.desc}>{current.description}</Text>}
         {gems > 0 && (
           <View style={styles.reward}>
-            <NutIcon size={16} />
+            <CurrencyIcon size={16} />
             <Text style={styles.rewardText}>+{formatCurrency(gems, currency)}</Text>
           </View>
         )}

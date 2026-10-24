@@ -14,6 +14,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useHeaderTitle } from '../../lib/garden/headerTitle';
 import { useGamification } from '../../hooks/engagement/useGamification';
 import GardenPill from './GardenPill';
+import GiftBadge from '../gamification/GiftBadge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import GardenText from './GardenText';
@@ -82,6 +83,8 @@ export default function GardenTopBar({ title, applyTopInset = true, main, greeti
             </Pressable>
           ) : null}
         </View>
+        {/* Cadeau du jour à réclamer : la pièce sautille juste avant la série, puis disparaît */}
+        <GiftBadge />
         {fontsReady ? (
           <Pressable onPress={() => router.push('/(tabs)/(secondary)/succes' as any)} accessibilityRole="button" accessibilityLabel={`Série : ${streak} semaines. Voir mes succès`} hitSlop={6} style={pointer}>
             <GardenPill label={greeting ? `Série : ${streak} sem.` : `${streak} sem.`} bg={GARDEN_COLORS.pico} color={GARDEN_COLORS.picoText} dot="#C9A57E" />
