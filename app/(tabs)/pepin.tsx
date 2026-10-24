@@ -66,15 +66,11 @@ export default function PepinScreen() {
   return (
     <GardenPage calculator="pepin">
       {tabs}
-      {!core.ready ? <GardenWaiting message="Pépin regarde tes comptes…" /> : (
-        <PicoBubble mood={messages.length ? 'joy' : 'happy'}>
-          {messages.length
-            ? `J'ai regardé tes comptes : ${messages.length} remarque${messages.length > 1 ? 's' : ''} pour toi, en plus de mon plan sur l'accueil.`
-            : "Rien de particulier pour l'instant : tout suit son cours."}
-        </PicoBubble>
-      )}
-      {/* Le conseil du jour, dit par Pépin (toujours affiché) */}
-      {core.ready ? <GardenTip core={core} /> : null}
+      {/* UNE seule bulle de Pépin en tête : son conseil du jour. La phrase d'accroche (« j'ai regardé
+          tes comptes : 2 remarques… ») ne faisait que compter les cartes juste en dessous : retirée.
+          Sans aucune remarque, Pépin le dit en une phrase. */}
+      {!core.ready ? <GardenWaiting message="Pépin regarde tes comptes…" /> : <GardenTip core={core} />}
+      {core.ready && !messages.length ? <PicoBubble mood="happy">Rien de particulier pour l'instant : tout suit son cours.</PicoBubble> : null}
       {core.ready ? (
         <GardenCard tint={G.waterBg}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: GARDEN_SPACE.md }}>
